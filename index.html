@@ -233,7 +233,9 @@
   .node.selected{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft), var(--shadow);}
   .node-head{display:flex; align-items:center; gap:6px; margin-bottom:3px;}
   .node-icon{flex:0 0 auto; opacity:.9;}
-  .node-title{font-size:11.5px; font-weight:700; letter-spacing:.01em;}
+  .node-title{font-size:11.5px; font-weight:700; letter-spacing:.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+  .node-head{min-width:0;}
+  .node-head .node-title{flex:1;}
   .node-sub{font-size:10.5px; color:var(--text-muted); line-height:1.35;}
   .node-tag{
     display:inline-block; margin-top:4px; font-size:9.5px; font-weight:600;
@@ -254,6 +256,27 @@
   }
   .ghost.dragover{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
   .ghost b{font-size:16px; line-height:1; font-weight:400;}
+  .ghost.slot-ghost{width:118px; min-height:48px;}
+
+  .mid-insert{
+    position:absolute; width:22px; height:22px; margin-left:-11px; margin-top:-11px;
+    border-radius:50%; border:1.5px dashed var(--border-strong);
+    background:var(--bg); color:var(--text-faint);
+    display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1;
+    cursor:pointer; opacity:.45; transition:opacity .12s ease, border-color .12s ease, color .12s ease;
+  }
+  .mid-insert:hover{opacity:1;}
+  .mid-insert.dragover{opacity:1; border-color:var(--accent); border-style:solid; color:var(--accent); background:var(--accent-soft);}
+
+  .branch-handle{
+    position:absolute; width:20px; height:20px; margin-left:-10px;
+    border-radius:6px; border:1.5px dashed var(--border-strong);
+    background:var(--surface); color:var(--text-faint);
+    display:flex; align-items:center; justify-content:center; font-size:13px; line-height:1;
+    cursor:pointer; opacity:.4; transition:opacity .12s ease, border-color .12s ease, color .12s ease;
+  }
+  .branch-handle:hover{opacity:1;}
+  .branch-handle.dragover{opacity:1; border-color:var(--accent); border-style:solid; color:var(--accent); background:var(--accent-soft);}
 
   .flow-label{
     position:absolute; font-size:9.5px; color:var(--text-faint); font-family:"IBM Plex Mono", monospace;
@@ -509,45 +532,52 @@
   let uid = 1;
   function nid(prefix){ return prefix+"-"+(uid++); }
 
+  // Cada nodo: {id, type, label, props, next:id|null, branches:[{headId:id|null, laneY, name?}]}
+  // network = {rootId, nodes:{id:node}, nextLaneY}
+  function mkNode(type, label, props){
+    const id = nid(type[0].toUpperCase());
+    return {id, type, label, props, next:null, branches:[]};
+  }
+
   function sampleNetwork(){
-    return {
-      pump: {id:nid("B"), type:"bomba", label:"Bomba B-1", props:{Q:25,H:32,Pot:5.5,NPSHd:4.2}},
-      trunk: [
-        {id:nid("T"), type:"tuberia", label:"Tubería T-1", props:{material:"acero", D:80, L:15, Q:25}},
-      ],
-      union: {id:nid("J"), type:"union", label:"Unión J-1", props:{}},
-      branches: [
-        {
-          id:"A", y:150, name:"Ramal A",
-          nodes:[
-            {id:nid("V"), type:"valvula", label:"Válvula V-1", props:{sub:"Compuerta", K:0.20, D:50, Q:15}},
-            {id:nid("T"), type:"tuberia", label:"Tubería T-2", props:{material:"pvc", D:50, L:8, Q:15}},
-            {id:nid("A"), type:"accesorio", label:"Codo C-1", props:{sub:"Codo 90°", K:0.90, D:50, Q:15}},
-            {id:nid("T"), type:"tuberia", label:"Tubería T-3", props:{material:"pvc", D:50, L:5, Q:15}},
-          ]
-        },
-        {
-          id:"B", y:400, name:"Ramal B",
-          nodes:[
-            {id:nid("T"), type:"tuberia", label:"Tubería T-4", props:{material:"acero", D:65, L:12, Q:10}},
-            {id:nid("V"), type:"valvula", label:"Válvula V-2", props:{sub:"Retención", K:2.50, D:65, Q:10}},
-          ]
-        }
-      ]
-    };
+    const nodes = {};
+    const add = n=>{ nodes[n.id]=n; return n; };
+
+    const pump = add(mkNode("bomba","Bomba B-1",{Q:25,H:32,Pot:5.5,NPSHd:4.2}));
+    const t1   = add(mkNode("tuberia","Tubería T-1",{material:"acero",D:80,L:15,Q:25}));
+    const j1   = add(mkNode("union","Unión J-1",{}));
+    pump.next = t1.id; t1.next = j1.id;
+
+    const v1 = add(mkNode("valvula","Válvula V-1",{sub:"Compuerta",K:0.20,D:50,Q:15}));
+    const t2 = add(mkNode("tuberia","Tubería T-2",{material:"pvc",D:50,L:8,Q:15}));
+    const c1 = add(mkNode("accesorio","Codo C-1",{sub:"Codo 90°",K:0.90,D:50,Q:15}));
+    const t3 = add(mkNode("tuberia","Tubería T-3",{material:"pvc",D:50,L:5,Q:15}));
+    v1.next=t2.id; t2.next=c1.id; c1.next=t3.id;
+
+    const t4 = add(mkNode("tuberia","Tubería T-4",{material:"acero",D:65,L:12,Q:10}));
+    const v2 = add(mkNode("valvula","Válvula V-2",{sub:"Retención",K:2.50,D:65,Q:10}));
+    t4.next = v2.id;
+
+    j1.branches = [
+      {headId:v1.id, laneY:150, name:"Ramal A"},
+      {headId:t4.id, laneY:400, name:"Ramal B"},
+    ];
+
+    return {rootId:pump.id, nodes, nextLaneY:540};
   }
 
   // proyecto nuevo: bomba + unión ya colocadas, ramales listos para arrastrar componentes
   function starterNetwork(){
-    return {
-      pump: {id:nid("B"), type:"bomba", label:"Bomba B-1", props:{Q:10,H:20,Pot:2.2,NPSHd:4.0}},
-      trunk: [],
-      union: {id:nid("J"), type:"union", label:"Unión J-1", props:{}},
-      branches: [
-        {id:"A", y:150, name:"Ramal A", nodes:[]},
-        {id:"B", y:400, name:"Ramal B", nodes:[]},
-      ]
-    };
+    const nodes = {};
+    const pump = mkNode("bomba","Bomba B-1",{Q:10,H:20,Pot:2.2,NPSHd:4.0});
+    const j1 = mkNode("union","Unión J-1",{});
+    pump.next = j1.id;
+    j1.branches = [
+      {headId:null, laneY:150, name:"Ramal A"},
+      {headId:null, laneY:400, name:"Ramal B"},
+    ];
+    nodes[pump.id]=pump; nodes[j1.id]=j1;
+    return {rootId:pump.id, nodes, nextLaneY:540};
   }
 
   function defaultProjects(){
@@ -564,7 +594,7 @@
 
   function loadState(){
     try{
-      const raw = localStorage.getItem("piping-bosquejo-proyectos");
+      const raw = localStorage.getItem("piping-bosquejo-proyectos-v2");
       if(!raw) return null;
       const parsed = JSON.parse(raw);
       if(!parsed || !Array.isArray(parsed.projects) || !parsed.projects.length) return null;
@@ -575,7 +605,7 @@
     }catch(e){ return null; }
   }
   function saveState(){
-    try{ localStorage.setItem("piping-bosquejo-proyectos", JSON.stringify({projects, currentProjectId})); }catch(e){}
+    try{ localStorage.setItem("piping-bosquejo-proyectos-v2", JSON.stringify({projects, currentProjectId})); }catch(e){}
   }
   // saveNetwork() se llama desde el resto del código cada vez que cambia el árbol activo
   function saveNetwork(){ saveState(); }
@@ -654,27 +684,66 @@
 
   /* ============ LAYOUT (coordenadas) ============ */
   const NODE_W = 132, NODE_H = 60, GAP_X = 168, ROW_TRUNK = 250;
+  let lastParentOf = {}; // id -> id del nodo/nudo anterior (para el cálculo de continuidad)
 
+  // Recorre el árbol (pump -> next -> next... con ramales colgando de node.branches)
+  // y calcula posiciones, cables y puntos de inserción/ramal/ampliación.
   function computeLayout(){
-    const pos = {}; // id -> {x,y}
-    let x = 40;
-    pos[network.pump.id] = {x, y:ROW_TRUNK};
-    network.trunk.forEach(n=>{ x += GAP_X; pos[n.id] = {x, y:ROW_TRUNK}; });
-    x += GAP_X;
-    pos[network.union.id] = {x, y:ROW_TRUNK};
-    const branchStartX = x + GAP_X;
+    const pos = {};
+    const wires = [];
+    const midInserts = [];
+    const endGhosts = [];
+    const slotGhosts = [];
+    const branchHandles = [];
+    const parentOf = {};
 
-    network.branches.forEach(br=>{
-      let bx = branchStartX;
-      br.nodes.forEach(n=>{ pos[n.id] = {x:bx, y:br.y}; bx += GAP_X; });
-      pos["ghost-"+br.id] = {x:bx, y:br.y};
-    });
+    function cx(p){return p.x+NODE_W;}
+    function cy(p){return p.y+NODE_H/2;}
+    function lx(p){return p.x;}
 
-    pos["ghost-newline"] = {x:40, y:520};
+    function layoutLine(startId, laneY, xStart){
+      let x = xStart, prevId = null, id = startId;
+      while(id){
+        const n = network.nodes[id];
+        pos[id] = {x, y:laneY};
+        if(prevId){
+          wires.push(line(cx(pos[prevId]), cy(pos[prevId]), lx(pos[id]), cy(pos[id])));
+          parentOf[id] = prevId;
+        }
+        branchHandles.push({x:x+NODE_W/2, y:laneY+NODE_H-8, ownerId:id});
+        (n.branches||[]).forEach((slot, idx)=>{
+          const bx = x+GAP_X, by = slot.laneY;
+          wires.push(elbow(cx(pos[id]), cy(pos[id]), cx(pos[id])+40, by+NODE_H/2, bx));
+          if(slot.headId){
+            parentOf[slot.headId] = id;
+            layoutLine(slot.headId, by, bx);
+          } else {
+            slotGhosts.push({x:bx, y:by, ownerId:id, slotIndex:idx, name:slot.name});
+          }
+        });
+        const nextId = n.next;
+        if(nextId) midInserts.push({x:x+GAP_X/2, y:laneY+NODE_H/2, afterId:id, beforeId:nextId});
+        prevId = id;
+        id = nextId;
+        if(id) x += GAP_X;
+      }
+      const endX = x+GAP_X;
+      if(prevId) wires.push(line(cx(pos[prevId]), cy(pos[prevId]), endX, laneY+NODE_H/2, true));
+      endGhosts.push({x:endX, y:laneY, afterId:prevId});
+    }
 
-    const maxX = Math.max(...Object.values(pos).map(p=>p.x)) + NODE_W + 60;
-    const maxY = Math.max(...Object.values(pos).map(p=>p.y)) + NODE_H + 60;
-    return {pos, unionPos:pos[network.union.id], width:maxX, height:maxY};
+    layoutLine(network.rootId, ROW_TRUNK, 40);
+
+    const usedY = Object.values(pos).map(p=>p.y).concat(slotGhosts.map(s=>s.y), endGhosts.map(g=>g.y));
+    const maxUsedY = usedY.length ? Math.max(...usedY) : ROW_TRUNK;
+    const newlinePos = {x:40, y:maxUsedY+150};
+
+    const allX = Object.values(pos).map(p=>p.x).concat(slotGhosts.map(s=>s.x), endGhosts.map(g=>g.x), [newlinePos.x]);
+    const allY = usedY.concat([newlinePos.y]);
+    const width = Math.max(...allX) + NODE_W + 60;
+    const height = Math.max(...allY) + NODE_H + 60;
+
+    return {pos, wires, midInserts, endGhosts, slotGhosts, branchHandles, newlinePos, width, height, parentOf};
   }
 
   /* ============ RENDER: ÁRBOL ============ */
@@ -693,54 +762,35 @@
 
   function renderTree(){
     const layout = computeLayout();
-    const {pos} = layout;
+    lastParentOf = layout.parentOf;
     const inner = document.getElementById("canvas-inner");
     inner.style.width = layout.width+"px";
     inner.style.height = layout.height+"px";
 
-    let html = '<svg class="wires" width="'+layout.width+'" height="'+layout.height+'">';
-    html += wireStyle();
+    let html = '<svg class="wires" width="'+layout.width+'" height="'+layout.height+'">'
+      + wireStyle() + layout.wires.join("") + '</svg>';
 
-    function cx(p){return p.x+NODE_W;}      // right edge
-    function cy(p){return p.y+NODE_H/2;}    // vertical center
-    function lx(p){return p.x;}             // left edge
-
-    // pump -> trunk chain -> union
-    let chain = [network.pump, ...network.trunk, network.union];
-    for(let i=0;i<chain.length-1;i++){
-      const a = pos[chain[i].id], b = pos[chain[i+1].id];
-      html += line(cx(a), cy(a), lx(b), cy(b));
-    }
-
-    // union -> each branch (elbow)
-    const up = pos[network.union.id];
-    network.branches.forEach(br=>{
-      const firstId = br.nodes.length ? br.nodes[0].id : "ghost-"+br.id;
-      const b = pos[firstId];
-      const elbowX = cx(up) + 42;
-      html += elbow(cx(up), cy(up), elbowX, b.y+NODE_H/2, lx(b));
-      // chain within branch
-      for(let i=0;i<br.nodes.length-1;i++){
-        const a = pos[br.nodes[i].id], c = pos[br.nodes[i+1].id];
-        html += line(cx(a), cy(a), lx(c), cy(c));
-      }
-      // last node -> ghost
-      const last = br.nodes.length ? pos[br.nodes[br.nodes.length-1].id] : b;
-      const ghost = pos["ghost-"+br.id];
-      if(br.nodes.length) html += line(cx(last), cy(last), lx(ghost), cy(ghost), true);
+    Object.values(network.nodes).forEach(n=>{
+      const p = layout.pos[n.id];
+      if(p) html += drawNode(n, p);
     });
 
-    html += "</svg>";
-
-    // nodes
-    html += drawNode(network.pump, pos[network.pump.id], "bomba");
-    network.trunk.forEach(n=> html += drawNode(n, pos[n.id], "tuberia"));
-    html += drawNode(network.union, pos[network.union.id], "union");
-    network.branches.forEach(br=>{
-      br.nodes.forEach(n=> html += drawNode(n, pos[n.id], n.type));
-      html += drawGhost("ghost-"+br.id, pos["ghost-"+br.id], br.name, "Arrastra un\ncomponente");
+    layout.endGhosts.forEach(g=>{
+      html += drawGhost(g.x, g.y, {kind:"end", after:g.afterId}, "Añadir tramo");
     });
-    html += drawGhost("ghost-newline", pos["ghost-newline"], "Nueva línea", "Arrastra una\nbomba aquí");
+    layout.slotGhosts.forEach(s=>{
+      html += drawGhost(s.x, s.y, {kind:"slot", owner:s.ownerId, slot:s.slotIndex}, s.name || "Nuevo ramal");
+    });
+    html += drawGhost(layout.newlinePos.x, layout.newlinePos.y, {kind:"newline"}, "Nueva línea");
+
+    layout.midInserts.forEach(m=>{
+      html += '<div class="mid-insert" data-kind="mid" data-after="'+m.afterId+'" data-before="'+m.beforeId+'" '
+        + 'style="left:'+m.x+'px;top:'+m.y+'px" title="Insertar componente aquí">+</div>';
+    });
+    layout.branchHandles.forEach(h=>{
+      html += '<div class="branch-handle" data-kind="branch" data-owner="'+h.ownerId+'" '
+        + 'style="left:'+h.x+'px;top:'+h.y+'px" title="Sacar un ramal nuevo desde aquí">+</div>';
+    });
 
     inner.innerHTML = html;
     attachNodeEvents();
@@ -760,17 +810,17 @@
     return '<path class="wire" d="'+d+'"/>';
   }
 
-  function drawNode(n, p, type){
+  function drawNode(n, p){
     const sel = n.id===selectedId ? " selected" : "";
-    return '<div class="node type-'+type+sel+'" tabindex="0" data-id="'+n.id+'" style="left:'+p.x+'px;top:'+p.y+'px">'
-      +'<div class="node-head"><span class="node-icon" style="color:'+typeColorVar(type)+'">'+typeIcon(type)+'</span>'
+    return '<div class="node type-'+n.type+sel+'" tabindex="0" data-id="'+n.id+'" style="left:'+p.x+'px;top:'+p.y+'px">'
+      +'<div class="node-head"><span class="node-icon" style="color:'+typeColorVar(n.type)+'">'+typeIcon(n.type)+'</span>'
       +'<span class="node-title">'+n.label+'</span></div>'
       +'<div class="node-sub">'+nodeSubtitle(n)+'</div>'
       +'</div>';
   }
-  function drawGhost(id, p, title, sub){
-    return '<div class="ghost" data-ghost="'+id+'" style="left:'+p.x+'px;top:'+p.y+'px">'
-      +'<b>+</b><span>'+title+'</span></div>';
+  function drawGhost(x, y, attrs, label){
+    const attrStr = Object.entries(attrs).map(([k,v])=>' data-'+k+'="'+v+'"').join("");
+    return '<div class="ghost"'+attrStr+' style="left:'+x+'px;top:'+y+'px"><b>+</b><span>'+label+'</span></div>';
   }
 
   function attachNodeEvents(){
@@ -781,11 +831,8 @@
   }
 
   function findNode(id){
-    if(network.pump.id===id) return {node:network.pump, type:"bomba"};
-    if(network.union.id===id) return {node:network.union, type:"union"};
-    for(const n of network.trunk) if(n.id===id) return {node:n, type:n.type};
-    for(const br of network.branches) for(const n of br.nodes) if(n.id===id) return {node:n, type:n.type};
-    return null;
+    const node = network.nodes[id];
+    return node ? {node, type:node.type} : null;
   }
 
   function selectNode(id){
@@ -796,8 +843,13 @@
   }
 
   /* ============ DRAG & DROP ============ */
+  // Tres formas de soltar un componente sobre el lienzo:
+  //  · "end"    -> al final de una línea (continúa el tramo)
+  //  · "slot"   -> en un ramal vacío ya existente (colgando de una unión/té)
+  //  · "mid"    -> insertado entre dos componentes ya conectados (parte la conexión)
+  //  · "branch" -> saca un ramal nuevo desde cualquier componente (p.ej. desde una tubería del tronco)
   function attachDropEvents(){
-    document.querySelectorAll(".ghost").forEach(el=>{
+    document.querySelectorAll(".ghost, .mid-insert, .branch-handle").forEach(el=>{
       el.addEventListener("dragover", e=>{ e.preventDefault(); el.classList.add("dragover"); });
       el.addEventListener("dragleave", ()=> el.classList.remove("dragover"));
       el.addEventListener("drop", e=>{
@@ -806,46 +858,55 @@
         const raw = e.dataTransfer.getData("text/plain");
         if(!raw) return;
         const payload = JSON.parse(raw);
-        handleDrop(el.dataset.ghost, payload);
+        handleDrop(el.dataset, payload);
       });
     });
   }
 
-  function handleDrop(ghostId, payload){
+  function createNodeFromItem(item){
+    const id = nid(item.type[0].toUpperCase());
+    const base = (item.type==="accesorio"||item.type==="valvula") ? item.defaults.sub
+      : item.type==="tuberia" ? "Tubería"
+      : item.type==="bomba" ? "Bomba" : item.label;
+    return {id, type:item.type, label: base+" "+id, props: JSON.parse(JSON.stringify(item.defaults)), next:null, branches:[]};
+  }
+
+  function handleDrop(ds, payload){
     const item = payload.item;
-    if(ghostId === "ghost-newline"){
+
+    if(ds.kind === "newline"){
       if(item.type !== "bomba"){
         flashToast("Solo se puede iniciar una nueva línea con una bomba.");
         return;
       }
-      // demo: no montamos una segunda línea completa en este bosquejo,
-      // solo confirmamos el punto de partida
       flashToast("Segunda línea (bomba adicional) — próximo paso del bosquejo.");
       return;
     }
-    const brId = ghostId.replace("ghost-","");
-    const branch = network.branches.find(b=>b.id===brId);
-    if(!branch) return;
-    const newNode = {
-      id: nid(item.type[0].toUpperCase()),
-      type: item.type,
-      label: autoLabel(item, branch),
-      props: JSON.parse(JSON.stringify(item.defaults))
-    };
-    branch.nodes.push(newNode);
+
+    const node = createNodeFromItem(item);
+    network.nodes[node.id] = node;
+
+    if(ds.kind === "end"){
+      network.nodes[ds.after].next = node.id;
+    } else if(ds.kind === "slot"){
+      network.nodes[ds.owner].branches[Number(ds.slot)].headId = node.id;
+    } else if(ds.kind === "mid"){
+      node.next = ds.before;
+      network.nodes[ds.after].next = node.id;
+    } else if(ds.kind === "branch"){
+      const laneY = network.nextLaneY || 540;
+      network.nextLaneY = laneY + 140;
+      network.nodes[ds.owner].branches.push({headId:node.id, laneY, name:null});
+    } else {
+      delete network.nodes[node.id];
+      return;
+    }
+
     saveNetwork();
-    selectedId = newNode.id;
+    selectedId = node.id;
     renderTree();
     switchTab("propiedades");
     renderProperties();
-  }
-
-  function autoLabel(item, branch){
-    const count = branch.nodes.length+1;
-    if(item.type==="tuberia") return "Tubería "+branch.id+count;
-    if(item.type==="valvula") return "Válvula "+branch.id+count;
-    if(item.type==="accesorio") return item.defaults.sub+" "+branch.id+count;
-    return item.label+" "+branch.id+count;
   }
 
   function flashToast(msg){
@@ -904,10 +965,6 @@
     if(name==="propiedades") document.getElementById("props-dot").style.display="none";
   }
 
-  function branchOf(nodeId){
-    return network.branches.find(br=>br.nodes.some(n=>n.id===nodeId));
-  }
-
   function renderProperties(){
     const el = document.getElementById("panel-propiedades");
     if(!selectedId){
@@ -923,8 +980,10 @@
     let body = "";
     if(type==="bomba") body = propsBomba(node);
     else if(type==="tuberia") body = propsTuberia(node);
-    else if(type==="union") body = propsUnion(node);
-    else body = propsAccesorio(node); // accesorio o valvula
+    else if(type==="union") body = '<div class="formula-note">Nudo de paso — sin pérdida de carga propia; reparte el caudal entre los ramales que salen de él.</div>';
+    else body = propsAccesorio(node); // accesorio o valvula (incluye tés usadas como punto de ramal)
+
+    if(node.branches && node.branches.length) body += continuityBox(node);
 
     el.innerHTML =
       '<div class="props-head"><div class="props-type">'+typeLabel(type)+'</div><div class="props-name">'+node.label+'</div></div>'
@@ -942,23 +1001,32 @@
     return field2("Caudal nominal (m³/h)","Q",n.props.Q,"Altura manométrica (mca)","H",n.props.H)
       + field2("Potencia absorbida (kW)","Pot",n.props.Pot,"NPSH disponible (mca)","NPSHd",n.props.NPSHd)
       + '<div class="result-box"><div class="result-title">Punto de trabajo</div>'
-      + '<div class="result-row"><span class="k">Alimenta a</span><span class="v">'+ (1+network.trunk.length) +' tramo(s) de línea principal</span></div>'
+      + '<div class="result-row"><span class="k">Componentes en la red</span><span class="v">'+countTramos()+'</span></div>'
       + '<div class="formula-note">La curva bomba–sistema y la comprobación de cavitación (NPSHd &gt; NPSHr) se resuelven en la fase de cálculo de red.</div></div>';
   }
 
-  function propsUnion(n){
-    const trunkQ = network.trunk.length ? network.trunk[network.trunk.length-1].props.Q : network.pump.props.Q;
-    let sum = 0;
-    network.branches.forEach(br=>{ if(br.nodes.length) sum += Number(br.nodes[0].props.Q)||0; });
-    const balanced = Math.abs(sum-trunkQ) < 0.05*Math.max(trunkQ,0.001);
+  // Caudal que entra a un nodo, tomado del componente anterior en la línea (o del ramal que lo origina)
+  function incomingQ(nodeId){
+    const pid = lastParentOf[nodeId];
+    const p = pid ? network.nodes[pid] : null;
+    return p && p.props && p.props.Q!=null ? (Number(p.props.Q)||0) : 0;
+  }
+
+  // Comprobación de continuidad (ΣQ ramales = Q entrada) — aplica a cualquier componente
+  // del que cuelguen ramales (uniones, tés insertadas en el tronco, etc.)
+  function continuityBox(n){
+    const qin = incomingQ(n.id);
+    let sum = 0, filled = 0;
+    n.branches.forEach(b=>{
+      if(b.headId){ filled++; sum += Number(network.nodes[b.headId].props.Q)||0; }
+    });
+    const balanced = filled>0 && Math.abs(sum-qin) < 0.05*Math.max(qin,0.001);
     return '<div class="result-box"><div class="result-title">Continuidad (ΣQ salida = Q entrada)</div>'
-      + '<div class="result-row"><span class="k">Caudal de entrada</span><span class="v">'+trunkQ.toFixed(2)+' m³/h</span></div>'
-      + '<div class="result-row"><span class="k">Suma de ramales</span><span class="v">'+sum.toFixed(2)+' m³/h</span></div>'
+      + '<div class="result-row"><span class="k">Caudal de entrada</span><span class="v">'+qin.toFixed(2)+' m³/h</span></div>'
+      + '<div class="result-row"><span class="k">Suma de ramales ('+filled+'/'+n.branches.length+')</span><span class="v">'+sum.toFixed(2)+' m³/h</span></div>'
       + '<div class="result-row"><span class="k">Balance</span>'
       + '<span class="badge '+(balanced?"ok":"bad")+'">'+(balanced?"◆ equilibrado":"◆ desajustado")+'</span></div>'
-      + '<div class="formula-note">Ajusta el caudal del primer tramo de cada ramal para restablecer el balance de masa en el nudo.</div></div>'
-      + '<div class="formula-note" style="margin-top:8px">Este nudo reparte el flujo entre '+network.branches.length+' ramales: '
-      + network.branches.map(b=>b.name).join(" y ")+'.</div>';
+      + '<div class="formula-note">Ajusta el caudal del primer tramo de cada ramal para restablecer el balance de masa en este punto. Usa el «+» bajo cualquier componente para sacar un ramal nuevo.</div></div>';
   }
 
   function propsTuberia(n){
@@ -1022,13 +1090,11 @@
 
   /* ============ STATS ============ */
   function countTramos(){
-    let c = network.trunk.length;
-    network.branches.forEach(b=> c += b.nodes.length);
-    return c;
+    return Object.values(network.nodes).filter(n=>n.type!=="bomba" && n.type!=="union").length;
   }
   function updateStats(){
     document.getElementById("stat-tramos").textContent = countTramos();
-    document.getElementById("stat-caudal").textContent = network.pump.props.Q + " m³/h";
+    document.getElementById("stat-caudal").textContent = network.nodes[network.rootId].props.Q + " m³/h";
     document.getElementById("canvas-title").textContent = currentProject().name;
   }
 
