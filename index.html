@@ -1,0 +1,952 @@
+<title>Editor de Red Hidráulica</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#f4f7fa;
+    --surface:#ffffff;
+    --surface-2:#eef2f7;
+    --surface-3:#e4eaf1;
+    --border:#d7e0e9;
+    --border-strong:#c1ccd8;
+    --text:#152233;
+    --text-muted:#5c7085;
+    --text-faint:#8ea0b3;
+    --accent:#1d6fa5;
+    --accent-strong:#0f4c73;
+    --accent-soft:#e4f0f8;
+    --copper:#b8651f;
+    --copper-soft:#f7ebe0;
+    --success:#2f8f5b;
+    --success-soft:#e3f4ea;
+    --warning:#b98418;
+    --warning-soft:#faf1de;
+    --danger:#c94a3f;
+    --danger-soft:#fbe9e7;
+    --shadow: 0 1px 2px rgba(21,34,51,.06), 0 8px 24px -12px rgba(21,34,51,.18);
+    --ghost-bg: rgba(255,255,255,.35);
+    --radius: 10px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ghost-bg: rgba(255,255,255,.03);
+      --bg:#0e1520;
+      --surface:#151f2b;
+      --surface-2:#1a2534;
+      --surface-3:#22303f;
+      --border:#2b3a4a;
+      --border-strong:#39495c;
+      --text:#e6edf4;
+      --text-muted:#93a7bb;
+      --text-faint:#657b90;
+      --accent:#5aa8db;
+      --accent-strong:#8cc6ec;
+      --accent-soft:#1a3247;
+      --copper:#d68b4c;
+      --copper-soft:#2e2113;
+      --success:#4cb37e;
+      --success-soft:#12271c;
+      --warning:#d6a13f;
+      --warning-soft:#2c2311;
+      --danger:#e07267;
+      --danger-soft:#2c1714;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ghost-bg: rgba(255,255,255,.03);
+    --bg:#0e1520;
+    --surface:#151f2b;
+    --surface-2:#1a2534;
+    --surface-3:#22303f;
+    --border:#2b3a4a;
+    --border-strong:#39495c;
+    --text:#e6edf4;
+    --text-muted:#93a7bb;
+    --text-faint:#657b90;
+    --accent:#5aa8db;
+    --accent-strong:#8cc6ec;
+    --accent-soft:#1a3247;
+    --copper:#d68b4c;
+    --copper-soft:#2e2113;
+    --success:#4cb37e;
+    --success-soft:#12271c;
+    --warning:#d6a13f;
+    --warning-soft:#2c2311;
+    --danger:#e07267;
+    --danger-soft:#2c1714;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size:13.5px;
+    height:100vh;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .mono{font-family:"IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums;}
+  ::selection{background:var(--accent-soft);}
+  button{font-family:inherit;}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+  /* ---- top bar ---- */
+  .topbar{
+    height:52px; flex:0 0 auto;
+    display:flex; align-items:center; gap:12px;
+    padding:0 16px;
+    background:var(--surface);
+    border-bottom:1px solid var(--border);
+    z-index:20;
+  }
+  .brand{display:flex; align-items:center; gap:9px;}
+  .brand-mark{width:26px;height:26px;flex:0 0 auto;}
+  .brand-name{font-weight:700; font-size:15px; letter-spacing:.02em;}
+  .brand-sub{color:var(--text-muted); font-size:11.5px; padding-left:9px; margin-left:9px; border-left:1px solid var(--border);}
+  .topbar-right{margin-left:auto; display:flex; align-items:center; gap:10px;}
+  .status-pill{
+    display:flex; align-items:center; gap:6px;
+    font-size:11.5px; color:var(--text-muted);
+    background:var(--surface-2); border:1px solid var(--border);
+    padding:5px 10px; border-radius:999px;
+  }
+  .status-dot{width:6px;height:6px;border-radius:50%;background:var(--warning);}
+  .btn{
+    font-size:12.5px; font-weight:600; padding:7px 13px; border-radius:7px;
+    border:1px solid var(--border-strong); background:var(--surface);
+    color:var(--text); cursor:pointer;
+  }
+  .btn:hover{background:var(--surface-2);}
+  .btn-primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .btn-primary:hover{background:var(--accent-strong); border-color:var(--accent-strong);}
+  .btn-primary[disabled]{opacity:.5; cursor:not-allowed;}
+  .btn-primary[disabled]:hover{background:var(--accent);}
+
+  /* ---- layout ---- */
+  .shell{flex:1 1 auto; display:grid; grid-template-columns:236px minmax(0,1fr) 320px; min-height:0;}
+  .panel{min-height:0; min-width:0; display:flex; flex-direction:column; background:var(--surface);}
+  .panel + .panel{border-left:1px solid var(--border);}
+
+  /* ---- left menu ---- */
+  .menu-scroll{flex:1 1 auto; overflow-y:auto; padding:14px 12px;}
+  .menu-label{
+    font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--text-faint); padding:4px 8px 6px;
+  }
+  .nav-item{
+    display:flex; align-items:center; gap:9px;
+    padding:8px 9px; border-radius:7px; color:var(--text-muted);
+    font-size:13px; font-weight:500; cursor:pointer; margin-bottom:2px;
+    border:1px solid transparent;
+  }
+  .nav-item svg{flex:0 0 auto; opacity:.85;}
+  .nav-item:hover{background:var(--surface-2); color:var(--text);}
+  .nav-item.active{background:var(--accent-soft); color:var(--accent-strong); font-weight:600;}
+  .nav-item.active svg{opacity:1;}
+  .nav-item .soon{
+    margin-left:auto; font-size:9.5px; font-weight:600; color:var(--text-faint);
+    background:var(--surface-3); padding:2px 6px; border-radius:5px; letter-spacing:.02em;
+  }
+  .divider{height:1px; background:var(--border); margin:12px 2px;}
+  .project-card{
+    background:var(--surface-2); border:1px solid var(--border); border-radius:9px;
+    padding:11px 12px; margin-top:2px;
+  }
+  .project-card-title{font-size:9.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-faint); margin-bottom:5px;}
+  .project-name{font-size:13px; font-weight:600; line-height:1.35; margin-bottom:8px;}
+  .project-stats{display:flex; flex-direction:column; gap:4px;}
+  .project-stat{display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);}
+  .project-stat b{color:var(--text); font-weight:600;}
+  .menu-foot{padding:11px 16px; border-top:1px solid var(--border); font-size:10.5px; color:var(--text-faint); display:flex; flex-direction:column; gap:8px;}
+  .reset-link{background:none; border:none; color:var(--accent); font-size:11.5px; font-weight:600; cursor:pointer; padding:0; text-align:left; font-family:inherit;}
+  .reset-link:hover{text-decoration:underline;}
+
+  /* ---- canvas (zona de trabajo) ---- */
+  .canvas-wrap{flex:1 1 auto; min-height:0; min-width:0; display:flex; flex-direction:column;}
+  .canvas-toolbar{
+    flex:0 0 auto; display:flex; align-items:center; gap:14px;
+    padding:10px 18px; border-bottom:1px solid var(--border); background:var(--surface);
+  }
+  .canvas-title{font-weight:600; font-size:13.5px;}
+  .legend{display:flex; align-items:center; gap:12px; margin-left:auto;}
+  .legend-item{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-muted);}
+  .legend-swatch{width:9px;height:9px;border-radius:3px;}
+  .canvas-scroll{flex:1 1 auto; min-width:0; overflow:auto; position:relative;
+    background-color:var(--bg);
+    background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .canvas-inner{position:relative;}
+  .canvas-inner svg.wires{position:absolute; top:0; left:0; pointer-events:none;}
+
+  .node{
+    position:absolute; width:132px; min-height:58px;
+    background:var(--surface); border:1.5px solid var(--border-strong); border-radius:9px;
+    padding:7px 9px 8px 10px; cursor:pointer; box-shadow:var(--shadow);
+    border-left-width:4px;
+  }
+  .node:hover{border-color:var(--accent);}
+  .node.selected{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft), var(--shadow);}
+  .node-head{display:flex; align-items:center; gap:6px; margin-bottom:3px;}
+  .node-icon{flex:0 0 auto; opacity:.9;}
+  .node-title{font-size:11.5px; font-weight:700; letter-spacing:.01em;}
+  .node-sub{font-size:10.5px; color:var(--text-muted); line-height:1.35;}
+  .node-tag{
+    display:inline-block; margin-top:4px; font-size:9.5px; font-weight:600;
+    padding:1.5px 6px; border-radius:5px;
+  }
+  .node.type-bomba{border-left-color:var(--accent);}
+  .node.type-tuberia{border-left-color:var(--copper);}
+  .node.type-union{border-left-color:var(--text-faint);}
+  .node.type-accesorio{border-left-color:#8a6fc9;}
+  .node.type-valvula{border-left-color:var(--warning);}
+
+  .ghost{
+    position:absolute; width:132px; min-height:58px;
+    border:1.5px dashed var(--border-strong); border-radius:9px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    color:var(--text-faint); font-size:10.5px; text-align:center; padding:6px;
+    background:var(--ghost-bg);
+  }
+  .ghost.dragover{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
+  .ghost b{font-size:16px; line-height:1; font-weight:400;}
+
+  .flow-label{
+    position:absolute; font-size:9.5px; color:var(--text-faint); font-family:"IBM Plex Mono", monospace;
+    background:var(--bg); padding:0 4px;
+  }
+
+  /* ---- right panel (componentes / propiedades) ---- */
+  .tabs{display:flex; flex:0 0 auto; border-bottom:1px solid var(--border);}
+  .tab{
+    flex:1; text-align:center; padding:11px 6px; font-size:12.5px; font-weight:600;
+    color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; position:relative;
+  }
+  .tab.active{color:var(--accent-strong); border-bottom-color:var(--accent);}
+  .tab .dot{width:6px;height:6px;border-radius:50%;background:var(--danger); display:inline-block; margin-left:5px; vertical-align:middle;}
+
+  .tab-panel{flex:1 1 auto; overflow-y:auto; display:none;}
+  .tab-panel.active{display:block;}
+
+  .accordion-section + .accordion-section{border-top:1px solid var(--border);}
+  .accordion-head{
+    display:flex; align-items:center; gap:8px; padding:11px 14px; cursor:pointer;
+    font-size:11.5px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; color:var(--text-muted);
+  }
+  .accordion-head:hover{color:var(--text);}
+  .accordion-head svg{transition:transform .15s ease; margin-left:auto;}
+  .accordion-section.closed .accordion-head svg{transform:rotate(-90deg);}
+  .accordion-body{padding:2px 12px 12px; display:flex; flex-direction:column; gap:7px;}
+  .accordion-section.closed .accordion-body{display:none;}
+
+  .comp-card{
+    display:flex; align-items:center; gap:9px;
+    border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+    background:var(--surface); cursor:grab;
+  }
+  .comp-card:hover{border-color:var(--accent); background:var(--accent-soft);}
+  .comp-card:active{cursor:grabbing;}
+  .comp-icon{
+    flex:0 0 auto; width:28px; height:28px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--surface-2);
+  }
+  .comp-body{flex:1; min-width:0;}
+  .comp-name{font-size:12px; font-weight:600; line-height:1.25;}
+  .comp-spec{font-size:10px; color:var(--text-muted); font-family:"IBM Plex Mono",monospace;}
+
+  .props-empty{padding:40px 20px; text-align:center; color:var(--text-faint); font-size:12.5px; line-height:1.6;}
+  .props-empty svg{margin-bottom:10px; opacity:.5;}
+  .props-head{padding:14px 16px 10px; border-bottom:1px solid var(--border);}
+  .props-type{font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted);}
+  .props-name{font-size:14.5px; font-weight:700; margin-top:2px;}
+  .props-body{padding:14px 16px; display:flex; flex-direction:column; gap:12px;}
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:11px; font-weight:600; color:var(--text-muted);}
+  .field input, .field select{
+    font-family:"IBM Plex Mono", monospace; font-size:12.5px;
+    padding:7px 9px; border:1px solid var(--border-strong); border-radius:6px;
+    background:var(--surface); color:var(--text);
+  }
+  .field input:focus, .field select:focus{border-color:var(--accent);}
+  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .result-box{
+    background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:11px 12px;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .result-title{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:2px;}
+  .result-row{display:flex; justify-content:space-between; align-items:baseline; font-size:12px;}
+  .result-row .k{color:var(--text-muted);}
+  .result-row .v{font-family:"IBM Plex Mono",monospace; font-weight:600;}
+  .result-row .v.big{font-size:15px; color:var(--accent-strong);}
+  .formula-note{font-size:10.5px; color:var(--text-faint); line-height:1.5; padding-top:2px; border-top:1px dashed var(--border);}
+  .balance-ok{color:var(--success);}
+  .balance-bad{color:var(--danger);}
+  .badge{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:999px;}
+  .badge.ok{background:var(--success-soft); color:var(--success);}
+  .badge.bad{background:var(--danger-soft); color:var(--danger);}
+
+  .props-hint{padding:10px 16px 14px; font-size:11px; color:var(--text-faint); line-height:1.5; border-top:1px solid var(--border); margin-top:auto;}
+</style>
+
+<div class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 26 26" fill="none">
+      <rect x="1" y="1" width="24" height="24" rx="6" fill="var(--accent)"/>
+      <path d="M6 13h6a3 3 0 0 0 3-3V7" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>
+      <circle cx="6" cy="13" r="2.1" fill="#fff"/>
+      <circle cx="15" cy="7" r="2.1" fill="#fff"/>
+      <path d="M12 13h4a3 3 0 0 1 3 3v3" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>
+      <circle cx="19" cy="19" r="2.1" fill="#fff"/>
+    </svg>
+    <span class="brand-name">PIPING</span>
+    <span class="brand-sub">Editor de redes hidráulicas — bosquejo</span>
+  </div>
+  <div class="topbar-right">
+    <div class="status-pill"><span class="status-dot"></span>Cambios sin guardar (local)</div>
+    <button class="btn">Exportar JSON</button>
+    <button class="btn btn-primary" disabled title="Requiere backend Supabase — próxima fase">Guardar en proyecto</button>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- LEFT: MENU LATERAL -->
+  <div class="panel" id="panel-left">
+    <div class="menu-scroll">
+      <div class="menu-label">Navegación</div>
+      <div class="nav-item active" data-nav="editor">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h6a3 3 0 0 0 3-3V4"/><circle cx="4" cy="12" r="2"/><circle cx="13" cy="4" r="2"/><path d="M11 12h4a3 3 0 0 1 3 3v5" stroke-linecap="round"/><circle cx="20" cy="20" r="2"/></svg>
+        Editor de red
+      </div>
+      <div class="nav-item" data-nav="catalogo">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Catálogo de materiales <span class="soon">pronto</span>
+      </div>
+      <div class="nav-item" data-nav="calculo">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+        Cálculo de red <span class="soon">pronto</span>
+      </div>
+      <div class="nav-item" data-nav="informes">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>
+        Informes <span class="soon">pronto</span>
+      </div>
+      <div class="nav-item" data-nav="config">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        Configuración <span class="soon">pronto</span>
+      </div>
+
+      <div class="divider"></div>
+      <div class="menu-label">Proyecto actual</div>
+      <div class="project-card">
+        <div class="project-name">Red de refrigeración — Nave 3</div>
+        <div class="project-stats">
+          <div class="project-stat"><span>Estado</span><b>Borrador</b></div>
+          <div class="project-stat"><span>Tramos</span><b id="stat-tramos">–</b></div>
+          <div class="project-stat"><span>Caudal bomba</span><b id="stat-caudal">–</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="menu-foot">
+      <span>Bosquejo interactivo · v0.1 · datos de ejemplo</span>
+      <button class="reset-link" id="btn-reset">Reiniciar ejemplo</button>
+    </div>
+  </div>
+
+  <!-- CENTER: ZONA DE TRABAJO -->
+  <div class="panel" id="panel-center">
+    <div class="canvas-wrap">
+      <div class="canvas-toolbar">
+        <div class="canvas-title">Red de refrigeración — Nave 3</div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Bomba</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--copper)"></span>Tubería</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--text-faint)"></span>Unión</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:#8a6fc9"></span>Accesorio</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--warning)"></span>Válvula</div>
+        </div>
+      </div>
+      <div class="canvas-scroll" id="canvas-scroll">
+        <div class="canvas-inner" id="canvas-inner"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: ZONA DE COMPONENTES / PROPIEDADES -->
+  <div class="panel" id="panel-right">
+    <div class="tabs">
+      <div class="tab active" data-tab="componentes">Componentes</div>
+      <div class="tab" data-tab="propiedades">Propiedades<span class="dot" id="props-dot" style="display:none"></span></div>
+    </div>
+
+    <div class="tab-panel active" id="panel-componentes"></div>
+    <div class="tab-panel" id="panel-propiedades"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ CONSTANTES FÍSICAS ============ */
+  const G = 9.81;              // m/s2
+  const NU = 1.004e-6;         // viscosidad cinemática del agua a 20°C, m2/s
+
+  /* ============ CATÁLOGO DE COMPONENTES ============ */
+  const MATERIALS = {
+    acero:      {label:"Acero comercial",     eps:0.045, defD:80},
+    inox:       {label:"Acero inoxidable",    eps:0.015, defD:50},
+    pvc:        {label:"PVC",                 eps:0.0015,defD:50},
+    pead:       {label:"PEAD (HDPE)",         eps:0.007, defD:63},
+    cobre:      {label:"Cobre",               eps:0.0015,defD:35},
+  };
+
+  const CATALOG = {
+    equipos: {
+      label:"Equipos", icon:iconPump,
+      items:[
+        {key:"bomba", label:"Bomba centrífuga", spec:"Q · H · P", type:"bomba",
+         defaults:{Q:25,H:32,Pot:5.5,NPSHd:4.2}},
+      ]
+    },
+    tuberias: {
+      label:"Tuberías", icon:iconPipe,
+      items: Object.keys(MATERIALS).map(k=>({
+        key:"tub_"+k, label:MATERIALS[k].label, spec:"⌀"+MATERIALS[k].defD+"mm · ε"+MATERIALS[k].eps+"mm",
+        type:"tuberia", material:k,
+        defaults:{material:k, D:MATERIALS[k].defD, L:10, Q:15}
+      }))
+    },
+    accesorios: {
+      label:"Accesorios", icon:iconFitting,
+      items:[
+        {key:"codo90", label:"Codo 90°",        spec:"K≈0.90", type:"accesorio", defaults:{sub:"Codo 90°", K:0.90, D:50, Q:15}},
+        {key:"codo45", label:"Codo 45°",        spec:"K≈0.40", type:"accesorio", defaults:{sub:"Codo 45°", K:0.40, D:50, Q:15}},
+        {key:"te",     label:"Té (derivación)", spec:"K≈1.80", type:"accesorio", defaults:{sub:"Té (derivación)", K:1.80, D:50, Q:15}},
+        {key:"reduc",  label:"Reducción",       spec:"K≈0.50", type:"accesorio", defaults:{sub:"Reducción", K:0.50, D:50, Q:15}},
+        {key:"entrada",label:"Entrada",         spec:"K≈0.50", type:"accesorio", defaults:{sub:"Entrada", K:0.50, D:50, Q:15}},
+        {key:"salida", label:"Salida / descarga",spec:"K≈1.00",type:"accesorio", defaults:{sub:"Salida / descarga", K:1.00, D:50, Q:15}},
+      ]
+    },
+    valvulas: {
+      label:"Válvulas", icon:iconValve,
+      items:[
+        {key:"compuerta", label:"Compuerta (abierta)", spec:"K≈0.20", type:"valvula", defaults:{sub:"Compuerta", K:0.20, D:50, Q:15}},
+        {key:"globo",     label:"Globo",                spec:"K≈10.0", type:"valvula", defaults:{sub:"Globo", K:10.0, D:50, Q:15}},
+        {key:"retencion", label:"Retención (check)",    spec:"K≈2.50", type:"valvula", defaults:{sub:"Retención", K:2.50, D:50, Q:15}},
+        {key:"mariposa",  label:"Mariposa",              spec:"K≈1.20", type:"valvula", defaults:{sub:"Mariposa", K:1.20, D:50, Q:15}},
+        {key:"esferica",  label:"Esférica (bola)",       spec:"K≈0.10", type:"valvula", defaults:{sub:"Esférica", K:0.10, D:50, Q:15}},
+      ]
+    }
+  };
+
+  /* ============ ICONOS ============ */
+  function svgIcon(paths, sz){
+    return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+paths+'</svg>';
+  }
+  function iconPump(sz){return svgIcon('<circle cx="12" cy="12" r="7"/><path d="M12 5v3M12 16v3M5 12h3M16 12h3"/><circle cx="12" cy="12" r="2"/>', sz||16);}
+  function iconPipe(sz){return svgIcon('<path d="M3 12h18" stroke-width="4"/>', sz||16);}
+  function iconUnion(sz){return svgIcon('<path d="M4 12h6"/><path d="M10 12l6-6h4"/><path d="M10 12l6 6h4"/>', sz||16);}
+  function iconFitting(sz){return svgIcon('<path d="M5 12h6a4 4 0 0 0 4-4V4"/>', sz||16);}
+  function iconValve(sz){return svgIcon('<path d="M4 12h4M16 12h4M8 12l4-4 4 4-4 4-4-4z"/>', sz||16);}
+
+  /* ============ RED DE EJEMPLO (estado) ============ */
+  let uid = 1;
+  function nid(prefix){ return prefix+"-"+(uid++); }
+
+  function defaultNetwork(){
+    uid = 1;
+    return {
+      pump: {id:nid("B"), type:"bomba", label:"Bomba B-1", props:{Q:25,H:32,Pot:5.5,NPSHd:4.2}},
+      trunk: [
+        {id:nid("T"), type:"tuberia", label:"Tubería T-1", props:{material:"acero", D:80, L:15, Q:25}},
+      ],
+      union: {id:nid("J"), type:"union", label:"Unión J-1", props:{}},
+      branches: [
+        {
+          id:"A", y:150, name:"Ramal A",
+          nodes:[
+            {id:nid("V"), type:"valvula", label:"Válvula V-1", props:{sub:"Compuerta", K:0.20, D:50, Q:15}},
+            {id:nid("T"), type:"tuberia", label:"Tubería T-2", props:{material:"pvc", D:50, L:8, Q:15}},
+            {id:nid("A"), type:"accesorio", label:"Codo C-1", props:{sub:"Codo 90°", K:0.90, D:50, Q:15}},
+            {id:nid("T"), type:"tuberia", label:"Tubería T-3", props:{material:"pvc", D:50, L:5, Q:15}},
+          ]
+        },
+        {
+          id:"B", y:400, name:"Ramal B",
+          nodes:[
+            {id:nid("T"), type:"tuberia", label:"Tubería T-4", props:{material:"acero", D:65, L:12, Q:10}},
+            {id:nid("V"), type:"valvula", label:"Válvula V-2", props:{sub:"Retención", K:2.50, D:65, Q:10}},
+          ]
+        }
+      ]
+    };
+  }
+
+  let network = loadNetwork() || defaultNetwork();
+  let selectedId = null;
+
+  function loadNetwork(){
+    try{
+      const raw = localStorage.getItem("piping-bosquejo-network");
+      if(!raw) return null;
+      const parsed = JSON.parse(raw);
+      // resync uid counter above any id found
+      let max=0;
+      JSON.stringify(parsed).replace(/-(\d+)"/g, (m,n)=>{max=Math.max(max,parseInt(n,10));return m;});
+      uid = max+1;
+      return parsed;
+    }catch(e){ return null; }
+  }
+  function saveNetwork(){
+    try{ localStorage.setItem("piping-bosquejo-network", JSON.stringify(network)); }catch(e){}
+  }
+
+  /* ============ FÍSICA ============ */
+  function velocity(Q_m3h, D_mm){
+    const Q = Q_m3h/3600;               // m3/s
+    const D = D_mm/1000;                // m
+    const A = Math.PI*D*D/4;
+    return A>0 ? Q/A : 0;
+  }
+  function reynolds(v, D_mm){
+    const D = D_mm/1000;
+    return NU>0 ? Math.abs(v)*D/NU : 0;
+  }
+  // Swamee-Jain (aprox. explícita de Colebrook-White)
+  function frictionFactor(Re, eps_mm, D_mm){
+    if(Re < 1) return 0;
+    if(Re < 2300){ return 64/Re; } // laminar
+    const rel = (eps_mm/D_mm)/3.7;
+    const denom = Math.log10(rel + 5.74/Math.pow(Re,0.9));
+    return 0.25/(denom*denom);
+  }
+  function pipeHeadLoss(D_mm, L_m, Q_m3h, eps_mm){
+    const v = velocity(Q_m3h, D_mm);
+    const Re = reynolds(v, D_mm);
+    const f = frictionFactor(Re, eps_mm, D_mm);
+    const D = D_mm/1000;
+    const hf = f*(L_m/D)*(v*v)/(2*G);
+    return {v,Re,f,hf};
+  }
+  function localHeadLoss(K, D_mm, Q_m3h){
+    const v = velocity(Q_m3h, D_mm);
+    const h = K*(v*v)/(2*G);
+    return {v,h};
+  }
+  const mca_to_kpa = h => h*9.80665;
+
+  /* ============ LAYOUT (coordenadas) ============ */
+  const NODE_W = 132, NODE_H = 60, GAP_X = 168, ROW_TRUNK = 250;
+
+  function computeLayout(){
+    const pos = {}; // id -> {x,y}
+    let x = 40;
+    pos[network.pump.id] = {x, y:ROW_TRUNK};
+    network.trunk.forEach(n=>{ x += GAP_X; pos[n.id] = {x, y:ROW_TRUNK}; });
+    x += GAP_X;
+    pos[network.union.id] = {x, y:ROW_TRUNK};
+    const branchStartX = x + GAP_X;
+
+    network.branches.forEach(br=>{
+      let bx = branchStartX;
+      br.nodes.forEach(n=>{ pos[n.id] = {x:bx, y:br.y}; bx += GAP_X; });
+      pos["ghost-"+br.id] = {x:bx, y:br.y};
+    });
+
+    pos["ghost-newline"] = {x:40, y:520};
+
+    const maxX = Math.max(...Object.values(pos).map(p=>p.x)) + NODE_W + 60;
+    const maxY = Math.max(...Object.values(pos).map(p=>p.y)) + NODE_H + 60;
+    return {pos, unionPos:pos[network.union.id], width:maxX, height:maxY};
+  }
+
+  /* ============ RENDER: ÁRBOL ============ */
+  function typeColorVar(type){
+    return {bomba:"var(--accent)", tuberia:"var(--copper)", union:"var(--text-faint)", accesorio:"#8a6fc9", valvula:"var(--warning)"}[type];
+  }
+  function typeIcon(type){
+    return {bomba:iconPump, tuberia:iconPipe, union:iconUnion, accesorio:iconFitting, valvula:iconValve}[type](15);
+  }
+  function nodeSubtitle(n){
+    if(n.type==="bomba") return "Q "+n.props.Q+" m³/h · H "+n.props.H+" mca";
+    if(n.type==="tuberia") return MATERIALS[n.props.material].label+" · ⌀"+n.props.D+"mm";
+    if(n.type==="union") return "Punto de unión";
+    return n.props.sub+" · K="+n.props.K;
+  }
+
+  function renderTree(){
+    const layout = computeLayout();
+    const {pos} = layout;
+    const inner = document.getElementById("canvas-inner");
+    inner.style.width = layout.width+"px";
+    inner.style.height = layout.height+"px";
+
+    let html = '<svg class="wires" width="'+layout.width+'" height="'+layout.height+'">';
+    html += wireStyle();
+
+    function cx(p){return p.x+NODE_W;}      // right edge
+    function cy(p){return p.y+NODE_H/2;}    // vertical center
+    function lx(p){return p.x;}             // left edge
+
+    // pump -> trunk chain -> union
+    let chain = [network.pump, ...network.trunk, network.union];
+    for(let i=0;i<chain.length-1;i++){
+      const a = pos[chain[i].id], b = pos[chain[i+1].id];
+      html += line(cx(a), cy(a), lx(b), cy(b));
+    }
+
+    // union -> each branch (elbow)
+    const up = pos[network.union.id];
+    network.branches.forEach(br=>{
+      const firstId = br.nodes.length ? br.nodes[0].id : "ghost-"+br.id;
+      const b = pos[firstId];
+      const elbowX = cx(up) + 42;
+      html += elbow(cx(up), cy(up), elbowX, b.y+NODE_H/2, lx(b));
+      // chain within branch
+      for(let i=0;i<br.nodes.length-1;i++){
+        const a = pos[br.nodes[i].id], c = pos[br.nodes[i+1].id];
+        html += line(cx(a), cy(a), lx(c), cy(c));
+      }
+      // last node -> ghost
+      const last = br.nodes.length ? pos[br.nodes[br.nodes.length-1].id] : b;
+      const ghost = pos["ghost-"+br.id];
+      if(br.nodes.length) html += line(cx(last), cy(last), lx(ghost), cy(ghost), true);
+    });
+
+    html += "</svg>";
+
+    // nodes
+    html += drawNode(network.pump, pos[network.pump.id], "bomba");
+    network.trunk.forEach(n=> html += drawNode(n, pos[n.id], "tuberia"));
+    html += drawNode(network.union, pos[network.union.id], "union");
+    network.branches.forEach(br=>{
+      br.nodes.forEach(n=> html += drawNode(n, pos[n.id], n.type));
+      html += drawGhost("ghost-"+br.id, pos["ghost-"+br.id], br.name, "Arrastra un\ncomponente");
+    });
+    html += drawGhost("ghost-newline", pos["ghost-newline"], "Nueva línea", "Arrastra una\nbomba aquí");
+
+    inner.innerHTML = html;
+    attachNodeEvents();
+    attachDropEvents();
+    updateStats();
+  }
+
+  function wireStyle(){
+    return '<style>.wire{stroke:var(--border-strong);stroke-width:2;fill:none;} .wire.dashed{stroke-dasharray:4 4;}</style>';
+  }
+  function line(x1,y1,x2,y2,dashed){
+    return '<line class="wire'+(dashed?" dashed":"")+'" x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'"/>';
+  }
+  function elbow(x1,y1,ex,ey2,x2){
+    // horizontal, vertical, horizontal
+    const d = 'M '+x1+' '+y1+' H '+ex+' V '+ey2+' H '+x2;
+    return '<path class="wire" d="'+d+'"/>';
+  }
+
+  function drawNode(n, p, type){
+    const sel = n.id===selectedId ? " selected" : "";
+    return '<div class="node type-'+type+sel+'" tabindex="0" data-id="'+n.id+'" style="left:'+p.x+'px;top:'+p.y+'px">'
+      +'<div class="node-head"><span class="node-icon" style="color:'+typeColorVar(type)+'">'+typeIcon(type)+'</span>'
+      +'<span class="node-title">'+n.label+'</span></div>'
+      +'<div class="node-sub">'+nodeSubtitle(n)+'</div>'
+      +'</div>';
+  }
+  function drawGhost(id, p, title, sub){
+    return '<div class="ghost" data-ghost="'+id+'" style="left:'+p.x+'px;top:'+p.y+'px">'
+      +'<b>+</b><span>'+title+'</span></div>';
+  }
+
+  function attachNodeEvents(){
+    document.querySelectorAll(".node").forEach(el=>{
+      el.addEventListener("click", ()=>selectNode(el.dataset.id));
+      el.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); selectNode(el.dataset.id);} });
+    });
+  }
+
+  function findNode(id){
+    if(network.pump.id===id) return {node:network.pump, type:"bomba"};
+    if(network.union.id===id) return {node:network.union, type:"union"};
+    for(const n of network.trunk) if(n.id===id) return {node:n, type:n.type};
+    for(const br of network.branches) for(const n of br.nodes) if(n.id===id) return {node:n, type:n.type};
+    return null;
+  }
+
+  function selectNode(id){
+    selectedId = id;
+    renderTree();
+    switchTab("propiedades");
+    renderProperties();
+  }
+
+  /* ============ DRAG & DROP ============ */
+  function attachDropEvents(){
+    document.querySelectorAll(".ghost").forEach(el=>{
+      el.addEventListener("dragover", e=>{ e.preventDefault(); el.classList.add("dragover"); });
+      el.addEventListener("dragleave", ()=> el.classList.remove("dragover"));
+      el.addEventListener("drop", e=>{
+        e.preventDefault();
+        el.classList.remove("dragover");
+        const raw = e.dataTransfer.getData("text/plain");
+        if(!raw) return;
+        const payload = JSON.parse(raw);
+        handleDrop(el.dataset.ghost, payload);
+      });
+    });
+  }
+
+  function handleDrop(ghostId, payload){
+    const item = payload.item;
+    if(ghostId === "ghost-newline"){
+      if(item.type !== "bomba"){
+        flashToast("Solo se puede iniciar una nueva línea con una bomba.");
+        return;
+      }
+      // demo: no montamos una segunda línea completa en este bosquejo,
+      // solo confirmamos el punto de partida
+      flashToast("Segunda línea (bomba adicional) — próximo paso del bosquejo.");
+      return;
+    }
+    const brId = ghostId.replace("ghost-","");
+    const branch = network.branches.find(b=>b.id===brId);
+    if(!branch) return;
+    const newNode = {
+      id: nid(item.type[0].toUpperCase()),
+      type: item.type,
+      label: autoLabel(item, branch),
+      props: JSON.parse(JSON.stringify(item.defaults))
+    };
+    branch.nodes.push(newNode);
+    saveNetwork();
+    selectedId = newNode.id;
+    renderTree();
+    switchTab("propiedades");
+    renderProperties();
+  }
+
+  function autoLabel(item, branch){
+    const count = branch.nodes.length+1;
+    if(item.type==="tuberia") return "Tubería "+branch.id+count;
+    if(item.type==="valvula") return "Válvula "+branch.id+count;
+    if(item.type==="accesorio") return item.defaults.sub+" "+branch.id+count;
+    return item.label+" "+branch.id+count;
+  }
+
+  function flashToast(msg){
+    let t = document.getElementById("toast");
+    if(!t){
+      t = document.createElement("div");
+      t.id="toast";
+      t.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--surface);padding:9px 16px;border-radius:8px;font-size:12.5px;z-index:999;box-shadow:var(--shadow);";
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = "1";
+    clearTimeout(t._h);
+    t._h = setTimeout(()=>{ t.style.opacity="0"; }, 2600);
+  }
+
+  /* ============ RENDER: PALETA DE COMPONENTES ============ */
+  function renderPalette(){
+    const el = document.getElementById("panel-componentes");
+    let html = "";
+    Object.entries(CATALOG).forEach(([key, cat])=>{
+      html += '<div class="accordion-section" data-cat="'+key+'">'
+        + '<div class="accordion-head" data-toggle="'+key+'">'+cat.label
+        + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></div>'
+        + '<div class="accordion-body">';
+      cat.items.forEach(item=>{
+        html += '<div class="comp-card" draggable="true" data-cat="'+key+'" data-item="'+item.key+'">'
+          + '<span class="comp-icon" style="color:'+typeColorVar(item.type)+'">'+cat.icon(16)+'</span>'
+          + '<span class="comp-body"><span class="comp-name">'+item.label+'</span><br><span class="comp-spec">'+item.spec+'</span></span>'
+          + '</div>';
+      });
+      html += '</div></div>';
+    });
+    el.innerHTML = html;
+
+    el.querySelectorAll(".accordion-head").forEach(h=>{
+      h.addEventListener("click", ()=>{
+        h.closest(".accordion-section").classList.toggle("closed");
+      });
+    });
+    el.querySelectorAll(".comp-card").forEach(card=>{
+      card.addEventListener("dragstart", e=>{
+        const cat = CATALOG[card.dataset.cat];
+        const item = cat.items.find(i=>i.key===card.dataset.item);
+        e.dataTransfer.setData("text/plain", JSON.stringify({item}));
+        e.dataTransfer.effectAllowed = "copy";
+      });
+    });
+  }
+
+  /* ============ RENDER: PROPIEDADES ============ */
+  function switchTab(name){
+    document.querySelectorAll(".tab").forEach(t=> t.classList.toggle("active", t.dataset.tab===name));
+    document.getElementById("panel-componentes").classList.toggle("active", name==="componentes");
+    document.getElementById("panel-propiedades").classList.toggle("active", name==="propiedades");
+    if(name==="propiedades") document.getElementById("props-dot").style.display="none";
+  }
+
+  function branchOf(nodeId){
+    return network.branches.find(br=>br.nodes.some(n=>n.id===nodeId));
+  }
+
+  function renderProperties(){
+    const el = document.getElementById("panel-propiedades");
+    if(!selectedId){
+      el.innerHTML = '<div class="props-empty">'
+        + svgIcon('<path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 0 2-2v-4"/>', 30)
+        + '<div>Selecciona un componente en el lienzo,<br>o arrastra uno nuevo desde «Componentes».</div></div>';
+      return;
+    }
+    const found = findNode(selectedId);
+    if(!found){ selectedId=null; renderProperties(); return; }
+    const {node, type} = found;
+
+    let body = "";
+    if(type==="bomba") body = propsBomba(node);
+    else if(type==="tuberia") body = propsTuberia(node);
+    else if(type==="union") body = propsUnion(node);
+    else body = propsAccesorio(node); // accesorio o valvula
+
+    el.innerHTML =
+      '<div class="props-head"><div class="props-type">'+typeLabel(type)+'</div><div class="props-name">'+node.label+'</div></div>'
+      + '<div class="props-body">'+body+'</div>'
+      + '<div class="props-hint">Los cambios se recalculan al instante y se guardan en este navegador.</div>';
+
+    bindPropInputs(node, type);
+  }
+
+  function typeLabel(type){
+    return {bomba:"Equipo · Bomba", tuberia:"Tramo de tubería", union:"Nudo de red", accesorio:"Accesorio", valvula:"Válvula"}[type];
+  }
+
+  function propsBomba(n){
+    return field2("Caudal nominal (m³/h)","Q",n.props.Q,"Altura manométrica (mca)","H",n.props.H)
+      + field2("Potencia absorbida (kW)","Pot",n.props.Pot,"NPSH disponible (mca)","NPSHd",n.props.NPSHd)
+      + '<div class="result-box"><div class="result-title">Punto de trabajo</div>'
+      + '<div class="result-row"><span class="k">Alimenta a</span><span class="v">'+ (1+network.trunk.length) +' tramo(s) de línea principal</span></div>'
+      + '<div class="formula-note">La curva bomba–sistema y la comprobación de cavitación (NPSHd &gt; NPSHr) se resuelven en la fase de cálculo de red.</div></div>';
+  }
+
+  function propsUnion(n){
+    const trunkQ = network.trunk.length ? network.trunk[network.trunk.length-1].props.Q : network.pump.props.Q;
+    let sum = 0;
+    network.branches.forEach(br=>{ if(br.nodes.length) sum += Number(br.nodes[0].props.Q)||0; });
+    const balanced = Math.abs(sum-trunkQ) < 0.05*Math.max(trunkQ,0.001);
+    return '<div class="result-box"><div class="result-title">Continuidad (ΣQ salida = Q entrada)</div>'
+      + '<div class="result-row"><span class="k">Caudal de entrada</span><span class="v">'+trunkQ.toFixed(2)+' m³/h</span></div>'
+      + '<div class="result-row"><span class="k">Suma de ramales</span><span class="v">'+sum.toFixed(2)+' m³/h</span></div>'
+      + '<div class="result-row"><span class="k">Balance</span>'
+      + '<span class="badge '+(balanced?"ok":"bad")+'">'+(balanced?"◆ equilibrado":"◆ desajustado")+'</span></div>'
+      + '<div class="formula-note">Ajusta el caudal del primer tramo de cada ramal para restablecer el balance de masa en el nudo.</div></div>'
+      + '<div class="formula-note" style="margin-top:8px">Este nudo reparte el flujo entre '+network.branches.length+' ramales: '
+      + network.branches.map(b=>b.name).join(" y ")+'.</div>';
+  }
+
+  function propsTuberia(n){
+    const mat = MATERIALS[n.props.material];
+    const r = pipeHeadLoss(Number(n.props.D), Number(n.props.L), Number(n.props.Q), mat.eps);
+    const regimen = r.Re < 2300 ? "laminar" : (r.Re<4000?"transición":"turbulento");
+    return matSelect(n.props.material)
+      + field2("Diámetro interior (mm)","D",n.props.D,"Longitud (m)","L",n.props.L)
+      + field1("Caudal (m³/h)","Q",n.props.Q)
+      + '<div class="result-box"><div class="result-title">Pérdida de carga · Darcy–Weisbach</div>'
+      + '<div class="result-row"><span class="k">Velocidad</span><span class="v">'+r.v.toFixed(2)+' m/s</span></div>'
+      + '<div class="result-row"><span class="k">Reynolds</span><span class="v">'+r.Re.toFixed(0)+' ('+regimen+')</span></div>'
+      + '<div class="result-row"><span class="k">f (Swamee–Jain)</span><span class="v">'+r.f.toFixed(4)+'</span></div>'
+      + '<div class="result-row"><span class="k">Rugosidad ε</span><span class="v">'+mat.eps+' mm</span></div>'
+      + '<div class="result-row"><span class="k">Pérdida h<sub>f</sub></span><span class="v big">'+r.hf.toFixed(3)+' mca</span></div>'
+      + '<div class="result-row"><span class="k">&nbsp;</span><span class="v">'+mca_to_kpa(r.hf).toFixed(2)+' kPa</span></div>'
+      + '<div class="formula-note">h<sub>f</sub> = f · (L/D) · v²/2g — f por Swamee–Jain (aprox. de Colebrook–White), régimen laminar con f=64/Re.</div></div>';
+  }
+
+  function propsAccesorio(n){
+    const r = localHeadLoss(Number(n.props.K), Number(n.props.D), Number(n.props.Q));
+    return field2("Factor K","K",n.props.K,"Diámetro (mm)","D",n.props.D)
+      + field1("Caudal (m³/h)","Q",n.props.Q)
+      + '<div class="result-box"><div class="result-title">Pérdida localizada</div>'
+      + '<div class="result-row"><span class="k">Velocidad</span><span class="v">'+r.v.toFixed(2)+' m/s</span></div>'
+      + '<div class="result-row"><span class="k">Pérdida h</span><span class="v big">'+r.h.toFixed(3)+' mca</span></div>'
+      + '<div class="result-row"><span class="k">&nbsp;</span><span class="v">'+mca_to_kpa(r.h).toFixed(2)+' kPa</span></div>'
+      + '<div class="formula-note">h = K · v²/2g — el factor K es orientativo; sustitúyelo por el dato de catálogo del fabricante.</div></div>';
+  }
+
+  function matSelect(current){
+    let opts = Object.entries(MATERIALS).map(([k,m])=>
+      '<option value="'+k+'"'+(k===current?" selected":"")+'>'+m.label+'</option>').join("");
+    return '<div class="field"><label>Material</label><select data-prop="material">'+opts+'</select></div>';
+  }
+  function field1(label,key,val){
+    return '<div class="field"><label>'+label+'</label><input type="number" step="any" data-prop="'+key+'" value="'+val+'"></div>';
+  }
+  function field2(l1,k1,v1,l2,k2,v2){
+    return '<div class="field-row">'
+      + '<div class="field"><label>'+l1+'</label><input type="number" step="any" data-prop="'+k1+'" value="'+v1+'"></div>'
+      + '<div class="field"><label>'+l2+'</label><input type="number" step="any" data-prop="'+k2+'" value="'+v2+'"></div>'
+      + '</div>';
+  }
+
+  function bindPropInputs(node, type){
+    document.querySelectorAll('#panel-propiedades [data-prop]').forEach(input=>{
+      input.addEventListener("input", ()=>{
+        const key = input.dataset.prop;
+        const val = input.tagName==="SELECT" ? input.value : parseFloat(input.value);
+        node.props[key] = (input.tagName==="SELECT" || isNaN(val)) ? input.value : val;
+        if(key==="material"){
+          // al cambiar material, sugerir su rugosidad/diámetro por defecto si el usuario no ha tocado D
+        }
+        saveNetwork();
+        renderProperties();
+        renderTree(); // refresca subtítulos / stats (mantiene selección)
+      });
+    });
+  }
+
+  /* ============ STATS ============ */
+  function countTramos(){
+    let c = network.trunk.length;
+    network.branches.forEach(b=> c += b.nodes.length);
+    return c;
+  }
+  function updateStats(){
+    document.getElementById("stat-tramos").textContent = countTramos();
+    document.getElementById("stat-caudal").textContent = network.pump.props.Q + " m³/h";
+  }
+
+  /* ============ NAV / TABS ============ */
+  document.querySelectorAll(".nav-item").forEach(item=>{
+    item.addEventListener("click", ()=>{
+      if(item.dataset.nav==="editor"){
+        document.querySelectorAll(".nav-item").forEach(i=>i.classList.toggle("active", i===item));
+        return;
+      }
+      flashToast("«"+item.textContent.replace("pronto","").trim()+"» — próxima fase del bosquejo.");
+    });
+  });
+  document.querySelectorAll(".tab").forEach(t=>{
+    t.addEventListener("click", ()=> switchTab(t.dataset.tab));
+  });
+  document.getElementById("btn-reset").addEventListener("click", ()=>{
+    localStorage.removeItem("piping-bosquejo-network");
+    network = defaultNetwork();
+    selectedId = null;
+    renderTree();
+    renderProperties();
+    switchTab("componentes");
+    flashToast("Ejemplo restablecido.");
+  });
+  document.querySelector('[data-tab="propiedades"] .dot')?.remove;
+
+  /* ============ INIT ============ */
+  renderPalette();
+  renderTree();
+  renderProperties();
+
+})();
+</script>
