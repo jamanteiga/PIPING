@@ -153,15 +153,54 @@
     background:var(--surface-3); padding:2px 6px; border-radius:5px; letter-spacing:.02em;
   }
   .divider{height:1px; background:var(--border); margin:12px 2px;}
-  .project-card{
-    background:var(--surface-2); border:1px solid var(--border); border-radius:9px;
-    padding:11px 12px; margin-top:2px;
-  }
-  .project-card-title{font-size:9.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-faint); margin-bottom:5px;}
-  .project-name{font-size:13px; font-weight:600; line-height:1.35; margin-bottom:8px;}
-  .project-stats{display:flex; flex-direction:column; gap:4px;}
   .project-stat{display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);}
   .project-stat b{color:var(--text); font-weight:600;}
+
+  /* ---- selector de proyecto ---- */
+  .proj-switcher{margin-bottom:4px;}
+  .proj-trigger{
+    width:100%; display:flex; align-items:center; gap:8px; text-align:left;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:9px;
+    padding:9px 10px; cursor:pointer; font-family:inherit; color:var(--text);
+  }
+  .proj-trigger:hover{border-color:var(--border-strong);}
+  .proj-switcher.open .proj-trigger{border-color:var(--accent);}
+  .proj-trigger-text{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
+  .proj-trigger-name{font-size:13px; font-weight:600; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .proj-trigger-state{
+    align-self:flex-start; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--accent-strong); background:var(--accent-soft); padding:1.5px 6px; border-radius:5px;
+  }
+  .proj-trigger svg{flex:0 0 auto; color:var(--text-faint); transition:transform .15s ease;}
+  .proj-switcher.open .proj-trigger svg{transform:rotate(180deg);}
+  .proj-stats{
+    display:flex; flex-direction:column; gap:3px;
+    padding:8px 10px 2px;
+  }
+  .proj-dropdown{display:none; margin-top:6px; border:1px solid var(--border); border-radius:9px; overflow:hidden; background:var(--surface);}
+  .proj-switcher.open .proj-dropdown{display:block;}
+  .proj-list{max-height:180px; overflow-y:auto;}
+  .proj-item{
+    display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer;
+    border-bottom:1px solid var(--border); font-size:12.5px;
+  }
+  .proj-item:last-child{border-bottom:none;}
+  .proj-item:hover{background:var(--surface-2);}
+  .proj-item.active{background:var(--accent-soft); color:var(--accent-strong); font-weight:600;}
+  .proj-item-name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .proj-item-state{font-size:9.5px; color:var(--text-faint); flex:0 0 auto;}
+  .proj-item.active .proj-item-state{color:var(--accent-strong);}
+  .proj-new{display:flex; gap:6px; padding:8px; border-top:1px solid var(--border); background:var(--surface-2);}
+  .proj-new input{
+    flex:1; min-width:0; font-size:12px; font-family:inherit; padding:6px 8px;
+    border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); color:var(--text);
+  }
+  .proj-new input:focus{border-color:var(--accent);}
+  .proj-new-btn{
+    flex:0 0 auto; font-size:11.5px; font-weight:600; padding:6px 9px; border-radius:6px;
+    border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; white-space:nowrap;
+  }
+  .proj-new-btn:hover{background:var(--accent-strong); border-color:var(--accent-strong);}
   .menu-foot{padding:11px 16px; border-top:1px solid var(--border); font-size:10.5px; color:var(--text-faint); display:flex; flex-direction:column; gap:8px;}
   .reset-link{background:none; border:none; color:var(--accent); font-size:11.5px; font-weight:600; cursor:pointer; padding:0; text-align:left; font-family:inherit;}
   .reset-link:hover{text-decoration:underline;}
@@ -318,6 +357,29 @@
   <!-- LEFT: MENU LATERAL -->
   <div class="panel" id="panel-left">
     <div class="menu-scroll">
+      <div class="menu-label">Proyecto</div>
+      <div class="proj-switcher" id="proj-switcher">
+        <button class="proj-trigger" id="proj-trigger" type="button" aria-haspopup="true">
+          <span class="proj-trigger-text">
+            <span class="proj-trigger-name" id="proj-trigger-name">—</span>
+            <span class="proj-trigger-state" id="proj-trigger-state">—</span>
+          </span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="proj-stats">
+          <div class="project-stat"><span>Tramos</span><b id="stat-tramos">–</b></div>
+          <div class="project-stat"><span>Caudal bomba</span><b id="stat-caudal">–</b></div>
+        </div>
+        <div class="proj-dropdown" id="proj-dropdown">
+          <div class="proj-list" id="proj-list"></div>
+          <div class="proj-new">
+            <input type="text" id="proj-new-input" placeholder="Nombre del nuevo proyecto" maxlength="60">
+            <button class="proj-new-btn" id="proj-new-btn" type="button">+ Crear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
       <div class="menu-label">Navegación</div>
       <div class="nav-item active" data-nav="editor">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h6a3 3 0 0 0 3-3V4"/><circle cx="4" cy="12" r="2"/><circle cx="13" cy="4" r="2"/><path d="M11 12h4a3 3 0 0 1 3 3v5" stroke-linecap="round"/><circle cx="20" cy="20" r="2"/></svg>
@@ -339,17 +401,6 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         Configuración <span class="soon">pronto</span>
       </div>
-
-      <div class="divider"></div>
-      <div class="menu-label">Proyecto actual</div>
-      <div class="project-card">
-        <div class="project-name">Red de refrigeración — Nave 3</div>
-        <div class="project-stats">
-          <div class="project-stat"><span>Estado</span><b>Borrador</b></div>
-          <div class="project-stat"><span>Tramos</span><b id="stat-tramos">–</b></div>
-          <div class="project-stat"><span>Caudal bomba</span><b id="stat-caudal">–</b></div>
-        </div>
-      </div>
     </div>
     <div class="menu-foot">
       <span>Bosquejo interactivo · v0.1 · datos de ejemplo</span>
@@ -361,7 +412,7 @@
   <div class="panel" id="panel-center">
     <div class="canvas-wrap">
       <div class="canvas-toolbar">
-        <div class="canvas-title">Red de refrigeración — Nave 3</div>
+        <div class="canvas-title" id="canvas-title">—</div>
         <div class="legend">
           <div class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Bomba</div>
           <div class="legend-item"><span class="legend-swatch" style="background:var(--copper)"></span>Tubería</div>
@@ -454,12 +505,11 @@
   function iconFitting(sz){return svgIcon('<path d="M5 12h6a4 4 0 0 0 4-4V4"/>', sz||16);}
   function iconValve(sz){return svgIcon('<path d="M4 12h4M16 12h4M8 12l4-4 4 4-4 4-4-4z"/>', sz||16);}
 
-  /* ============ RED DE EJEMPLO (estado) ============ */
+  /* ============ PROYECTOS Y RED DE EJEMPLO (estado) ============ */
   let uid = 1;
   function nid(prefix){ return prefix+"-"+(uid++); }
 
-  function defaultNetwork(){
-    uid = 1;
+  function sampleNetwork(){
     return {
       pump: {id:nid("B"), type:"bomba", label:"Bomba B-1", props:{Q:25,H:32,Pot:5.5,NPSHd:4.2}},
       trunk: [
@@ -487,23 +537,85 @@
     };
   }
 
-  let network = loadNetwork() || defaultNetwork();
+  // proyecto nuevo: bomba + unión ya colocadas, ramales listos para arrastrar componentes
+  function starterNetwork(){
+    return {
+      pump: {id:nid("B"), type:"bomba", label:"Bomba B-1", props:{Q:10,H:20,Pot:2.2,NPSHd:4.0}},
+      trunk: [],
+      union: {id:nid("J"), type:"union", label:"Unión J-1", props:{}},
+      branches: [
+        {id:"A", y:150, name:"Ramal A", nodes:[]},
+        {id:"B", y:400, name:"Ramal B", nodes:[]},
+      ]
+    };
+  }
+
+  function defaultProjects(){
+    uid = 1;
+    const p1 = {id:"p1", name:"Red de refrigeración — Nave 3", estado:"Borrador", network:sampleNetwork()};
+    const p2 = {id:"p2", name:"Ampliación — Nave 4", estado:"Borrador", network:starterNetwork()};
+    return [p1, p2];
+  }
+
+  let projects = null;
+  let currentProjectId = null;
+  let network = null;      // referencia al network del proyecto activo
   let selectedId = null;
 
-  function loadNetwork(){
+  function loadState(){
     try{
-      const raw = localStorage.getItem("piping-bosquejo-network");
+      const raw = localStorage.getItem("piping-bosquejo-proyectos");
       if(!raw) return null;
       const parsed = JSON.parse(raw);
-      // resync uid counter above any id found
+      if(!parsed || !Array.isArray(parsed.projects) || !parsed.projects.length) return null;
       let max=0;
       JSON.stringify(parsed).replace(/-(\d+)"/g, (m,n)=>{max=Math.max(max,parseInt(n,10));return m;});
       uid = max+1;
       return parsed;
     }catch(e){ return null; }
   }
-  function saveNetwork(){
-    try{ localStorage.setItem("piping-bosquejo-network", JSON.stringify(network)); }catch(e){}
+  function saveState(){
+    try{ localStorage.setItem("piping-bosquejo-proyectos", JSON.stringify({projects, currentProjectId})); }catch(e){}
+  }
+  // saveNetwork() se llama desde el resto del código cada vez que cambia el árbol activo
+  function saveNetwork(){ saveState(); }
+
+  function currentProject(){
+    return projects.find(p=>p.id===currentProjectId) || projects[0];
+  }
+
+  function initState(){
+    const loaded = loadState();
+    if(loaded){
+      projects = loaded.projects;
+      currentProjectId = loaded.currentProjectId && projects.some(p=>p.id===loaded.currentProjectId)
+        ? loaded.currentProjectId : projects[0].id;
+    } else {
+      projects = defaultProjects();
+      currentProjectId = projects[0].id;
+    }
+    network = currentProject().network;
+  }
+
+  function switchProject(id){
+    if(id===currentProjectId) return;
+    currentProjectId = id;
+    network = currentProject().network;
+    selectedId = null;
+    saveState();
+    renderAll();
+  }
+
+  function createProject(name){
+    const clean = (name||"").trim();
+    if(!clean) return;
+    const p = {id:"p"+Date.now(), name:clean, estado:"Borrador", network:starterNetwork()};
+    projects.push(p);
+    currentProjectId = p.id;
+    network = p.network;
+    selectedId = null;
+    saveState();
+    renderAll();
   }
 
   /* ============ FÍSICA ============ */
@@ -917,6 +1029,61 @@
   function updateStats(){
     document.getElementById("stat-tramos").textContent = countTramos();
     document.getElementById("stat-caudal").textContent = network.pump.props.Q + " m³/h";
+    document.getElementById("canvas-title").textContent = currentProject().name;
+  }
+
+  /* ============ SELECTOR DE PROYECTO ============ */
+  function renderProjectSwitcher(){
+    const proj = currentProject();
+    document.getElementById("proj-trigger-name").textContent = proj.name;
+    document.getElementById("proj-trigger-state").textContent = proj.estado;
+
+    const list = document.getElementById("proj-list");
+    list.innerHTML = projects.map(p=>
+      '<div class="proj-item'+(p.id===proj.id?" active":"")+'" data-proj="'+p.id+'">'
+      + '<span class="proj-item-name">'+p.name+'</span>'
+      + '<span class="proj-item-state">'+p.estado+'</span>'
+      + '</div>'
+    ).join("");
+    list.querySelectorAll(".proj-item").forEach(row=>{
+      row.addEventListener("click", ()=>{
+        switchProject(row.dataset.proj);
+        closeProjSwitcher();
+      });
+    });
+  }
+  function toggleProjSwitcher(){
+    document.getElementById("proj-switcher").classList.toggle("open");
+  }
+  function closeProjSwitcher(){
+    document.getElementById("proj-switcher").classList.remove("open");
+  }
+  document.getElementById("proj-trigger").addEventListener("click", e=>{
+    e.stopPropagation();
+    toggleProjSwitcher();
+  });
+  document.getElementById("proj-dropdown").addEventListener("click", e=> e.stopPropagation());
+  document.addEventListener("click", ()=> closeProjSwitcher());
+
+  function submitNewProject(){
+    const input = document.getElementById("proj-new-input");
+    if(!input.value.trim()){ input.focus(); return; }
+    createProject(input.value);
+    input.value = "";
+    closeProjSwitcher();
+    flashToast("Proyecto creado.");
+  }
+  document.getElementById("proj-new-btn").addEventListener("click", submitNewProject);
+  document.getElementById("proj-new-input").addEventListener("keydown", e=>{
+    if(e.key==="Enter"){ e.preventDefault(); submitNewProject(); }
+  });
+
+  /* ============ RENDER GLOBAL ============ */
+  function renderAll(){
+    renderProjectSwitcher();
+    renderTree();
+    renderProperties();
+    switchTab("componentes");
   }
 
   /* ============ NAV / TABS ============ */
@@ -933,18 +1100,21 @@
     t.addEventListener("click", ()=> switchTab(t.dataset.tab));
   });
   document.getElementById("btn-reset").addEventListener("click", ()=>{
-    localStorage.removeItem("piping-bosquejo-network");
-    network = defaultNetwork();
+    const proj = currentProject();
+    proj.network = proj.id==="p1" ? sampleNetwork() : starterNetwork();
+    network = proj.network;
     selectedId = null;
+    saveState();
     renderTree();
     renderProperties();
     switchTab("componentes");
-    flashToast("Ejemplo restablecido.");
+    flashToast("Proyecto restablecido a su estado inicial.");
   });
-  document.querySelector('[data-tab="propiedades"] .dot')?.remove;
 
   /* ============ INIT ============ */
+  initState();
   renderPalette();
+  renderProjectSwitcher();
   renderTree();
   renderProperties();
 
