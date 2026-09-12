@@ -444,6 +444,11 @@
             } else if (e.key.toLowerCase() === 'w' && document.activeElement.tagName !== 'INPUT') {
                 modoZoomVentana = !modoZoomVentana;
                 canvasContainer.style.cursor = modoZoomVentana ? 'crosshair' : 'default';
+            } else if (e.key === 'Escape' && modoZoomVentana) {
+                modoZoomVentana = false;
+                isSelectingZoom = false;
+                zoomBox.style.display = 'none';
+                canvasContainer.style.cursor = 'default';
             }
         });
 
@@ -510,6 +515,31 @@
             zoomBox.style.display = 'none';
             modoZoomVentana = false;
             canvasContainer.style.cursor = 'default';
+
+            const rect = canvasContainer.getBoundingClientRect();
+            let finX = e.clientX - rect.left + canvasContainer.scrollLeft;
+            let finY = e.clientY - rect.top + canvasContainer.scrollTop;
+
+            // zoomStartX/Y y finX/Y están en píxeles de pantalla YA escalados por el zoom actual
+            // (son relativos al scroll del contenedor). Se dividen por zoomScale para pasarlos al
+            // mismo espacio "sin escalar" en el que viven el.x y mundoAScreenY(el.y) — el mismo
+            // criterio que usa el zoom con la rueda del ratón.
+            let x1 = Math.min(zoomStartX, finX) / zoomScale;
+            let x2 = Math.max(zoomStartX, finX) / zoomScale;
+            let y1 = Math.min(zoomStartY, finY) / zoomScale;
+            let y2 = Math.max(zoomStartY, finY) / zoomScale;
+
+            const anchoSeleccion = x2 - x1;
+            const altoSeleccion = y2 - y1;
+            if (anchoSeleccion < 5 || altoSeleccion < 5) return; // clic sin arrastre real: se ignora, como en AutoCAD
+
+            const scaleX = canvasContainer.clientWidth / anchoSeleccion;
+            const scaleY = canvasContainer.clientHeight / altoSeleccion;
+            // El zoom ventana sí permite acercarse más que el límite habitual de la rueda (3.0),
+            // ya que su objetivo es precisamente encuadrar un detalle pequeño.
+            zoomScale = Math.min(scaleX, scaleY, 15.0);
+            marcoA3.style.transform = `scale(${zoomScale})`;
+            centrarVistaEnPunto((x1 + x2) / 2, (y1 + y2) / 2);
         });
 
         function cerrarMenuContextual(e) {
@@ -684,33 +714,34 @@
             if (desenganchado) return;
             const snapThreshold = umbral;
             let puertosArrastrados = obtenerPuertosConexion(el);
-            
+
+            // Se evalúan TODAS las combinaciones puerto-arrastrado / puerto-fijo dentro del umbral
+            // (de cualquier otro elemento) y se elige la de MENOR distancia, no la primera que se
+            // encuentre. Antes, al haber varios puertos cercanos a la vez, el imán podía "irse" a
+            // uno más lejano solo porque se comprobaba antes en el orden de la lista.
+            let mejor = null;
             for (let otroEl of elementosRed) {
                 if (otroEl.id === el.id) continue;
                 let puertosFijos = obtenerPuertosConexion(otroEl);
-                let imánEncontrado = false;
-
-                for (let i = 0; i < puertosArrastrados.length; i++) {
-                    let pa = puertosArrastrados[i];
+                for (let pa of puertosArrastrados) {
                     for (let pf of puertosFijos) {
                         let distancia = Math.hypot(pa.x - pf.x, pa.y - pf.y);
-                        if (distancia < snapThreshold) {
-                            // pa/pf son coordenadas de PANTALLA (ver obtenerPuertosConexion). En X,
-                            // mundo y pantalla avanzan igual, pero en Y el mundo está invertido
-                            // respecto a pantalla, así que la corrección de pantalla se SUMA a el.y
-                            // (no se resta, al contrario que con el.x) para que el puerto quede
-                            // exacto sobre el fijo, sin ninguna desviación.
-                            let offsetX = pa.x - el.x;
-                            let offsetYPantalla = pa.y - pf.y;
-                            el.x = pf.x - offsetX;
-                            el.y = el.y + offsetYPantalla;
-                            imánEncontrado = true;
-                            break;
+                        if (distancia < snapThreshold && (!mejor || distancia < mejor.distancia)) {
+                            mejor = { pa, pf, distancia };
                         }
                     }
-                    if (imánEncontrado) break;
                 }
-                if (imánEncontrado) break;
+            }
+
+            if (mejor) {
+                // pa/pf son coordenadas de PANTALLA (ver obtenerPuertosConexion). En X, mundo y
+                // pantalla avanzan igual, pero en Y el mundo está invertido respecto a pantalla, así
+                // que la corrección de pantalla se SUMA a el.y (no se resta, al contrario que con
+                // el.x) para que el puerto quede exacto sobre el fijo, sin ninguna desviación.
+                let offsetX = mejor.pa.x - el.x;
+                let offsetYPantalla = mejor.pa.y - mejor.pf.y;
+                el.x = mejor.pf.x - offsetX;
+                el.y = el.y + offsetYPantalla;
             }
         }
 
