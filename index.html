@@ -536,6 +536,9 @@
         function dropElemento(ev) {
             ev.preventDefault();
             document.getElementById("empty-state")?.remove();
+            // "Mover/Desconectar" deja esta bandera en true para el siguiente arrastre manual; un
+            // componente NUEVO desde la librería siempre debe intentar imantarse.
+            desenganchado = false;
 
             const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
             const rectMarco = marcoA3.getBoundingClientRect();
@@ -705,6 +708,7 @@
         // ligeramente distinta a una versión anterior, o se ha movido a mano un conjunto ya
         // conectado y algún extremo quedó suelto.
         function reajustarTodasLasConexiones() {
+            desenganchado = false; // una acción manual de reajuste nunca debe quedar bloqueada por esta bandera
             const UMBRAL_REAJUSTE = 15;
             for (let pasada = 0; pasada < 3; pasada++) {
                 elementosRed.forEach(el => aplicarSnapping(el, UMBRAL_REAJUSTE));
