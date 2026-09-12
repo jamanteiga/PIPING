@@ -1,1188 +1,1588 @@
-<title>Editor de Red Hidráulica</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<style>
-  :root{
-    --bg:#f4f7fa;
-    --surface:#ffffff;
-    --surface-2:#eef2f7;
-    --surface-3:#e4eaf1;
-    --border:#d7e0e9;
-    --border-strong:#c1ccd8;
-    --text:#152233;
-    --text-muted:#5c7085;
-    --text-faint:#8ea0b3;
-    --accent:#1d6fa5;
-    --accent-strong:#0f4c73;
-    --accent-soft:#e4f0f8;
-    --copper:#b8651f;
-    --copper-soft:#f7ebe0;
-    --success:#2f8f5b;
-    --success-soft:#e3f4ea;
-    --warning:#b98418;
-    --warning-soft:#faf1de;
-    --danger:#c94a3f;
-    --danger-soft:#fbe9e7;
-    --shadow: 0 1px 2px rgba(21,34,51,.06), 0 8px 24px -12px rgba(21,34,51,.18);
-    --ghost-bg: rgba(255,255,255,.35);
-    --radius: 10px;
-    color-scheme: light;
-  }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --ghost-bg: rgba(255,255,255,.03);
-      --bg:#0e1520;
-      --surface:#151f2b;
-      --surface-2:#1a2534;
-      --surface-3:#22303f;
-      --border:#2b3a4a;
-      --border-strong:#39495c;
-      --text:#e6edf4;
-      --text-muted:#93a7bb;
-      --text-faint:#657b90;
-      --accent:#5aa8db;
-      --accent-strong:#8cc6ec;
-      --accent-soft:#1a3247;
-      --copper:#d68b4c;
-      --copper-soft:#2e2113;
-      --success:#4cb37e;
-      --success-soft:#12271c;
-      --warning:#d6a13f;
-      --warning-soft:#2c2311;
-      --danger:#e07267;
-      --danger-soft:#2c1714;
-      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
-    }
-  }
-  :root[data-theme="dark"]{
-    --ghost-bg: rgba(255,255,255,.03);
-    --bg:#0e1520;
-    --surface:#151f2b;
-    --surface-2:#1a2534;
-    --surface-3:#22303f;
-    --border:#2b3a4a;
-    --border-strong:#39495c;
-    --text:#e6edf4;
-    --text-muted:#93a7bb;
-    --text-faint:#657b90;
-    --accent:#5aa8db;
-    --accent-strong:#8cc6ec;
-    --accent-soft:#1a3247;
-    --copper:#d68b4c;
-    --copper-soft:#2e2113;
-    --success:#4cb37e;
-    --success-soft:#12271c;
-    --warning:#d6a13f;
-    --warning-soft:#2c2311;
-    --danger:#e07267;
-    --danger-soft:#2c1714;
-    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
-  }
-
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{
-    background:var(--bg);
-    color:var(--text);
-    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-    font-size:13.5px;
-    height:100vh;
-    overflow:hidden;
-    display:flex;
-    flex-direction:column;
-  }
-  .mono{font-family:"IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums;}
-  ::selection{background:var(--accent-soft);}
-  button{font-family:inherit;}
-  :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
-
-  /* ---- top bar ---- */
-  .topbar{
-    height:52px; flex:0 0 auto;
-    display:flex; align-items:center; gap:12px;
-    padding:0 16px;
-    background:var(--surface);
-    border-bottom:1px solid var(--border);
-    z-index:20;
-  }
-  .brand{display:flex; align-items:center; gap:9px;}
-  .brand-mark{width:26px;height:26px;flex:0 0 auto;}
-  .brand-name{font-weight:700; font-size:15px; letter-spacing:.02em;}
-  .brand-sub{color:var(--text-muted); font-size:11.5px; padding-left:9px; margin-left:9px; border-left:1px solid var(--border);}
-  .topbar-right{margin-left:auto; display:flex; align-items:center; gap:10px;}
-  .status-pill{
-    display:flex; align-items:center; gap:6px;
-    font-size:11.5px; color:var(--text-muted);
-    background:var(--surface-2); border:1px solid var(--border);
-    padding:5px 10px; border-radius:999px;
-  }
-  .status-dot{width:6px;height:6px;border-radius:50%;background:var(--warning);}
-  .btn{
-    font-size:12.5px; font-weight:600; padding:7px 13px; border-radius:7px;
-    border:1px solid var(--border-strong); background:var(--surface);
-    color:var(--text); cursor:pointer;
-  }
-  .btn:hover{background:var(--surface-2);}
-  .btn-primary{background:var(--accent); border-color:var(--accent); color:#fff;}
-  .btn-primary:hover{background:var(--accent-strong); border-color:var(--accent-strong);}
-  .btn-primary[disabled]{opacity:.5; cursor:not-allowed;}
-  .btn-primary[disabled]:hover{background:var(--accent);}
-
-  /* ---- layout ---- */
-  .shell{flex:1 1 auto; display:grid; grid-template-columns:236px minmax(0,1fr) 320px; min-height:0;}
-  .panel{min-height:0; min-width:0; display:flex; flex-direction:column; background:var(--surface);}
-  .panel + .panel{border-left:1px solid var(--border);}
-
-  /* ---- left menu ---- */
-  .menu-scroll{flex:1 1 auto; overflow-y:auto; padding:14px 12px;}
-  .menu-label{
-    font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--text-faint); padding:4px 8px 6px;
-  }
-  .nav-item{
-    display:flex; align-items:center; gap:9px;
-    padding:8px 9px; border-radius:7px; color:var(--text-muted);
-    font-size:13px; font-weight:500; cursor:pointer; margin-bottom:2px;
-    border:1px solid transparent;
-  }
-  .nav-item svg{flex:0 0 auto; opacity:.85;}
-  .nav-item:hover{background:var(--surface-2); color:var(--text);}
-  .nav-item.active{background:var(--accent-soft); color:var(--accent-strong); font-weight:600;}
-  .nav-item.active svg{opacity:1;}
-  .nav-item .soon{
-    margin-left:auto; font-size:9.5px; font-weight:600; color:var(--text-faint);
-    background:var(--surface-3); padding:2px 6px; border-radius:5px; letter-spacing:.02em;
-  }
-  .divider{height:1px; background:var(--border); margin:12px 2px;}
-  .project-stat{display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);}
-  .project-stat b{color:var(--text); font-weight:600;}
-
-  /* ---- selector de proyecto ---- */
-  .proj-switcher{margin-bottom:4px;}
-  .proj-trigger{
-    width:100%; display:flex; align-items:center; gap:8px; text-align:left;
-    background:var(--surface-2); border:1px solid var(--border); border-radius:9px;
-    padding:9px 10px; cursor:pointer; font-family:inherit; color:var(--text);
-  }
-  .proj-trigger:hover{border-color:var(--border-strong);}
-  .proj-switcher.open .proj-trigger{border-color:var(--accent);}
-  .proj-trigger-text{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
-  .proj-trigger-name{font-size:13px; font-weight:600; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .proj-trigger-state{
-    align-self:flex-start; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
-    color:var(--accent-strong); background:var(--accent-soft); padding:1.5px 6px; border-radius:5px;
-  }
-  .proj-trigger svg{flex:0 0 auto; color:var(--text-faint); transition:transform .15s ease;}
-  .proj-switcher.open .proj-trigger svg{transform:rotate(180deg);}
-  .proj-stats{
-    display:flex; flex-direction:column; gap:3px;
-    padding:8px 10px 2px;
-  }
-  .proj-dropdown{display:none; margin-top:6px; border:1px solid var(--border); border-radius:9px; overflow:hidden; background:var(--surface);}
-  .proj-switcher.open .proj-dropdown{display:block;}
-  .proj-list{max-height:180px; overflow-y:auto;}
-  .proj-item{
-    display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer;
-    border-bottom:1px solid var(--border); font-size:12.5px;
-  }
-  .proj-item:last-child{border-bottom:none;}
-  .proj-item:hover{background:var(--surface-2);}
-  .proj-item.active{background:var(--accent-soft); color:var(--accent-strong); font-weight:600;}
-  .proj-item-name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .proj-item-state{font-size:9.5px; color:var(--text-faint); flex:0 0 auto;}
-  .proj-item.active .proj-item-state{color:var(--accent-strong);}
-  .proj-new{display:flex; gap:6px; padding:8px; border-top:1px solid var(--border); background:var(--surface-2);}
-  .proj-new input{
-    flex:1; min-width:0; font-size:12px; font-family:inherit; padding:6px 8px;
-    border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); color:var(--text);
-  }
-  .proj-new input:focus{border-color:var(--accent);}
-  .proj-new-btn{
-    flex:0 0 auto; font-size:11.5px; font-weight:600; padding:6px 9px; border-radius:6px;
-    border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; white-space:nowrap;
-  }
-  .proj-new-btn:hover{background:var(--accent-strong); border-color:var(--accent-strong);}
-  .menu-foot{padding:11px 16px; border-top:1px solid var(--border); font-size:10.5px; color:var(--text-faint); display:flex; flex-direction:column; gap:8px;}
-  .reset-link{background:none; border:none; color:var(--accent); font-size:11.5px; font-weight:600; cursor:pointer; padding:0; text-align:left; font-family:inherit;}
-  .reset-link:hover{text-decoration:underline;}
-
-  /* ---- canvas (zona de trabajo) ---- */
-  .canvas-wrap{flex:1 1 auto; min-height:0; min-width:0; display:flex; flex-direction:column;}
-  .canvas-toolbar{
-    flex:0 0 auto; display:flex; align-items:center; gap:14px;
-    padding:10px 18px; border-bottom:1px solid var(--border); background:var(--surface);
-  }
-  .canvas-title{font-weight:600; font-size:13.5px;}
-  .legend{display:flex; align-items:center; gap:12px; margin-left:auto;}
-  .legend-item{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-muted);}
-  .legend-swatch{width:9px;height:9px;border-radius:3px;}
-  .canvas-scroll{flex:1 1 auto; min-width:0; overflow:auto; position:relative;
-    background-color:var(--bg);
-    background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);
-    background-size: 22px 22px;
-  }
-  .canvas-inner{position:relative;}
-  .canvas-inner svg.wires{position:absolute; top:0; left:0; pointer-events:none;}
-
-  .node{
-    position:absolute; width:132px; min-height:58px;
-    background:var(--surface); border:1.5px solid var(--border-strong); border-radius:9px;
-    padding:7px 9px 8px 10px; cursor:pointer; box-shadow:var(--shadow);
-    border-left-width:4px;
-  }
-  .node:hover{border-color:var(--accent);}
-  .node.selected{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft), var(--shadow);}
-  .node-head{display:flex; align-items:center; gap:6px; margin-bottom:3px;}
-  .node-icon{flex:0 0 auto; opacity:.9;}
-  .node-title{font-size:11.5px; font-weight:700; letter-spacing:.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
-  .node-head{min-width:0;}
-  .node-head .node-title{flex:1;}
-  .node-sub{font-size:10.5px; color:var(--text-muted); line-height:1.35;}
-  .node-tag{
-    display:inline-block; margin-top:4px; font-size:9.5px; font-weight:600;
-    padding:1.5px 6px; border-radius:5px;
-  }
-  .node.type-bomba{border-left-color:var(--accent);}
-  .node.type-tuberia{border-left-color:var(--copper);}
-  .node.type-union{border-left-color:var(--text-faint);}
-  .node.type-accesorio{border-left-color:#8a6fc9;}
-  .node.type-valvula{border-left-color:var(--warning);}
-
-  .ghost{
-    position:absolute; width:132px; min-height:58px;
-    border:1.5px dashed var(--border-strong); border-radius:9px;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
-    color:var(--text-faint); font-size:10.5px; text-align:center; padding:6px;
-    background:var(--ghost-bg);
-  }
-  .ghost.dragover{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
-  .ghost b{font-size:16px; line-height:1; font-weight:400;}
-  .ghost.slot-ghost{width:118px; min-height:48px;}
-
-  .mid-insert{
-    position:absolute; width:22px; height:22px; margin-left:-11px; margin-top:-11px;
-    border-radius:50%; border:1.5px dashed var(--border-strong);
-    background:var(--bg); color:var(--text-faint);
-    display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1;
-    cursor:pointer; opacity:.45; transition:opacity .12s ease, border-color .12s ease, color .12s ease;
-  }
-  .mid-insert:hover{opacity:1;}
-  .mid-insert.dragover{opacity:1; border-color:var(--accent); border-style:solid; color:var(--accent); background:var(--accent-soft);}
-
-  .branch-handle{
-    position:absolute; width:20px; height:20px; margin-left:-10px;
-    border-radius:6px; border:1.5px dashed var(--border-strong);
-    background:var(--surface); color:var(--text-faint);
-    display:flex; align-items:center; justify-content:center; font-size:13px; line-height:1;
-    cursor:pointer; opacity:.4; transition:opacity .12s ease, border-color .12s ease, color .12s ease;
-  }
-  .branch-handle:hover{opacity:1;}
-  .branch-handle.dragover{opacity:1; border-color:var(--accent); border-style:solid; color:var(--accent); background:var(--accent-soft);}
-
-  .flow-label{
-    position:absolute; font-size:9.5px; color:var(--text-faint); font-family:"IBM Plex Mono", monospace;
-    background:var(--bg); padding:0 4px;
-  }
-
-  /* ---- right panel (componentes / propiedades) ---- */
-  .tabs{display:flex; flex:0 0 auto; border-bottom:1px solid var(--border);}
-  .tab{
-    flex:1; text-align:center; padding:11px 6px; font-size:12.5px; font-weight:600;
-    color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; position:relative;
-  }
-  .tab.active{color:var(--accent-strong); border-bottom-color:var(--accent);}
-  .tab .dot{width:6px;height:6px;border-radius:50%;background:var(--danger); display:inline-block; margin-left:5px; vertical-align:middle;}
-
-  .tab-panel{flex:1 1 auto; overflow-y:auto; display:none;}
-  .tab-panel.active{display:block;}
-
-  .accordion-section + .accordion-section{border-top:1px solid var(--border);}
-  .accordion-head{
-    display:flex; align-items:center; gap:8px; padding:11px 14px; cursor:pointer;
-    font-size:11.5px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; color:var(--text-muted);
-  }
-  .accordion-head:hover{color:var(--text);}
-  .accordion-head svg{transition:transform .15s ease; margin-left:auto;}
-  .accordion-section.closed .accordion-head svg{transform:rotate(-90deg);}
-  .accordion-body{padding:2px 12px 12px; display:flex; flex-direction:column; gap:7px;}
-  .accordion-section.closed .accordion-body{display:none;}
-
-  .comp-card{
-    display:flex; align-items:center; gap:9px;
-    border:1px solid var(--border); border-radius:8px; padding:8px 10px;
-    background:var(--surface); cursor:grab;
-  }
-  .comp-card:hover{border-color:var(--accent); background:var(--accent-soft);}
-  .comp-card:active{cursor:grabbing;}
-  .comp-icon{
-    flex:0 0 auto; width:28px; height:28px; border-radius:6px;
-    display:flex; align-items:center; justify-content:center;
-    background:var(--surface-2);
-  }
-  .comp-body{flex:1; min-width:0;}
-  .comp-name{font-size:12px; font-weight:600; line-height:1.25;}
-  .comp-spec{font-size:10px; color:var(--text-muted); font-family:"IBM Plex Mono",monospace;}
-
-  .props-empty{padding:40px 20px; text-align:center; color:var(--text-faint); font-size:12.5px; line-height:1.6;}
-  .props-empty svg{margin-bottom:10px; opacity:.5;}
-  .props-head{padding:14px 16px 10px; border-bottom:1px solid var(--border);}
-  .props-type{font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted);}
-  .props-name{font-size:14.5px; font-weight:700; margin-top:2px;}
-  .props-body{padding:14px 16px; display:flex; flex-direction:column; gap:12px;}
-  .field{display:flex; flex-direction:column; gap:4px;}
-  .field label{font-size:11px; font-weight:600; color:var(--text-muted);}
-  .field input, .field select{
-    font-family:"IBM Plex Mono", monospace; font-size:12.5px;
-    padding:7px 9px; border:1px solid var(--border-strong); border-radius:6px;
-    background:var(--surface); color:var(--text);
-  }
-  .field input:focus, .field select:focus{border-color:var(--accent);}
-  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
-  .result-box{
-    background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:11px 12px;
-    display:flex; flex-direction:column; gap:6px;
-  }
-  .result-title{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin-bottom:2px;}
-  .result-row{display:flex; justify-content:space-between; align-items:baseline; font-size:12px;}
-  .result-row .k{color:var(--text-muted);}
-  .result-row .v{font-family:"IBM Plex Mono",monospace; font-weight:600;}
-  .result-row .v.big{font-size:15px; color:var(--accent-strong);}
-  .formula-note{font-size:10.5px; color:var(--text-faint); line-height:1.5; padding-top:2px; border-top:1px dashed var(--border);}
-  .balance-ok{color:var(--success);}
-  .balance-bad{color:var(--danger);}
-  .badge{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:999px;}
-  .badge.ok{background:var(--success-soft); color:var(--success);}
-  .badge.bad{background:var(--danger-soft); color:var(--danger);}
-
-  .props-hint{padding:10px 16px 14px; font-size:11px; color:var(--text-faint); line-height:1.5; border-top:1px solid var(--border); margin-top:auto;}
-</style>
-
-<div class="topbar">
-  <div class="brand">
-    <svg class="brand-mark" viewBox="0 0 26 26" fill="none">
-      <rect x="1" y="1" width="24" height="24" rx="6" fill="var(--accent)"/>
-      <path d="M6 13h6a3 3 0 0 0 3-3V7" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>
-      <circle cx="6" cy="13" r="2.1" fill="#fff"/>
-      <circle cx="15" cy="7" r="2.1" fill="#fff"/>
-      <path d="M12 13h4a3 3 0 0 1 3 3v3" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>
-      <circle cx="19" cy="19" r="2.1" fill="#fff"/>
-    </svg>
-    <span class="brand-name">PIPING</span>
-    <span class="brand-sub">Editor de redes hidráulicas — bosquejo</span>
-  </div>
-  <div class="topbar-right">
-    <div class="status-pill"><span class="status-dot"></span>Cambios sin guardar (local)</div>
-    <button class="btn">Exportar JSON</button>
-    <button class="btn btn-primary" disabled title="Requiere backend Supabase — próxima fase">Guardar en proyecto</button>
-  </div>
-</div>
-
-<div class="shell">
-  <!-- LEFT: MENU LATERAL -->
-  <div class="panel" id="panel-left">
-    <div class="menu-scroll">
-      <div class="menu-label">Proyecto</div>
-      <div class="proj-switcher" id="proj-switcher">
-        <button class="proj-trigger" id="proj-trigger" type="button" aria-haspopup="true">
-          <span class="proj-trigger-text">
-            <span class="proj-trigger-name" id="proj-trigger-name">—</span>
-            <span class="proj-trigger-state" id="proj-trigger-state">—</span>
-          </span>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="proj-stats">
-          <div class="project-stat"><span>Tramos</span><b id="stat-tramos">–</b></div>
-          <div class="project-stat"><span>Caudal bomba</span><b id="stat-caudal">–</b></div>
-        </div>
-        <div class="proj-dropdown" id="proj-dropdown">
-          <div class="proj-list" id="proj-list"></div>
-          <div class="proj-new">
-            <input type="text" id="proj-new-input" placeholder="Nombre del nuevo proyecto" maxlength="60">
-            <button class="proj-new-btn" id="proj-new-btn" type="button">+ Crear</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="divider"></div>
-      <div class="menu-label">Navegación</div>
-      <div class="nav-item active" data-nav="editor">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h6a3 3 0 0 0 3-3V4"/><circle cx="4" cy="12" r="2"/><circle cx="13" cy="4" r="2"/><path d="M11 12h4a3 3 0 0 1 3 3v5" stroke-linecap="round"/><circle cx="20" cy="20" r="2"/></svg>
-        Editor de red
-      </div>
-      <div class="nav-item" data-nav="catalogo">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        Catálogo de materiales <span class="soon">pronto</span>
-      </div>
-      <div class="nav-item" data-nav="calculo">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
-        Cálculo de red <span class="soon">pronto</span>
-      </div>
-      <div class="nav-item" data-nav="informes">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>
-        Informes <span class="soon">pronto</span>
-      </div>
-      <div class="nav-item" data-nav="config">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-        Configuración <span class="soon">pronto</span>
-      </div>
-    </div>
-    <div class="menu-foot">
-      <span>Bosquejo interactivo · v0.1 · datos de ejemplo</span>
-      <button class="reset-link" id="btn-reset">Reiniciar ejemplo</button>
-    </div>
-  </div>
-
-  <!-- CENTER: ZONA DE TRABAJO -->
-  <div class="panel" id="panel-center">
-    <div class="canvas-wrap">
-      <div class="canvas-toolbar">
-        <div class="canvas-title" id="canvas-title">—</div>
-        <div class="legend">
-          <div class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Bomba</div>
-          <div class="legend-item"><span class="legend-swatch" style="background:var(--copper)"></span>Tubería</div>
-          <div class="legend-item"><span class="legend-swatch" style="background:var(--text-faint)"></span>Unión</div>
-          <div class="legend-item"><span class="legend-swatch" style="background:#8a6fc9"></span>Accesorio</div>
-          <div class="legend-item"><span class="legend-swatch" style="background:var(--warning)"></span>Válvula</div>
-        </div>
-      </div>
-      <div class="canvas-scroll" id="canvas-scroll">
-        <div class="canvas-inner" id="canvas-inner"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- RIGHT: ZONA DE COMPONENTES / PROPIEDADES -->
-  <div class="panel" id="panel-right">
-    <div class="tabs">
-      <div class="tab active" data-tab="componentes">Componentes</div>
-      <div class="tab" data-tab="propiedades">Propiedades<span class="dot" id="props-dot" style="display:none"></span></div>
-    </div>
-
-    <div class="tab-panel active" id="panel-componentes"></div>
-    <div class="tab-panel" id="panel-propiedades"></div>
-  </div>
-</div>
-
-<script>
-(function(){
-  "use strict";
-
-  /* ============ CONSTANTES FÍSICAS ============ */
-  const G = 9.81;              // m/s2
-  const NU = 1.004e-6;         // viscosidad cinemática del agua a 20°C, m2/s
-
-  /* ============ CATÁLOGO DE COMPONENTES ============ */
-  const MATERIALS = {
-    acero:      {label:"Acero comercial",     eps:0.045, defD:80},
-    inox:       {label:"Acero inoxidable",    eps:0.015, defD:50},
-    pvc:        {label:"PVC",                 eps:0.0015,defD:50},
-    pead:       {label:"PEAD (HDPE)",         eps:0.007, defD:63},
-    cobre:      {label:"Cobre",               eps:0.0015,defD:35},
-  };
-
-  const CATALOG = {
-    equipos: {
-      label:"Equipos", icon:iconPump,
-      items:[
-        {key:"bomba", label:"Bomba centrífuga", spec:"Q · H · P", type:"bomba",
-         defaults:{Q:25,H:32,Pot:5.5,NPSHd:4.2}},
-      ]
-    },
-    tuberias: {
-      label:"Tuberías", icon:iconPipe,
-      items: Object.keys(MATERIALS).map(k=>({
-        key:"tub_"+k, label:MATERIALS[k].label, spec:"⌀"+MATERIALS[k].defD+"mm · ε"+MATERIALS[k].eps+"mm",
-        type:"tuberia", material:k,
-        defaults:{material:k, D:MATERIALS[k].defD, L:10, Q:15}
-      }))
-    },
-    accesorios: {
-      label:"Accesorios", icon:iconFitting,
-      items:[
-        {key:"codo90", label:"Codo 90°",        spec:"K≈0.90", type:"accesorio", defaults:{sub:"Codo 90°", K:0.90, D:50, Q:15}},
-        {key:"codo45", label:"Codo 45°",        spec:"K≈0.40", type:"accesorio", defaults:{sub:"Codo 45°", K:0.40, D:50, Q:15}},
-        {key:"te",     label:"Té (derivación)", spec:"K≈1.80", type:"accesorio", defaults:{sub:"Té (derivación)", K:1.80, D:50, Q:15}},
-        {key:"reduc",  label:"Reducción",       spec:"K≈0.50", type:"accesorio", defaults:{sub:"Reducción", K:0.50, D:50, Q:15}},
-        {key:"entrada",label:"Entrada",         spec:"K≈0.50", type:"accesorio", defaults:{sub:"Entrada", K:0.50, D:50, Q:15}},
-        {key:"salida", label:"Salida / descarga",spec:"K≈1.00",type:"accesorio", defaults:{sub:"Salida / descarga", K:1.00, D:50, Q:15}},
-      ]
-    },
-    valvulas: {
-      label:"Válvulas", icon:iconValve,
-      items:[
-        {key:"compuerta", label:"Compuerta (abierta)", spec:"K≈0.20", type:"valvula", defaults:{sub:"Compuerta", K:0.20, D:50, Q:15}},
-        {key:"globo",     label:"Globo",                spec:"K≈10.0", type:"valvula", defaults:{sub:"Globo", K:10.0, D:50, Q:15}},
-        {key:"retencion", label:"Retención (check)",    spec:"K≈2.50", type:"valvula", defaults:{sub:"Retención", K:2.50, D:50, Q:15}},
-        {key:"mariposa",  label:"Mariposa",              spec:"K≈1.20", type:"valvula", defaults:{sub:"Mariposa", K:1.20, D:50, Q:15}},
-        {key:"esferica",  label:"Esférica (bola)",       spec:"K≈0.10", type:"valvula", defaults:{sub:"Esférica", K:0.10, D:50, Q:15}},
-      ]
-    }
-  };
-
-  /* ============ ICONOS ============ */
-  function svgIcon(paths, sz){
-    return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+paths+'</svg>';
-  }
-  function iconPump(sz){return svgIcon('<circle cx="12" cy="12" r="7"/><path d="M12 5v3M12 16v3M5 12h3M16 12h3"/><circle cx="12" cy="12" r="2"/>', sz||16);}
-  function iconPipe(sz){return svgIcon('<path d="M3 12h18" stroke-width="4"/>', sz||16);}
-  function iconUnion(sz){return svgIcon('<path d="M4 12h6"/><path d="M10 12l6-6h4"/><path d="M10 12l6 6h4"/>', sz||16);}
-  function iconFitting(sz){return svgIcon('<path d="M5 12h6a4 4 0 0 0 4-4V4"/>', sz||16);}
-  function iconValve(sz){return svgIcon('<path d="M4 12h4M16 12h4M8 12l4-4 4 4-4 4-4-4z"/>', sz||16);}
-
-  /* ============ PROYECTOS Y RED DE EJEMPLO (estado) ============ */
-  let uid = 1;
-  function nid(prefix){ return prefix+"-"+(uid++); }
-
-  // Cada nodo: {id, type, label, props, next:id|null, branches:[{headId:id|null, laneY, name?}]}
-  // network = {rootId, nodes:{id:node}, nextLaneY}
-  function mkNode(type, label, props){
-    const id = nid(type[0].toUpperCase());
-    return {id, type, label, props, next:null, branches:[]};
-  }
-
-  function sampleNetwork(){
-    const nodes = {};
-    const add = n=>{ nodes[n.id]=n; return n; };
-
-    const pump = add(mkNode("bomba","Bomba B-1",{Q:25,H:32,Pot:5.5,NPSHd:4.2}));
-    const t1   = add(mkNode("tuberia","Tubería T-1",{material:"acero",D:80,L:15,Q:25}));
-    const j1   = add(mkNode("union","Unión J-1",{}));
-    pump.next = t1.id; t1.next = j1.id;
-
-    const v1 = add(mkNode("valvula","Válvula V-1",{sub:"Compuerta",K:0.20,D:50,Q:15}));
-    const t2 = add(mkNode("tuberia","Tubería T-2",{material:"pvc",D:50,L:8,Q:15}));
-    const c1 = add(mkNode("accesorio","Codo C-1",{sub:"Codo 90°",K:0.90,D:50,Q:15}));
-    const t3 = add(mkNode("tuberia","Tubería T-3",{material:"pvc",D:50,L:5,Q:15}));
-    v1.next=t2.id; t2.next=c1.id; c1.next=t3.id;
-
-    const t4 = add(mkNode("tuberia","Tubería T-4",{material:"acero",D:65,L:12,Q:10}));
-    const v2 = add(mkNode("valvula","Válvula V-2",{sub:"Retención",K:2.50,D:65,Q:10}));
-    t4.next = v2.id;
-
-    j1.branches = [
-      {headId:v1.id, laneY:150, name:"Ramal A"},
-      {headId:t4.id, laneY:400, name:"Ramal B"},
-    ];
-
-    return {rootId:pump.id, nodes, nextLaneY:540};
-  }
-
-  // proyecto nuevo: bomba + unión ya colocadas, ramales listos para arrastrar componentes
-  function starterNetwork(){
-    const nodes = {};
-    const pump = mkNode("bomba","Bomba B-1",{Q:10,H:20,Pot:2.2,NPSHd:4.0});
-    const j1 = mkNode("union","Unión J-1",{});
-    pump.next = j1.id;
-    j1.branches = [
-      {headId:null, laneY:150, name:"Ramal A"},
-      {headId:null, laneY:400, name:"Ramal B"},
-    ];
-    nodes[pump.id]=pump; nodes[j1.id]=j1;
-    return {rootId:pump.id, nodes, nextLaneY:540};
-  }
-
-  function defaultProjects(){
-    uid = 1;
-    const p1 = {id:"p1", name:"Red de refrigeración — Nave 3", estado:"Borrador", network:sampleNetwork()};
-    const p2 = {id:"p2", name:"Ampliación — Nave 4", estado:"Borrador", network:starterNetwork()};
-    return [p1, p2];
-  }
-
-  let projects = null;
-  let currentProjectId = null;
-  let network = null;      // referencia al network del proyecto activo
-  let selectedId = null;
-
-  function loadState(){
-    try{
-      const raw = localStorage.getItem("piping-bosquejo-proyectos-v2");
-      if(!raw) return null;
-      const parsed = JSON.parse(raw);
-      if(!parsed || !Array.isArray(parsed.projects) || !parsed.projects.length) return null;
-      let max=0;
-      JSON.stringify(parsed).replace(/-(\d+)"/g, (m,n)=>{max=Math.max(max,parseInt(n,10));return m;});
-      uid = max+1;
-      return parsed;
-    }catch(e){ return null; }
-  }
-  function saveState(){
-    try{ localStorage.setItem("piping-bosquejo-proyectos-v2", JSON.stringify({projects, currentProjectId})); }catch(e){}
-  }
-  // saveNetwork() se llama desde el resto del código cada vez que cambia el árbol activo
-  function saveNetwork(){ saveState(); }
-
-  function currentProject(){
-    return projects.find(p=>p.id===currentProjectId) || projects[0];
-  }
-
-  function initState(){
-    const loaded = loadState();
-    if(loaded){
-      projects = loaded.projects;
-      currentProjectId = loaded.currentProjectId && projects.some(p=>p.id===loaded.currentProjectId)
-        ? loaded.currentProjectId : projects[0].id;
-    } else {
-      projects = defaultProjects();
-      currentProjectId = projects[0].id;
-    }
-    network = currentProject().network;
-  }
-
-  function switchProject(id){
-    if(id===currentProjectId) return;
-    currentProjectId = id;
-    network = currentProject().network;
-    selectedId = null;
-    saveState();
-    renderAll();
-  }
-
-  function createProject(name){
-    const clean = (name||"").trim();
-    if(!clean) return;
-    const p = {id:"p"+Date.now(), name:clean, estado:"Borrador", network:starterNetwork()};
-    projects.push(p);
-    currentProjectId = p.id;
-    network = p.network;
-    selectedId = null;
-    saveState();
-    renderAll();
-  }
-
-  /* ============ FÍSICA ============ */
-  function velocity(Q_m3h, D_mm){
-    const Q = Q_m3h/3600;               // m3/s
-    const D = D_mm/1000;                // m
-    const A = Math.PI*D*D/4;
-    return A>0 ? Q/A : 0;
-  }
-  function reynolds(v, D_mm){
-    const D = D_mm/1000;
-    return NU>0 ? Math.abs(v)*D/NU : 0;
-  }
-  // Swamee-Jain (aprox. explícita de Colebrook-White)
-  function frictionFactor(Re, eps_mm, D_mm){
-    if(Re < 1) return 0;
-    if(Re < 2300){ return 64/Re; } // laminar
-    const rel = (eps_mm/D_mm)/3.7;
-    const denom = Math.log10(rel + 5.74/Math.pow(Re,0.9));
-    return 0.25/(denom*denom);
-  }
-  function pipeHeadLoss(D_mm, L_m, Q_m3h, eps_mm){
-    const v = velocity(Q_m3h, D_mm);
-    const Re = reynolds(v, D_mm);
-    const f = frictionFactor(Re, eps_mm, D_mm);
-    const D = D_mm/1000;
-    const hf = f*(L_m/D)*(v*v)/(2*G);
-    return {v,Re,f,hf};
-  }
-  function localHeadLoss(K, D_mm, Q_m3h){
-    const v = velocity(Q_m3h, D_mm);
-    const h = K*(v*v)/(2*G);
-    return {v,h};
-  }
-  const mca_to_kpa = h => h*9.80665;
-
-  /* ============ LAYOUT (coordenadas) ============ */
-  const NODE_W = 132, NODE_H = 60, GAP_X = 168, ROW_TRUNK = 250;
-  let lastParentOf = {}; // id -> id del nodo/nudo anterior (para el cálculo de continuidad)
-
-  // Recorre el árbol (pump -> next -> next... con ramales colgando de node.branches)
-  // y calcula posiciones, cables y puntos de inserción/ramal/ampliación.
-  function computeLayout(){
-    const pos = {};
-    const wires = [];
-    const midInserts = [];
-    const endGhosts = [];
-    const slotGhosts = [];
-    const branchHandles = [];
-    const parentOf = {};
-
-    function cx(p){return p.x+NODE_W;}
-    function cy(p){return p.y+NODE_H/2;}
-    function lx(p){return p.x;}
-
-    function layoutLine(startId, laneY, xStart){
-      let x = xStart, prevId = null, id = startId;
-      while(id){
-        const n = network.nodes[id];
-        pos[id] = {x, y:laneY};
-        if(prevId){
-          wires.push(line(cx(pos[prevId]), cy(pos[prevId]), lx(pos[id]), cy(pos[id])));
-          parentOf[id] = prevId;
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PIPING - Diseño P&ID Vectorial Avanzado (mm)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .resizer {
+            width: 6px;
+            cursor: col-resize;
+            background: transparent;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            z-index: 20;
         }
-        branchHandles.push({x:x+NODE_W/2, y:laneY+NODE_H-8, ownerId:id});
-        (n.branches||[]).forEach((slot, idx)=>{
-          const bx = x+GAP_X, by = slot.laneY;
-          wires.push(elbow(cx(pos[id]), cy(pos[id]), cx(pos[id])+40, by+NODE_H/2, bx));
-          if(slot.headId){
-            parentOf[slot.headId] = id;
-            layoutLine(slot.headId, by, bx);
-          } else {
-            slotGhosts.push({x:bx, y:by, ownerId:id, slotIndex:idx, name:slot.name});
-          }
+        .resizer:hover { background: #3b82f6; opacity: 0.5; }
+        #canvas-container {
+            overflow: auto;
+            position: relative;
+            background-color: #cbd5e1;
+        }
+        #marco-a3 {
+            width: 20000px;
+            height: 20000px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: white;
+            transform-origin: 0 0;
+            transition: transform 0.05s ease-out;
+        }
+        #axis-gizmo {
+            pointer-events: none;
+            width: 64px;
+            height: 64px;
+        }
+        #zoom-window-box {
+            position: absolute;
+            border: 2px dashed #2563eb;
+            background: rgba(37, 99, 235, 0.1);
+            pointer-events: none;
+            display: none;
+            z-index: 50;
+        }
+        #svg-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .symbol-group {
+            cursor: move;
+            user-select: none;
+        }
+        .symbol-selected rect, .symbol-selected circle, .symbol-selected path, .symbol-selected line, .symbol-selected polygon {
+            stroke: #2563eb !important;
+            stroke-width: 3px !important;
+        }
+        #context-menu {
+            display: none;
+            position: absolute;
+            z-index: 1000;
+            background: white;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            border-radius: 6px;
+            padding: 4px 0;
+            width: 160px;
+            font-size: 11px;
+        }
+        #context-menu button {
+            width: 100%;
+            text-align: left;
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            color: #334155;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+        }
+        #context-menu button:hover {
+            background: #f1f5f9;
+            color: #2563eb;
+        }
+        #context-menu button i { width: 18px; margin-right: 6px; }
+
+        #modal-edicion {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .connection-port {
+            fill: #3b82f6;
+            stroke: #ffffff;
+            stroke-width: 1.5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col overflow-hidden font-sans select-none" onclick="cerrarMenuContextual(event)">
+
+    <!-- MENÚ CONTEXTUAL DINÁMICO -->
+    <div id="context-menu">
+        <button onclick="menuAccion('editar')"><i class="fa-solid fa-pen-to-square text-blue-600"></i> Editar...</button>
+        <button onclick="menuAccion('girar')"><i class="fa-solid fa-rotate-right text-emerald-600"></i> Girar (+90°)</button>
+        <button onclick="menuAccion('escalar')"><i class="fa-solid fa-expand text-purple-600"></i> Escalar...</button>
+        <button onclick="menuAccion('desconectar')"><i class="fa-solid fa-arrows-up-down-left-right text-amber-600"></i> Mover / Desconectar</button>
+        <div class="border-t border-slate-100 my-1"></div>
+        <button onclick="menuAccion('eliminar')" class="text-rose-600 hover:text-rose-700"><i class="fa-solid fa-trash-can"></i> Eliminar</button>
+    </div>
+
+    <!-- VENTANA MODAL PARA EDICIÓN DE ATRIBUTOS -->
+    <div id="modal-edicion">
+        <div class="bg-white rounded-lg shadow-xl w-96 p-5 border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between">
+                <span><i class="fa-solid fa-sliders text-blue-600 mr-1.5"></i> Propiedades del Componente</span>
+                <button onclick="cerrarModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </h3>
+            <div id="modal-content-body" class="space-y-3 text-xs"></div>
+            <div class="mt-5 flex justify-end space-x-2">
+                <button onclick="cerrarModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cancelar</button>
+                <button onclick="guardarEdicionModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VENTANA MODAL DE CÁLCULO DE RED (CONTORNO Y RESULTADOS) -->
+    <div id="modal-red" style="display:none;" class="fixed inset-0 bg-black/40 z-[2000] justify-center items-center">
+        <div class="bg-white rounded-lg shadow-xl w-[640px] max-h-[85vh] overflow-y-auto p-5 border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between">
+                <span><i class="fa-solid fa-diagram-project text-blue-600 mr-1.5"></i> Cálculo Hidráulico de la Red</span>
+                <button onclick="cerrarModalRed()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </h3>
+            <div id="red-content"></div>
+            <div class="mt-5 flex justify-end space-x-2" id="red-footer"></div>
+        </div>
+    </div>
+
+    <!-- BARRA SUPERIOR -->
+    <header class="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shadow-sm z-30">
+        <div class="flex items-center space-x-3">
+            <h1 class="text-sm font-bold tracking-wider text-slate-700 uppercase flex items-center">
+                <i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&ID (A3 Avanzado)
+            </h1>
+        </div>
+        <div class="flex items-center space-x-2 text-xs">
+            <span class="text-slate-400 mr-2 text-[11px]"><kbd class="bg-slate-100 px-1 border rounded">F</kbd> Ajustar | <kbd class="bg-slate-100 px-1 border rounded">W</kbd> Zoom ventana</span>
+            <button onclick="calcularRed()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded font-bold shadow-sm transition flex items-center"><i class="fa-solid fa-calculator mr-1"></i> Calcular Red</button>
+        </div>
+    </header>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div class="flex flex-1 overflow-hidden relative" id="main-container">
+
+        <!-- PANEL IZQUIERDO -->
+        <aside id="panel-izq" class="bg-white border-r border-slate-200 p-2.5 flex flex-col space-y-3 overflow-y-auto z-10" style="width: 220px; min-width: 160px; max-width: 400px;">
+            <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5 flex items-center">
+                <i class="fa-solid fa-gears mr-1 text-blue-600"></i> Atributos (mm)
+            </h2>
+            <div class="space-y-2 text-xs">
+                <div>
+                    <label class="block text-slate-500 font-medium mb-1">Fluido</label>
+                    <select id="selector-fluido" class="w-full bg-slate-50 border border-slate-300 rounded p-1 text-slate-700">
+                        <option>Agua (20°C)</option>
+                        <option>Aceite Térmico</option>
+                        <option>Vapor Saturado</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-100 pt-2 flex-1 flex flex-col">
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+                    <span>Selección Activa</span>
+                    <span id="lbl-tipo-activo" class="text-blue-600 font-normal">Ninguno</span>
+                </h3>
+                <div id="panel-propiedades" class="text-[11px] text-slate-600 mt-1 bg-slate-50 p-2 rounded border border-slate-200 flex-1 overflow-y-auto space-y-1.5">
+                    <p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>
+                </div>
+            </div>
+        </aside>
+
+        <div class="resizer" id="resizer-1" style="left: 220px;"></div>
+
+        <!-- ZONA GRÁFICA -->
+        <main class="bg-slate-100 flex-1 flex flex-col overflow-hidden relative">
+            <div class="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-between z-10 text-xs shadow-xs">
+                <div class="flex items-center space-x-1.5">
+                    <button onclick="nuevoProyecto()" class="bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-file-circle-plus mr-1 text-blue-600"></i> Nuevo</button>
+                    <button onclick="abrirProyectoCarpeta()" class="bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-folder-open mr-1 text-blue-600"></i> Abrir...</button>
+                    
+                    <!-- BOTÓN GUARDAR Y SELECTOR GUARDAR COMO -->
+                    <button onclick="guardarProyecto()" class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded font-medium transition flex items-center text-xs"><i class="fa-solid fa-floppy-disk mr-1"></i> Guardar</button>
+                    
+                    <select onchange="handleGuardarComo(this)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded font-medium border border-emerald-600 transition cursor-pointer text-xs w-28">
+                        <option value="" disabled selected>Guardar como...</option>
+                        <option value="pid">*.pid</option>
+                        <option value="dxf">*.dxf</option>
+                        <option value="svg">*.svg</option>
+                        <option value="png">*.png</option>
+                    </select>
+
+                    <button onclick="reajustarTodasLasConexiones()" title="Vuelve a imantar todos los componentes ya colocados, por si algún extremo quedó con un pequeño hueco" class="bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-magnet mr-1 text-blue-600"></i> Reajustar Conexiones</button>
+                </div>
+                <div>
+                    <button onclick="imprimirPDF()" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1 rounded font-medium shadow-xs transition flex items-center"><i class="fa-solid fa-print mr-1.5 text-blue-400"></i> Imprimir PDF (A3)</button>
+                </div>
+            </div>
+
+            <div id="canvas-container" class="flex-1 relative">
+                <div id="zoom-window-box"></div>
+                <div id="marco-a3" class="bg-white [background-image:radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px]">
+                    <svg id="svg-canvas" ondragover="allowDrop(event)" ondrop="dropElemento(event)">
+                        <g id="empty-state" transform="translate(400, 19700)">
+                            <text x="0" y="0" font-family="sans-serif" font-size="14" fill="#94a3b8" text-anchor="middle">Lienzo infinito - Arrastra Componentes y Tuberías Aquí</text>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- ICONO DE ORIENTACIÓN DE EJES (fijo a la esquina de la ventana, no representa el origen real) -->
+            <svg id="axis-gizmo" class="absolute bottom-3 left-3 z-20" width="56" height="56" viewBox="0 0 56 56">
+                <line x1="8" y1="48" x2="42" y2="48" stroke="#dc2626" stroke-width="2.5"/>
+                <polygon points="44,48 37,44.5 37,51.5" fill="#dc2626"/>
+                <text x="46" y="51" font-family="sans-serif" font-size="10" font-weight="bold" fill="#dc2626">X</text>
+                <line x1="8" y1="48" x2="8" y2="14" stroke="#16a34a" stroke-width="2.5"/>
+                <polygon points="8,12 4.5,19 11.5,19" fill="#16a34a"/>
+                <text x="3" y="10" font-family="sans-serif" font-size="10" font-weight="bold" fill="#16a34a">Y</text>
+            </svg>
+        </main>
+
+        <div class="resizer" id="resizer-2" style="right: 220px;"></div>
+
+        <!-- PANEL DERECHO: LIBRERÍA -->
+        <aside id="panel-der" class="bg-white border-l border-slate-200 p-2.5 flex flex-col space-y-3 overflow-y-auto z-10" style="width: 220px; min-width: 160px; max-width: 400px;">
+            <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5 flex items-center">
+                <i class="fa-solid fa-shapes mr-1 text-blue-600"></i> Símbolos P&ID
+            </h2>
+
+            <div class="border border-slate-200 rounded">
+                <button type="button" onclick="toggleCategoria('accesorios')" class="w-full flex items-center justify-between px-1.5 py-1 bg-white hover:bg-slate-50 rounded text-left">
+                    <span class="text-[10px] font-bold text-blue-600 uppercase">Accesorios</span>
+                    <i id="chevron-accesorios" class="fa-solid fa-chevron-down text-slate-400 text-[9px] transition-transform duration-150"></i>
+                </button>
+                <div id="lista-accesorios" class="grid grid-cols-1 gap-1 p-1 pl-1.5 border-t border-slate-100 text-[10px]">
+                    <div draggable="true" ondragstart="drag(event)" data-type="accesorio" data-subtype="codo" data-name="Codo 90°" data-angulo="90" data-k="0.75" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Codo 90°</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="accesorio" data-subtype="tee" data-name="Tee" data-k="0.9" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Tee</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="accesorio" data-subtype="union" data-name="Brida / Unión" data-k="0.05" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Unión / Brida</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                </div>
+            </div>
+
+            <div class="border border-slate-200 rounded">
+                <button type="button" onclick="toggleCategoria('bombas')" class="w-full flex items-center justify-between px-1.5 py-1 bg-white hover:bg-slate-50 rounded text-left">
+                    <span class="text-[10px] font-bold text-blue-600 uppercase">Bombas</span>
+                    <i id="chevron-bombas" class="fa-solid fa-chevron-down text-slate-400 text-[9px] transition-transform duration-150"></i>
+                </button>
+                <div id="lista-bombas" class="space-y-1 p-1 pl-1.5 border-t border-slate-100">
+                    <div draggable="true" ondragstart="drag(event)" data-type="bomba" data-name="Bomba Centrífuga" data-caudal="50" data-presion="3.5" data-npsh="2500" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center text-[10px] font-medium text-slate-700">
+                        <span>Bomba Centrífuga</span><i class="fa-solid fa-circle-play text-blue-600"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border border-slate-200 rounded">
+                <button type="button" onclick="toggleCategoria('valvulas')" class="w-full flex items-center justify-between px-1.5 py-1 bg-white hover:bg-slate-50 rounded text-left">
+                    <span class="text-[10px] font-bold text-blue-600 uppercase">Válvulas</span>
+                    <i id="chevron-valvulas" class="fa-solid fa-chevron-down text-slate-400 text-[9px] transition-transform duration-150"></i>
+                </button>
+                <div id="lista-valvulas" class="grid grid-cols-1 gap-1 p-1 pl-1.5 border-t border-slate-100 text-[10px]">
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="compuerta" data-name="Válvula Compuerta" data-k="0.2" data-cv="120" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Compuerta (Gate)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="globo" data-name="Válvula Globo" data-k="6.0" data-cv="35" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Globo (Globe)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="bola" data-name="Válvula Bola" data-k="0.05" data-cv="200" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Bola (Ball)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="mariposa" data-name="Válvula Mariposa" data-k="0.5" data-cv="150" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Mariposa (Butterfly)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="neumatica" data-name="Válvula Neumática" data-k="0.3" data-cv="140" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Neumática</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="retencion" data-name="Válvula Retención" data-k="2.0" data-cv="80" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Retención (Check)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                </div>
+            </div>
+
+            <div class="border border-slate-200 rounded">
+                <button type="button" onclick="toggleCategoria('tuberias')" class="w-full flex items-center justify-between px-1.5 py-1 bg-white hover:bg-slate-50 rounded text-left">
+                    <span class="text-[10px] font-bold text-blue-600 uppercase">Tuberías</span>
+                    <i id="chevron-tuberias" class="fa-solid fa-chevron-down text-slate-400 text-[9px] transition-transform duration-150"></i>
+                </button>
+                <div id="lista-tuberias" class="space-y-1 p-1 pl-1.5 border-t border-slate-100">
+                    <div draggable="true" ondragstart="drag(event)" data-type="tuberia" data-material="Acero al Carbono" data-name="Tubería DN 50" data-dn="DN 50" data-espesor="3.91" data-longitud="3000" class="bg-white border border-slate-200 hover:border-blue-400 p-1 rounded cursor-grab flex justify-between items-center text-[10px]">
+                        <span>Tubería DN 50 (3000 mm)</span><i class="fa-solid fa-plus text-blue-600"></i>
+                    </div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="tuberia" data-material="Acero al Carbono" data-name="Tubería DN 100" data-dn="DN 100" data-espesor="6.02" data-longitud="3000" class="bg-white border border-slate-200 hover:border-blue-400 p-1 rounded cursor-grab flex justify-between items-center text-[10px]">
+                        <span>Tubería DN 100 (3000 mm)</span><i class="fa-solid fa-plus text-blue-600"></i>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <script>
+        let elementosRed = [];
+        let idSeleccionado = null;
+        let idMenuContextual = null;
+        let zoomScale = 1.0;
+        let currentFileHandle = null;
+
+        let isDraggingSymbol = false;
+        let activeSymbolId = null;
+        let dragStartX = 0, dragStartY = 0;
+        let desenganchado = false;
+
+        let modoZoomVentana = false;
+        let isSelectingZoom = false;
+        let zoomStartX = 0, zoomStartY = 0;
+
+        // Condiciones de contorno de la red (cota/presión en extremos abiertos), indexadas por "elId:portId"
+        let condicionesContorno = {};
+
+        // Lienzo infinito con convenio CAD: el.x/el.y son coordenadas de MUNDO con origen (0,0) en la
+        // esquina inferior izquierda del lienzo y el eje Y creciendo hacia ARRIBA (como AutoCAD/DXF).
+        // El lienzo SVG interno sigue dibujándose en píxeles de pantalla (Y hacia abajo, origen arriba),
+        // así que la conversión mundo↔pantalla se hace en un único punto: mundoAScreenY().
+        // Esto no afecta a la geometría relativa (rotación, imantado/snapping, motor de cálculo
+        // hidráulico), que solo comparan distancias entre puertos y son indiferentes al sentido de Y.
+        const ALTO_MUNDO = 20000; // debe coincidir con la altura de #marco-a3
+        function mundoAScreenY(y) { return ALTO_MUNDO - y; }
+        function screenAMundoY(sy) { return ALTO_MUNDO - sy; } // conversión inversa (misma fórmula, es una reflexión)
+
+        function irAOrigenEnEsquina() {
+            // Sitúa el origen de mundo (0,0) en la esquina inferior izquierda de la ventana visible
+            canvasContainer.scrollLeft = 0;
+            canvasContainer.scrollTop = ALTO_MUNDO * zoomScale - canvasContainer.clientHeight;
+        }
+
+        // ---- TABLAS DE INGENIERÍA (Fase 1: motor de cálculo hidráulico) ----
+        const G = 9.81; // m/s²
+        const PRESION_ATM = 101325; // Pa
+
+        // Diámetro interior de tubería de acero al carbono Sch 40 (mm)
+        const TABLA_DN_SCH40 = {
+            'DN 15': 15.8, 'DN 20': 21.0, 'DN 25': 26.6, 'DN 32': 35.1,
+            'DN 40': 40.9, 'DN 50': 52.5, 'DN 65': 62.7, 'DN 80': 77.9,
+            'DN 100': 102.3, 'DN 125': 128.2, 'DN 150': 154.1,
+            'DN 200': 202.7, 'DN 250': 254.5, 'DN 300': 304.8
+        };
+
+        // Rugosidad absoluta típica por material (mm)
+        const RUGOSIDAD_MATERIAL = {
+            'Acero al Carbono': 0.045,
+            'Acero Inoxidable': 0.015,
+            'PVC': 0.0015,
+            'Cobre': 0.0015,
+            'Fundición': 0.26,
+            'Hormigón': 0.3
+        };
+
+        // Propiedades de fluidos: rho (kg/m3), mu (Pa·s), pv (presión de vapor absoluta, Pa; null = no soportado)
+        const FLUIDOS = {
+            'Agua (20°C)': { rho: 998.2, mu: 1.002e-3, pv: 2339 },
+            'Aceite Térmico': { rho: 850, mu: 2.9e-2, pv: 10 },
+            'Vapor Saturado': { rho: 1.13, mu: 1.3e-5, pv: null }
+        };
+
+        const panelIzq = document.getElementById('panel-izq');
+        const panelDer = document.getElementById('panel-der');
+        const resizer1 = document.getElementById('resizer-1');
+        const resizer2 = document.getElementById('resizer-2');
+        const canvasContainer = document.getElementById('canvas-container');
+        const marcoA3 = document.getElementById('marco-a3');
+        const svgCanvas = document.getElementById('svg-canvas');
+        const contextMenu = document.getElementById('context-menu');
+        const modalEdicion = document.getElementById('modal-edicion');
+        const zoomBox = document.getElementById('zoom-window-box');
+
+        function initResizers() {
+            resizer1.style.left = panelIzq.offsetWidth + 'px';
+            resizer2.style.right = panelDer.offsetWidth + 'px';
+
+            resizer1.onmousedown = function(e) {
+                e.preventDefault();
+                document.onmousemove = function(e) {
+                    let newWidth = e.clientX;
+                    if (newWidth >= 160 && newWidth <= 400) {
+                        panelIzq.style.width = newWidth + 'px';
+                        resizer1.style.left = newWidth + 'px';
+                    }
+                };
+                document.onmouseup = function() { document.onmousemove = document.onmouseup = null; };
+            };
+
+            resizer2.onmousedown = function(e) {
+                e.preventDefault();
+                document.onmousemove = function(e) {
+                    let newWidth = window.innerWidth - e.clientX;
+                    if (newWidth >= 160 && newWidth <= 400) {
+                        panelDer.style.width = newWidth + 'px';
+                        resizer2.style.right = newWidth + 'px';
+                    }
+                };
+                document.onmouseup = function() { document.onmousemove = document.onmouseup = null; };
+            };
+        }
+        window.onload = function() {
+            initResizers();
+            irAOrigenEnEsquina();
+        };
+
+        function centrarVistaEnPunto(x, y) {
+            canvasContainer.scrollLeft = x * zoomScale - canvasContainer.clientWidth / 2;
+            canvasContainer.scrollTop = y * zoomScale - canvasContainer.clientHeight / 2;
+        }
+
+        canvasContainer.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            const zoomIntensity = 0.1;
+            const rect = canvasContainer.getBoundingClientRect();
+            // Punto del lienzo bajo el cursor antes de cambiar el zoom (para zoom-al-cursor)
+            const cursorEnContenedorX = e.clientX - rect.left + canvasContainer.scrollLeft;
+            const cursorEnContenedorY = e.clientY - rect.top + canvasContainer.scrollTop;
+            const puntoMundoX = cursorEnContenedorX / zoomScale;
+            const puntoMundoY = cursorEnContenedorY / zoomScale;
+
+            if (e.deltaY < 0) {
+                zoomScale = Math.min(zoomScale + zoomIntensity, 3.0);
+            } else {
+                zoomScale = Math.max(zoomScale - zoomIntensity, 0.3);
+            }
+            marcoA3.style.transform = `scale(${zoomScale})`;
+
+            // Reajustar el scroll para que el punto bajo el cursor no se desplace
+            canvasContainer.scrollLeft = puntoMundoX * zoomScale - (e.clientX - rect.left);
+            canvasContainer.scrollTop = puntoMundoY * zoomScale - (e.clientY - rect.top);
+        }, { passive: false });
+
+        window.addEventListener('keydown', function(e) {
+            if (e.key.toLowerCase() === 'f' && document.activeElement.tagName !== 'INPUT') {
+                ajustarVistaVentana();
+            } else if (e.key.toLowerCase() === 'w' && document.activeElement.tagName !== 'INPUT') {
+                modoZoomVentana = !modoZoomVentana;
+                canvasContainer.style.cursor = modoZoomVentana ? 'crosshair' : 'default';
+            }
         });
-        const nextId = n.next;
-        if(nextId) midInserts.push({x:x+GAP_X/2, y:laneY+NODE_H/2, afterId:id, beforeId:nextId});
-        prevId = id;
-        id = nextId;
-        if(id) x += GAP_X;
-      }
-      const endX = x+GAP_X;
-      if(prevId) wires.push(line(cx(pos[prevId]), cy(pos[prevId]), endX, laneY+NODE_H/2, true));
-      endGhosts.push({x:endX, y:laneY, afterId:prevId});
-    }
 
-    layoutLine(network.rootId, ROW_TRUNK, 40);
+        function ajustarVistaVentana() {
+            const containerWidth = canvasContainer.clientWidth;
+            const containerHeight = canvasContainer.clientHeight;
 
-    const usedY = Object.values(pos).map(p=>p.y).concat(slotGhosts.map(s=>s.y), endGhosts.map(g=>g.y));
-    const maxUsedY = usedY.length ? Math.max(...usedY) : ROW_TRUNK;
-    const newlinePos = {x:40, y:maxUsedY+150};
+            if (elementosRed.length === 0) {
+                zoomScale = 1.0;
+                marcoA3.style.transform = `scale(${zoomScale})`;
+                irAOrigenEnEsquina();
+                return;
+            }
 
-    const allX = Object.values(pos).map(p=>p.x).concat(slotGhosts.map(s=>s.x), endGhosts.map(g=>g.x), [newlinePos.x]);
-    const allY = usedY.concat([newlinePos.y]);
-    const width = Math.max(...allX) + NODE_W + 60;
-    const height = Math.max(...allY) + NODE_H + 60;
+            // minX/maxX/minY/maxY están en coordenadas de MUNDO (Y hacia arriba)
+            const margen = 80;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            elementosRed.forEach(el => {
+                minX = Math.min(minX, el.x - margen); minY = Math.min(minY, el.y - margen);
+                maxX = Math.max(maxX, el.x + margen); maxY = Math.max(maxY, el.y + margen);
+            });
 
-    return {pos, wires, midInserts, endGhosts, slotGhosts, branchHandles, newlinePos, width, height, parentOf};
-  }
-
-  /* ============ RENDER: ÁRBOL ============ */
-  function typeColorVar(type){
-    return {bomba:"var(--accent)", tuberia:"var(--copper)", union:"var(--text-faint)", accesorio:"#8a6fc9", valvula:"var(--warning)"}[type];
-  }
-  function typeIcon(type){
-    return {bomba:iconPump, tuberia:iconPipe, union:iconUnion, accesorio:iconFitting, valvula:iconValve}[type](15);
-  }
-  function nodeSubtitle(n){
-    if(n.type==="bomba") return "Q "+n.props.Q+" m³/h · H "+n.props.H+" mca";
-    if(n.type==="tuberia") return MATERIALS[n.props.material].label+" · ⌀"+n.props.D+"mm";
-    if(n.type==="union") return "Punto de unión";
-    return n.props.sub+" · K="+n.props.K;
-  }
-
-  function renderTree(){
-    const layout = computeLayout();
-    lastParentOf = layout.parentOf;
-    const inner = document.getElementById("canvas-inner");
-    inner.style.width = layout.width+"px";
-    inner.style.height = layout.height+"px";
-
-    let html = '<svg class="wires" width="'+layout.width+'" height="'+layout.height+'">'
-      + wireStyle() + layout.wires.join("") + '</svg>';
-
-    Object.values(network.nodes).forEach(n=>{
-      const p = layout.pos[n.id];
-      if(p) html += drawNode(n, p);
-    });
-
-    layout.endGhosts.forEach(g=>{
-      html += drawGhost(g.x, g.y, {kind:"end", after:g.afterId}, "Añadir tramo");
-    });
-    layout.slotGhosts.forEach(s=>{
-      html += drawGhost(s.x, s.y, {kind:"slot", owner:s.ownerId, slot:s.slotIndex}, s.name || "Nuevo ramal");
-    });
-    html += drawGhost(layout.newlinePos.x, layout.newlinePos.y, {kind:"newline"}, "Nueva línea");
-
-    layout.midInserts.forEach(m=>{
-      html += '<div class="mid-insert" data-kind="mid" data-after="'+m.afterId+'" data-before="'+m.beforeId+'" '
-        + 'style="left:'+m.x+'px;top:'+m.y+'px" title="Insertar componente aquí">+</div>';
-    });
-    layout.branchHandles.forEach(h=>{
-      html += '<div class="branch-handle" data-kind="branch" data-owner="'+h.ownerId+'" '
-        + 'style="left:'+h.x+'px;top:'+h.y+'px" title="Sacar un ramal nuevo desde aquí">+</div>';
-    });
-
-    inner.innerHTML = html;
-    attachNodeEvents();
-    attachDropEvents();
-    updateStats();
-  }
-
-  function wireStyle(){
-    return '<style>.wire{stroke:var(--border-strong);stroke-width:2;fill:none;} .wire.dashed{stroke-dasharray:4 4;}</style>';
-  }
-  function line(x1,y1,x2,y2,dashed){
-    return '<line class="wire'+(dashed?" dashed":"")+'" x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'"/>';
-  }
-  function elbow(x1,y1,ex,ey2,x2){
-    // horizontal, vertical, horizontal
-    const d = 'M '+x1+' '+y1+' H '+ex+' V '+ey2+' H '+x2;
-    return '<path class="wire" d="'+d+'"/>';
-  }
-
-  function drawNode(n, p){
-    const sel = n.id===selectedId ? " selected" : "";
-    return '<div class="node type-'+n.type+sel+'" tabindex="0" data-id="'+n.id+'" style="left:'+p.x+'px;top:'+p.y+'px">'
-      +'<div class="node-head"><span class="node-icon" style="color:'+typeColorVar(n.type)+'">'+typeIcon(n.type)+'</span>'
-      +'<span class="node-title">'+n.label+'</span></div>'
-      +'<div class="node-sub">'+nodeSubtitle(n)+'</div>'
-      +'</div>';
-  }
-  function drawGhost(x, y, attrs, label){
-    const attrStr = Object.entries(attrs).map(([k,v])=>' data-'+k+'="'+v+'"').join("");
-    return '<div class="ghost"'+attrStr+' style="left:'+x+'px;top:'+y+'px"><b>+</b><span>'+label+'</span></div>';
-  }
-
-  function attachNodeEvents(){
-    document.querySelectorAll(".node").forEach(el=>{
-      el.addEventListener("click", ()=>selectNode(el.dataset.id));
-      el.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); selectNode(el.dataset.id);} });
-    });
-  }
-
-  function findNode(id){
-    const node = network.nodes[id];
-    return node ? {node, type:node.type} : null;
-  }
-
-  function selectNode(id){
-    selectedId = id;
-    renderTree();
-    switchTab("propiedades");
-    renderProperties();
-  }
-
-  /* ============ DRAG & DROP ============ */
-  // Tres formas de soltar un componente sobre el lienzo:
-  //  · "end"    -> al final de una línea (continúa el tramo)
-  //  · "slot"   -> en un ramal vacío ya existente (colgando de una unión/té)
-  //  · "mid"    -> insertado entre dos componentes ya conectados (parte la conexión)
-  //  · "branch" -> saca un ramal nuevo desde cualquier componente (p.ej. desde una tubería del tronco)
-  function attachDropEvents(){
-    document.querySelectorAll(".ghost, .mid-insert, .branch-handle").forEach(el=>{
-      el.addEventListener("dragover", e=>{ e.preventDefault(); el.classList.add("dragover"); });
-      el.addEventListener("dragleave", ()=> el.classList.remove("dragover"));
-      el.addEventListener("drop", e=>{
-        e.preventDefault();
-        el.classList.remove("dragover");
-        const raw = e.dataTransfer.getData("text/plain");
-        if(!raw) return;
-        const payload = JSON.parse(raw);
-        handleDrop(el.dataset, payload);
-      });
-    });
-  }
-
-  function createNodeFromItem(item){
-    const id = nid(item.type[0].toUpperCase());
-    const base = (item.type==="accesorio"||item.type==="valvula") ? item.defaults.sub
-      : item.type==="tuberia" ? "Tubería"
-      : item.type==="bomba" ? "Bomba" : item.label;
-    return {id, type:item.type, label: base+" "+id, props: JSON.parse(JSON.stringify(item.defaults)), next:null, branches:[]};
-  }
-
-  function handleDrop(ds, payload){
-    const item = payload.item;
-
-    if(ds.kind === "newline"){
-      if(item.type !== "bomba"){
-        flashToast("Solo se puede iniciar una nueva línea con una bomba.");
-        return;
-      }
-      flashToast("Segunda línea (bomba adicional) — próximo paso del bosquejo.");
-      return;
-    }
-
-    const node = createNodeFromItem(item);
-    network.nodes[node.id] = node;
-
-    if(ds.kind === "end"){
-      network.nodes[ds.after].next = node.id;
-    } else if(ds.kind === "slot"){
-      network.nodes[ds.owner].branches[Number(ds.slot)].headId = node.id;
-    } else if(ds.kind === "mid"){
-      node.next = ds.before;
-      network.nodes[ds.after].next = node.id;
-    } else if(ds.kind === "branch"){
-      const laneY = network.nextLaneY || 540;
-      network.nextLaneY = laneY + 140;
-      network.nodes[ds.owner].branches.push({headId:node.id, laneY, name:null});
-    } else {
-      delete network.nodes[node.id];
-      return;
-    }
-
-    saveNetwork();
-    selectedId = node.id;
-    renderTree();
-    switchTab("propiedades");
-    renderProperties();
-  }
-
-  function flashToast(msg){
-    let t = document.getElementById("toast");
-    if(!t){
-      t = document.createElement("div");
-      t.id="toast";
-      t.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--surface);padding:9px 16px;border-radius:8px;font-size:12.5px;z-index:999;box-shadow:var(--shadow);";
-      document.body.appendChild(t);
-    }
-    t.textContent = msg;
-    t.style.opacity = "1";
-    clearTimeout(t._h);
-    t._h = setTimeout(()=>{ t.style.opacity="0"; }, 2600);
-  }
-
-  /* ============ RENDER: PALETA DE COMPONENTES ============ */
-  function renderPalette(){
-    const el = document.getElementById("panel-componentes");
-    let html = "";
-    Object.entries(CATALOG).forEach(([key, cat])=>{
-      html += '<div class="accordion-section" data-cat="'+key+'">'
-        + '<div class="accordion-head" data-toggle="'+key+'">'+cat.label
-        + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></div>'
-        + '<div class="accordion-body">';
-      cat.items.forEach(item=>{
-        html += '<div class="comp-card" draggable="true" data-cat="'+key+'" data-item="'+item.key+'">'
-          + '<span class="comp-icon" style="color:'+typeColorVar(item.type)+'">'+cat.icon(16)+'</span>'
-          + '<span class="comp-body"><span class="comp-name">'+item.label+'</span><br><span class="comp-spec">'+item.spec+'</span></span>'
-          + '</div>';
-      });
-      html += '</div></div>';
-    });
-    el.innerHTML = html;
-
-    el.querySelectorAll(".accordion-head").forEach(h=>{
-      h.addEventListener("click", ()=>{
-        h.closest(".accordion-section").classList.toggle("closed");
-      });
-    });
-    el.querySelectorAll(".comp-card").forEach(card=>{
-      card.addEventListener("dragstart", e=>{
-        const cat = CATALOG[card.dataset.cat];
-        const item = cat.items.find(i=>i.key===card.dataset.item);
-        e.dataTransfer.setData("text/plain", JSON.stringify({item}));
-        e.dataTransfer.effectAllowed = "copy";
-      });
-    });
-  }
-
-  /* ============ RENDER: PROPIEDADES ============ */
-  function switchTab(name){
-    document.querySelectorAll(".tab").forEach(t=> t.classList.toggle("active", t.dataset.tab===name));
-    document.getElementById("panel-componentes").classList.toggle("active", name==="componentes");
-    document.getElementById("panel-propiedades").classList.toggle("active", name==="propiedades");
-    if(name==="propiedades") document.getElementById("props-dot").style.display="none";
-  }
-
-  function renderProperties(){
-    const el = document.getElementById("panel-propiedades");
-    if(!selectedId){
-      el.innerHTML = '<div class="props-empty">'
-        + svgIcon('<path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 0 2-2v-4"/>', 30)
-        + '<div>Selecciona un componente en el lienzo,<br>o arrastra uno nuevo desde «Componentes».</div></div>';
-      return;
-    }
-    const found = findNode(selectedId);
-    if(!found){ selectedId=null; renderProperties(); return; }
-    const {node, type} = found;
-
-    let body = "";
-    if(type==="bomba") body = propsBomba(node);
-    else if(type==="tuberia") body = propsTuberia(node);
-    else if(type==="union") body = '<div class="formula-note">Nudo de paso — sin pérdida de carga propia; reparte el caudal entre los ramales que salen de él.</div>';
-    else body = propsAccesorio(node); // accesorio o valvula (incluye tés usadas como punto de ramal)
-
-    if(node.branches && node.branches.length) body += continuityBox(node);
-
-    el.innerHTML =
-      '<div class="props-head"><div class="props-type">'+typeLabel(type)+'</div><div class="props-name">'+node.label+'</div></div>'
-      + '<div class="props-body">'+body+'</div>'
-      + '<div class="props-hint">Los cambios se recalculan al instante y se guardan en este navegador.</div>';
-
-    bindPropInputs(node, type);
-  }
-
-  function typeLabel(type){
-    return {bomba:"Equipo · Bomba", tuberia:"Tramo de tubería", union:"Nudo de red", accesorio:"Accesorio", valvula:"Válvula"}[type];
-  }
-
-  function propsBomba(n){
-    return field2("Caudal nominal (m³/h)","Q",n.props.Q,"Altura manométrica (mca)","H",n.props.H)
-      + field2("Potencia absorbida (kW)","Pot",n.props.Pot,"NPSH disponible (mca)","NPSHd",n.props.NPSHd)
-      + '<div class="result-box"><div class="result-title">Punto de trabajo</div>'
-      + '<div class="result-row"><span class="k">Componentes en la red</span><span class="v">'+countTramos()+'</span></div>'
-      + '<div class="formula-note">La curva bomba–sistema y la comprobación de cavitación (NPSHd &gt; NPSHr) se resuelven en la fase de cálculo de red.</div></div>';
-  }
-
-  // Caudal que entra a un nodo, tomado del componente anterior en la línea (o del ramal que lo origina)
-  function incomingQ(nodeId){
-    const pid = lastParentOf[nodeId];
-    const p = pid ? network.nodes[pid] : null;
-    return p && p.props && p.props.Q!=null ? (Number(p.props.Q)||0) : 0;
-  }
-
-  // Comprobación de continuidad (ΣQ ramales = Q entrada) — aplica a cualquier componente
-  // del que cuelguen ramales (uniones, tés insertadas en el tronco, etc.)
-  function continuityBox(n){
-    const qin = incomingQ(n.id);
-    let sum = 0, filled = 0;
-    n.branches.forEach(b=>{
-      if(b.headId){ filled++; sum += Number(network.nodes[b.headId].props.Q)||0; }
-    });
-    const balanced = filled>0 && Math.abs(sum-qin) < 0.05*Math.max(qin,0.001);
-    return '<div class="result-box"><div class="result-title">Continuidad (ΣQ salida = Q entrada)</div>'
-      + '<div class="result-row"><span class="k">Caudal de entrada</span><span class="v">'+qin.toFixed(2)+' m³/h</span></div>'
-      + '<div class="result-row"><span class="k">Suma de ramales ('+filled+'/'+n.branches.length+')</span><span class="v">'+sum.toFixed(2)+' m³/h</span></div>'
-      + '<div class="result-row"><span class="k">Balance</span>'
-      + '<span class="badge '+(balanced?"ok":"bad")+'">'+(balanced?"◆ equilibrado":"◆ desajustado")+'</span></div>'
-      + '<div class="formula-note">Ajusta el caudal del primer tramo de cada ramal para restablecer el balance de masa en este punto. Usa el «+» bajo cualquier componente para sacar un ramal nuevo.</div></div>';
-  }
-
-  function propsTuberia(n){
-    const mat = MATERIALS[n.props.material];
-    const r = pipeHeadLoss(Number(n.props.D), Number(n.props.L), Number(n.props.Q), mat.eps);
-    const regimen = r.Re < 2300 ? "laminar" : (r.Re<4000?"transición":"turbulento");
-    return matSelect(n.props.material)
-      + field2("Diámetro interior (mm)","D",n.props.D,"Longitud (m)","L",n.props.L)
-      + field1("Caudal (m³/h)","Q",n.props.Q)
-      + '<div class="result-box"><div class="result-title">Pérdida de carga · Darcy–Weisbach</div>'
-      + '<div class="result-row"><span class="k">Velocidad</span><span class="v">'+r.v.toFixed(2)+' m/s</span></div>'
-      + '<div class="result-row"><span class="k">Reynolds</span><span class="v">'+r.Re.toFixed(0)+' ('+regimen+')</span></div>'
-      + '<div class="result-row"><span class="k">f (Swamee–Jain)</span><span class="v">'+r.f.toFixed(4)+'</span></div>'
-      + '<div class="result-row"><span class="k">Rugosidad ε</span><span class="v">'+mat.eps+' mm</span></div>'
-      + '<div class="result-row"><span class="k">Pérdida h<sub>f</sub></span><span class="v big">'+r.hf.toFixed(3)+' mca</span></div>'
-      + '<div class="result-row"><span class="k">&nbsp;</span><span class="v">'+mca_to_kpa(r.hf).toFixed(2)+' kPa</span></div>'
-      + '<div class="formula-note">h<sub>f</sub> = f · (L/D) · v²/2g — f por Swamee–Jain (aprox. de Colebrook–White), régimen laminar con f=64/Re.</div></div>';
-  }
-
-  function propsAccesorio(n){
-    const r = localHeadLoss(Number(n.props.K), Number(n.props.D), Number(n.props.Q));
-    return field2("Factor K","K",n.props.K,"Diámetro (mm)","D",n.props.D)
-      + field1("Caudal (m³/h)","Q",n.props.Q)
-      + '<div class="result-box"><div class="result-title">Pérdida localizada</div>'
-      + '<div class="result-row"><span class="k">Velocidad</span><span class="v">'+r.v.toFixed(2)+' m/s</span></div>'
-      + '<div class="result-row"><span class="k">Pérdida h</span><span class="v big">'+r.h.toFixed(3)+' mca</span></div>'
-      + '<div class="result-row"><span class="k">&nbsp;</span><span class="v">'+mca_to_kpa(r.h).toFixed(2)+' kPa</span></div>'
-      + '<div class="formula-note">h = K · v²/2g — el factor K es orientativo; sustitúyelo por el dato de catálogo del fabricante.</div></div>';
-  }
-
-  function matSelect(current){
-    let opts = Object.entries(MATERIALS).map(([k,m])=>
-      '<option value="'+k+'"'+(k===current?" selected":"")+'>'+m.label+'</option>').join("");
-    return '<div class="field"><label>Material</label><select data-prop="material">'+opts+'</select></div>';
-  }
-  function field1(label,key,val){
-    return '<div class="field"><label>'+label+'</label><input type="number" step="any" data-prop="'+key+'" value="'+val+'"></div>';
-  }
-  function field2(l1,k1,v1,l2,k2,v2){
-    return '<div class="field-row">'
-      + '<div class="field"><label>'+l1+'</label><input type="number" step="any" data-prop="'+k1+'" value="'+v1+'"></div>'
-      + '<div class="field"><label>'+l2+'</label><input type="number" step="any" data-prop="'+k2+'" value="'+v2+'"></div>'
-      + '</div>';
-  }
-
-  function bindPropInputs(node, type){
-    document.querySelectorAll('#panel-propiedades [data-prop]').forEach(input=>{
-      input.addEventListener("input", ()=>{
-        const key = input.dataset.prop;
-        const val = input.tagName==="SELECT" ? input.value : parseFloat(input.value);
-        node.props[key] = (input.tagName==="SELECT" || isNaN(val)) ? input.value : val;
-        if(key==="material"){
-          // al cambiar material, sugerir su rugosidad/diámetro por defecto si el usuario no ha tocado D
+            const anchoContenido = Math.max(maxX - minX, 100);
+            const altoContenido = Math.max(maxY - minY, 100);
+            const scaleX = containerWidth / anchoContenido;
+            const scaleY = containerHeight / altoContenido;
+            zoomScale = Math.min(scaleX, scaleY, 2.0);
+            marcoA3.style.transform = `scale(${zoomScale})`;
+            // centrarVistaEnPunto espera coordenadas de pantalla (Y hacia abajo) -> convertir el centro Y
+            centrarVistaEnPunto((minX + maxX) / 2, mundoAScreenY((minY + maxY) / 2));
         }
-        saveNetwork();
-        renderProperties();
-        renderTree(); // refresca subtítulos / stats (mantiene selección)
-      });
-    });
-  }
 
-  /* ============ STATS ============ */
-  function countTramos(){
-    return Object.values(network.nodes).filter(n=>n.type!=="bomba" && n.type!=="union").length;
-  }
-  function updateStats(){
-    document.getElementById("stat-tramos").textContent = countTramos();
-    document.getElementById("stat-caudal").textContent = network.nodes[network.rootId].props.Q + " m³/h";
-    document.getElementById("canvas-title").textContent = currentProject().name;
-  }
+        canvasContainer.addEventListener('mousedown', function(e) {
+            if (!modoZoomVentana) return;
+            isSelectingZoom = true;
+            const rect = canvasContainer.getBoundingClientRect();
+            zoomStartX = e.clientX - rect.left + canvasContainer.scrollLeft;
+            zoomStartY = e.clientY - rect.top + canvasContainer.scrollTop;
+            zoomBox.style.left = zoomStartX + 'px';
+            zoomBox.style.top = zoomStartY + 'px';
+            zoomBox.style.width = '0px';
+            zoomBox.style.height = '0px';
+            zoomBox.style.display = 'block';
+        });
 
-  /* ============ SELECTOR DE PROYECTO ============ */
-  function renderProjectSwitcher(){
-    const proj = currentProject();
-    document.getElementById("proj-trigger-name").textContent = proj.name;
-    document.getElementById("proj-trigger-state").textContent = proj.estado;
+        canvasContainer.addEventListener('mousemove', function(e) {
+            if (!isSelectingZoom || !modoZoomVentana) return;
+            const rect = canvasContainer.getBoundingClientRect();
+            let currentX = e.clientX - rect.left + canvasContainer.scrollLeft;
+            let currentY = e.clientY - rect.top + canvasContainer.scrollTop;
+            
+            let width = currentX - zoomStartX;
+            let height = currentY - zoomStartY;
+            
+            zoomBox.style.width = Math.abs(width) + 'px';
+            zoomBox.style.height = Math.abs(height) + 'px';
+            if (width < 0) zoomBox.style.left = currentX + 'px';
+            if (height < 0) zoomBox.style.top = currentY + 'px';
+        });
 
-    const list = document.getElementById("proj-list");
-    list.innerHTML = projects.map(p=>
-      '<div class="proj-item'+(p.id===proj.id?" active":"")+'" data-proj="'+p.id+'">'
-      + '<span class="proj-item-name">'+p.name+'</span>'
-      + '<span class="proj-item-state">'+p.estado+'</span>'
-      + '</div>'
-    ).join("");
-    list.querySelectorAll(".proj-item").forEach(row=>{
-      row.addEventListener("click", ()=>{
-        switchProject(row.dataset.proj);
-        closeProjSwitcher();
-      });
-    });
-  }
-  function toggleProjSwitcher(){
-    document.getElementById("proj-switcher").classList.toggle("open");
-  }
-  function closeProjSwitcher(){
-    document.getElementById("proj-switcher").classList.remove("open");
-  }
-  document.getElementById("proj-trigger").addEventListener("click", e=>{
-    e.stopPropagation();
-    toggleProjSwitcher();
-  });
-  document.getElementById("proj-dropdown").addEventListener("click", e=> e.stopPropagation());
-  document.addEventListener("click", ()=> closeProjSwitcher());
+        canvasContainer.addEventListener('mouseup', function(e) {
+            if (!isSelectingZoom || !modoZoomVentana) return;
+            isSelectingZoom = false;
+            zoomBox.style.display = 'none';
+            modoZoomVentana = false;
+            canvasContainer.style.cursor = 'default';
+        });
 
-  function submitNewProject(){
-    const input = document.getElementById("proj-new-input");
-    if(!input.value.trim()){ input.focus(); return; }
-    createProject(input.value);
-    input.value = "";
-    closeProjSwitcher();
-    flashToast("Proyecto creado.");
-  }
-  document.getElementById("proj-new-btn").addEventListener("click", submitNewProject);
-  document.getElementById("proj-new-input").addEventListener("keydown", e=>{
-    if(e.key==="Enter"){ e.preventDefault(); submitNewProject(); }
-  });
+        function cerrarMenuContextual(e) {
+            if (!contextMenu.contains(e.target)) {
+                contextMenu.style.display = 'none';
+            }
+        }
 
-  /* ============ RENDER GLOBAL ============ */
-  function renderAll(){
-    renderProjectSwitcher();
-    renderTree();
-    renderProperties();
-    switchTab("componentes");
-  }
+        function drag(ev) {
+            ev.dataTransfer.setData("text/plain", JSON.stringify(ev.target.dataset));
+        }
 
-  /* ============ NAV / TABS ============ */
-  document.querySelectorAll(".nav-item").forEach(item=>{
-    item.addEventListener("click", ()=>{
-      if(item.dataset.nav==="editor"){
-        document.querySelectorAll(".nav-item").forEach(i=>i.classList.toggle("active", i===item));
-        return;
-      }
-      flashToast("«"+item.textContent.replace("pronto","").trim()+"» — próxima fase del bosquejo.");
-    });
-  });
-  document.querySelectorAll(".tab").forEach(t=>{
-    t.addEventListener("click", ()=> switchTab(t.dataset.tab));
-  });
-  document.getElementById("btn-reset").addEventListener("click", ()=>{
-    const proj = currentProject();
-    proj.network = proj.id==="p1" ? sampleNetwork() : starterNetwork();
-    network = proj.network;
-    selectedId = null;
-    saveState();
-    renderTree();
-    renderProperties();
-    switchTab("componentes");
-    flashToast("Proyecto restablecido a su estado inicial.");
-  });
+        function allowDrop(ev) { ev.preventDefault(); }
 
-  /* ============ INIT ============ */
-  initState();
-  renderPalette();
-  renderProjectSwitcher();
-  renderTree();
-  renderProperties();
+        // Desplegar/plegar una categoría de la librería de símbolos (panel derecho)
+        function toggleCategoria(nombre) {
+            const lista = document.getElementById('lista-' + nombre);
+            const chevron = document.getElementById('chevron-' + nombre);
+            const estabaAbierto = lista.style.display !== 'none';
+            lista.style.display = estabaAbierto ? 'none' : '';
+            chevron.style.transform = estabaAbierto ? 'rotate(-90deg)' : 'rotate(0deg)';
+        }
 
-})();
-</script>
+        function dropElemento(ev) {
+            ev.preventDefault();
+            document.getElementById("empty-state")?.remove();
+
+            const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
+            const rectMarco = marcoA3.getBoundingClientRect();
+
+            // Posición del cursor en píxeles de pantalla (Y hacia abajo) dentro del lienzo...
+            let screenX = (ev.clientX - rectMarco.left) / zoomScale - 25;
+            let screenY = (ev.clientY - rectMarco.top) / zoomScale - 25;
+            // ...convertida a coordenadas de MUNDO (Y hacia arriba) para almacenar en el elemento
+            let dropX = screenX;
+            let dropY = screenAMundoY(screenY);
+
+            const idUnico = 'sym_' + Date.now();
+            let nuevoElemento = {
+                id: idUnico,
+                type: data.type,
+                subtype: data.subtype || '',
+                name: data.name,
+                x: dropX,
+                y: dropY,
+                scale: 1.0,
+                rotation: data.type === 'valvula' ? 90 : 0
+            };
+
+            if (data.type === 'tuberia') {
+                nuevoElemento.material = data.material || "Acero al Carbono";
+                nuevoElemento.dn = data.dn || "DN 50";
+                nuevoElemento.espesor = parseFloat(data.espesor) || 3.91;
+                nuevoElemento.longitud = parseFloat(data.longitud) || 3000;
+            } else if (data.type === 'bomba') {
+                nuevoElemento.caudal = parseFloat(data.caudal) || 50; // m³/h, punto de diseño
+                nuevoElemento.presion = parseFloat(data.presion) || 3.5; // bar, altura en el punto de diseño
+                nuevoElemento.npsh = (parseFloat(data.npsh) || 2500) / 1000; // NPSH requerido, en metros
+                nuevoElemento.h0 = +((nuevoElemento.presion * 1.2).toFixed(2)); // bar a caudal cero (cierre), editable
+                nuevoElemento.cota = 0; // m, cota de referencia de la bomba (para NPSH)
+            } else if (data.type === 'valvula') {
+                nuevoElemento.k = parseFloat(data.k) || 0.2;
+                nuevoElemento.cv = parseFloat(data.cv) || 120;
+                nuevoElemento.dn = data.dn || 'DN 50';
+            } else if (data.type === 'accesorio') {
+                nuevoElemento.angulo = parseFloat(data.angulo) || 90;
+                nuevoElemento.k = parseFloat(data.k) || 0.75;
+                nuevoElemento.dn = data.dn || 'DN 50';
+            }
+
+            normalizarElemento(nuevoElemento);
+            aplicarSnapping(nuevoElemento);
+            elementosRed.push(nuevoElemento);
+            renderizarVectorial();
+            seleccionarElemento(idUnico);
+        }
+
+        // Puertos locales (sin rotar/trasladar) de cada símbolo, coherentes con su dibujo SVG.
+        // Cada puerto lleva un "id" semántico estable (usado por el motor de cálculo), independiente
+        // de la posición/rotación visual.
+        function obtenerPuertosLocales(el) {
+            if (el.type === 'tuberia') {
+                let largoPx = (el.longitud || 3000) / 30;
+                return [
+                    { x: 0, y: 20, id: 'a' },
+                    { x: largoPx, y: 20, id: 'b' }
+                ];
+            }
+            if (el.type === 'valvula') {
+                return [
+                    { x: 10, y: 25, id: 'a' },
+                    { x: 40, y: 25, id: 'b' }
+                ];
+            }
+            if (el.type === 'bomba') {
+                // Coinciden con el borde real del círculo dibujado (cx=25, cy=25, r=20)
+                return [
+                    { x: 5, y: 25, id: 'succion' },
+                    { x: 45, y: 25, id: 'descarga' }
+                ];
+            }
+            if (el.type === 'accesorio') {
+                if (el.subtype === 'tee') {
+                    return [
+                        { x: 10, y: 25, id: 'a' },
+                        { x: 40, y: 25, id: 'b' },
+                        { x: 25, y: 40, id: 'c' }
+                    ];
+                }
+                if (el.subtype === 'codo') {
+                    return [
+                        { x: 15, y: 35, id: 'a' },
+                        { x: 35, y: 15, id: 'b' }
+                    ];
+                }
+                // unión / brida y accesorios genéricos
+                return [
+                    { x: 10, y: 25, id: 'a' },
+                    { x: 40, y: 25, id: 'b' }
+                ];
+            }
+            return [{ x: 0, y: 25, id: 'a' }, { x: 50, y: 25, id: 'b' }];
+        }
+
+        function obtenerPuertosConexion(el) {
+            let rot = el.rotation || 0;
+            let rad = rot * Math.PI / 180;
+            let centroLocal = { x: 25, y: 25 };
+            if (el.type === 'tuberia') {
+                let largoPx = (el.longitud || 3000) / 30;
+                centroLocal = { x: largoPx / 2, y: 20 };
+            }
+            return obtenerPuertosLocales(el).map(p => {
+                let global = rotarPunto(p, centroLocal, rad, el.x, el.y);
+                global.id = p.id;
+                return global;
+            });
+        }
+
+        function rotarPunto(p, centro, rad, posX, posY) {
+            let cos = Math.cos(rad);
+            let sin = Math.sin(rad);
+            let nx = cos * (p.x - centro.x) - sin * (p.y - centro.y) + centro.x;
+            let ny = sin * (p.x - centro.x) + cos * (p.y - centro.y) + centro.y;
+            return { x: posX + nx, y: posY + ny };
+        }
+
+        // Rellena valores por defecto que puedan faltar (elementos creados con versiones anteriores)
+        function normalizarElemento(el) {
+            if (el.type === 'bomba') {
+                if (el.h0 == null) el.h0 = +(((el.presion || 3.5) * 1.2).toFixed(2));
+                if (el.cota == null) el.cota = 0;
+                if (el.npsh == null) el.npsh = 2.5;
+                else if (el.npsh > 100) el.npsh = el.npsh / 1000; // formato antiguo en mm
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
+                if (el.dn == null) el.dn = 'DN 50';
+                if (el.k == null) el.k = el.type === 'valvula' ? 0.5 : 0.75;
+            }
+        }
+
+        function aplicarSnapping(el, umbral = 35) {
+            if (desenganchado) return;
+            const snapThreshold = umbral;
+            let puertosArrastrados = obtenerPuertosConexion(el);
+            
+            for (let otroEl of elementosRed) {
+                if (otroEl.id === el.id) continue;
+                let puertosFijos = obtenerPuertosConexion(otroEl);
+                let imánEncontrado = false;
+
+                for (let i = 0; i < puertosArrastrados.length; i++) {
+                    let pa = puertosArrastrados[i];
+                    for (let pf of puertosFijos) {
+                        let distancia = Math.hypot(pa.x - pf.x, pa.y - pf.y);
+                        if (distancia < snapThreshold) {
+                            let offsetX = pa.x - el.x;
+                            let offsetY = pa.y - el.y;
+                            el.x = pf.x - offsetX;
+                            el.y = pf.y - offsetY;
+                            imánEncontrado = true;
+                            break;
+                        }
+                    }
+                    if (imánEncontrado) break;
+                }
+                if (imánEncontrado) break;
+            }
+        }
+
+        // Reajusta el imantado de TODOS los elementos ya colocados, con un umbral más estrecho que
+        // el arrastre interactivo (para no unir elementos que no se pretendía conectar). Corrige
+        // huecos que quedan cuando: se abre un proyecto guardado con una geometría de puertos
+        // ligeramente distinta a una versión anterior, o se ha movido a mano un conjunto ya
+        // conectado y algún extremo quedó suelto.
+        function reajustarTodasLasConexiones() {
+            const UMBRAL_REAJUSTE = 15;
+            for (let pasada = 0; pasada < 3; pasada++) {
+                elementosRed.forEach(el => aplicarSnapping(el, UMBRAL_REAJUSTE));
+            }
+            renderizarVectorial();
+        }
+
+        function renderizarVectorial() {
+            const emptyState = document.getElementById("empty-state");
+            svgCanvas.innerHTML = "";
+            if (emptyState && elementosRed.length === 0) {
+                svgCanvas.appendChild(emptyState);
+            }
+
+            elementosRed.forEach(el => {
+                const isSelected = idSeleccionado === el.id;
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.setAttribute("class", `symbol-group ${isSelected ? 'symbol-selected' : ''}`);
+                
+                let rotacionElem = el.rotation || 0;
+                let rotacionTexto = -rotacionElem;
+                // el.x/el.y son coordenadas de MUNDO (Y arriba); se convierten a pantalla (Y abajo) solo al dibujar
+                g.setAttribute("transform", `translate(${el.x}, ${mundoAScreenY(el.y)}) rotate(${rotacionElem}, 25, 25) scale(${el.scale})`);
+                g.setAttribute("data-id", el.id);
+
+                g.addEventListener('mousedown', function(e) {
+                    if (e.button === 2) return;
+                    e.stopPropagation();
+                    activeSymbolId = el.id;
+                    isDraggingSymbol = true;
+                    desenganchado = false;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    seleccionarElemento(el.id);
+                });
+
+                g.addEventListener('dblclick', function(e) {
+                    e.stopPropagation();
+                    abrirModalEdicion(el.id);
+                });
+
+                g.oncontextmenu = function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    idMenuContextual = el.id;
+                    seleccionarElemento(el.id);
+                    
+                    contextMenu.style.display = 'block';
+                    contextMenu.style.left = e.clientX + 'px';
+                    contextMenu.style.top = e.clientY + 'px';
+                };
+
+                let dibujoHTML = '';
+                let textAnchor = "middle";
+                let textX = 25;
+                let textY = 58;
+                if ((rotacionElem === 90 || rotacionElem === 270)) {
+                    textX = 25;
+                    textY = -8; 
+                }
+
+                if (el.type === 'bomba') {
+                    dibujoHTML = `
+                        <circle cx="25" cy="25" r="20" fill="white" stroke="#334155" stroke-width="2"/>
+                        <polygon points="20,15 33,25 20,35" fill="#334155"/>
+                        <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" font-family="sans-serif" font-size="9" fill="#475569" text-anchor="${textAnchor}">${el.name}</text>
+                    `;
+                } else if (el.type === 'tuberia') {
+                    let largoTuberia = el.longitud || 3000;
+                    let largoPx = largoTuberia / 30;
+                    dibujoHTML = `
+                        <line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="#2563eb" stroke-width="4" stroke-linecap="round"/>
+                        <text x="${largoPx / 2}" y="36" transform="rotate(${rotacionTexto}, ${largoPx / 2}, 36)" font-family="sans-serif" font-size="9" fill="#2563eb" text-anchor="middle">${el.dn} - L:${largoTuberia} mm</text>
+                    `;
+                } else if (el.type === 'accesorio') {
+                    if (el.subtype === 'codo') {
+                        dibujoHTML = `
+                            <path d="M 15 35 L 15 15 L 35 15" fill="none" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="15" cy="25" r="3" fill="#2563eb"/>
+                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" font-family="sans-serif" font-size="9" fill="#475569" text-anchor="${textAnchor}">${el.name}</text>
+                        `;
+                    } else if (el.subtype === 'tee') {
+                        dibujoHTML = `
+                            <line x1="10" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>
+                            <line x1="25" y1="25" x2="25" y2="40" stroke="#334155" stroke-width="3"/>
+                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" font-family="sans-serif" font-size="9" fill="#475569" text-anchor="${textAnchor}">${el.name}</text>
+                        `;
+                    } else { 
+                        dibujoHTML = `
+                            <rect x="20" y="10" width="10" height="30" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="10" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="2" stroke-dasharray="2,2"/>
+                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" font-family="sans-serif" font-size="9" fill="#475569" text-anchor="${textAnchor}">${el.name}</text>
+                        `;
+                    }
+                } else if (el.type === 'valvula') {
+                    // Tramo de tubo que lleva el cuerpo de la válvula (12-38) exactamente hasta el
+                    // puerto de conexión (10/40), para que no quede hueco visual al conectar.
+                    const stubValvula = `<line x1="10" y1="25" x2="12" y2="25" stroke="#334155" stroke-width="3"/><line x1="38" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>`;
+                    if (el.subtype === 'globo') {
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <circle cx="25" cy="25" r="6" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="25" y1="19" x2="25" y2="8" stroke="#334155" stroke-width="2"/>
+                            <line x1="21" y1="8" x2="29" y2="8" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else if (el.subtype === 'bola') {
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <circle cx="25" cy="25" r="5" fill="#334155" stroke="#334155" stroke-width="2"/>
+                            <line x1="25" y1="20" x2="25" y2="8" stroke="#334155" stroke-width="2"/>
+                            <line x1="21" y1="8" x2="29" y2="8" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else if (el.subtype === 'mariposa') {
+                        dibujoHTML = `
+                            <line x1="10" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>
+                            <polygon points="18,15 32,35 32,15 18,35" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="25" y1="15" x2="25" y2="6" stroke="#334155" stroke-width="2"/>
+                            <line x1="21" y1="6" x2="29" y2="6" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else if (el.subtype === 'neumatica') {
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <rect x="18" y="2" width="14" height="10" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="25" y1="12" x2="25" y2="18" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else if (el.subtype === 'retencion') {
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,15 38,25 12,35" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="38" y1="15" x2="38" y2="35" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else {
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="25" y1="19" x2="25" y2="8" stroke="#334155" stroke-width="2"/>
+                            <line x1="21" y1="8" x2="29" y2="8" stroke="#334155" stroke-width="2"/>
+                        `;
+                    }
+                    dibujoHTML += `<text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" font-family="sans-serif" font-size="9" fill="#475569" text-anchor="${textAnchor}">${el.name}</text>`;
+                }
+
+                let puertosLocales = obtenerPuertosLocales(el);
+                puertosLocales.forEach((p) => {
+                    dibujoHTML += `<circle class="connection-port" cx="${p.x}" cy="${p.y}" r="3.5" data-portid="${p.id}"/>`;
+                });
+
+                g.innerHTML = dibujoHTML;
+                svgCanvas.appendChild(g);
+            });
+        }
+
+        window.addEventListener('mousemove', function(e) {
+            if (!isDraggingSymbol || !activeSymbolId) return;
+            const dx = (e.clientX - dragStartX) / zoomScale;
+            const dy = (e.clientY - dragStartY) / zoomScale;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+
+            const el = elementosRed.find(item => item.id === activeSymbolId);
+            if (el) {
+                if (Math.hypot(dx, dy) > 8) {
+                    // Si se arrastra con fuerza, se rompe el enganche actual para poder moverlo
+                }
+                el.x += dx;
+                el.y -= dy; // dy es un delta de pantalla (abajo = positivo); en mundo Y-arriba se resta
+                aplicarSnapping(el);
+                renderizarVectorial();
+            }
+        });
+
+        window.addEventListener('mouseup', function() {
+            isDraggingSymbol = false;
+            activeSymbolId = null;
+        });
+
+        function menuAccion(accion) {
+            contextMenu.style.display = 'none';
+            if (!idMenuContextual) return;
+            const el = elementosRed.find(item => item.id === idMenuContextual);
+            if (!el) return;
+
+            if (accion === 'eliminar') {
+                eliminarElemento(el.id);
+            } else if (accion === 'girar') {
+                el.rotation = ((el.rotation || 0) + 90) % 360;
+                renderizarVectorial();
+                seleccionarElemento(el.id);
+            } else if (accion === 'escalar') {
+                let nuevaEscala = prompt("Introduce el factor de escala:", el.scale || 1.0);
+                if (nuevaEscala && !isNaN(nuevaEscala)) {
+                    el.scale = parseFloat(nuevaEscala);
+                    renderizarVectorial();
+                    seleccionarElemento(el.id);
+                }
+            } else if (accion === 'desconectar') {
+                desenganchado = true;
+                alert("Componente liberado de la imantación. Arrástralo a otra posición.");
+            } else if (accion === 'editar') {
+                abrirModalEdicion(el.id);
+            }
+        }
+
+        function opcionesDN(actual) {
+            return Object.keys(TABLA_DN_SCH40).map(dn =>
+                `<option value="${dn}" ${dn === actual ? 'selected' : ''}>${dn}</option>`
+            ).join('');
+        }
+
+        function opcionesMaterial(actual) {
+            return Object.keys(RUGOSIDAD_MATERIAL).map(m =>
+                `<option value="${m}" ${m === actual ? 'selected' : ''}>${m}</option>`
+            ).join('');
+        }
+
+        function abrirModalEdicion(id) {
+            const el = elementosRed.find(item => item.id === id);
+            if (!el) return;
+            idSeleccionado = id;
+
+            let bodyHtml = `
+                <div><label class="block text-slate-500 mb-1">Nombre</label><input type="text" id="modal-name" value="${el.name}" class="w-full border rounded p-1.5"></div>
+                <div><label class="block text-slate-500 mb-1">Escala</label><input type="number" step="0.1" id="modal-scale" value="${el.scale}" class="w-full border rounded p-1.5"></div>
+                <div><label class="block text-slate-500 mb-1">Rotación (°)</label><input type="number" step="90" id="modal-rotation" value="${el.rotation || 0}" class="w-full border rounded p-1.5"></div>
+            `;
+
+            if (el.type === 'tuberia') {
+                bodyHtml += `
+                    <div><label class="block text-slate-500 mb-1">Material</label><select id="modal-material" class="w-full border rounded p-1.5">${opcionesMaterial(el.material || 'Acero al Carbono')}</select></div>
+                    <div><label class="block text-slate-500 mb-1">Diámetro Nominal (DN)</label><select id="modal-dn" class="w-full border rounded p-1.5">${opcionesDN(el.dn)}</select></div>
+                    <div><label class="block text-slate-500 mb-1">Longitud (mm)</label><input type="number" id="modal-longitud" value="${el.longitud}" class="w-full border rounded p-1.5"></div>
+                `;
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
+                bodyHtml += `
+                    <div><label class="block text-slate-500 mb-1">Diámetro Nominal (DN)</label><select id="modal-dn" class="w-full border rounded p-1.5">${opcionesDN(el.dn || 'DN 50')}</select></div>
+                    <div><label class="block text-slate-500 mb-1">Coeficiente de pérdidas K</label><input type="number" step="0.05" id="modal-k" value="${el.k}" class="w-full border rounded p-1.5"></div>
+                `;
+            } else if (el.type === 'bomba') {
+                bodyHtml += `
+                    <div><label class="block text-slate-500 mb-1">Caudal de diseño (m³/h)</label><input type="number" step="0.1" id="modal-caudal" value="${el.caudal}" class="w-full border rounded p-1.5"></div>
+                    <div><label class="block text-slate-500 mb-1">Presión de diseño (bar)</label><input type="number" step="0.1" id="modal-presion" value="${el.presion}" class="w-full border rounded p-1.5"></div>
+                    <div><label class="block text-slate-500 mb-1">Presión a caudal cero / cierre (bar)</label><input type="number" step="0.1" id="modal-h0" value="${el.h0}" class="w-full border rounded p-1.5"></div>
+                    <div><label class="block text-slate-500 mb-1">NPSH requerido (m)</label><input type="number" step="0.1" id="modal-npsh" value="${el.npsh}" class="w-full border rounded p-1.5"></div>
+                    <div><label class="block text-slate-500 mb-1">Cota de la bomba (m)</label><input type="number" step="0.1" id="modal-cota" value="${el.cota || 0}" class="w-full border rounded p-1.5"></div>
+                `;
+            }
+
+            document.getElementById('modal-content-body').innerHTML = bodyHtml;
+            modalEdicion.style.display = 'flex';
+        }
+
+        function cerrarModal() { modalEdicion.style.display = 'none'; }
+
+        function guardarEdicionModal() {
+            const el = elementosRed.find(item => item.id === idSeleccionado);
+            if (!el) return;
+
+            el.name = document.getElementById('modal-name').value;
+            el.scale = parseFloat(document.getElementById('modal-scale').value) || 1.0;
+            el.rotation = parseFloat(document.getElementById('modal-rotation').value) || 0;
+
+            if (el.type === 'tuberia') {
+                el.material = document.getElementById('modal-material').value;
+                el.dn = document.getElementById('modal-dn').value;
+                el.longitud = parseFloat(document.getElementById('modal-longitud').value) || 3000;
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
+                el.dn = document.getElementById('modal-dn').value;
+                el.k = parseFloat(document.getElementById('modal-k').value);
+                if (isNaN(el.k)) el.k = el.type === 'valvula' ? 0.5 : 0.75;
+            } else if (el.type === 'bomba') {
+                el.caudal = parseFloat(document.getElementById('modal-caudal').value) || el.caudal;
+                el.presion = parseFloat(document.getElementById('modal-presion').value) || el.presion;
+                el.h0 = parseFloat(document.getElementById('modal-h0').value) || el.h0;
+                el.npsh = parseFloat(document.getElementById('modal-npsh').value) || el.npsh;
+                el.cota = parseFloat(document.getElementById('modal-cota').value) || 0;
+            }
+
+            cerrarModal();
+            renderizarVectorial();
+            seleccionarElemento(el.id);
+        }
+
+        function seleccionarElemento(id) {
+            idSeleccionado = id;
+            renderizarVectorial();
+            const el = elementosRed.find(item => item.id === id);
+            if (!el) return;
+
+            document.getElementById("lbl-tipo-activo").innerText = el.type.toUpperCase();
+            const panel = document.getElementById("panel-propiedades");
+
+            let htmlAtributos = `
+                <div class="font-bold text-slate-700 mb-1 flex justify-between items-center">
+                    <span>${el.name}</span>
+                    <button onclick="eliminarElemento('${el.id}')" class="text-rose-500 hover:text-rose-700 text-[10px]"><i class="fa-solid fa-trash-can mr-1"></i>Eliminar</button>
+                </div>
+                <div class="space-y-1.5 mt-1">
+                    <div>Escala: <input type="number" step="0.1" value="${el.scale}" onchange="actualizarAtributo('${el.id}', 'scale', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                    <div>Rotación (°): <input type="number" step="90" value="${el.rotation || 0}" onchange="actualizarAtributo('${el.id}', 'rotation', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+            `;
+
+            if (el.type === 'tuberia') {
+                htmlAtributos += `
+                    <div>Material: <select onchange="actualizarAtributo('${el.id}', 'material', this.value)" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5">${opcionesMaterial(el.material || 'Acero al Carbono')}</select></div>
+                    <div>Diámetro (DN): <select onchange="actualizarAtributo('${el.id}', 'dn', this.value)" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5">${opcionesDN(el.dn)}</select></div>
+                    <div>Longitud (mm): <input type="number" value="${el.longitud}" onchange="actualizarAtributo('${el.id}', 'longitud', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                `;
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
+                htmlAtributos += `
+                    <div>DN: <select onchange="actualizarAtributo('${el.id}', 'dn', this.value)" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5">${opcionesDN(el.dn || 'DN 50')}</select></div>
+                    <div>Coef. pérdidas K: <input type="number" step="0.05" value="${el.k}" onchange="actualizarAtributo('${el.id}', 'k', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                `;
+            } else if (el.type === 'bomba') {
+                htmlAtributos += `
+                    <div>Caudal diseño (m³/h): <input type="number" step="0.1" value="${el.caudal}" onchange="actualizarAtributo('${el.id}', 'caudal', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                    <div>Presión diseño (bar): <input type="number" step="0.1" value="${el.presion}" onchange="actualizarAtributo('${el.id}', 'presion', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                    <div>Presión cierre (bar): <input type="number" step="0.1" value="${el.h0}" onchange="actualizarAtributo('${el.id}', 'h0', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                    <div>NPSH requerido (m): <input type="number" step="0.1" value="${el.npsh}" onchange="actualizarAtributo('${el.id}', 'npsh', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                    <div>Cota bomba (m): <input type="number" step="0.1" value="${el.cota || 0}" onchange="actualizarAtributo('${el.id}', 'cota', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                `;
+            }
+
+            htmlAtributos += `</div>`;
+            panel.innerHTML = htmlAtributos;
+        }
+
+        function actualizarAtributo(id, campo, valor) {
+            const el = elementosRed.find(item => item.id === id);
+            if (el) {
+                el[campo] = valor;
+                renderizarVectorial();
+            }
+        }
+
+        function eliminarElemento(id) {
+            elementosRed = elementosRed.filter(item => item.id !== id);
+            if(idSeleccionado === id) {
+                idSeleccionado = null;
+                document.getElementById("lbl-tipo-activo").innerText = "Ninguno";
+                document.getElementById("panel-propiedades").innerHTML = `<p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>`;
+            }
+            renderizarVectorial();
+        }
+
+        function nuevoProyecto() {
+            if(confirm("¿Iniciar un nuevo proyecto?")) {
+                elementosRed = [];
+                idSeleccionado = null;
+                currentFileHandle = null;
+                condicionesContorno = {};
+                zoomScale = 1.0;
+                marcoA3.style.transform = `scale(${zoomScale})`;
+                irAOrigenEnEsquina();
+                renderizarVectorial();
+            }
+        }
+
+        async function guardarProyecto() {
+            if (!currentFileHandle) {
+                await guardarComoProyecto('pid');
+            } else {
+                try {
+                    const contenido = generarContenido('pid');
+                    const writable = await currentFileHandle.createWritable();
+                    await writable.write(contenido);
+                    await writable.close();
+                    alert("Proyecto guardado correctamente.");
+                } catch (err) {
+                    console.error(err);
+                    await guardarComoProyecto('pid');
+                }
+            }
+        }
+
+        async function handleGuardarComo(selectElement) {
+            const formato = selectElement.value;
+            selectElement.value = ""; 
+            if (!formato) return;
+            await guardarComoProyecto(formato);
+        }
+
+        async function guardarComoProyecto(formato) {
+            const contenido = generarContenido(formato);
+            const extensiones = {
+                pid: { description: 'Archivo P&ID (*.pid)', accept: { 'application/json': ['.pid'] } },
+                dxf: { description: 'LibreCAD DXF (*.dxf)', accept: { 'application/dxf': ['.dxf'] } },
+                svg: { description: 'Imagen SVG (*.svg)', accept: { 'image/svg+xml': ['.svg'] } },
+                png: { description: 'Imagen PNG (*.png)', accept: { 'image/png': ['.png'] } }
+            };
+
+            if (window.showSaveFilePicker) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: `proyecto_pid.${formato}`,
+                        types: [extensiones[formato]]
+                    });
+                    if (formato === 'pid') {
+                        currentFileHandle = handle;
+                    }
+                    const writable = await handle.createWritable();
+                    await writable.write(contenido);
+                    await writable.close();
+                    alert("Archivo guardado con éxito en el directorio seleccionado.");
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        descargarArchivo(contenido, `proyecto_pid.${formato}`, 'text/plain');
+                    }
+                }
+            } else {
+                let nombre = prompt("Introduce el nombre del archivo:", `proyecto_pid.${formato}`);
+                if (nombre) {
+                    descargarArchivo(contenido, nombre, 'text/plain');
+                }
+            }
+        }
+
+        function generarContenido(formato) {
+            if (formato === 'pid') {
+                return JSON.stringify({
+                    version: "6.5-hidraulico",
+                    elementos: elementosRed,
+                    condicionesContorno: condicionesContorno,
+                    fluido: document.getElementById('selector-fluido')?.value
+                }, null, 2);
+            } else if (formato === 'dxf') {
+                // el.x/el.y ya están en convenio CAD (Y hacia arriba, origen abajo-izquierda), igual que DXF:
+                // no se invierte el signo (placeholder pendiente de la exportación real, ver Fase 2).
+                let dxfContent = "0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n";
+                elementosRed.forEach(el => {
+                    dxfContent += `0\nLINE\n8\n0\n10\n${el.x}\n20\n${el.y}\n30\n0.0\n11\n${el.x + 50}\n21\n${el.y}\n31\n0.0\n`;
+                });
+                dxfContent += "0\nENDSEC\n0\nEOF\n";
+                return dxfContent;
+            } else if (formato === 'svg') {
+                return document.getElementById("marco-a3").outerHTML;
+            } else if (formato === 'png') {
+                alert("Para exportar a PNG de alta resolución, utiliza la opción 'Imprimir PDF (A3)'.");
+                return "";
+            }
+            return "";
+        }
+
+        function descargarArchivo(contenido, nombre, tipo) {
+            const blob = new Blob([contenido], { type: tipo });
+            const url = URL.createObjectURL(blob);
+            const dl = document.createElement('a');
+            dl.href = url;
+            dl.download = nombre;
+            dl.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function abrirProyectoCarpeta() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,.pid,.dxf';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = event => {
+                    try {
+                        const res = JSON.parse(event.target.result);
+                        elementosRed = res.elementos || [];
+                        elementosRed.forEach(normalizarElemento);
+                        condicionesContorno = res.condicionesContorno || {};
+                        if (res.fluido) {
+                            const sel = document.getElementById('selector-fluido');
+                            if (sel) sel.value = res.fluido;
+                        }
+                        reajustarTodasLasConexiones(); // corrige huecos por cambios de geometría entre versiones
+                        alert("Proyecto abierto con éxito.");
+                    } catch(err) { alert("Error al abrir archivo o formato no compatible."); }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function imprimirPDF() { window.print(); }
+
+        // ==================================================================================
+        // MOTOR DE CÁLCULO HIDRÁULICO (Fase 1)
+        // Modelo: grafo de nodos/aristas construido por proximidad de puertos tras el snapping.
+        // Simplificaciones asumidas (documentadas también en el panel de resultados):
+        //  - Los "Tee" se tratan como una unión de sus 3 puertos en un único nodo sin pérdida
+        //    propia (la pérdida de la red se sigue calculando en las tuberías/válvulas/accesorios
+        //    conectados a él).
+        //  - La curva de la bomba se aproxima con una parábola H(Q) = H0 - k·Q² ajustada por el
+        //    punto de diseño (caudal/presión) y una presión de cierre editable.
+        //  - El vapor saturado usa propiedades aproximadas de un único punto de presión; para un
+        //    dimensionado real de vapor se requiere un cálculo de flujo compresible.
+        //  - La red se resuelve por el método de teoría lineal (Wood & Charles): iteración de
+        //    resistencias linealizadas hasta convergencia de caudales.
+        // ==================================================================================
+
+        function construirGrafoRed() {
+            let puertosTodos = [];
+            elementosRed.forEach(el => {
+                obtenerPuertosConexion(el).forEach(p => {
+                    puertosTodos.push({ elId: el.id, portId: p.id, x: p.x, y: p.y, nodo: null });
+                });
+            });
+
+            const TOL = 4; // px de tolerancia para considerar dos puertos "conectados"
+            let padre = puertosTodos.map((_, i) => i);
+            function find(i) { while (padre[i] !== i) { padre[i] = padre[padre[i]]; i = padre[i]; } return i; }
+            function unir(i, j) { let ri = find(i), rj = find(j); if (ri !== rj) padre[ri] = rj; }
+
+            for (let i = 0; i < puertosTodos.length; i++) {
+                for (let j = i + 1; j < puertosTodos.length; j++) {
+                    if (puertosTodos[i].elId === puertosTodos[j].elId) continue;
+                    let d = Math.hypot(puertosTodos[i].x - puertosTodos[j].x, puertosTodos[i].y - puertosTodos[j].y);
+                    if (d < TOL) unir(i, j);
+                }
+            }
+
+            // Fusionar internamente los 3 puertos de cada Tee en un único nodo (simplificación)
+            let porElemento = {};
+            puertosTodos.forEach((p, idx) => { (porElemento[p.elId] = porElemento[p.elId] || []).push(idx); });
+            elementosRed.filter(el => el.type === 'accesorio' && el.subtype === 'tee').forEach(el => {
+                let idxs = porElemento[el.id] || [];
+                for (let k = 1; k < idxs.length; k++) unir(idxs[0], idxs[k]);
+            });
+
+            let mapaNodo = {};
+            let nodos = [];
+            puertosTodos.forEach((p, idx) => {
+                let r = find(idx);
+                if (!(r in mapaNodo)) { mapaNodo[r] = nodos.length; nodos.push({ id: nodos.length, puertos: [] }); }
+                p.nodo = mapaNodo[r];
+                nodos[p.nodo].puertos.push(p);
+            });
+
+            return { puertosTodos, nodos, porElemento };
+        }
+
+        function construirAristas(grafo) {
+            let aristas = [];
+            elementosRed.forEach(el => {
+                if (el.type === 'accesorio' && el.subtype === 'tee') return; // fusionado como nodo, sin arista propia
+                let puertos = grafo.puertosTodos.filter(p => p.elId === el.id);
+                if (puertos.length < 2) return;
+                aristas.push({ elId: el.id, el, nodoA: puertos[0].nodo, nodoB: puertos[1].nodo });
+            });
+            return aristas;
+        }
+
+        function nombrePuerto(el, portId) {
+            if (el.type === 'bomba') return portId === 'succion' ? 'Aspiración' : 'Descarga';
+            if (el.type === 'tuberia') return portId === 'a' ? 'extremo A' : 'extremo B';
+            return `puerto ${portId}`;
+        }
+
+        function colebrookWhite(Re, relRug) {
+            // Estimación inicial explícita (Swamee-Jain)
+            let f = 0.25 / Math.pow(Math.log10(relRug / 3.7 + 5.74 / Math.pow(Re, 0.9)), 2);
+            // Refinamiento por Newton sobre la ecuación implícita de Colebrook-White
+            for (let i = 0; i < 6; i++) {
+                const ecuacion = (fi) => {
+                    let sqrtF = Math.sqrt(fi);
+                    return 1 / sqrtF + 2 * Math.log10(relRug / 3.7 + 2.51 / (Re * sqrtF));
+                };
+                let F = ecuacion(f);
+                let df = 1e-6;
+                let deriv = (ecuacion(f + df) - F) / df;
+                if (Math.abs(deriv) < 1e-12) break;
+                let fNuevo = f - F / deriv;
+                if (!isFinite(fNuevo) || fNuevo <= 0) break;
+                f = fNuevo;
+            }
+            return f;
+        }
+
+        function prepararArista(a) {
+            const el = a.el;
+            if (el.type === 'tuberia') {
+                a.dn = el.dn;
+                a.D = (TABLA_DN_SCH40[el.dn] || 50) / 1000;
+                a.L = (el.longitud || 3000) / 1000;
+                a.rugosidad = (RUGOSIDAD_MATERIAL[el.material] || 0.045) / 1000;
+                a.A = Math.PI * a.D * a.D / 4;
+                a.esBomba = false; a.esValvulaAcc = false;
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
+                a.dn = el.dn || 'DN 50';
+                a.D = (TABLA_DN_SCH40[a.dn] || 50) / 1000;
+                a.A = Math.PI * a.D * a.D / 4;
+                a.K = el.k != null ? el.k : (el.type === 'valvula' ? 0.5 : 0.75);
+                a.esValvulaAcc = true; a.esBomba = false;
+            } else if (el.type === 'bomba') {
+                a.esBomba = true; a.esValvulaAcc = false;
+                a.Qd = (el.caudal || 50) / 3600; // m³/s
+                a.Hd_bar = el.presion != null ? el.presion : 3.5;
+                a.H0_bar = el.h0 != null ? el.h0 : a.Hd_bar * 1.2;
+            }
+        }
+
+        function actualizarResistencia(a, fluido) {
+            if (a.esBomba) {
+                let Hd_m = a.Hd_bar * 1e5 / (fluido.rho * G);
+                let H0_m = a.H0_bar * 1e5 / (fluido.rho * G);
+                let k = (H0_m - Hd_m) / Math.max(a.Qd * a.Qd, 1e-9);
+                a.kPump = Math.max(k, 1e-6);
+                a.H0m = H0_m; a.Hd_m = Hd_m;
+                return;
+            }
+            let Q = Math.max(Math.abs(a.Qprev), 1e-6);
+            let V = Q / a.A;
+            let Re = V * a.D * fluido.rho / fluido.mu;
+            let f;
+            if (Re < 2300) { f = Re > 1 ? 64 / Re : 64; }
+            else { f = colebrookWhite(Re, (a.rugosidad || 0) / a.D); }
+            a.Re = Re; a.f = f; a.V = V;
+            a.R = a.esValvulaAcc ? (a.K / (2 * G * a.A * a.A)) : (f * a.L / (a.D * a.A * a.A * 2 * G));
+        }
+
+        function resolverSistemaLineal(A, b) {
+            const n = b.length;
+            if (n === 0) return [];
+            let M = A.map((fila, i) => [...fila, b[i]]);
+            for (let col = 0; col < n; col++) {
+                let maxFila = col;
+                for (let f = col + 1; f < n; f++) if (Math.abs(M[f][col]) > Math.abs(M[maxFila][col])) maxFila = f;
+                [M[col], M[maxFila]] = [M[maxFila], M[col]];
+                if (Math.abs(M[col][col]) < 1e-12) continue;
+                for (let f = 0; f < n; f++) {
+                    if (f === col) continue;
+                    let factor = M[f][col] / M[col][col];
+                    for (let c = col; c <= n; c++) M[f][c] -= factor * M[col][c];
+                }
+            }
+            return M.map((fila, i) => Math.abs(fila[i]) < 1e-12 ? 0 : fila[n] / fila[i]);
+        }
+
+        function resolverRed(grafo, aristas, condiciones, fluido) {
+            let fixedH = {};
+            Object.keys(condiciones).forEach(nid => {
+                let c = condiciones[nid];
+                let pAbs = PRESION_ATM + (c.presion || 0) * 1e5;
+                fixedH[nid] = (c.elevacion || 0) + pAbs / (fluido.rho * G);
+            });
+
+            let libres = [], idxLibre = {};
+            grafo.nodos.forEach(n => { if (!(n.id in fixedH)) { idxLibre[n.id] = libres.length; libres.push(n.id); } });
+
+            aristas.forEach(a => {
+                prepararArista(a);
+                a.Qprev = a.el.type === 'bomba' ? Math.max((a.el.caudal || 10) / 3600, 1e-4) : 1e-3;
+            });
+
+            const QMIN = 1e-6;
+            let Hnodo = {};
+            for (let iter = 0; iter < 60; iter++) {
+                aristas.forEach(a => actualizarResistencia(a, fluido));
+
+                let A = Array.from({ length: libres.length }, () => new Array(libres.length).fill(0));
+                let b = new Array(libres.length).fill(0);
+
+                aristas.forEach(a => {
+                    let Qp = Math.max(Math.abs(a.Qprev), QMIN);
+                    let g, Isrc = 0;
+                    if (a.esBomba) { g = 1 / (a.kPump * Qp); Isrc = g * a.H0m; }
+                    else { g = 1 / (a.R * Qp); }
+
+                    let i = a.nodoA, j = a.nodoB;
+                    let iFijo = (i in fixedH), jFijo = (j in fixedH);
+                    let li = idxLibre[i], lj = idxLibre[j];
+
+                    if (!iFijo) A[li][li] += g;
+                    if (!jFijo) A[lj][lj] += g;
+                    if (!iFijo && !jFijo) { A[li][lj] -= g; A[lj][li] -= g; }
+                    if (!iFijo && jFijo) b[li] += g * fixedH[j];
+                    if (!jFijo && iFijo) b[lj] += g * fixedH[i];
+                    if (Isrc !== 0) {
+                        if (!jFijo) b[lj] += Isrc;
+                        if (!iFijo) b[li] -= Isrc;
+                    }
+                });
+
+                let Hlibres = resolverSistemaLineal(A, b);
+                Hnodo = {};
+                grafo.nodos.forEach(n => { Hnodo[n.id] = (n.id in fixedH) ? fixedH[n.id] : Hlibres[idxLibre[n.id]]; });
+
+                let maxCambioRel = 0;
+                aristas.forEach(a => {
+                    let Hi = Hnodo[a.nodoA], Hj = Hnodo[a.nodoB];
+                    let Qp = Math.max(Math.abs(a.Qprev), QMIN);
+                    let Qnuevo = a.esBomba
+                        ? (1 / (a.kPump * Qp)) * (Hi - Hj) + (1 / (a.kPump * Qp)) * a.H0m
+                        : (1 / (a.R * Qp)) * (Hi - Hj);
+                    let rel = Math.abs(Qnuevo - a.Qprev) / Math.max(Math.abs(a.Qprev), 1e-6);
+                    maxCambioRel = Math.max(maxCambioRel, rel);
+                    a.Qprev = 0.5 * a.Qprev + 0.5 * Qnuevo;
+                });
+                if (maxCambioRel < 1e-4) break;
+            }
+
+            aristas.forEach(a => actualizarResistencia(a, fluido));
+            return { aristas, Hnodo, fluido };
+        }
+
+        function velocidadEnNodo(nodoId, aristas, excluir) {
+            let ar = aristas.find(a => a !== excluir && !a.esBomba && (a.nodoA === nodoId || a.nodoB === nodoId));
+            return ar ? (ar.V || 0) : 0;
+        }
+
+        function calcularNPSH(a, Hnodo, fluido) {
+            if (fluido.pv == null) return null;
+            let Hsuccion = Hnodo[a.nodoA];
+            let cota = a.el.cota || 0;
+            let npshd = (Hsuccion - cota) - fluido.pv / (fluido.rho * G);
+            npshd += Math.pow(velocidadEnNodo(a.nodoA, a._todas, a), 2) / (2 * G);
+            return npshd;
+        }
+
+        function calcularRed() {
+            const grafo = construirGrafoRed();
+            const aristas = construirAristas(grafo);
+
+            if (aristas.length === 0) {
+                alert("No hay elementos conectados entre sí. Conecta al menos dos componentes (tuberías, válvulas, bomba...) para poder calcular la red.");
+                return;
+            }
+
+            let grado = new Array(grafo.nodos.length).fill(0);
+            aristas.forEach(a => { grado[a.nodoA]++; grado[a.nodoB]++; });
+            let nodosContorno = grafo.nodos.filter(n => grado[n.id] === 1);
+
+            mostrarModalContorno(grafo, aristas, nodosContorno);
+        }
+
+        function mostrarModalContorno(grafo, aristas, nodosContorno) {
+            let filas = nodosContorno.map(n => {
+                let p = n.puertos[0];
+                let el = elementosRed.find(e => e.id === p.elId);
+                if (!el) return '';
+                let key = `${p.elId}:${p.portId}`;
+                let cond = condicionesContorno[key] || { elevacion: 0, presion: 0 };
+                return `
+                <tr data-key="${key}">
+                    <td class="pr-2 py-1">${el.name} (${nombrePuerto(el, p.portId)})</td>
+                    <td class="pr-2"><input type="number" step="0.1" class="w-20 border rounded p-1 cota-input" value="${cond.elevacion}"></td>
+                    <td><input type="number" step="0.1" class="w-20 border rounded p-1 presion-input" value="${cond.presion}"></td>
+                </tr>`;
+            }).join('');
+
+            document.getElementById('red-content').innerHTML = `
+                <p class="text-xs text-slate-500 mb-3">Indica la cota y la presión manométrica en cada extremo abierto de la red. Por defecto se asume descarga/aspiración atmosférica a cota 0.</p>
+                ${filas ? `<table class="w-full text-xs mb-2">
+                    <thead><tr class="text-left text-slate-500"><th class="pb-1">Extremo</th><th class="pb-1">Cota (m)</th><th class="pb-1">Presión man. (bar)</th></tr></thead>
+                    <tbody>${filas}</tbody>
+                </table>` : `<p class="text-slate-400 italic text-[11px]">No se han detectado extremos abiertos (red cerrada).</p>`}
+                <div class="mt-2"><label class="block text-slate-500 mb-1 text-xs">Fluido</label>
+                    <select id="selector-fluido-modal" class="w-full bg-slate-50 border border-slate-300 rounded p-1.5 text-xs">
+                        ${Object.keys(FLUIDOS).map(f => `<option ${f === document.getElementById('selector-fluido').value ? 'selected' : ''}>${f}</option>`).join('')}
+                    </select>
+                </div>
+            `;
+            document.getElementById('red-footer').innerHTML = `
+                <button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cancelar</button>
+                <button id="btn-ejecutar-calculo" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Calcular</button>
+            `;
+            document.getElementById('btn-ejecutar-calculo').onclick = function () {
+                document.querySelectorAll('#red-content tr[data-key]').forEach(tr => {
+                    let key = tr.dataset.key;
+                    let elevacion = parseFloat(tr.querySelector('.cota-input').value) || 0;
+                    let presion = parseFloat(tr.querySelector('.presion-input').value) || 0;
+                    condicionesContorno[key] = { elevacion, presion };
+                });
+                let fluidoSel = document.getElementById('selector-fluido-modal').value;
+                document.getElementById('selector-fluido').value = fluidoSel;
+                ejecutarCalculo(grafo, aristas);
+            };
+            document.getElementById('modal-red').style.display = 'flex';
+        }
+
+        function cerrarModalRed() { document.getElementById('modal-red').style.display = 'none'; }
+
+        function ejecutarCalculo(grafo, aristas) {
+            let grado = new Array(grafo.nodos.length).fill(0);
+            aristas.forEach(a => { grado[a.nodoA]++; grado[a.nodoB]++; });
+            let condiciones = {};
+            grafo.nodos.forEach(n => {
+                if (grado[n.id] === 1) {
+                    let p = n.puertos[0];
+                    let key = `${p.elId}:${p.portId}`;
+                    condiciones[n.id] = condicionesContorno[key] || { elevacion: 0, presion: 0 };
+                }
+            });
+
+            const fluidoNombre = document.getElementById('selector-fluido').value;
+            const fluido = FLUIDOS[fluidoNombre] || FLUIDOS['Agua (20°C)'];
+
+            let resultado;
+            try {
+                resultado = resolverRed(grafo, aristas, condiciones, fluido);
+                resultado.aristas.forEach(a => { a._todas = resultado.aristas; });
+            } catch (err) {
+                console.error(err);
+                alert("No se ha podido resolver la red: " + err.message);
+                return;
+            }
+            resultado.fluidoNombre = fluidoNombre;
+            mostrarResultados(resultado);
+        }
+
+        function mostrarResultados(resultado) {
+            const { aristas, Hnodo, fluido, fluidoNombre } = resultado;
+
+            let avisos = ['Los "Tee" se modelan como una unión sin pérdida propia; la pérdida de las ramas se representa añadiendo un accesorio junto al Tee si se necesita mayor precisión.'];
+            if (fluidoNombre === 'Vapor Saturado') {
+                avisos.unshift('Las propiedades del vapor saturado son aproximadas (punto de presión fijo). Para un dimensionado real de vapor se necesita un cálculo de flujo compresible con tablas de vapor a la presión de trabajo.');
+            }
+
+            let filasTuberia = aristas.filter(a => a.el.type === 'tuberia').map(a => `
+                <tr>
+                    <td class="py-1 pr-2">${a.el.name}</td><td class="pr-2">${a.dn}</td>
+                    <td class="pr-2">${(a.Qprev * 3600).toFixed(2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
+                    <td class="pr-2">${Math.round(a.Re)}</td><td class="pr-2">${a.f.toFixed(4)}</td>
+                    <td>${(a.f * a.L / a.D * a.V * a.V / (2 * G)).toFixed(3)}</td>
+                </tr>`).join('');
+
+            let filasAcc = aristas.filter(a => a.el.type === 'valvula' || a.el.type === 'accesorio').map(a => `
+                <tr>
+                    <td class="py-1 pr-2">${a.el.name}</td><td class="pr-2">${a.dn}</td>
+                    <td class="pr-2">${(a.Qprev * 3600).toFixed(2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
+                    <td class="pr-2">${a.K}</td><td>${(a.K * a.V * a.V / (2 * G)).toFixed(3)}</td>
+                </tr>`).join('');
+
+            let filasBomba = aristas.filter(a => a.el.type === 'bomba').map(a => {
+                let npshd = calcularNPSH(a, Hnodo, fluido);
+                let npshr = a.el.npsh;
+                let margen = npshd != null ? (npshd - npshr) : null;
+                let estado = npshd == null ? 'N/D'
+                    : (margen >= 0.5 ? '<span class="text-emerald-600 font-bold">OK</span>'
+                    : (margen > 0 ? '<span class="text-amber-600 font-bold">Margen escaso</span>'
+                    : '<span class="text-rose-600 font-bold">Riesgo cavitación</span>'));
+                let Hop = Hnodo[a.nodoB] - Hnodo[a.nodoA];
+                let potencia = fluido.rho * G * a.Qprev * Hop / 1000;
+                return `
+                <tr>
+                    <td class="py-1 pr-2">${a.el.name}</td><td class="pr-2">${(a.Qprev * 3600).toFixed(2)}</td>
+                    <td class="pr-2">${Hop.toFixed(2)}</td><td class="pr-2">${potencia.toFixed(2)}</td>
+                    <td class="pr-2">${npshd != null ? npshd.toFixed(2) : 'N/D'}</td>
+                    <td class="pr-2">${npshr.toFixed(2)}</td><td>${estado}</td>
+                </tr>`;
+            }).join('');
+
+            document.getElementById('red-content').innerHTML = `
+                <div class="bg-amber-50 border border-amber-200 text-amber-700 rounded p-2 mb-3 text-[11px] space-y-1">
+                    ${avisos.map(a => `<p><i class="fa-solid fa-triangle-exclamation mr-1"></i>${a}</p>`).join('')}
+                </div>
+                <h4 class="text-xs font-bold text-slate-600 mb-1">Tuberías</h4>
+                <table class="w-full text-[11px] mb-3">
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>DN</th><th>Q (m³/h)</th><th>V (m/s)</th><th>Re</th><th>f</th><th>hf (m)</th></tr></thead>
+                    <tbody>${filasTuberia || '<tr><td colspan="7" class="text-slate-400 italic py-1">Sin tuberías</td></tr>'}</tbody>
+                </table>
+                <h4 class="text-xs font-bold text-slate-600 mb-1">Válvulas y Accesorios</h4>
+                <table class="w-full text-[11px] mb-3">
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>DN</th><th>Q (m³/h)</th><th>V (m/s)</th><th>K</th><th>hf (m)</th></tr></thead>
+                    <tbody>${filasAcc || '<tr><td colspan="6" class="text-slate-400 italic py-1">Sin válvulas/accesorios</td></tr>'}</tbody>
+                </table>
+                <h4 class="text-xs font-bold text-slate-600 mb-1">Bombas</h4>
+                <table class="w-full text-[11px]">
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Q (m³/h)</th><th>H (m)</th><th>Potencia (kW)</th><th>NPSHd (m)</th><th>NPSHr (m)</th><th>Estado</th></tr></thead>
+                    <tbody>${filasBomba || '<tr><td colspan="7" class="text-slate-400 italic py-1">Sin bombas</td></tr>'}</tbody>
+                </table>
+            `;
+            document.getElementById('red-footer').innerHTML = `
+                <button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>
+            `;
+        }
+    </script>
+</body>
+</html>
