@@ -210,6 +210,9 @@
                     </select>
 
                     <button onclick="reajustarTodasLasConexiones()" title="Vuelve a imantar todos los componentes ya colocados, por si algún extremo quedó con un pequeño hueco" class="bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-magnet mr-1 text-blue-600"></i> Reajustar Conexiones</button>
+
+                    <button id="btn-deshacer" onclick="deshacer()" title="Deshacer (Ctrl+Z)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-left mr-1 text-blue-600"></i> Deshacer</button>
+                    <button id="btn-rehacer" onclick="rehacer()" title="Rehacer (Ctrl+Y)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-right mr-1 text-blue-600"></i> Rehacer</button>
                 </div>
                 <div>
                     <button onclick="imprimirPDF()" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1 rounded font-medium shadow-xs transition flex items-center"><i class="fa-solid fa-print mr-1.5 text-blue-400"></i> Imprimir PDF (A3)</button>
@@ -276,9 +279,9 @@
                     <i id="chevron-valvulas" class="fa-solid fa-chevron-down text-slate-400 text-[9px] transition-transform duration-150"></i>
                 </button>
                 <div id="lista-valvulas" class="grid grid-cols-1 gap-1 p-1 pl-1.5 border-t border-slate-100 text-[10px]">
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="bola" data-name="Válvula Bola" data-k="0.05" data-cv="200" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Bola (Ball)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                     <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="compuerta" data-name="Válvula Compuerta" data-k="0.2" data-cv="120" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Compuerta (Gate)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                     <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="globo" data-name="Válvula Globo" data-k="6.0" data-cv="35" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Globo (Globe)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
-                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="bola" data-name="Válvula Bola" data-k="0.05" data-cv="200" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Bola (Ball)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                     <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="mariposa" data-name="Válvula Mariposa" data-k="0.5" data-cv="150" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Mariposa (Butterfly)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                     <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="neumatica" data-name="Válvula Neumática" data-k="0.3" data-cv="140" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Neumática</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                     <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="retencion" data-name="Válvula Retención" data-k="2.0" data-cv="80" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Retención (Check)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
@@ -318,6 +321,51 @@
         let modoZoomVentana = false;
         let isSelectingZoom = false;
         let zoomStartX = 0, zoomStartY = 0;
+
+        // Historial de Deshacer/Rehacer: snapshots JSON de elementosRed. guardarEstado() se llama
+        // SIEMPRE antes de mutar elementosRed (no después), para que el snapshot guardado sea el
+        // estado previo a la acción que se quiere poder deshacer.
+        let historialUndo = [];
+        let historialRedo = [];
+        const MAX_HISTORIAL = 60;
+
+        function guardarEstado() {
+            historialUndo.push(JSON.stringify(elementosRed));
+            if (historialUndo.length > MAX_HISTORIAL) historialUndo.shift();
+            historialRedo = []; // cualquier acción nueva invalida lo que se pudiera rehacer
+            actualizarBotonesHistorial();
+        }
+
+        function restaurarEstado(json) {
+            elementosRed = JSON.parse(json);
+            idSeleccionado = null;
+            renderizarVectorial();
+            const panel = document.getElementById("panel-propiedades");
+            if (panel) panel.innerHTML = `<p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>`;
+            const lbl = document.getElementById("lbl-tipo-activo");
+            if (lbl) lbl.innerText = "Ninguno";
+        }
+
+        function deshacer() {
+            if (historialUndo.length === 0) return;
+            historialRedo.push(JSON.stringify(elementosRed));
+            restaurarEstado(historialUndo.pop());
+            actualizarBotonesHistorial();
+        }
+
+        function rehacer() {
+            if (historialRedo.length === 0) return;
+            historialUndo.push(JSON.stringify(elementosRed));
+            restaurarEstado(historialRedo.pop());
+            actualizarBotonesHistorial();
+        }
+
+        function actualizarBotonesHistorial() {
+            const btnU = document.getElementById('btn-deshacer');
+            const btnR = document.getElementById('btn-rehacer');
+            if (btnU) btnU.disabled = historialUndo.length === 0;
+            if (btnR) btnR.disabled = historialRedo.length === 0;
+        }
 
         // Condiciones de contorno de la red (cota/presión en extremos abiertos), indexadas por "elId:portId"
         let condicionesContorno = {};
@@ -449,6 +497,12 @@
                 isSelectingZoom = false;
                 zoomBox.style.display = 'none';
                 canvasContainer.style.cursor = 'default';
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && document.activeElement.tagName !== 'INPUT') {
+                e.preventDefault();
+                if (e.shiftKey) rehacer(); else deshacer();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && document.activeElement.tagName !== 'INPUT') {
+                e.preventDefault();
+                rehacer();
             }
         });
 
@@ -569,6 +623,7 @@
             // "Mover/Desconectar" deja esta bandera en true para el siguiente arrastre manual; un
             // componente NUEVO desde la librería siempre debe intentar imantarse.
             desenganchado = false;
+            guardarEstado();
 
             const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
             const rectMarco = marcoA3.getBoundingClientRect();
@@ -589,7 +644,10 @@
                 x: dropX,
                 y: dropY,
                 scale: 1.0,
-                rotation: data.type === 'valvula' ? 90 : 0
+                // Antes las válvulas se insertaban a 90°; girarlas 270° en sentido horario sobre
+                // esa posición (90+270=360=0°) las deja horizontales por defecto, coherente con que
+                // el fluido siempre se dibuja de izquierda a derecha en posición horizontal.
+                rotation: 0
             };
 
             if (data.type === 'tuberia') {
@@ -699,6 +757,7 @@
 
         // Rellena valores por defecto que puedan faltar (elementos creados con versiones anteriores)
         function normalizarElemento(el) {
+            el.esLineaCritica = false; // se recalcula en el próximo "Calcular Red"
             if (el.type === 'bomba') {
                 if (el.h0 == null) el.h0 = +(((el.presion || 3.5) * 1.2).toFixed(2));
                 if (el.cota == null) el.cota = 0;
@@ -750,8 +809,9 @@
         // huecos que quedan cuando: se abre un proyecto guardado con una geometría de puertos
         // ligeramente distinta a una versión anterior, o se ha movido a mano un conjunto ya
         // conectado y algún extremo quedó suelto.
-        function reajustarTodasLasConexiones() {
+        function reajustarTodasLasConexiones(registrarEnHistorial = true) {
             desenganchado = false; // una acción manual de reajuste nunca debe quedar bloqueada por esta bandera
+            if (registrarEnHistorial) guardarEstado();
             const UMBRAL_REAJUSTE = 15;
             for (let pasada = 0; pasada < 3; pasada++) {
                 elementosRed.forEach(el => aplicarSnapping(el, UMBRAL_REAJUSTE));
@@ -783,6 +843,9 @@
                     activeSymbolId = el.id;
                     isDraggingSymbol = true;
                     desenganchado = false;
+                    // Un único snapshot al EMPEZAR el arrastre (no en cada mousemove), para que
+                    // Deshacer devuelva la pieza a su posición anterior al arrastre completo.
+                    guardarEstado();
                     dragStartX = e.clientX;
                     dragStartY = e.clientY;
                     seleccionarElemento(el.id);
@@ -810,40 +873,53 @@
                 let textY = 58;
                 if ((rotacionElem === 90 || rotacionElem === 270)) {
                     textX = 25;
-                    textY = -8; 
+                    textY = -8;
                 }
+                // Halo blanco alrededor del texto (vía stroke, sin necesidad de calcular un
+                // rectángulo de fondo) para que se lea aunque pase por debajo una tubería u otro
+                // símbolo; tamaño reducido (7 en vez de 9) para que quepa mejor entre componentes.
+                const estiloTexto = `font-family="sans-serif" font-size="7" fill="#475569" text-anchor="${textAnchor}" paint-order="stroke" stroke="white" stroke-width="3" stroke-linejoin="round"`;
+                // Pequeña flecha verde que indica el sentido de referencia del flujo (izquierda a
+                // derecha en posición horizontal, sin rotación); gira junto con el resto del símbolo.
+                const flechaFlujo = `<polygon points="44,15.5 48,18 44,20.5" fill="#16a34a"/>`;
+                // La línea crítica de la red (mayor pérdida de carga acumulada desde la bomba hasta
+                // un extremo abierto) se resalta en rojo en vez de en azul; ver identificarLineaCritica().
+                const colorTuberia = el.esLineaCritica ? '#dc2626' : '#2563eb';
 
                 if (el.type === 'bomba') {
                     dibujoHTML = `
                         <circle cx="25" cy="25" r="20" fill="white" stroke="#334155" stroke-width="2"/>
                         <polygon points="20,15 33,25 20,35" fill="#334155"/>
-                        <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" font-family="sans-serif" font-size="9" fill="#475569" text-anchor="${textAnchor}">${el.name}</text>
+                        <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>
                     `;
                 } else if (el.type === 'tuberia') {
                     let largoTuberia = el.longitud || 3000;
                     let largoPx = largoTuberia / 30;
                     dibujoHTML = `
-                        <line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="#2563eb" stroke-width="4" stroke-linecap="round"/>
-                        <text x="${largoPx / 2}" y="36" transform="rotate(${rotacionTexto}, ${largoPx / 2}, 36)" font-family="sans-serif" font-size="9" fill="#2563eb" text-anchor="middle">${el.dn} - L:${largoTuberia} mm</text>
+                        <line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${colorTuberia}" stroke-width="4" stroke-linecap="round"/>
+                        ${flechaFlujo}
+                        <text x="${largoPx / 2}" y="36" transform="rotate(${rotacionTexto}, ${largoPx / 2}, 36)" font-family="sans-serif" font-size="7" fill="${colorTuberia}" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="3" stroke-linejoin="round">${el.dn} - L:${largoTuberia} mm</text>
                     `;
                 } else if (el.type === 'accesorio') {
                     if (el.subtype === 'codo') {
                         dibujoHTML = `
                             <path d="M 15 35 L 15 15 L 35 15" fill="none" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
                             <circle cx="15" cy="25" r="3" fill="#2563eb"/>
-                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" font-family="sans-serif" font-size="9" fill="#475569" text-anchor="${textAnchor}">${el.name}</text>
+                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>
                         `;
                     } else if (el.subtype === 'tee') {
                         dibujoHTML = `
                             <line x1="10" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>
                             <line x1="25" y1="25" x2="25" y2="40" stroke="#334155" stroke-width="3"/>
-                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" font-family="sans-serif" font-size="9" fill="#475569" text-anchor="${textAnchor}">${el.name}</text>
+                            ${flechaFlujo}
+                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>
                         `;
-                    } else { 
+                    } else {
                         dibujoHTML = `
                             <rect x="20" y="10" width="10" height="30" fill="white" stroke="#334155" stroke-width="2"/>
                             <line x1="10" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="2" stroke-dasharray="2,2"/>
-                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" font-family="sans-serif" font-size="9" fill="#475569" text-anchor="${textAnchor}">${el.name}</text>
+                            ${flechaFlujo}
+                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>
                         `;
                     }
                 } else if (el.type === 'valvula') {
@@ -851,15 +927,20 @@
                     // puerto de conexión (10/40), para que no quede hueco visual al conectar.
                     const stubValvula = `<line x1="10" y1="25" x2="12" y2="25" stroke="#334155" stroke-width="3"/><line x1="38" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>`;
                     if (el.subtype === 'globo') {
+                        // Globo: cuerpo genérico de válvula (el mismo "bowtie" que compuerta — ISA-5.1
+                        // no distingue globo de compuerta por el cuerpo) + un pequeño "bonete"
+                        // rectangular antes del vástago. Antes llevaba un círculo hueco en el centro,
+                        // que se confundía visualmente con el círculo (relleno) de la válvula de bola.
                         dibujoHTML = `
                             ${stubValvula}
                             <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
                             <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
-                            <circle cx="25" cy="25" r="6" fill="white" stroke="#334155" stroke-width="2"/>
-                            <line x1="25" y1="19" x2="25" y2="8" stroke="#334155" stroke-width="2"/>
+                            <rect x="21" y="14" width="8" height="6" fill="white" stroke="#334155" stroke-width="1.5"/>
+                            <line x1="25" y1="14" x2="25" y2="8" stroke="#334155" stroke-width="2"/>
                             <line x1="21" y1="8" x2="29" y2="8" stroke="#334155" stroke-width="2"/>
                         `;
                     } else if (el.subtype === 'bola') {
+                        // Bola: cuerpo genérico + círculo RELLENO representando la esfera perforada.
                         dibujoHTML = `
                             ${stubValvula}
                             <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
@@ -869,19 +950,26 @@
                             <line x1="21" y1="8" x2="29" y2="8" stroke="#334155" stroke-width="2"/>
                         `;
                     } else if (el.subtype === 'mariposa') {
+                        // Mariposa: círculo (referencia al cuerpo/diámetro de paso) con el disco visto
+                        // de canto como una lente — símbolo habitual ISA/ISO para válvulas de mariposa,
+                        // en vez del "bowtie" genérico que usan el resto de válvulas.
                         dibujoHTML = `
-                            <line x1="10" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>
-                            <polygon points="18,15 32,35 32,15 18,35" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="10" y1="25" x2="17" y2="25" stroke="#334155" stroke-width="3"/>
+                            <line x1="33" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>
+                            <circle cx="25" cy="25" r="10" fill="white" stroke="#334155" stroke-width="2"/>
+                            <ellipse cx="25" cy="25" rx="3" ry="10" fill="none" stroke="#334155" stroke-width="2"/>
                             <line x1="25" y1="15" x2="25" y2="6" stroke="#334155" stroke-width="2"/>
                             <line x1="21" y1="6" x2="29" y2="6" stroke="#334155" stroke-width="2"/>
                         `;
                     } else if (el.subtype === 'neumatica') {
+                        // Neumática: cuerpo genérico + actuador de diafragma (forma de cúpula/"home
+                        // plate", símbolo ISA-5.1 de actuador neumático) en vez de un rectángulo liso.
                         dibujoHTML = `
                             ${stubValvula}
                             <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
                             <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
-                            <rect x="18" y="2" width="14" height="10" fill="white" stroke="#334155" stroke-width="2"/>
-                            <line x1="25" y1="12" x2="25" y2="18" stroke="#334155" stroke-width="2"/>
+                            <path d="M 16 12 L 16 6 A 9 6 0 0 1 34 6 L 34 12 Z" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="25" y1="12" x2="25" y2="19" stroke="#334155" stroke-width="2"/>
                         `;
                     } else if (el.subtype === 'retencion') {
                         dibujoHTML = `
@@ -898,7 +986,8 @@
                             <line x1="21" y1="8" x2="29" y2="8" stroke="#334155" stroke-width="2"/>
                         `;
                     }
-                    dibujoHTML += `<text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" font-family="sans-serif" font-size="9" fill="#475569" text-anchor="${textAnchor}">${el.name}</text>`;
+                    dibujoHTML += flechaFlujo;
+                    dibujoHTML += `<text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>`;
                 }
 
                 let puertosLocales = obtenerPuertosLocales(el);
@@ -944,12 +1033,14 @@
             if (accion === 'eliminar') {
                 eliminarElemento(el.id);
             } else if (accion === 'girar') {
+                guardarEstado();
                 el.rotation = ((el.rotation || 0) + 90) % 360;
                 renderizarVectorial();
                 seleccionarElemento(el.id);
             } else if (accion === 'escalar') {
                 let nuevaEscala = prompt("Introduce el factor de escala:", el.scale || 1.0);
                 if (nuevaEscala && !isNaN(nuevaEscala)) {
+                    guardarEstado();
                     el.scale = parseFloat(nuevaEscala);
                     renderizarVectorial();
                     seleccionarElemento(el.id);
@@ -1015,6 +1106,7 @@
         function guardarEdicionModal() {
             const el = elementosRed.find(item => item.id === idSeleccionado);
             if (!el) return;
+            guardarEstado();
 
             el.name = document.getElementById('modal-name').value;
             el.scale = parseFloat(document.getElementById('modal-scale').value) || 1.0;
@@ -1088,12 +1180,14 @@
         function actualizarAtributo(id, campo, valor) {
             const el = elementosRed.find(item => item.id === id);
             if (el) {
+                guardarEstado();
                 el[campo] = valor;
                 renderizarVectorial();
             }
         }
 
         function eliminarElemento(id) {
+            guardarEstado();
             elementosRed = elementosRed.filter(item => item.id !== id);
             if(idSeleccionado === id) {
                 idSeleccionado = null;
@@ -1105,6 +1199,7 @@
 
         function nuevoProyecto() {
             if(confirm("¿Iniciar un nuevo proyecto?")) {
+                guardarEstado();
                 elementosRed = [];
                 idSeleccionado = null;
                 currentFileHandle = null;
@@ -1220,6 +1315,7 @@
                 const reader = new FileReader();
                 reader.onload = event => {
                     try {
+                        guardarEstado(); // permite deshacer la apertura y recuperar el proyecto anterior
                         const res = JSON.parse(event.target.result);
                         elementosRed = res.elementos || [];
                         elementosRed.forEach(normalizarElemento);
@@ -1228,7 +1324,7 @@
                             const sel = document.getElementById('selector-fluido');
                             if (sel) sel.value = res.fluido;
                         }
-                        reajustarTodasLasConexiones(); // corrige huecos por cambios de geometría entre versiones
+                        reajustarTodasLasConexiones(false); // corrige huecos por cambios de geometría entre versiones (sin snapshot adicional)
                         alert("Proyecto abierto con éxito.");
                     } catch(err) { alert("Error al abrir archivo o formato no compatible."); }
                 };
@@ -1536,6 +1632,60 @@
 
         function cerrarModalRed() { document.getElementById('modal-red').style.display = 'none'; }
 
+        function hfDeArista(a) {
+            if (a.esBomba) return 0;
+            return a.esValvulaAcc ? (a.K * a.V * a.V / (2 * G)) : (a.f * a.L / a.D * a.V * a.V / (2 * G));
+        }
+
+        // Línea crítica = el camino, desde la descarga de cada bomba hasta un extremo abierto de
+        // la red, con mayor pérdida de carga acumulada (fricción + accesorios, a los caudales ya
+        // convergidos). Es el camino que determina la altura mínima que debe dar la bomba para
+        // garantizar presión suficiente en TODOS los extremos; el resto de ramas, al tener menos
+        // resistencia, quedan con margen de sobra (se equilibrarían con válvulas de balanceo si
+        // hiciera falta). Se calcula por búsqueda en profundidad (caminos simples) desde el nodo de
+        // descarga de cada bomba hasta cada nodo de grado 1 (extremo abierto) que no sea la propia
+        // aspiración de esa bomba.
+        function identificarLineaCritica(grafo, aristas) {
+            elementosRed.forEach(el => { el.esLineaCritica = false; });
+
+            let grado = new Array(grafo.nodos.length).fill(0);
+            aristas.forEach(a => { grado[a.nodoA]++; grado[a.nodoB]++; });
+
+            // Grafo de adyacencia SIN las bombas: el camino siempre arranca en el nodo de descarga
+            // de una bomba, así que no tiene sentido atravesarla en sentido inverso.
+            let adyacencia = {};
+            aristas.forEach(a => {
+                if (a.esBomba) return;
+                let hf = hfDeArista(a);
+                (adyacencia[a.nodoA] = adyacencia[a.nodoA] || []).push({ vecino: a.nodoB, arista: a, hf });
+                (adyacencia[a.nodoB] = adyacencia[a.nodoB] || []).push({ vecino: a.nodoA, arista: a, hf });
+            });
+
+            let mejor = null; // { hfTotal, aristasCamino }
+            function dfs(nodoActual, nodoSuccionBomba, visitados, caminoAristas, hfAcumulado) {
+                let esExtremo = grado[nodoActual] === 1 && nodoActual !== nodoSuccionBomba;
+                if (esExtremo && caminoAristas.length > 0 && (!mejor || hfAcumulado > mejor.hfTotal)) {
+                    mejor = { hfTotal: hfAcumulado, aristasCamino: [...caminoAristas] };
+                }
+                for (let conexion of (adyacencia[nodoActual] || [])) {
+                    if (visitados.has(conexion.vecino)) continue;
+                    visitados.add(conexion.vecino);
+                    caminoAristas.push(conexion.arista);
+                    dfs(conexion.vecino, nodoSuccionBomba, visitados, caminoAristas, hfAcumulado + conexion.hf);
+                    caminoAristas.pop();
+                    visitados.delete(conexion.vecino);
+                }
+            }
+
+            aristas.filter(a => a.esBomba).forEach(bomba => {
+                let visitados = new Set([bomba.nodoB]);
+                dfs(bomba.nodoB, bomba.nodoA, visitados, [], 0);
+            });
+
+            if (mejor) mejor.aristasCamino.forEach(a => { a.el.esLineaCritica = true; });
+            return mejor;
+        }
+
         function ejecutarCalculo(grafo, aristas) {
             let grado = new Array(grafo.nodos.length).fill(0);
             aristas.forEach(a => { grado[a.nodoA]++; grado[a.nodoB]++; });
@@ -1561,11 +1711,24 @@
                 return;
             }
             resultado.fluidoNombre = fluidoNombre;
+            resultado.lineaCritica = identificarLineaCritica(grafo, resultado.aristas);
+            renderizarVectorial(); // refleja el nuevo color (azul/rojo) de la línea crítica
             mostrarResultados(resultado);
         }
 
         function mostrarResultados(resultado) {
-            const { aristas, Hnodo, fluido, fluidoNombre } = resultado;
+            const { aristas, Hnodo, fluido, fluidoNombre, lineaCritica } = resultado;
+
+            let bloqueLineaCritica = '';
+            if (lineaCritica) {
+                let nombres = lineaCritica.aristasCamino.map(a => a.el.name).join(' → ');
+                bloqueLineaCritica = `
+                <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-2 mb-3 text-[11px]">
+                    <p class="font-bold mb-0.5"><i class="fa-solid fa-circle-exclamation mr-1"></i>Línea crítica (resaltada en rojo en el plano)</p>
+                    <p>Pérdida de carga total: <strong>${lineaCritica.hfTotal.toFixed(3)} m</strong></p>
+                    <p class="text-rose-600">${nombres}</p>
+                </div>`;
+            }
 
             let avisos = ['Los "Tee" se modelan como una unión sin pérdida propia; la pérdida de las ramas se representa añadiendo un accesorio junto al Tee si se necesita mayor precisión.'];
             if (fluidoNombre === 'Vapor Saturado') {
@@ -1607,6 +1770,7 @@
             }).join('');
 
             document.getElementById('red-content').innerHTML = `
+                ${bloqueLineaCritica}
                 <div class="bg-amber-50 border border-amber-200 text-amber-700 rounded p-2 mb-3 text-[11px] space-y-1">
                     ${avisos.map(a => `<p><i class="fa-solid fa-triangle-exclamation mr-1"></i>${a}</p>`).join('')}
                 </div>
