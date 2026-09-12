@@ -638,17 +638,24 @@
         }
 
         function obtenerPuertosConexion(el) {
+            // Debe replicar EXACTAMENTE la transformación SVG con la que se dibuja el símbolo
+            // (`translate(el.x, screenY) rotate(rot, 25, 25) scale(el.scale)`, ver renderizarVectorial),
+            // para que el puerto calculado coincida en pantalla, sin ninguna desviación, con el
+            // puntito azul realmente dibujado. Antes esta función mezclaba mundo (el.y, Y-arriba)
+            // con coordenadas locales pensadas en pantalla (Y-abajo) y usaba, para la tubería, un
+            // pivote de rotación distinto al que realmente usa el render (que SIEMPRE rota alrededor
+            // de (25,25), sea cual sea la longitud) — ambas cosas dejaban huecos reales aunque el
+            // propio snapping "creyera" haber conectado exacto.
             let rot = el.rotation || 0;
             let rad = rot * Math.PI / 180;
-            let centroLocal = { x: 25, y: 25 };
-            if (el.type === 'tuberia') {
-                let largoPx = (el.longitud || 3000) / 30;
-                centroLocal = { x: largoPx / 2, y: 20 };
-            }
+            let escala = el.scale || 1;
+            const PIVOTE = { x: 25, y: 25 }; // coincide siempre con rotate(rot, 25, 25) del render
+            let screenYEl = mundoAScreenY(el.y);
             return obtenerPuertosLocales(el).map(p => {
-                let global = rotarPunto(p, centroLocal, rad, el.x, el.y);
+                let pEscalado = { x: p.x * escala, y: p.y * escala };
+                let global = rotarPunto(pEscalado, PIVOTE, rad, el.x, screenYEl);
                 global.id = p.id;
-                return global;
+                return global; // coordenadas de PANTALLA reales (Y hacia abajo), no de mundo
             });
         }
 
@@ -688,10 +695,15 @@
                     for (let pf of puertosFijos) {
                         let distancia = Math.hypot(pa.x - pf.x, pa.y - pf.y);
                         if (distancia < snapThreshold) {
+                            // pa/pf son coordenadas de PANTALLA (ver obtenerPuertosConexion). En X,
+                            // mundo y pantalla avanzan igual, pero en Y el mundo está invertido
+                            // respecto a pantalla, así que la corrección de pantalla se SUMA a el.y
+                            // (no se resta, al contrario que con el.x) para que el puerto quede
+                            // exacto sobre el fijo, sin ninguna desviación.
                             let offsetX = pa.x - el.x;
-                            let offsetY = pa.y - el.y;
+                            let offsetYPantalla = pa.y - pf.y;
                             el.x = pf.x - offsetX;
-                            el.y = pf.y - offsetY;
+                            el.y = el.y + offsetYPantalla;
                             imánEncontrado = true;
                             break;
                         }
