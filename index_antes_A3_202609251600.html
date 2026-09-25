@@ -26,25 +26,14 @@
             background-color: #cbd5e1;
         }
         #marco-a3 {
-            /* Hoja A3 apaisada: 420 x 297 mm a 96 ppp = 1587 x 1123 unidades (ver ANCHO_A3/ALTO_A3) */
-            width: 1587px;
-            height: 1123px;
+            width: 20000px;
+            height: 20000px;
             position: absolute;
-            top: 40px;
-            left: 40px;
+            top: 0;
+            left: 0;
             background: white;
             transform-origin: 0 0;
-            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.25);
-            overflow: hidden;
-        }
-        #lienzo-espaciador { position: absolute; width: 1px; height: 1px; pointer-events: none; }
-        @media print {
-            @page { size: A3 landscape; margin: 0; }
-            body * { visibility: hidden !important; }
-            #marco-a3, #marco-a3 * { visibility: visible !important; }
-            #marco-a3 { position: fixed !important; left: 0 !important; top: 0 !important; transform: none !important;
-                        width: 420mm !important; height: 297mm !important; box-shadow: none !important; background-image: none !important; }
-            #marco-a3 .connection-port, #empty-state { display: none !important; }
+            transition: transform 0.05s ease-out;
         }
         #axis-gizmo {
             pointer-events: none;
@@ -120,7 +109,7 @@
         /* ===== BARRA DE MENÚS ===== */
         #barra-menus { display:flex; flex-wrap:wrap; align-items:stretch; background:#f8fafc; border-bottom:1px solid #e2e8f0; font-size:12px; padding:1px 4px; position:relative; z-index:1900; }
         .menu-top { position:relative; }
-        .menu-top > button { padding:3px 7px; color:#334155; border-radius:3px; background:transparent; border:1px solid transparent; }
+        .menu-top > button { padding:3px 9px; color:#334155; border-radius:3px; background:transparent; border:1px solid transparent; }
         .menu-top > button:hover { background:#e2e8f0; }
         .menu-top.abierto > button { background:#dbeafe; border-color:#bfdbfe; color:#1d4ed8; }
         .menu-desplegable { display:none; position:absolute; top:100%; left:0; min-width:230px; background:#fff; border:1px solid #cbd5e1; box-shadow:0 6px 16px rgba(0,0,0,.14); border-radius:4px; padding:4px 0; z-index:1500; }
@@ -223,8 +212,12 @@
         </div>
         <div class="flex items-center space-x-2 text-xs">
             <span class="text-slate-400 mr-2 text-[11px]"><kbd class="bg-slate-100 px-1 border rounded">F</kbd> Ajustar | <kbd class="bg-slate-100 px-1 border rounded">W</kbd> Zoom ventana</span>
+            <button onclick="calcularRed()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded font-bold shadow-sm transition flex items-center"><i class="fa-solid fa-calculator mr-1"></i> Calcular Red</button>
         </div>
     </header>
+
+    <!-- BARRA DE MENÚS (estilo Paint). Se construye desde la tabla MENUS del script -->
+    <nav id="barra-menus"></nav>
 
     <!-- CONTENEDOR PRINCIPAL -->
     <div class="flex flex-1 overflow-hidden relative" id="main-container">
@@ -260,21 +253,21 @@
 
         <!-- ZONA GRÁFICA -->
         <main class="bg-slate-100 flex-1 flex flex-col overflow-hidden relative">
-            <!-- BARRA DE MENÚS (estilo Paint). Se construye desde la tabla MENUS del script -->
-            <nav id="barra-menus"></nav>
             <div class="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-between z-10 text-xs shadow-xs">
                 <div class="flex items-center space-x-1.5">
                     <button id="btn-deshacer" onclick="deshacer()" title="Deshacer (Ctrl+Z)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-left mr-1 text-blue-600"></i> Deshacer</button>
                     <button id="btn-rehacer" onclick="rehacer()" title="Rehacer (Ctrl+Y)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-right mr-1 text-blue-600"></i> Rehacer</button>
                 </div>
+                <div>
+                    <button onclick="imprimirPDF()" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1 rounded font-medium shadow-xs transition flex items-center"><i class="fa-solid fa-print mr-1.5 text-blue-400"></i> Imprimir PDF (A3)</button>
+                </div>
             </div>
 
             <div id="canvas-container" class="flex-1 relative">
                 <div id="zoom-window-box"></div>
-                <div id="lienzo-espaciador"></div>
                 <div id="marco-a3" class="bg-white [background-image:radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px]">
                     <svg id="svg-canvas" ondragover="allowDrop(event)" ondrop="dropElemento(event)">
-                        <g id="empty-state" transform="translate(793, 561)">
+                        <g id="empty-state" transform="translate(400, 19700)">
                             <text x="0" y="0" font-family="sans-serif" font-size="14" fill="#94a3b8" text-anchor="middle">Lienzo infinito - Arrastra Componentes y Tuberías Aquí</text>
                         </g>
                     </svg>
@@ -430,57 +423,14 @@
         // así que la conversión mundo↔pantalla se hace en un único punto: mundoAScreenY().
         // Esto no afecta a la geometría relativa (rotación, imantado/snapping, motor de cálculo
         // hidráulico), que solo comparan distancias entre puertos y son indiferentes al sentido de Y.
-        // Hoja A3 apaisada (420 x 297 mm) a 96 ppp: 1 unidad de dibujo = 1 px = 0,2646 mm en papel.
-        // Solo se puede trabajar dentro de la hoja: ver limitarAHoja().
-        const ANCHO_A3 = 1587; // debe coincidir con el ancho de #marco-a3
-        const ALTO_A3 = 1123;  // debe coincidir con la altura de #marco-a3
-        const MARGEN_HOJA = 40; // px de fondo gris alrededor de la hoja
-        const ALTO_MUNDO = ALTO_A3;
+        const ALTO_MUNDO = 20000; // debe coincidir con la altura de #marco-a3
         function mundoAScreenY(y) { return ALTO_MUNDO - y; }
         function screenAMundoY(sy) { return ALTO_MUNDO - sy; } // conversión inversa (misma fórmula, es una reflexión)
 
-        // Muestra la hoja A3 completa, centrada en la ventana (también es el "Zoom Todo")
         function irAOrigenEnEsquina() {
-            const cw = canvasContainer.clientWidth - 2 * MARGEN_HOJA;
-            const ch = canvasContainer.clientHeight - 2 * MARGEN_HOJA;
-            if (cw > 0 && ch > 0) zoomScale = Math.min(cw / ANCHO_A3, ch / ALTO_A3);
-            aplicarZoom();
+            // Sitúa el origen de mundo (0,0) en la esquina inferior izquierda de la ventana visible
             canvasContainer.scrollLeft = 0;
-            canvasContainer.scrollTop = 0;
-        }
-
-        // Posición de la hoja dentro del contenedor con scroll: centrada si cabe, con margen si no.
-        // offX/offY son necesarios para pasar de coordenadas del contenedor a coordenadas de hoja.
-        let offX = MARGEN_HOJA, offY = MARGEN_HOJA;
-        function aplicarZoom() {
-            const w = ANCHO_A3 * zoomScale, h = ALTO_A3 * zoomScale;
-            offX = Math.max(MARGEN_HOJA, (canvasContainer.clientWidth - w) / 2);
-            offY = Math.max(MARGEN_HOJA, (canvasContainer.clientHeight - h) / 2);
-            marcoA3.style.left = offX + 'px';
-            marcoA3.style.top = offY + 'px';
-            marcoA3.style.transform = `scale(${zoomScale})`;
-            const esp = document.getElementById('lienzo-espaciador');
-            esp.style.left = (offX + w + MARGEN_HOJA - 1) + 'px';
-            esp.style.top = (offY + h + MARGEN_HOJA - 1) + 'px';
-        }
-
-        // Mantiene un elemento dentro de la hoja A3 (símbolo + etiqueta). Devuelve true si lo ha movido.
-        function limitarAHoja(el) {
-            const g = svgCanvas.querySelector(`g[data-id="${el.id}"]`);
-            if (!g) return false;
-            const rM = marcoA3.getBoundingClientRect();
-            if (!rM.width) return false;
-            const esc = rM.width / ANCHO_A3; // escala real en pantalla
-            const r = g.getBoundingClientRect();
-            const izq = (r.left - rM.left) / esc, der = (r.right - rM.left) / esc;
-            const arr = (r.top - rM.top) / esc, aba = (r.bottom - rM.top) / esc;
-            let dx = 0, dy = 0;
-            if (der - izq <= ANCHO_A3) { if (izq < 0) dx = -izq; else if (der > ANCHO_A3) dx = ANCHO_A3 - der; }
-            if (aba - arr <= ALTO_A3) { if (arr < 0) dy = -arr; else if (aba > ALTO_A3) dy = ALTO_A3 - aba; }
-            if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return false;
-            el.x += dx;
-            el.y -= dy; // dy en pantalla (abajo +); en mundo Y-arriba se resta
-            return true;
+            canvasContainer.scrollTop = ALTO_MUNDO * zoomScale - canvasContainer.clientHeight;
         }
 
         // ---- TABLAS DE INGENIERÍA (Fase 1: motor de cálculo hidráulico) ----
@@ -554,12 +504,11 @@
         window.onload = function() {
             initResizers();
             irAOrigenEnEsquina();
-            new ResizeObserver(() => aplicarZoom()).observe(canvasContainer);
         };
 
         function centrarVistaEnPunto(x, y) {
-            canvasContainer.scrollLeft = offX + x * zoomScale - canvasContainer.clientWidth / 2;
-            canvasContainer.scrollTop = offY + y * zoomScale - canvasContainer.clientHeight / 2;
+            canvasContainer.scrollLeft = x * zoomScale - canvasContainer.clientWidth / 2;
+            canvasContainer.scrollTop = y * zoomScale - canvasContainer.clientHeight / 2;
         }
 
         canvasContainer.addEventListener('wheel', function(e) {
@@ -569,19 +518,19 @@
             // Punto del lienzo bajo el cursor antes de cambiar el zoom (para zoom-al-cursor)
             const cursorEnContenedorX = e.clientX - rect.left + canvasContainer.scrollLeft;
             const cursorEnContenedorY = e.clientY - rect.top + canvasContainer.scrollTop;
-            const puntoMundoX = (cursorEnContenedorX - offX) / zoomScale;
-            const puntoMundoY = (cursorEnContenedorY - offY) / zoomScale;
+            const puntoMundoX = cursorEnContenedorX / zoomScale;
+            const puntoMundoY = cursorEnContenedorY / zoomScale;
 
             if (e.deltaY < 0) {
                 zoomScale = Math.min(zoomScale + zoomIntensity, 3.0);
             } else {
-                zoomScale = Math.max(zoomScale - zoomIntensity, 0.2);
+                zoomScale = Math.max(zoomScale - zoomIntensity, 0.3);
             }
-            aplicarZoom();
+            marcoA3.style.transform = `scale(${zoomScale})`;
 
             // Reajustar el scroll para que el punto bajo el cursor no se desplace
-            canvasContainer.scrollLeft = offX + puntoMundoX * zoomScale - (e.clientX - rect.left);
-            canvasContainer.scrollTop = offY + puntoMundoY * zoomScale - (e.clientY - rect.top);
+            canvasContainer.scrollLeft = puntoMundoX * zoomScale - (e.clientX - rect.left);
+            canvasContainer.scrollTop = puntoMundoY * zoomScale - (e.clientY - rect.top);
         }, { passive: false });
 
         window.addEventListener('keydown', function(e) {
@@ -610,7 +559,7 @@
 
             if (elementosRed.length === 0) {
                 zoomScale = 1.0;
-                aplicarZoom();
+                marcoA3.style.transform = `scale(${zoomScale})`;
                 irAOrigenEnEsquina();
                 return;
             }
@@ -628,7 +577,7 @@
             const scaleX = containerWidth / anchoContenido;
             const scaleY = containerHeight / altoContenido;
             zoomScale = Math.min(scaleX, scaleY, 2.0);
-            aplicarZoom();
+            marcoA3.style.transform = `scale(${zoomScale})`;
             // centrarVistaEnPunto espera coordenadas de pantalla (Y hacia abajo) -> convertir el centro Y
             centrarVistaEnPunto((minX + maxX) / 2, mundoAScreenY((minY + maxY) / 2));
         }
@@ -676,10 +625,10 @@
             // (son relativos al scroll del contenedor). Se dividen por zoomScale para pasarlos al
             // mismo espacio "sin escalar" en el que viven el.x y mundoAScreenY(el.y) — el mismo
             // criterio que usa el zoom con la rueda del ratón.
-            let x1 = (Math.min(zoomStartX, finX) - offX) / zoomScale;
-            let x2 = (Math.max(zoomStartX, finX) - offX) / zoomScale;
-            let y1 = (Math.min(zoomStartY, finY) - offY) / zoomScale;
-            let y2 = (Math.max(zoomStartY, finY) - offY) / zoomScale;
+            let x1 = Math.min(zoomStartX, finX) / zoomScale;
+            let x2 = Math.max(zoomStartX, finX) / zoomScale;
+            let y1 = Math.min(zoomStartY, finY) / zoomScale;
+            let y2 = Math.max(zoomStartY, finY) / zoomScale;
 
             const anchoSeleccion = x2 - x1;
             const altoSeleccion = y2 - y1;
@@ -690,7 +639,7 @@
             // El zoom ventana sí permite acercarse más que el límite habitual de la rueda (3.0),
             // ya que su objetivo es precisamente encuadrar un detalle pequeño.
             zoomScale = Math.min(scaleX, scaleY, 15.0);
-            aplicarZoom();
+            marcoA3.style.transform = `scale(${zoomScale})`;
             centrarVistaEnPunto((x1 + x2) / 2, (y1 + y2) / 2);
         });
 
@@ -1096,17 +1045,6 @@
                 g.innerHTML = dibujoHTML;
                 svgCanvas.appendChild(g);
             });
-
-            // Solo se trabaja dentro de la hoja A3: si algo queda fuera, se devuelve al borde y se redibuja
-            if (!renderizarVectorial._limitando) {
-                let movido = false;
-                elementosRed.forEach(el => { if (limitarAHoja(el)) movido = true; });
-                if (movido) {
-                    renderizarVectorial._limitando = true;
-                    renderizarVectorial();
-                    renderizarVectorial._limitando = false;
-                }
-            }
         }
 
         window.addEventListener('mousemove', function(e) {
@@ -1317,7 +1255,7 @@
                 currentFileHandle = null;
                 condicionesContorno = {};
                 zoomScale = 1.0;
-                aplicarZoom();
+                marcoA3.style.transform = `scale(${zoomScale})`;
                 irAOrigenEnEsquina();
                 renderizarVectorial();
                 marcarCambios(false);
@@ -1406,7 +1344,7 @@
             } else if (formato === 'svg') {
                 return document.getElementById("marco-a3").outerHTML;
             } else if (formato === 'png') {
-                alert("Para exportar a PNG de alta resolución, utiliza Archivo > Imprimir (A3).");
+                alert("Para exportar a PNG de alta resolución, utiliza la opción 'Imprimir PDF (A3)'.");
                 return "";
             }
             return "";
@@ -2047,8 +1985,24 @@
             setTimeout(() => { caja.style.outline = ''; }, 1200);
         }
 
-        // Zoom Todo: muestra la hoja A3 completa
-        function zoomTodo() { irAOrigenEnEsquina(); }
+        // Zoom Todo: encuadra todos los elementos y además el origen (0,0), como el "Zoom Todo" de CAD
+        function zoomTodo() {
+            if (elementosRed.length === 0) {
+                zoomScale = 1.0;
+                marcoA3.style.transform = `scale(${zoomScale})`;
+                irAOrigenEnEsquina();
+                return;
+            }
+            const margen = 80;
+            let minX = -margen, minY = -margen, maxX = margen, maxY = margen;
+            elementosRed.forEach(el => {
+                minX = Math.min(minX, el.x - margen); minY = Math.min(minY, el.y - margen);
+                maxX = Math.max(maxX, el.x + margen); maxY = Math.max(maxY, el.y + margen);
+            });
+            zoomScale = Math.min(canvasContainer.clientWidth / (maxX - minX), canvasContainer.clientHeight / (maxY - minY), 2.0);
+            marcoA3.style.transform = `scale(${zoomScale})`;
+            centrarVistaEnPunto((minX + maxX) / 2, mundoAScreenY((minY + maxY) / 2));
+        }
 
         function activarZoomVentana() {
             modoZoomVentana = true;
@@ -2092,9 +2046,7 @@
             { titulo: 'Librerías', items: [
                 { icono: 'fa-shapes', texto: 'Accesorios', atajo: 'Alt+A', accion: () => mostrarLibreriaAccesorios() }
             ]},
-            { titulo: 'Cálculo', items: [
-                { icono: 'fa-calculator', texto: 'Calcular red...', accion: () => calcularRed() }
-            ]},
+            { titulo: 'Cálculo', items: [] },
             { titulo: 'Seleccionar', items: [] },
             { titulo: 'Vista', items: [] },
             { titulo: 'Insertar', items: [] },
