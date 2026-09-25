@@ -105,6 +105,27 @@
             stroke-width: 1.5px;
             cursor: pointer;
         }
+
+        /* ===== BARRA DE MENÚS ===== */
+        #barra-menus { display:flex; flex-wrap:wrap; align-items:stretch; background:#f8fafc; border-bottom:1px solid #e2e8f0; font-size:12px; padding:1px 4px; position:relative; z-index:1900; }
+        .menu-top { position:relative; }
+        .menu-top > button { padding:3px 9px; color:#334155; border-radius:3px; background:transparent; border:1px solid transparent; }
+        .menu-top > button:hover { background:#e2e8f0; }
+        .menu-top.abierto > button { background:#dbeafe; border-color:#bfdbfe; color:#1d4ed8; }
+        .menu-desplegable { display:none; position:absolute; top:100%; left:0; min-width:230px; background:#fff; border:1px solid #cbd5e1; box-shadow:0 6px 16px rgba(0,0,0,.14); border-radius:4px; padding:4px 0; z-index:1500; }
+        .menu-top.abierto > .menu-desplegable { display:block; }
+        .menu-sub { position:relative; }
+        .menu-sub > .menu-desplegable { top:-5px; left:100%; }
+        .menu-sub:hover > .menu-desplegable { display:block; }
+        .menu-item { display:flex; align-items:center; width:100%; padding:5px 12px 5px 8px; text-align:left; color:#334155; background:transparent; border:none; cursor:pointer; white-space:nowrap; font-size:12px; }
+        .menu-item:hover:not(:disabled) { background:#eff6ff; color:#1d4ed8; }
+        .menu-item:disabled { opacity:.4; cursor:default; }
+        .menu-item .ico { width:16px; text-align:center; margin-right:8px; font-size:11px; color:#2563eb; }
+        .menu-item .atajo { margin-left:auto; padding-left:28px; color:#94a3b8; font-size:11px; }
+        .menu-item .flecha { margin-left:auto; padding-left:28px; color:#94a3b8; font-size:9px; }
+        .menu-sep { border-top:1px solid #e2e8f0; margin:4px 0; }
+        .menu-vacio { padding:5px 12px 5px 32px; color:#94a3b8; font-style:italic; font-size:11px; }
+        @media print { #barra-menus, #panel-buscar, #modal-creditos { display:none !important; } }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 h-screen flex flex-col overflow-hidden font-sans select-none" onclick="cerrarMenuContextual(event)">
@@ -146,6 +167,42 @@
         </div>
     </div>
 
+    <!-- PANEL FLOTANTE BÚSQUEDA / REEMPLAZO (Edición > Búsqueda/Reemplazo, Ctrl+R) -->
+    <div id="panel-buscar" style="display:none; position:fixed; top:96px; right:240px; z-index:1800; width:370px;" class="bg-white rounded-lg shadow-xl border border-slate-200 p-3 text-xs">
+        <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-2 flex items-center justify-between">
+            <span><i class="fa-solid fa-magnifying-glass text-blue-600 mr-1.5"></i> Búsqueda / Reemplazo</span>
+            <button onclick="cerrarBuscarReemplazar()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+        </h3>
+        <label class="block text-slate-500 mb-0.5">Buscar (nombre del elemento)</label>
+        <input type="text" id="buscar-texto" class="w-full border border-slate-300 rounded p-1.5 mb-2">
+        <label class="block text-slate-500 mb-0.5">Reemplazar por</label>
+        <input type="text" id="reemplazar-texto" class="w-full border border-slate-300 rounded p-1.5 mb-2">
+        <label class="flex items-center text-slate-600 mb-2"><input type="checkbox" id="buscar-mayus" class="mr-1.5"> Coincidir mayúsculas/minúsculas</label>
+        <div class="flex justify-end space-x-1.5">
+            <button onclick="buscarSiguiente()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Buscar siguiente</button>
+            <button onclick="reemplazarActual()" class="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded font-medium">Reemplazar</button>
+            <button onclick="reemplazarTodo()" class="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded font-medium">Reemplazar todo</button>
+        </div>
+        <div id="buscar-estado" class="text-[11px] text-slate-500 mt-2 min-h-[14px]"></div>
+    </div>
+
+    <!-- VENTANA DE CRÉDITOS (Ayuda > Créditos) -->
+    <div id="modal-creditos" onclick="if(event.target===this) cerrarCreditos()" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.4); z-index:2000; justify-content:center; align-items:center;">
+        <div class="bg-white rounded-lg shadow-xl w-96 p-5 border border-slate-200 text-xs text-slate-600">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between">
+                <span><i class="fa-solid fa-circle-info text-blue-600 mr-1.5"></i> Créditos</span>
+                <button onclick="cerrarCreditos()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </h3>
+            <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
+            <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
+            <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
+            <p class="mt-1"><span class="text-slate-400">Formato de proyecto:</span> 6.5-hidraulico</p>
+            <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
+            <p class="mt-3 text-slate-400">© 2026</p>
+            <div class="mt-4 flex justify-end"><button onclick="cerrarCreditos()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>
+        </div>
+    </div>
+
     <!-- BARRA SUPERIOR -->
     <header class="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shadow-sm z-30">
         <div class="flex items-center space-x-3">
@@ -158,6 +215,9 @@
             <button onclick="calcularRed()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded font-bold shadow-sm transition flex items-center"><i class="fa-solid fa-calculator mr-1"></i> Calcular Red</button>
         </div>
     </header>
+
+    <!-- BARRA DE MENÚS (estilo Paint). Se construye desde la tabla MENUS del script -->
+    <nav id="barra-menus"></nav>
 
     <!-- CONTENEDOR PRINCIPAL -->
     <div class="flex flex-1 overflow-hidden relative" id="main-container">
@@ -195,22 +255,6 @@
         <main class="bg-slate-100 flex-1 flex flex-col overflow-hidden relative">
             <div class="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-between z-10 text-xs shadow-xs">
                 <div class="flex items-center space-x-1.5">
-                    <button onclick="nuevoProyecto()" class="bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-file-circle-plus mr-1 text-blue-600"></i> Nuevo</button>
-                    <button onclick="abrirProyectoCarpeta()" class="bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-folder-open mr-1 text-blue-600"></i> Abrir...</button>
-                    
-                    <!-- BOTÓN GUARDAR Y SELECTOR GUARDAR COMO -->
-                    <button onclick="guardarProyecto()" class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded font-medium transition flex items-center text-xs"><i class="fa-solid fa-floppy-disk mr-1"></i> Guardar</button>
-                    
-                    <select onchange="handleGuardarComo(this)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded font-medium border border-emerald-600 transition cursor-pointer text-xs w-28">
-                        <option value="" disabled selected>Guardar como...</option>
-                        <option value="pid">*.pid</option>
-                        <option value="dxf">*.dxf</option>
-                        <option value="svg">*.svg</option>
-                        <option value="png">*.png</option>
-                    </select>
-
-                    <button onclick="reajustarTodasLasConexiones()" title="Vuelve a imantar todos los componentes ya colocados, por si algún extremo quedó con un pequeño hueco" class="bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-magnet mr-1 text-blue-600"></i> Reajustar Conexiones</button>
-
                     <button id="btn-deshacer" onclick="deshacer()" title="Deshacer (Ctrl+Z)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-left mr-1 text-blue-600"></i> Deshacer</button>
                     <button id="btn-rehacer" onclick="rehacer()" title="Rehacer (Ctrl+Y)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-right mr-1 text-blue-600"></i> Rehacer</button>
                 </div>
@@ -333,6 +377,7 @@
             historialUndo.push(JSON.stringify(elementosRed));
             if (historialUndo.length > MAX_HISTORIAL) historialUndo.shift();
             historialRedo = []; // cualquier acción nueva invalida lo que se pudiera rehacer
+            marcarCambios(true);
             actualizarBotonesHistorial();
         }
 
@@ -350,6 +395,7 @@
             if (historialUndo.length === 0) return;
             historialRedo.push(JSON.stringify(elementosRed));
             restaurarEstado(historialUndo.pop());
+            marcarCambios(true);
             actualizarBotonesHistorial();
         }
 
@@ -357,6 +403,7 @@
             if (historialRedo.length === 0) return;
             historialUndo.push(JSON.stringify(elementosRed));
             restaurarEstado(historialRedo.pop());
+            marcarCambios(true);
             actualizarBotonesHistorial();
         }
 
@@ -1198,7 +1245,10 @@
         }
 
         function nuevoProyecto() {
-            if(confirm("¿Iniciar un nuevo proyecto?")) {
+            const msgNuevo = hayCambiosSinGuardar
+                ? "Hay cambios sin guardar que se perderán. ¿Iniciar un nuevo proyecto igualmente?"
+                : "¿Iniciar un nuevo proyecto?";
+            if(confirm(msgNuevo)) {
                 guardarEstado();
                 elementosRed = [];
                 idSeleccionado = null;
@@ -1208,6 +1258,7 @@
                 marcoA3.style.transform = `scale(${zoomScale})`;
                 irAOrigenEnEsquina();
                 renderizarVectorial();
+                marcarCambios(false);
             }
         }
 
@@ -1220,6 +1271,7 @@
                     const writable = await currentFileHandle.createWritable();
                     await writable.write(contenido);
                     await writable.close();
+                    marcarCambios(false);
                     alert("Proyecto guardado correctamente.");
                 } catch (err) {
                     console.error(err);
@@ -1256,6 +1308,7 @@
                     const writable = await handle.createWritable();
                     await writable.write(contenido);
                     await writable.close();
+                    if (formato === 'pid') marcarCambios(false);
                     alert("Archivo guardado con éxito en el directorio seleccionado.");
                 } catch (err) {
                     if (err.name !== 'AbortError') {
@@ -1266,6 +1319,7 @@
                 let nombre = prompt("Introduce el nombre del archivo:", `proyecto_pid.${formato}`);
                 if (nombre) {
                     descargarArchivo(contenido, nombre, 'text/plain');
+                    if (formato === 'pid') marcarCambios(false);
                 }
             }
         }
@@ -1307,6 +1361,7 @@
         }
 
         async function abrirProyectoCarpeta() {
+            if (hayCambiosSinGuardar && !confirm("Hay cambios sin guardar que se perderán. ¿Abrir otro proyecto igualmente?")) return;
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.json,.pid,.dxf';
@@ -1325,6 +1380,7 @@
                             if (sel) sel.value = res.fluido;
                         }
                         reajustarTodasLasConexiones(false); // corrige huecos por cambios de geometría entre versiones (sin snapshot adicional)
+                        marcarCambios(false);
                         alert("Proyecto abierto con éxito.");
                     } catch(err) { alert("Error al abrir archivo o formato no compatible."); }
                 };
@@ -1623,6 +1679,7 @@
                     let presion = parseFloat(tr.querySelector('.presion-input').value) || 0;
                     condicionesContorno[key] = { elevacion, presion };
                 });
+                marcarCambios(true);
                 let fluidoSel = document.getElementById('selector-fluido-modal').value;
                 document.getElementById('selector-fluido').value = fluidoSel;
                 ejecutarCalculo(grafo, aristas);
@@ -1794,6 +1851,331 @@
                 <button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>
             `;
         }
+
+        // ==================================================================================
+        // CONTROL DE CAMBIOS SIN GUARDAR
+        // guardarEstado() (se llama antes de cualquier modificación) marca el proyecto como
+        // modificado; guardar en *.pid, Nuevo o Abrir lo dejan limpio. Si se cierra o recarga la
+        // pestaña con cambios pendientes, el navegador pide confirmación.
+        // ==================================================================================
+        let hayCambiosSinGuardar = false;
+        const TITULO_BASE = document.title;
+        function marcarCambios(modificado = true) {
+            hayCambiosSinGuardar = modificado;
+            document.title = (modificado ? '* ' : '') + TITULO_BASE;
+        }
+        window.addEventListener('beforeunload', function(e) {
+            if (!hayCambiosSinGuardar) return;
+            e.preventDefault();
+            e.returnValue = ''; // el navegador muestra su propio aviso de "cambios sin guardar"
+        });
+        document.getElementById('selector-fluido')?.addEventListener('change', () => marcarCambios(true));
+
+        // ==================================================================================
+        // PORTAPAPELES INTERNO (Copiar / Cortar / Pegar)
+        // ==================================================================================
+        let portapapeles = null;
+        let contadorPegado = 0;
+
+        function copiarSeleccion() {
+            const el = elementosRed.find(item => item.id === idSeleccionado);
+            if (!el) return;
+            portapapeles = JSON.parse(JSON.stringify(el));
+            contadorPegado = 0; // cada pegado se desplaza 50 mm respecto al original
+        }
+
+        function cortarSeleccion() {
+            if (!idSeleccionado) return;
+            copiarSeleccion();
+            contadorPegado = -1; // el primer pegado tras Cortar vuelve a la posición original
+            eliminarElemento(idSeleccionado);
+        }
+
+        function pegarPortapapeles() {
+            if (!portapapeles) return;
+            guardarEstado();
+            contadorPegado++;
+            const nuevo = JSON.parse(JSON.stringify(portapapeles));
+            nuevo.id = 'sym_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+            nuevo.x += 50 * contadorPegado;
+            nuevo.y -= 50 * contadorPegado;
+            document.getElementById("empty-state")?.remove();
+            elementosRed.push(nuevo);
+            seleccionarElemento(nuevo.id);
+        }
+
+        // ==================================================================================
+        // BÚSQUEDA / REEMPLAZO (sobre el nombre de los elementos)
+        // ==================================================================================
+        function abrirBuscarReemplazar() {
+            const panel = document.getElementById('panel-buscar');
+            panel.style.display = 'block';
+            const inp = document.getElementById('buscar-texto');
+            inp.focus(); inp.select();
+            document.getElementById('buscar-estado').innerText = '';
+        }
+        function cerrarBuscarReemplazar() { document.getElementById('panel-buscar').style.display = 'none'; }
+        function estadoBusqueda(txt) { document.getElementById('buscar-estado').innerText = txt; }
+
+        function regexBusqueda() {
+            const txt = document.getElementById('buscar-texto').value;
+            if (!txt) return null;
+            const mayus = document.getElementById('buscar-mayus').checked;
+            return new RegExp(txt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), mayus ? 'g' : 'gi');
+        }
+        function coincidenciasBusqueda() {
+            const re = regexBusqueda();
+            if (!re) return [];
+            return elementosRed.filter(el => { re.lastIndex = 0; return re.test(String(el.name || '')); });
+        }
+
+        function buscarSiguiente() {
+            const res = coincidenciasBusqueda();
+            if (!regexBusqueda()) { estadoBusqueda('Escribe el texto a buscar.'); return; }
+            if (!res.length) { estadoBusqueda('Sin coincidencias.'); return; }
+            let i = res.findIndex(el => el.id === idSeleccionado);
+            i = (i + 1) % res.length;
+            const el = res[i];
+            seleccionarElemento(el.id);
+            centrarVistaEnPunto(el.x + 25, mundoAScreenY(el.y) + 25);
+            estadoBusqueda(`${i + 1} de ${res.length}: ${el.name}`);
+        }
+
+        function reemplazarActual() {
+            const re = regexBusqueda();
+            if (!re) { estadoBusqueda('Escribe el texto a buscar.'); return; }
+            const el = elementosRed.find(item => item.id === idSeleccionado);
+            re.lastIndex = 0;
+            if (!el || !re.test(String(el.name || ''))) { buscarSiguiente(); return; }
+            guardarEstado();
+            re.lastIndex = 0;
+            el.name = String(el.name).replace(re, document.getElementById('reemplazar-texto').value);
+            seleccionarElemento(el.id);
+            buscarSiguiente();
+        }
+
+        function reemplazarTodo() {
+            const re = regexBusqueda();
+            if (!re) { estadoBusqueda('Escribe el texto a buscar.'); return; }
+            const res = coincidenciasBusqueda();
+            if (!res.length) { estadoBusqueda('Sin coincidencias.'); return; }
+            guardarEstado();
+            const nuevoTxt = document.getElementById('reemplazar-texto').value;
+            res.forEach(el => { re.lastIndex = 0; el.name = String(el.name).replace(re, nuevoTxt); });
+            if (idSeleccionado) seleccionarElemento(idSeleccionado); else renderizarVectorial();
+            estadoBusqueda(`${res.length} elemento(s) modificados.`);
+        }
+
+        document.getElementById('buscar-texto').addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); buscarSiguiente(); }
+        });
+        document.getElementById('panel-buscar').addEventListener('keydown', e => {
+            if (e.key === 'Escape') cerrarBuscarReemplazar();
+        });
+
+        // ==================================================================================
+        // LIBRERÍAS / ZOOM / AYUDA
+        // ==================================================================================
+        function mostrarLibreriaAccesorios() {
+            const lista = document.getElementById('lista-accesorios');
+            if (lista.style.display === 'none') toggleCategoria('accesorios');
+            const caja = lista.parentElement;
+            caja.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            caja.style.outline = '2px solid #60a5fa';
+            setTimeout(() => { caja.style.outline = ''; }, 1200);
+        }
+
+        // Zoom Todo: encuadra todos los elementos y además el origen (0,0), como el "Zoom Todo" de CAD
+        function zoomTodo() {
+            if (elementosRed.length === 0) {
+                zoomScale = 1.0;
+                marcoA3.style.transform = `scale(${zoomScale})`;
+                irAOrigenEnEsquina();
+                return;
+            }
+            const margen = 80;
+            let minX = -margen, minY = -margen, maxX = margen, maxY = margen;
+            elementosRed.forEach(el => {
+                minX = Math.min(minX, el.x - margen); minY = Math.min(minY, el.y - margen);
+                maxX = Math.max(maxX, el.x + margen); maxY = Math.max(maxY, el.y + margen);
+            });
+            zoomScale = Math.min(canvasContainer.clientWidth / (maxX - minX), canvasContainer.clientHeight / (maxY - minY), 2.0);
+            marcoA3.style.transform = `scale(${zoomScale})`;
+            centrarVistaEnPunto((minX + maxX) / 2, mundoAScreenY((minY + maxY) / 2));
+        }
+
+        function activarZoomVentana() {
+            modoZoomVentana = true;
+            canvasContainer.style.cursor = 'crosshair';
+        }
+
+        function mostrarCreditos() { document.getElementById('modal-creditos').style.display = 'flex'; }
+        function cerrarCreditos() { document.getElementById('modal-creditos').style.display = 'none'; }
+
+        // ==================================================================================
+        // BARRA DE MENÚS (estilo Paint)
+        // Para añadir opciones a un menú, añade objetos a su lista "items":
+        //   { icono: 'fa-...', texto: '...', atajo: 'Ctrl+?', accion: () => ..., habilitado: () => true }
+        //   'sep' dibuja un separador; "sub: [ ... ]" crea un submenú desplegable.
+        // Los atajos de teclado se programan aparte, en atajosMenu().
+        // ==================================================================================
+        const MENUS = [
+            { titulo: 'Archivo', items: [
+                { icono: 'fa-file', texto: 'Nuevo', atajo: 'Ctrl+N', accion: () => nuevoProyecto() },
+                { icono: 'fa-folder-open', texto: 'Abrir...', atajo: 'Ctrl+O', accion: () => abrirProyectoCarpeta() },
+                { icono: 'fa-floppy-disk', texto: 'Guardar', atajo: 'Ctrl+G', accion: () => guardarProyecto() },
+                { icono: 'fa-file-export', texto: 'Guardar como', sub: [
+                    { icono: 'fa-file-code', texto: 'Proyecto P&ID (*.pid)', accion: () => guardarComoProyecto('pid') },
+                    { icono: 'fa-compass-drafting', texto: 'Dibujo CAD (*.dxf)', accion: () => guardarComoProyecto('dxf') },
+                    { icono: 'fa-bezier-curve', texto: 'Imagen vectorial (*.svg)', accion: () => guardarComoProyecto('svg') },
+                    { icono: 'fa-file-image', texto: 'Imagen (*.png)', accion: () => guardarComoProyecto('png') }
+                ]},
+                'sep',
+                { icono: 'fa-print', texto: 'Imprimir...', atajo: 'Ctrl+P', accion: () => imprimirPDF() }
+            ]},
+            { titulo: 'Edición', items: [
+                { icono: 'fa-magnifying-glass', texto: 'Búsqueda/Reemplazo...', atajo: 'Ctrl+R', accion: () => abrirBuscarReemplazar() },
+                'sep',
+                { icono: 'fa-copy', texto: 'Copiar', atajo: 'Ctrl+C', accion: () => copiarSeleccion(), habilitado: () => !!idSeleccionado },
+                { icono: 'fa-scissors', texto: 'Cortar', atajo: 'Ctrl+X', accion: () => cortarSeleccion(), habilitado: () => !!idSeleccionado },
+                { icono: 'fa-paste', texto: 'Pegar', atajo: 'Ctrl+V', accion: () => pegarPortapapeles(), habilitado: () => !!portapapeles },
+                'sep',
+                { icono: 'fa-rotate-left', texto: 'Deshacer', atajo: 'Ctrl+Z', accion: () => deshacer(), habilitado: () => historialUndo.length > 0 },
+                { icono: 'fa-rotate-right', texto: 'Rehacer', atajo: 'Ctrl+Y', accion: () => rehacer(), habilitado: () => historialRedo.length > 0 }
+            ]},
+            { titulo: 'Librerías', items: [
+                { icono: 'fa-shapes', texto: 'Accesorios', atajo: 'Alt+A', accion: () => mostrarLibreriaAccesorios() }
+            ]},
+            { titulo: 'Cálculo', items: [] },
+            { titulo: 'Seleccionar', items: [] },
+            { titulo: 'Vista', items: [] },
+            { titulo: 'Insertar', items: [] },
+            { titulo: 'Extras', items: [] },
+            { titulo: 'Resultados', items: [] },
+            { titulo: 'Herramientas', items: [] },
+            { titulo: 'Tabla', items: [] },
+            { titulo: 'Opciones', items: [] },
+            { titulo: 'Ventana', items: [] },
+            { titulo: 'Zoom', items: [
+                { icono: 'fa-expand', texto: 'Ajustar', atajo: 'F', accion: () => ajustarVistaVentana() },
+                { icono: 'fa-maximize', texto: 'Todo', accion: () => zoomTodo() },
+                { icono: 'fa-vector-square', texto: 'Ventana', atajo: 'W', accion: () => activarZoomVentana() }
+            ]},
+            { titulo: 'Ayuda', items: [
+                { icono: 'fa-circle-info', texto: 'Créditos...', accion: () => mostrarCreditos() }
+            ]}
+        ];
+
+        const barraMenus = document.getElementById('barra-menus');
+        let menuAbierto = null;
+
+        function construirItems(items, contenedor) {
+            contenedor.innerHTML = '';
+            if (!items.length) {
+                contenedor.innerHTML = '<div class="menu-vacio">Próximamente</div>';
+                return;
+            }
+            items.forEach(it => {
+                if (it === 'sep') {
+                    const sep = document.createElement('div');
+                    sep.className = 'menu-sep';
+                    contenedor.appendChild(sep);
+                    return;
+                }
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'menu-item';
+                btn.innerHTML = `<i class="fa-solid ${it.icono || ''} ico"></i><span>${it.texto}</span>` +
+                    (it.sub ? '<i class="fa-solid fa-chevron-right flecha"></i>' : (it.atajo ? `<span class="atajo">${it.atajo}</span>` : ''));
+                if (it.habilitado && !it.habilitado()) btn.disabled = true;
+                if (it.sub) {
+                    const envoltorio = document.createElement('div');
+                    envoltorio.className = 'menu-sub';
+                    const subMenu = document.createElement('div');
+                    subMenu.className = 'menu-desplegable';
+                    construirItems(it.sub, subMenu);
+                    envoltorio.appendChild(btn);
+                    envoltorio.appendChild(subMenu);
+                    contenedor.appendChild(envoltorio);
+                } else {
+                    btn.addEventListener('click', e => {
+                        e.stopPropagation();
+                        cerrarMenus();
+                        it.accion && it.accion();
+                    });
+                    contenedor.appendChild(btn);
+                }
+            });
+        }
+
+        function abrirMenu(nodo, def) {
+            cerrarMenus();
+            construirItems(def.items, nodo.querySelector('.menu-desplegable')); // refresca activado/desactivado
+            nodo.classList.add('abierto');
+            menuAbierto = nodo;
+        }
+
+        function cerrarMenus() {
+            if (menuAbierto) menuAbierto.classList.remove('abierto');
+            menuAbierto = null;
+        }
+
+        MENUS.forEach(def => {
+            const nodo = document.createElement('div');
+            nodo.className = 'menu-top';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = def.titulo;
+            const desplegable = document.createElement('div');
+            desplegable.className = 'menu-desplegable';
+            nodo.appendChild(btn);
+            nodo.appendChild(desplegable);
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                if (menuAbierto === nodo) cerrarMenus(); else abrirMenu(nodo, def);
+            });
+            // Como en Windows: con un menú abierto, pasar el ratón por otro lo abre
+            btn.addEventListener('mouseenter', () => { if (menuAbierto && menuAbierto !== nodo) abrirMenu(nodo, def); });
+            barraMenus.appendChild(nodo);
+        });
+
+        document.addEventListener('mousedown', e => { if (menuAbierto && !barraMenus.contains(e.target)) cerrarMenus(); });
+
+        // ==================================================================================
+        // ATAJOS DE TECLADO DE LOS MENÚS
+        // Se capturan antes que los del navegador (Ctrl+P imprimir, Ctrl+R recargar, Ctrl+G, Ctrl+O...).
+        // ==================================================================================
+        function atajosMenu(e) {
+            const activo = document.activeElement;
+            const enCampo = activo && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activo.tagName) || activo.isContentEditable);
+            const ctrl = e.ctrlKey || e.metaKey;
+            const k = (e.key || '').toLowerCase();
+            let accion = null;
+
+            if (e.key === 'Escape') {
+                if (menuAbierto) accion = () => {};
+                else if (document.getElementById('modal-creditos').style.display === 'flex') accion = cerrarCreditos;
+            } else if (ctrl && !e.altKey && !e.shiftKey) {
+                if (k === 'n') accion = nuevoProyecto;
+                else if (k === 'o') accion = abrirProyectoCarpeta;
+                else if (k === 'g') accion = guardarProyecto;
+                else if (k === 'p') accion = imprimirPDF;
+                else if (k === 'r') accion = abrirBuscarReemplazar;
+                else if (!enCampo && k === 'c' && idSeleccionado) accion = copiarSeleccion;
+                else if (!enCampo && k === 'x' && idSeleccionado) accion = cortarSeleccion;
+                else if (!enCampo && k === 'v' && portapapeles) accion = pegarPortapapeles;
+            } else if (e.altKey && !ctrl && !e.shiftKey && k === 'a') {
+                accion = mostrarLibreriaAccesorios;
+            }
+
+            if (accion) {
+                e.preventDefault();
+                e.stopPropagation();
+                cerrarMenus();
+                accion();
+            }
+        }
+        window.addEventListener('keydown', atajosMenu, true);
     </script>
 </body>
 </html>
