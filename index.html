@@ -6,6 +6,8 @@
     <title>PIPING - Diseño P&ID Vectorial Avanzado (mm)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Datos de ingeniería (fluidos, tuberías, Crane, B16.9, válvulas). Debe estar junto a index.html -->
+    <script src="catalogo.js"></script>
     <style>
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -168,7 +170,7 @@
 
     <!-- VENTANA MODAL DE CÁLCULO DE RED (CONTORNO Y RESULTADOS) -->
     <div id="modal-red" style="display:none;" class="fixed inset-0 bg-black/40 z-[2000] justify-center items-center">
-        <div class="bg-white rounded-lg shadow-xl w-[640px] max-h-[85vh] overflow-y-auto p-5 border border-slate-200">
+        <div class="bg-white rounded-lg shadow-xl w-[760px] max-h-[85vh] overflow-y-auto p-5 border border-slate-200">
             <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between">
                 <span><i class="fa-solid fa-diagram-project text-blue-600 mr-1.5"></i> Cálculo Hidráulico de la Red</span>
                 <button onclick="cerrarModalRed()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
@@ -207,7 +209,8 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Formato de proyecto:</span> 6.5-hidraulico</p>
+            <p class="mt-1"><span class="text-slate-400">Formato de proyecto:</span> 6.6-catalogo</p>
+            <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
             <div class="mt-4 flex justify-end"><button onclick="cerrarCreditos()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>
@@ -237,11 +240,12 @@
             <div class="space-y-2 text-xs">
                 <div>
                     <label class="block text-slate-500 font-medium mb-1">Fluido</label>
-                    <select id="selector-fluido" class="w-full bg-slate-50 border border-slate-300 rounded p-1 text-slate-700">
-                        <option>Agua (20°C)</option>
-                        <option>Aceite Térmico</option>
-                        <option>Vapor Saturado</option>
-                    </select>
+                    <select id="selector-fluido" class="w-full bg-slate-50 border border-slate-300 rounded p-1 text-slate-700"></select>
+                </div>
+                <div>
+                    <label class="block text-slate-500 font-medium mb-1">Temperatura de servicio (°C)</label>
+                    <input type="number" id="temp-fluido" value="20" step="1" class="w-full bg-slate-50 border border-slate-300 rounded p-1 text-slate-700">
+                    <div id="info-fluido" class="text-[10px] text-slate-500 mt-1 leading-tight"></div>
                 </div>
             </div>
 
@@ -309,6 +313,7 @@
                     <div draggable="true" ondragstart="drag(event)" data-type="accesorio" data-subtype="codo" data-name="Codo 90°" data-angulo="90" data-k="0.75" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Codo 90°</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                     <div draggable="true" ondragstart="drag(event)" data-type="accesorio" data-subtype="tee" data-name="Tee" data-k="0.9" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Tee</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                     <div draggable="true" ondragstart="drag(event)" data-type="accesorio" data-subtype="union" data-name="Brida / Unión" data-k="0.05" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Unión / Brida</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="accesorio" data-subtype="reduccion" data-name="Reducción" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Reducción</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                 </div>
             </div>
 
@@ -336,6 +341,7 @@
                     <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="mariposa" data-name="Válvula Mariposa" data-k="0.5" data-cv="150" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Mariposa (Butterfly)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                     <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="neumatica" data-name="Válvula Neumática" data-k="0.3" data-cv="140" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Neumática</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                     <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="retencion" data-name="Válvula Retención" data-k="2.0" data-cv="80" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Retención (Check)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="tajadera" data-name="Válvula Tajadera" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Tajadera (Knife gate)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
                 </div>
             </div>
 
@@ -345,11 +351,14 @@
                     <i id="chevron-tuberias" class="fa-solid fa-chevron-down text-slate-400 text-[9px] transition-transform duration-150"></i>
                 </button>
                 <div id="lista-tuberias" class="space-y-1 p-1 pl-1.5 border-t border-slate-100">
-                    <div draggable="true" ondragstart="drag(event)" data-type="tuberia" data-material="Acero al Carbono" data-name="Tubería DN 50" data-dn="DN 50" data-espesor="3.91" data-longitud="3000" class="bg-white border border-slate-200 hover:border-blue-400 p-1 rounded cursor-grab flex justify-between items-center text-[10px]">
+                    <div draggable="true" ondragstart="drag(event)" data-type="tuberia" data-material="Acero al carbono" data-serie="40" data-name="Tubería DN 50" data-dn="DN 50" data-longitud="3000" class="bg-white border border-slate-200 hover:border-blue-400 p-1 rounded cursor-grab flex justify-between items-center text-[10px]">
                         <span>Tubería DN 50 (3000 mm)</span><i class="fa-solid fa-plus text-blue-600"></i>
                     </div>
-                    <div draggable="true" ondragstart="drag(event)" data-type="tuberia" data-material="Acero al Carbono" data-name="Tubería DN 100" data-dn="DN 100" data-espesor="6.02" data-longitud="3000" class="bg-white border border-slate-200 hover:border-blue-400 p-1 rounded cursor-grab flex justify-between items-center text-[10px]">
+                    <div draggable="true" ondragstart="drag(event)" data-type="tuberia" data-material="Acero al carbono" data-serie="40" data-name="Tubería DN 100" data-dn="DN 100" data-longitud="3000" class="bg-white border border-slate-200 hover:border-blue-400 p-1 rounded cursor-grab flex justify-between items-center text-[10px]">
                         <span>Tubería DN 100 (3000 mm)</span><i class="fa-solid fa-plus text-blue-600"></i>
+                    </div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="tuberia" data-material="PE100" data-serie="SDR 11 (PN16)" data-name="Tubería PE d63" data-dn="d63" data-longitud="3000" class="bg-white border border-slate-200 hover:border-blue-400 p-1 rounded cursor-grab flex justify-between items-center text-[10px]">
+                        <span>Tubería PE100 d63 (3000 mm)</span><i class="fa-solid fa-plus text-blue-600"></i>
                     </div>
                 </div>
             </div>
@@ -483,34 +492,179 @@
             return true;
         }
 
-        // ---- TABLAS DE INGENIERÍA (Fase 1: motor de cálculo hidráulico) ----
+        // ---- DATOS DE INGENIERÍA: se leen de catalogo.js (window.CATALOGO) ----
+        // catalogo.js se genera desde las tablas revisadas de PIPING_corregido.docx y los catálogos de
+        // DOCUMENTACION. Tiene la misma estructura que tendrán las tablas de Supabase, de modo que
+        // conectar la base de datos solo cambiará DE DÓNDE se carga CATALOGO, no cómo se usa.
         const G = 9.81; // m/s²
         const PRESION_ATM = 101325; // Pa
+        const CAT = window.CATALOGO || null;
+        if (!CAT) alert('No se ha encontrado catalogo.js junto a index.html. Sin él no se pueden cargar fluidos, tuberías ni válvulas.');
 
-        // Diámetro interior de tubería de acero al carbono Sch 40 (mm)
-        const TABLA_DN_SCH40 = {
-            'DN 15': 15.8, 'DN 20': 21.0, 'DN 25': 26.6, 'DN 32': 35.1,
-            'DN 40': 40.9, 'DN 50': 52.5, 'DN 65': 62.7, 'DN 80': 77.9,
-            'DN 100': 102.3, 'DN 125': 128.2, 'DN 150': 154.1,
-            'DN 200': 202.7, 'DN 250': 254.5, 'DN 300': 304.8
+        const MATERIAL_DEF = 'Acero al carbono';
+        // Nombres de material de versiones anteriores -> catálogo actual
+        const MIGRA_MATERIAL = {
+            'Acero al Carbono': 'Acero al carbono', 'Acero Inoxidable': 'Acero inoxidable', 'PVC': 'PVC-U',
+            'Cobre': 'Cobre (Dint ref. Sch 40)', 'Fundición': 'Fundición (Dint ref. Sch 40)', 'Hormigón': 'Hormigón (Dint ref. Sch 40)'
         };
+        // Equivalencia habitual DN (acero) -> diámetro exterior de tubería plástica
+        const DN_A_PLASTICO = { 15: 20, 20: 25, 25: 32, 32: 40, 40: 50, 50: 63, 65: 75, 80: 90, 100: 110, 125: 140, 150: 160,
+                                200: 225, 250: 250, 300: 315, 350: 355, 400: 400, 450: 450, 500: 500 };
+        const ACERO_TAM = CAT ? CAT.materiales[MATERIAL_DEF].tamanos : [];
+        const LISTA_DN = ACERO_TAM.map(t => t.clave);                 // 'DN 6' ... 'DN 900'
+        function dnNum(clave) { return parseInt(String(clave || '').replace(/[^0-9]/g, ''), 10) || 50; }
+        function npsDeDN(clave) { const t = ACERO_TAM.find(x => x.clave === clave); return t ? t.nps : ''; }
+        function etiquetaDN(clave) { const n = npsDeDN(clave); return n ? `${clave} (${n}")` : clave; }
 
-        // Rugosidad absoluta típica por material (mm)
-        const RUGOSIDAD_MATERIAL = {
-            'Acero al Carbono': 0.045,
-            'Acero Inoxidable': 0.015,
-            'PVC': 0.0015,
-            'Cobre': 0.0015,
-            'Fundición': 0.26,
-            'Hormigón': 0.3
-        };
+        // Diámetro interior de referencia de un DN: acero Sch 40 (o STD si no existe Sch 40), en mm
+        function dintReferencia(clave) {
+            const t = ACERO_TAM.find(x => x.clave === clave);
+            if (!t) return 52.5;
+            const e = t.e['40'] != null ? t.e['40'] : t.e['STD'];
+            return t.od - 2 * e;
+        }
 
-        // Propiedades de fluidos: rho (kg/m3), mu (Pa·s), pv (presión de vapor absoluta, Pa; null = no soportado)
-        const FLUIDOS = {
-            'Agua (20°C)': { rho: 998.2, mu: 1.002e-3, pv: 2339 },
-            'Aceite Térmico': { rho: 850, mu: 2.9e-2, pv: 10 },
-            'Vapor Saturado': { rho: 1.13, mu: 1.3e-5, pv: null }
+        // Factor de fricción en turbulencia total f_T (Crane A-24). Fuera de tabla: Colebrook con ε = 0,045 mm.
+        function fT(dn, Dmm) {
+            const fila = CAT.ft.find(r => r[0] === dn);
+            if (fila) return fila[1];
+            if (dn < 15) return 0.027;
+            const D = Dmm || dn;
+            return 0.25 / Math.pow(Math.log10(0.045 / (3.7 * D)), 2);
+        }
+
+        // ---------- Tuberías ----------
+        function materialDe(el) { return (CAT && CAT.materiales[el.material]) || CAT.materiales[MATERIAL_DEF]; }
+        function normalizarTuberia(el) {
+            if (!CAT) return;
+            if (MIGRA_MATERIAL[el.material]) el.material = MIGRA_MATERIAL[el.material];
+            if (!CAT.materiales[el.material]) el.material = MATERIAL_DEF;
+            const m = CAT.materiales[el.material];
+            if (!m.series.includes(el.serie)) el.serie = m.serieDef;
+            let t = m.tamanos.find(x => x.clave === el.dn);
+            if (!t && /^DN/.test(el.dn || '') && !/^DN/.test(m.tamanos[0].clave)) {
+                // proyecto antiguo (DN de acero) pasado a material plástico: diámetro exterior equivalente
+                const od = DN_A_PLASTICO[dnNum(el.dn)];
+                t = m.tamanos.find(x => x.od === od);
+                if (t) el.dn = t.clave;
+            }
+            if (!t || t.e[el.serie] == null) {
+                // tamaño inexistente en esa serie: el más próximo (por diámetro exterior) que sí exista
+                const odAct = t ? t.od : (ACERO_TAM.find(x => x.clave === el.dn) || { od: 60.3 }).od;
+                const cand = m.tamanos.filter(x => x.e[el.serie] != null);
+                cand.sort((a, b) => Math.abs(a.od - odAct) - Math.abs(b.od - odAct));
+                if (cand.length) el.dn = cand[0].clave;
+            }
+        }
+        function datosTuberia(el) {
+            const m = materialDe(el);
+            const t = m.tamanos.find(x => x.clave === el.dn) || m.tamanos[0];
+            const e = t.e[el.serie] != null ? t.e[el.serie] : Object.values(t.e)[0];
+            return { od: t.od, e, Dint: t.od - 2 * e, rug: m.rug, norma: m.norma, nps: t.nps, ref: !!m.ref };
+        }
+        function etiquetaTuberia(el) {
+            const s = String(el.serie || '').replace(/ \(.*\)/, '');
+            return /^DN/.test(el.dn) ? `${el.dn} ${/^[0-9]+$/.test(s) ? 'Sch ' + s : s}` : `${el.dn} ${s}`;
+        }
+
+        // ---------- Fluidos ----------
+        const MIGRA_FLUIDO = {
+            'Agua (20°C)': { nombre: 'Agua', T: 20 },
+            'Aceite Térmico': { nombre: 'Aceite hidráulico ISO VG 46', T: 40, aviso: 'El fluido "Aceite Térmico" ya no existe: se ha sustituido por "Aceite hidráulico ISO VG 46" a 40 °C.' },
+            'Vapor Saturado': { nombre: 'Agua', T: 20, aviso: 'El vapor saturado ya no se calcula (necesita flujo compresible): se ha sustituido por agua a 20 °C.' }
         };
+        // Interpolación en la tabla del fluido: lineal para ρ, logarítmica para ν y pv (varían de forma exponencial).
+        // Fuera del rango tabulado no se extrapola: ok = false y el cálculo no se ejecuta.
+        function propiedadesFluido(nombre, T) {
+            const f = CAT && CAT.fluidos[nombre];
+            if (!f) return { ok: false, msg: `Fluido "${nombre}" no encontrado en el catálogo.` };
+            const tab = f.tabla, Tmin = tab[0][0], Tmax = tab[tab.length - 1][0];
+            if (!(T >= Tmin && T <= Tmax)) return { ok: false, Tmin, Tmax, msg: `${nombre}: la temperatura ${T} °C está fuera del rango de datos (${Tmin} a ${Tmax} °C). No se extrapola.` };
+            let i = 0; while (i < tab.length - 2 && T > tab[i + 1][0]) i++;
+            const a = tab[i], b = tab[i + 1], x = (b[0] === a[0]) ? 0 : (T - a[0]) / (b[0] - a[0]);
+            const lin = (p, q) => p + (q - p) * x;
+            const lg = (p, q) => (p > 0 && q > 0) ? Math.exp(Math.log(p) + (Math.log(q) - Math.log(p)) * x) : lin(p, q);
+            const rho = lin(a[1], b[1]), nu = lg(a[2], b[2]) * 1e-6, pv = lg(a[3], b[3]) * 1000;
+            return { ok: true, nombre, T, rho, nu, mu: nu * rho, pv, Tmin, Tmax, nota: f.nota };
+        }
+        function fluidoSeleccionado() {
+            const nombre = document.getElementById('selector-fluido').value;
+            const T = parseFloat(document.getElementById('temp-fluido').value);
+            return propiedadesFluido(nombre, T);
+        }
+        function actualizarInfoFluido() {
+            const info = document.getElementById('info-fluido');
+            if (!info) return;
+            const p = fluidoSeleccionado();
+            info.innerHTML = p.ok
+                ? `ρ ${p.rho.toFixed(1)} kg/m³ · ν ${(p.nu * 1e6).toPrecision(3)} mm²/s<br>pv ${(p.pv / 1000).toPrecision(3)} kPa · rango ${p.Tmin}…${p.Tmax} °C`
+                : `<span class="text-rose-600">${p.msg || 'Datos no válidos'}</span>`;
+        }
+
+        // ---------- Coeficientes K ----------
+        function opcionesCrane(subtype) { return (CAT && CAT.crane[subtype]) || []; }
+        function nCrane(valor, dn) {
+            if (typeof valor === 'number') return valor;
+            if (valor === 'mariposa') return dn <= 200 ? 45 : (dn <= 350 ? 35 : 25);
+            if (valor === 'basc5') return dn <= 200 ? 40 : (dn <= 350 ? 30 : 20);
+            if (valor === 'basc15') return dn <= 200 ? 120 : (dn <= 350 ? 90 : 60);
+            return 0;
+        }
+        function entradaCrane(el) {
+            const ops = opcionesCrane(el.subtype);
+            return ops.find(o => o[0] === el.craneTipo) || ops[0] || null;
+        }
+        function seriesValvula(el) {
+            if (!CAT) return [];
+            const tipos = el.subtype === 'neumatica' ? ['bola', 'mariposa', 'globo'] : [el.subtype];
+            const nps = npsDeDN(el.dn);
+            return CAT.valvulas.filter(v => tipos.includes(v.tipo) && v.cv[nps] != null);
+        }
+        // K de válvulas y accesorios de dos puertos para un diámetro interior D (mm).
+        // Devuelve { K, origen, aviso }
+        function kElemento(el, Dmm) {
+            const dn = dnNum(el.dn);
+            if (el.modoK === 'manual') return { K: +el.k || 0, origen: 'Manual' };
+            if (el.type === 'valvula' && el.modoK === 'catalogo') {
+                const s = CAT.valvulas.find(v => v.nombre === el.serieCat);
+                const cv = s ? s.cv[npsDeDN(el.dn)] : null;
+                if (cv) {
+                    const d = Dmm / 25.4;
+                    return { K: 891 * Math.pow(d, 4) / (cv * cv), origen: `Cv ${cv} (${s.nombre.split(' · ').slice(0, 2).join(' ')})` };
+                }
+                const ent = entradaCrane(el);
+                const n = ent ? nCrane(ent[1], dn) : 0;
+                return { K: n * fT(dn, Dmm), origen: `Crane ${n}·fT`, aviso: `${el.name}: la serie de catálogo no tiene ${el.dn}; se usa el K de Crane.` };
+            }
+            const ent = entradaCrane(el);
+            const n = ent ? nCrane(ent[1], dn) : 0;
+            return { K: n * fT(dn, Dmm), origen: `Crane ${n}·fT (${ent ? ent[0] : '—'})` };
+        }
+        // Te: K de paso directo y de derivación (Crane 20·fT y 60·fT); se reparten en tres ramas
+        // desde un nodo central: ramas a y b = K_run/2, rama c (derivación) = K_der − K_run/2.
+        function kTee(el) {
+            const dn = dnNum(el.dn);
+            if (el.modoK === 'manual') return { run: +el.kRun || 0, der: +el.kBranch || 0, origen: 'Manual' };
+            const f = fT(dn, dintReferencia(el.dn));
+            return { run: 20 * f, der: 60 * f, origen: 'Crane 20·fT / 60·fT' };
+        }
+        // Reducción (Crane, fórmulas 1–4): K referido al diámetro menor. θ de ASME B16.9 si existe.
+        function thetaReduccion(el) {
+            const r = CAT && CAT.reducciones[`${dnNum(el.dn)}-${dnNum(el.dnMenor)}`];
+            if (r && !el.thetaManual) return { theta: r.theta, H: r.H, fuente: 'ASME B16.9' };
+            return { theta: +el.theta || 30, H: null, fuente: 'manual' };
+        }
+        function kReduccion(el, D1, D2) {
+            const th = thetaReduccion(el).theta;
+            const beta = Math.min(D2 / D1, 1);
+            const s = Math.sin(th * Math.PI / 360), b2 = 1 - beta * beta;
+            const kc = th <= 45 ? 0.8 * s * b2 : 0.5 * b2 * Math.sqrt(s);
+            const ke = th <= 45 ? 2.6 * s * b2 * b2 : b2 * b2;
+            return { kc, ke, theta: th, beta };
+        }
+        // Valores por defecto de la librería en versiones anteriores: si un elemento antiguo conserva
+        // ese valor, se pasa a K automático; si el usuario lo cambió, se respeta como K manual.
+        const K_LIBRERIA_ANTIGUA = { codo: 0.75, tee: 0.9, union: 0.05, bola: 0.05, compuerta: 0.2, globo: 6.0, mariposa: 0.5, neumatica: 0.3, retencion: 2.0 };
 
         const panelIzq = document.getElementById('panel-izq');
         const panelDer = document.getElementById('panel-der');
@@ -553,9 +707,22 @@
         }
         window.onload = function() {
             initResizers();
+            iniciarSelectorFluido();
             irAOrigenEnEsquina();
             new ResizeObserver(() => aplicarZoom()).observe(canvasContainer);
         };
+
+        function iniciarSelectorFluido() {
+            const sel = document.getElementById('selector-fluido');
+            if (!sel || !CAT) return;
+            sel.innerHTML = Object.keys(CAT.fluidos).map(f => `<option>${f}</option>`).join('');
+            sel.value = 'Agua';
+            sel.addEventListener('change', () => { marcarCambios(true); actualizarInfoFluido(); });
+            const t = document.getElementById('temp-fluido');
+            t.addEventListener('change', () => { marcarCambios(true); actualizarInfoFluido(); });
+            t.addEventListener('input', actualizarInfoFluido);
+            actualizarInfoFluido();
+        }
 
         function centrarVistaEnPunto(x, y) {
             canvasContainer.scrollLeft = offX + x * zoomScale - canvasContainer.clientWidth / 2;
@@ -749,9 +916,9 @@
             };
 
             if (data.type === 'tuberia') {
-                nuevoElemento.material = data.material || "Acero al Carbono";
+                nuevoElemento.material = data.material || MATERIAL_DEF;
+                nuevoElemento.serie = data.serie || '40';
                 nuevoElemento.dn = data.dn || "DN 50";
-                nuevoElemento.espesor = parseFloat(data.espesor) || 3.91;
                 nuevoElemento.longitud = parseFloat(data.longitud) || 3000;
             } else if (data.type === 'bomba') {
                 nuevoElemento.caudal = parseFloat(data.caudal) || 50; // m³/h, punto de diseño
@@ -759,14 +926,11 @@
                 nuevoElemento.npsh = (parseFloat(data.npsh) || 2500) / 1000; // NPSH requerido, en metros
                 nuevoElemento.h0 = +((nuevoElemento.presion * 1.2).toFixed(2)); // bar a caudal cero (cierre), editable
                 nuevoElemento.cota = 0; // m, cota de referencia de la bomba (para NPSH)
-            } else if (data.type === 'valvula') {
-                nuevoElemento.k = parseFloat(data.k) || 0.2;
-                nuevoElemento.cv = parseFloat(data.cv) || 120;
+            } else if (data.type === 'valvula' || data.type === 'accesorio') {
+                // K automático (Crane) por defecto; el usuario puede pasar a catálogo o a K manual
                 nuevoElemento.dn = data.dn || 'DN 50';
-            } else if (data.type === 'accesorio') {
-                nuevoElemento.angulo = parseFloat(data.angulo) || 90;
-                nuevoElemento.k = parseFloat(data.k) || 0.75;
-                nuevoElemento.dn = data.dn || 'DN 50';
+                nuevoElemento.modoK = 'crane';
+                if (data.subtype === 'reduccion') { nuevoElemento.dn = 'DN 80'; nuevoElemento.dnMenor = 'DN 50'; nuevoElemento.excentrica = false; }
             }
 
             normalizarElemento(nuevoElemento);
@@ -861,9 +1025,33 @@
                 if (el.cota == null) el.cota = 0;
                 if (el.npsh == null) el.npsh = 2.5;
                 else if (el.npsh > 100) el.npsh = el.npsh / 1000; // formato antiguo en mm
+            } else if (el.type === 'tuberia') {
+                delete el.espesor; // el espesor sale ahora de la tabla material/serie/tamaño
+                normalizarTuberia(el);
             } else if (el.type === 'valvula' || el.type === 'accesorio') {
-                if (el.dn == null) el.dn = 'DN 50';
-                if (el.k == null) el.k = el.type === 'valvula' ? 0.5 : 0.75;
+                if (el.dn == null || !LISTA_DN.includes(el.dn)) el.dn = 'DN 50';
+                if (el.modoK == null) {
+                    // Proyecto de una versión anterior: si el K es el de la librería antigua se pasa a
+                    // K automático; si el usuario lo había cambiado, se conserva como K manual.
+                    const def = K_LIBRERIA_ANTIGUA[el.subtype];
+                    el.modoK = (el.k == null || el.subtype === 'tee' || (def != null && Math.abs(el.k - def) < 1e-9)) ? 'crane' : 'manual';
+                }
+                if (el.subtype === 'reduccion') {
+                    if (!LISTA_DN.includes(el.dnMenor) || dnNum(el.dnMenor) >= dnNum(el.dn)) {
+                        const i = LISTA_DN.indexOf(el.dn);
+                        el.dnMenor = LISTA_DN[Math.max(0, i - 1)];
+                    }
+                }
+                if (el.modoK === 'catalogo' && !seriesValvula(el).some(v => v.nombre === el.serieCat)) {
+                    const lista = seriesValvula(el);
+                    el.serieCat = lista.length ? lista[0].nombre : '';
+                }
+                const ops = opcionesCrane(el.subtype);
+                if (ops.length && !ops.some(o => o[0] === el.craneTipo)) el.craneTipo = ops[0][0];
+                if (el.modoK === 'manual') {
+                    if (el.subtype === 'tee') { if (el.kRun == null) el.kRun = 0.3; if (el.kBranch == null) el.kBranch = 1.0; }
+                    else if (el.k == null) el.k = 0.5;
+                }
             }
         }
 
@@ -996,7 +1184,7 @@
                     dibujoHTML = `
                         <line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${colorTuberia}" stroke-width="4" stroke-linecap="round"/>
                         ${flechaFlujo}
-                        <text x="${largoPx / 2}" y="36" transform="rotate(${rotacionTexto}, ${largoPx / 2}, 36)" font-family="sans-serif" font-size="7" fill="${colorTuberia}" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="3" stroke-linejoin="round">${el.dn} - L:${largoTuberia} mm</text>
+                        <text x="${largoPx / 2}" y="36" transform="rotate(${rotacionTexto}, ${largoPx / 2}, 36)" font-family="sans-serif" font-size="7" fill="${colorTuberia}" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="3" stroke-linejoin="round">${etiquetaTuberia(el)} - L:${largoTuberia} mm</text>
                     `;
                 } else if (el.type === 'accesorio') {
                     if (el.subtype === 'codo') {
@@ -1011,6 +1199,16 @@
                             <line x1="25" y1="25" x2="25" y2="40" stroke="#334155" stroke-width="3"/>
                             ${flechaFlujo}
                             <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>
+                        `;
+                    } else if (el.subtype === 'reduccion') {
+                        // Reducción: extremo mayor en el puerto a (izquierda), menor en el b (derecha).
+                        // Excéntrica: generatriz inferior recta (flat bottom).
+                        const pts = el.excentrica ? '12,12 38,22 38,36 12,36' : '12,12 38,19 38,31 12,38';
+                        dibujoHTML = `
+                            <line x1="10" y1="25" x2="12" y2="25" stroke="#334155" stroke-width="3"/><line x1="38" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>
+                            <polygon points="${pts}" fill="white" stroke="#334155" stroke-width="2"/>
+                            ${flechaFlujo}
+                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name === 'Reducción' ? 'Red.' : el.name} ${dnNum(el.dn)}×${dnNum(el.dnMenor)}</text>
                         `;
                     } else {
                         dibujoHTML = `
@@ -1068,6 +1266,14 @@
                             <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
                             <path d="M 16 12 L 16 6 A 9 6 0 0 1 34 6 L 34 12 Z" fill="white" stroke="#334155" stroke-width="2"/>
                             <line x1="25" y1="12" x2="25" y2="19" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else if (el.subtype === 'tajadera') {
+                        // Tajadera: cuerpo genérico + cuchilla (placa) que entra por arriba
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <rect x="23.5" y="5" width="3" height="21" fill="#334155"/>
                         `;
                     } else if (el.subtype === 'retencion') {
                         dibujoHTML = `
@@ -1162,81 +1368,160 @@
             }
         }
 
-        function opcionesDN(actual) {
-            return Object.keys(TABLA_DN_SCH40).map(dn =>
-                `<option value="${dn}" ${dn === actual ? 'selected' : ''}>${dn}</option>`
-            ).join('');
+        // ==================================================================================
+        // EDICIÓN DE PROPIEDADES (panel lateral y ventana modal comparten los mismos campos)
+        // camposEspecificos(obj, fn) genera los controles; cada cambio llama a fn(campo, valor).
+        //  - Panel: fn = cambiarCampoPanel -> se aplica al elemento en el acto (con Deshacer).
+        //  - Modal: fn = cambiarCampoModal -> se aplica a un borrador; "Guardar Cambios" lo confirma.
+        // Tras cada cambio se redibujan los campos, porque unos dependen de otros (material -> serie
+        // -> tamaño; modo de K -> tipo Crane / serie de catálogo / K manual).
+        // ==================================================================================
+        const CAMPOS_NUMERICOS = ['scale', 'rotation', 'longitud', 'caudal', 'presion', 'h0', 'npsh', 'cota', 'k', 'kRun', 'kBranch', 'theta'];
+        const CLS_CTRL = 'w-full bg-white border border-slate-300 rounded p-1 mt-0.5';
+        const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        function opciones(lista, actual) {
+            return lista.map(o => { const [v, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${v === actual ? 'selected' : ''}>${esc(t)}</option>`; }).join('');
+        }
+        function ctrlSelect(fn, campo, lista, actual, etiqueta) {
+            return `<div>${etiqueta}: <select onchange="${fn}('${campo}', this.value)" class="${CLS_CTRL}">${opciones(lista, actual)}</select></div>`;
+        }
+        function ctrlNum(fn, campo, valor, etiqueta, paso = 'any') {
+            return `<div>${etiqueta}: <input type="number" step="${paso}" value="${esc(valor)}" onchange="${fn}('${campo}', this.value)" class="${CLS_CTRL}"></div>`;
+        }
+        function ctrlTexto(fn, campo, valor, etiqueta) {
+            return `<div>${etiqueta}: <input type="text" value="${esc(valor)}" onchange="${fn}('${campo}', this.value)" class="${CLS_CTRL}"></div>`;
+        }
+        const info = t => `<div class="text-[10px] text-slate-500 bg-white border border-slate-200 rounded p-1 leading-snug">${t}</div>`;
+        const fmt = (x, n = 3) => (x == null || !isFinite(x)) ? '—' : (+x).toFixed(n);
+
+        function camposComunes(obj, fn) {
+            return ctrlTexto(fn, 'name', obj.name, 'Nombre') + ctrlNum(fn, 'scale', obj.scale, 'Escala', '0.1') + ctrlNum(fn, 'rotation', obj.rotation || 0, 'Rotación (°)', '90');
         }
 
-        function opcionesMaterial(actual) {
-            return Object.keys(RUGOSIDAD_MATERIAL).map(m =>
-                `<option value="${m}" ${m === actual ? 'selected' : ''}>${m}</option>`
-            ).join('');
+        function camposEspecificos(obj, fn) {
+            let h = '';
+            if (obj.type === 'tuberia') {
+                const m = materialDe(obj);
+                const tams = m.tamanos.filter(t => t.e[obj.serie] != null).map(t => [t.clave, t.nps ? `${t.clave} (${t.nps}")` : `${t.clave} (OD ${t.od})`]);
+                const dt = datosTuberia(obj);
+                h += ctrlSelect(fn, 'material', Object.keys(CAT.materiales), obj.material, 'Material');
+                h += ctrlSelect(fn, 'serie', m.series.filter(sr => m.tamanos.some(t => t.e[sr] != null)).map(sr => [sr, /^[0-9]+$/.test(sr) ? 'Sch ' + sr : sr]), obj.serie, 'Serie / schedule');
+                h += ctrlSelect(fn, 'dn', tams, obj.dn, 'Tamaño');
+                h += ctrlNum(fn, 'longitud', obj.longitud, 'Longitud (mm)', '1');
+                h += info(`${dt.norma}${dt.ref ? ' (sin tabla propia)' : ''}<br>OD ${fmt(dt.od, 1)} · e ${fmt(dt.e, 2)} · <b>Dint ${fmt(dt.Dint, 1)} mm</b><br>Rugosidad ε ${dt.rug} mm`);
+            } else if (obj.type === 'valvula' || obj.type === 'accesorio') {
+                const esRed = obj.subtype === 'reduccion', esTee = obj.subtype === 'tee';
+                const listaDN = LISTA_DN.map(d => [d, etiquetaDN(d)]);
+                h += ctrlSelect(fn, 'dn', listaDN, obj.dn, esRed ? 'DN mayor (puerto a)' : 'DN');
+                if (esRed) {
+                    h += ctrlSelect(fn, 'dnMenor', listaDN.filter(d => dnNum(d[0]) < dnNum(obj.dn)), obj.dnMenor, 'DN menor (puerto b)');
+                    h += ctrlSelect(fn, 'excentrica', [['false', 'Concéntrica'], ['true', 'Excéntrica']], String(!!obj.excentrica), 'Tipo');
+                    const t = thetaReduccion(obj);
+                    if (CAT.reducciones[`${dnNum(obj.dn)}-${dnNum(obj.dnMenor)}`]) {
+                        h += ctrlSelect(fn, 'thetaManual', [['false', `ASME B16.9 (H ${t.H} mm, θ ${t.theta}°)`], ['true', 'Ángulo manual']], String(!!obj.thetaManual), 'Ángulo del cono');
+                    }
+                    if (t.fuente === 'manual') h += ctrlNum(fn, 'theta', obj.theta || 30, 'Ángulo total del cono θ (°)', '1');
+                    const r = kReduccion(obj, dintReferencia(obj.dn), dintReferencia(obj.dnMenor));
+                    h += info(`θ ${fmt(r.theta, 1)}° · β ${fmt(r.beta, 3)}<br>K contracción ${fmt(r.kc)} · K expansión ${fmt(r.ke)}<br>(referidos al DN menor; el sentido lo fija el caudal calculado)`);
+                    return h;
+                }
+                const modos = [['crane', 'Automático (Crane)'], ['manual', 'Manual']];
+                if (obj.type === 'valvula') modos.splice(1, 0, ['catalogo', 'Catálogo de fabricante (Cv)']);
+                h += ctrlSelect(fn, 'modoK', modos, obj.modoK, 'Coeficiente K');
+                if (esTee) {
+                    if (obj.modoK === 'manual') {
+                        h += ctrlNum(fn, 'kRun', obj.kRun, 'K paso directo', '0.01') + ctrlNum(fn, 'kBranch', obj.kBranch, 'K derivación', '0.01');
+                    } else {
+                        const kt = kTee(obj);
+                        h += info(`Paso directo 20·fT = ${fmt(kt.run)}<br>Derivación 60·fT = ${fmt(kt.der)}<br>Puertos a–b: paso directo · c: derivación`);
+                    }
+                    return h;
+                }
+                if (obj.modoK === 'manual') {
+                    h += ctrlNum(fn, 'k', obj.k, 'K', '0.01');
+                } else if (obj.modoK === 'catalogo') {
+                    const lista = seriesValvula(obj);
+                    if (!lista.length) h += info(`<span class="text-amber-600">No hay series de catálogo de este tipo con ${obj.dn}. Se usará el K de Crane.</span>`);
+                    else {
+                        h += ctrlSelect(fn, 'serieCat', lista.map(v => v.nombre), obj.serieCat, 'Serie de catálogo');
+                        const sv = lista.find(v => v.nombre === obj.serieCat);
+                        const kk = kElemento(obj, dintReferencia(obj.dn));
+                        h += info(`Cv ${sv ? sv.cv[npsDeDN(obj.dn)] : '—'} (${npsDeDN(obj.dn)}") · Kv ${sv ? fmt(sv.cv[npsDeDN(obj.dn)] / 1.156, 1) : '—'}<br>K ≈ ${fmt(kk.K)} con Dint Sch 40<br>${sv ? esc(sv.fuente) : ''}${sv && sv.nota ? '<br><span class="text-amber-600">' + esc(sv.nota) + '</span>' : ''}`);
+                    }
+                } else {
+                    const ops = opcionesCrane(obj.subtype);
+                    if (ops.length > 1) h += ctrlSelect(fn, 'craneTipo', ops.map(o => o[0]), obj.craneTipo, 'Tipo');
+                    const kk = kElemento(obj, dintReferencia(obj.dn));
+                    h += info(`${esc(kk.origen)}<br>fT ${fmt(fT(dnNum(obj.dn), dintReferencia(obj.dn)), 4)} · K = ${fmt(kk.K)}`);
+                }
+                if (obj.modoK !== 'manual') h += info('En el cálculo, K se recalcula con el Dint de la tubería conectada.');
+            } else if (obj.type === 'bomba') {
+                h += ctrlNum(fn, 'caudal', obj.caudal, 'Caudal de diseño (m³/h)', '0.1');
+                h += ctrlNum(fn, 'presion', obj.presion, 'Presión de diseño (bar)', '0.1');
+                h += ctrlNum(fn, 'h0', obj.h0, 'Presión a caudal cero / cierre (bar)', '0.1');
+                h += ctrlNum(fn, 'npsh', obj.npsh, 'NPSH requerido (m)', '0.1');
+                h += ctrlNum(fn, 'cota', obj.cota || 0, 'Cota de la bomba (m)', '0.1');
+            }
+            return h;
         }
 
+        function convertirValor(campo, valor) {
+            if (CAMPOS_NUMERICOS.includes(campo)) { const v = parseFloat(valor); return isNaN(v) ? null : v; }
+            if (valor === 'true') return true;
+            if (valor === 'false') return false;
+            return valor;
+        }
+        // Aplica un cambio a un objeto (elemento o borrador) y deja coherentes los campos dependientes
+        function aplicarCambio(obj, campo, valor) {
+            const v = convertirValor(campo, valor);
+            if (v === null) return false; // número no válido: se ignora (evita NaN en el cálculo)
+            if (campo === 'scale' && v <= 0) return false;
+            if (campo === 'longitud' && v <= 0) return false;
+            obj[campo] = v;
+            if (campo === 'modoK' && v === 'manual') {
+                const kk = obj.subtype === 'tee' ? kTee(obj) : kElemento(obj, dintReferencia(obj.dn));
+                if (obj.subtype === 'tee') { obj.kRun = +kk.run.toFixed(3); obj.kBranch = +kk.der.toFixed(3); }
+                else obj.k = +kk.K.toFixed(3);
+            }
+            normalizarElemento(obj);
+            return true;
+        }
+
+        function cambiarCampoPanel(id, campo, valor) {
+            const el = elementosRed.find(item => item.id === id);
+            if (!el) return;
+            guardarEstado();
+            aplicarCambio(el, campo, valor);
+            seleccionarElemento(id); // redibuja el lienzo y el panel (campos dependientes)
+        }
+
+        let borradorModal = null;
         function abrirModalEdicion(id) {
             const el = elementosRed.find(item => item.id === id);
             if (!el) return;
             idSeleccionado = id;
-
-            let bodyHtml = `
-                <div><label class="block text-slate-500 mb-1">Nombre</label><input type="text" id="modal-name" value="${el.name}" class="w-full border rounded p-1.5"></div>
-                <div><label class="block text-slate-500 mb-1">Escala</label><input type="number" step="0.1" id="modal-scale" value="${el.scale}" class="w-full border rounded p-1.5"></div>
-                <div><label class="block text-slate-500 mb-1">Rotación (°)</label><input type="number" step="90" id="modal-rotation" value="${el.rotation || 0}" class="w-full border rounded p-1.5"></div>
-            `;
-
-            if (el.type === 'tuberia') {
-                bodyHtml += `
-                    <div><label class="block text-slate-500 mb-1">Material</label><select id="modal-material" class="w-full border rounded p-1.5">${opcionesMaterial(el.material || 'Acero al Carbono')}</select></div>
-                    <div><label class="block text-slate-500 mb-1">Diámetro Nominal (DN)</label><select id="modal-dn" class="w-full border rounded p-1.5">${opcionesDN(el.dn)}</select></div>
-                    <div><label class="block text-slate-500 mb-1">Longitud (mm)</label><input type="number" id="modal-longitud" value="${el.longitud}" class="w-full border rounded p-1.5"></div>
-                `;
-            } else if (el.type === 'valvula' || el.type === 'accesorio') {
-                bodyHtml += `
-                    <div><label class="block text-slate-500 mb-1">Diámetro Nominal (DN)</label><select id="modal-dn" class="w-full border rounded p-1.5">${opcionesDN(el.dn || 'DN 50')}</select></div>
-                    <div><label class="block text-slate-500 mb-1">Coeficiente de pérdidas K</label><input type="number" step="0.05" id="modal-k" value="${el.k}" class="w-full border rounded p-1.5"></div>
-                `;
-            } else if (el.type === 'bomba') {
-                bodyHtml += `
-                    <div><label class="block text-slate-500 mb-1">Caudal de diseño (m³/h)</label><input type="number" step="0.1" id="modal-caudal" value="${el.caudal}" class="w-full border rounded p-1.5"></div>
-                    <div><label class="block text-slate-500 mb-1">Presión de diseño (bar)</label><input type="number" step="0.1" id="modal-presion" value="${el.presion}" class="w-full border rounded p-1.5"></div>
-                    <div><label class="block text-slate-500 mb-1">Presión a caudal cero / cierre (bar)</label><input type="number" step="0.1" id="modal-h0" value="${el.h0}" class="w-full border rounded p-1.5"></div>
-                    <div><label class="block text-slate-500 mb-1">NPSH requerido (m)</label><input type="number" step="0.1" id="modal-npsh" value="${el.npsh}" class="w-full border rounded p-1.5"></div>
-                    <div><label class="block text-slate-500 mb-1">Cota de la bomba (m)</label><input type="number" step="0.1" id="modal-cota" value="${el.cota || 0}" class="w-full border rounded p-1.5"></div>
-                `;
-            }
-
-            document.getElementById('modal-content-body').innerHTML = bodyHtml;
+            borradorModal = JSON.parse(JSON.stringify(el));
+            pintarModal();
             modalEdicion.style.display = 'flex';
         }
+        function pintarModal() {
+            document.getElementById('modal-content-body').innerHTML =
+                `<div class="space-y-1.5">${camposComunes(borradorModal, 'cambiarCampoModal')}${camposEspecificos(borradorModal, 'cambiarCampoModal')}</div>`;
+        }
+        function cambiarCampoModal(campo, valor) {
+            if (!borradorModal) return;
+            aplicarCambio(borradorModal, campo, valor);
+            pintarModal();
+        }
 
-        function cerrarModal() { modalEdicion.style.display = 'none'; }
+        function cerrarModal() { modalEdicion.style.display = 'none'; borradorModal = null; }
 
         function guardarEdicionModal() {
             const el = elementosRed.find(item => item.id === idSeleccionado);
-            if (!el) return;
+            if (!el || !borradorModal) return;
             guardarEstado();
-
-            el.name = document.getElementById('modal-name').value;
-            el.scale = parseFloat(document.getElementById('modal-scale').value) || 1.0;
-            el.rotation = parseFloat(document.getElementById('modal-rotation').value) || 0;
-
-            if (el.type === 'tuberia') {
-                el.material = document.getElementById('modal-material').value;
-                el.dn = document.getElementById('modal-dn').value;
-                el.longitud = parseFloat(document.getElementById('modal-longitud').value) || 3000;
-            } else if (el.type === 'valvula' || el.type === 'accesorio') {
-                el.dn = document.getElementById('modal-dn').value;
-                el.k = parseFloat(document.getElementById('modal-k').value);
-                if (isNaN(el.k)) el.k = el.type === 'valvula' ? 0.5 : 0.75;
-            } else if (el.type === 'bomba') {
-                el.caudal = parseFloat(document.getElementById('modal-caudal').value) || el.caudal;
-                el.presion = parseFloat(document.getElementById('modal-presion').value) || el.presion;
-                el.h0 = parseFloat(document.getElementById('modal-h0').value) || el.h0;
-                el.npsh = parseFloat(document.getElementById('modal-npsh').value) || el.npsh;
-                el.cota = parseFloat(document.getElementById('modal-cota').value) || 0;
-            }
-
+            Object.keys(el).forEach(k => { if (!(k in borradorModal)) delete el[k]; });
+            Object.assign(el, borradorModal, { id: el.id });
             cerrarModal();
             renderizarVectorial();
             seleccionarElemento(el.id);
@@ -1250,50 +1535,21 @@
 
             document.getElementById("lbl-tipo-activo").innerText = el.type.toUpperCase();
             const panel = document.getElementById("panel-propiedades");
-
-            let htmlAtributos = `
+            // cambiarCampoPanel necesita el id: se envuelve en una función con nombre fijo por elemento
+            window.__cambiarSel = (campo, valor) => cambiarCampoPanel(el.id, campo, valor);
+            panel.innerHTML = `
                 <div class="font-bold text-slate-700 mb-1 flex justify-between items-center">
-                    <span>${el.name}</span>
+                    <span>${esc(el.name)}</span>
                     <button onclick="eliminarElemento('${el.id}')" class="text-rose-500 hover:text-rose-700 text-[10px]"><i class="fa-solid fa-trash-can mr-1"></i>Eliminar</button>
                 </div>
                 <div class="space-y-1.5 mt-1">
-                    <div>Escala: <input type="number" step="0.1" value="${el.scale}" onchange="actualizarAtributo('${el.id}', 'scale', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
-                    <div>Rotación (°): <input type="number" step="90" value="${el.rotation || 0}" onchange="actualizarAtributo('${el.id}', 'rotation', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
-            `;
-
-            if (el.type === 'tuberia') {
-                htmlAtributos += `
-                    <div>Material: <select onchange="actualizarAtributo('${el.id}', 'material', this.value)" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5">${opcionesMaterial(el.material || 'Acero al Carbono')}</select></div>
-                    <div>Diámetro (DN): <select onchange="actualizarAtributo('${el.id}', 'dn', this.value)" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5">${opcionesDN(el.dn)}</select></div>
-                    <div>Longitud (mm): <input type="number" value="${el.longitud}" onchange="actualizarAtributo('${el.id}', 'longitud', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
-                `;
-            } else if (el.type === 'valvula' || el.type === 'accesorio') {
-                htmlAtributos += `
-                    <div>DN: <select onchange="actualizarAtributo('${el.id}', 'dn', this.value)" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5">${opcionesDN(el.dn || 'DN 50')}</select></div>
-                    <div>Coef. pérdidas K: <input type="number" step="0.05" value="${el.k}" onchange="actualizarAtributo('${el.id}', 'k', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
-                `;
-            } else if (el.type === 'bomba') {
-                htmlAtributos += `
-                    <div>Caudal diseño (m³/h): <input type="number" step="0.1" value="${el.caudal}" onchange="actualizarAtributo('${el.id}', 'caudal', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
-                    <div>Presión diseño (bar): <input type="number" step="0.1" value="${el.presion}" onchange="actualizarAtributo('${el.id}', 'presion', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
-                    <div>Presión cierre (bar): <input type="number" step="0.1" value="${el.h0}" onchange="actualizarAtributo('${el.id}', 'h0', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
-                    <div>NPSH requerido (m): <input type="number" step="0.1" value="${el.npsh}" onchange="actualizarAtributo('${el.id}', 'npsh', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
-                    <div>Cota bomba (m): <input type="number" step="0.1" value="${el.cota || 0}" onchange="actualizarAtributo('${el.id}', 'cota', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
-                `;
-            }
-
-            htmlAtributos += `</div>`;
-            panel.innerHTML = htmlAtributos;
+                    ${ctrlNum('__cambiarSel', 'scale', el.scale, 'Escala', '0.1')}
+                    ${ctrlNum('__cambiarSel', 'rotation', el.rotation || 0, 'Rotación (°)', '90')}
+                    ${camposEspecificos(el, '__cambiarSel')}
+                </div>`;
         }
 
-        function actualizarAtributo(id, campo, valor) {
-            const el = elementosRed.find(item => item.id === id);
-            if (el) {
-                guardarEstado();
-                el[campo] = valor;
-                renderizarVectorial();
-            }
-        }
+        function actualizarAtributo(id, campo, valor) { cambiarCampoPanel(id, campo, valor); }
 
         function eliminarElemento(id) {
             guardarEstado();
@@ -1389,10 +1645,12 @@
         function generarContenido(formato) {
             if (formato === 'pid') {
                 return JSON.stringify({
-                    version: "6.5-hidraulico",
+                    version: "6.6-catalogo",
+                    catalogo: CAT ? CAT.version : null,
                     elementos: elementosRed,
                     condicionesContorno: condicionesContorno,
-                    fluido: document.getElementById('selector-fluido')?.value
+                    fluido: document.getElementById('selector-fluido')?.value,
+                    temperatura: parseFloat(document.getElementById('temp-fluido')?.value)
                 }, null, 2);
             } else if (formato === 'dxf') {
                 // el.x/el.y ya están en convenio CAD (Y hacia arriba, origen abajo-izquierda), igual que DXF:
@@ -1437,13 +1695,21 @@
                         elementosRed = res.elementos || [];
                         elementosRed.forEach(normalizarElemento);
                         condicionesContorno = res.condicionesContorno || {};
+                        const avisosApertura = [];
                         if (res.fluido) {
                             const sel = document.getElementById('selector-fluido');
-                            if (sel) sel.value = res.fluido;
+                            let nombre = res.fluido, T = res.temperatura;
+                            const m = MIGRA_FLUIDO[res.fluido];
+                            if (m) { nombre = m.nombre; if (T == null) T = m.T; if (m.aviso) avisosApertura.push(m.aviso); }
+                            if (!CAT.fluidos[nombre]) { avisosApertura.push(`El fluido "${res.fluido}" no está en el catálogo: se usa agua.`); nombre = 'Agua'; }
+                            if (sel) sel.value = nombre;
+                            document.getElementById('temp-fluido').value = (T != null && isFinite(T)) ? T : 20;
+                            actualizarInfoFluido();
                         }
+                        if (!res.version || res.version < '6.6') avisosApertura.push('Proyecto de una versión anterior: las tuberías, válvulas y accesorios se han adaptado al catálogo nuevo (K automático salvo los K que se habían modificado a mano).');
                         reajustarTodasLasConexiones(false); // corrige huecos por cambios de geometría entre versiones (sin snapshot adicional)
                         marcarCambios(false);
-                        alert("Proyecto abierto con éxito.");
+                        alert("Proyecto abierto con éxito." + (avisosApertura.length ? "\n\n" + avisosApertura.join("\n") : ""));
                     } catch(err) { alert("Error al abrir archivo o formato no compatible."); }
                 };
                 reader.readAsText(file);
@@ -1457,13 +1723,14 @@
         // MOTOR DE CÁLCULO HIDRÁULICO (Fase 1)
         // Modelo: grafo de nodos/aristas construido por proximidad de puertos tras el snapping.
         // Simplificaciones asumidas (documentadas también en el panel de resultados):
-        //  - Los "Tee" se tratan como una unión de sus 3 puertos en un único nodo sin pérdida
-        //    propia (la pérdida de la red se sigue calculando en las tuberías/válvulas/accesorios
-        //    conectados a él).
+        //  - Cada "Tee" se modela como tres ramas que salen de un nodo central interno: las ramas
+        //    a y b (paso directo) llevan K_run/2 cada una y la rama c (derivación) K_der − K_run/2,
+        //    de modo que a→b suma 20·fT y a→c 60·fT (Crane) con velocidades iguales.
         //  - La curva de la bomba se aproxima con una parábola H(Q) = H0 - k·Q² ajustada por el
         //    punto de diseño (caudal/presión) y una presión de cierre editable.
-        //  - El vapor saturado usa propiedades aproximadas de un único punto de presión; para un
-        //    dimensionado real de vapor se requiere un cálculo de flujo compresible.
+        //  - Fluidos incompresibles del catálogo (propiedades interpoladas a la temperatura de servicio).
+        //  - K de válvulas y accesorios: Crane TP-410 (n·fT), Cv de catálogo (K = 891·d⁴/Cv²) o manual,
+        //    siempre con el diámetro interior de la tubería conectada.
         //  - La red se resuelve por el método de teoría lineal (Wood & Charles): iteración de
         //    resistencias linealizadas hasta convergencia de caudales.
         // ==================================================================================
@@ -1489,13 +1756,8 @@
                 }
             }
 
-            // Fusionar internamente los 3 puertos de cada Tee en un único nodo (simplificación)
             let porElemento = {};
             puertosTodos.forEach((p, idx) => { (porElemento[p.elId] = porElemento[p.elId] || []).push(idx); });
-            elementosRed.filter(el => el.type === 'accesorio' && el.subtype === 'tee').forEach(el => {
-                let idxs = porElemento[el.id] || [];
-                for (let k = 1; k < idxs.length; k++) unir(idxs[0], idxs[k]);
-            });
 
             let mapaNodo = {};
             let nodos = [];
@@ -1506,14 +1768,24 @@
                 nodos[p.nodo].puertos.push(p);
             });
 
-            return { puertosTodos, nodos, porElemento };
+            // Nodo central interno de cada Tee (sin puertos visibles)
+            let centroTee = {};
+            elementosRed.filter(el => el.type === 'accesorio' && el.subtype === 'tee').forEach(el => {
+                centroTee[el.id] = nodos.length;
+                nodos.push({ id: nodos.length, puertos: [], interno: true });
+            });
+
+            return { puertosTodos, nodos, porElemento, centroTee };
         }
 
         function construirAristas(grafo) {
             let aristas = [];
             elementosRed.forEach(el => {
-                if (el.type === 'accesorio' && el.subtype === 'tee') return; // fusionado como nodo, sin arista propia
                 let puertos = grafo.puertosTodos.filter(p => p.elId === el.id);
+                if (el.type === 'accesorio' && el.subtype === 'tee') {
+                    puertos.forEach(p => aristas.push({ elId: el.id, el, nodoA: p.nodo, nodoB: grafo.centroTee[el.id], rama: p.portId }));
+                    return;
+                }
                 if (puertos.length < 2) return;
                 aristas.push({ elId: el.id, el, nodoA: puertos[0].nodo, nodoB: puertos[1].nodo });
             });
@@ -1548,25 +1820,59 @@
 
         function prepararArista(a) {
             const el = a.el;
+            a.esBomba = false; a.esValvulaAcc = false; a.avisos = [];
             if (el.type === 'tuberia') {
-                a.dn = el.dn;
-                a.D = (TABLA_DN_SCH40[el.dn] || 50) / 1000;
+                const dt = datosTuberia(el);
+                a.dn = etiquetaTuberia(el);
+                a.D = dt.Dint / 1000;
                 a.L = (el.longitud || 3000) / 1000;
-                a.rugosidad = (RUGOSIDAD_MATERIAL[el.material] || 0.045) / 1000;
+                a.rugosidad = dt.rug / 1000;
                 a.A = Math.PI * a.D * a.D / 4;
-                a.esBomba = false; a.esValvulaAcc = false;
             } else if (el.type === 'valvula' || el.type === 'accesorio') {
-                a.dn = el.dn || 'DN 50';
-                a.D = (TABLA_DN_SCH40[a.dn] || 50) / 1000;
-                a.A = Math.PI * a.D * a.D / 4;
-                a.K = el.k != null ? el.k : (el.type === 'valvula' ? 0.5 : 0.75);
-                a.esValvulaAcc = true; a.esBomba = false;
+                a.dn = el.subtype === 'reduccion' ? `${el.dn}×${dnNum(el.dnMenor)}` : el.dn;
+                a.esValvulaAcc = true;
             } else if (el.type === 'bomba') {
-                a.esBomba = true; a.esValvulaAcc = false;
+                a.esBomba = true;
                 a.Qd = (el.caudal || 50) / 3600; // m³/s
                 a.Hd_bar = el.presion != null ? el.presion : 3.5;
                 a.H0_bar = el.h0 != null ? el.h0 : a.Hd_bar * 1.2;
             }
+        }
+
+        // Diámetro interior de una tubería conectada al nodo (la primera que se encuentre), en mm
+        function dintTuberiaEnNodo(nodo, aristas, preferirDN) {
+            const tubs = aristas.filter(x => x.el.type === 'tuberia' && (x.nodoA === nodo || x.nodoB === nodo));
+            if (!tubs.length) return null;
+            const igual = preferirDN ? tubs.find(x => x.el.dn === preferirDN) : null;
+            return (igual || tubs[0]).D * 1000;
+        }
+
+        // Tras preparar las tuberías, las válvulas y accesorios toman el diámetro interior REAL de la
+        // tubería conectada (si no hay ninguna, el Dint de referencia Sch 40 de su DN) y con él su K.
+        function asignarDiametrosYK(aristas) {
+            aristas.forEach(a => {
+                if (!a.esValvulaAcc) return;
+                const el = a.el;
+                if (el.subtype === 'reduccion') {
+                    const D1 = dintTuberiaEnNodo(a.nodoA, aristas) || dintReferencia(el.dn);
+                    const D2 = dintTuberiaEnNodo(a.nodoB, aristas) || dintReferencia(el.dnMenor);
+                    const r = kReduccion(el, Math.max(D1, D2), Math.min(D1, D2));
+                    a.D = Math.min(D1, D2) / 1000; a.Kc = r.kc; a.Ke = r.ke; a.K = r.kc;
+                    a.origenK = `Crane θ ${fmt(r.theta, 1)}° β ${fmt(r.beta, 2)}`;
+                } else if (el.subtype === 'tee') {
+                    const Dmm = dintTuberiaEnNodo(a.nodoA, aristas, el.dn) || dintReferencia(el.dn);
+                    const kt = kTee(el);
+                    a.D = Dmm / 1000;
+                    a.K = a.rama === 'c' ? Math.max(kt.der - kt.run / 2, 0) : kt.run / 2;
+                    a.origenK = `${kt.origen} · rama ${a.rama}`;
+                } else {
+                    const Dmm = dintTuberiaEnNodo(a.nodoA, aristas, el.dn) || dintTuberiaEnNodo(a.nodoB, aristas, el.dn) || dintReferencia(el.dn);
+                    const kk = kElemento(el, Dmm);
+                    a.D = Dmm / 1000; a.K = kk.K; a.origenK = kk.origen;
+                    if (kk.aviso) a.avisos.push(kk.aviso);
+                }
+                a.A = Math.PI * a.D * a.D / 4;
+            });
         }
 
         function actualizarResistencia(a, fluido) {
@@ -1585,6 +1891,8 @@
             if (Re < 2300) { f = Re > 1 ? 64 / Re : 64; }
             else { f = colebrookWhite(Re, (a.rugosidad || 0) / a.D); }
             a.Re = Re; a.f = f; a.V = V;
+            // Reducción: contracción si el caudal va del extremo mayor (a) al menor (b), expansión si no
+            if (a.el.subtype === 'reduccion') { a.K = a.Qprev >= 0 ? a.Kc : a.Ke; a.sentidoRed = a.Qprev >= 0 ? 'contracción' : 'expansión'; }
             a.R = a.esValvulaAcc ? (a.K / (2 * G * a.A * a.A)) : (f * a.L / (a.D * a.A * a.A * 2 * G));
         }
 
@@ -1621,6 +1929,7 @@
                 prepararArista(a);
                 a.Qprev = a.el.type === 'bomba' ? Math.max((a.el.caudal || 10) / 3600, 1e-4) : 1e-3;
             });
+            asignarDiametrosYK(aristas);
 
             const QMIN = 1e-6;
             let Hnodo = {};
@@ -1724,12 +2033,25 @@
                     <thead><tr class="text-left text-slate-500"><th class="pb-1">Extremo</th><th class="pb-1">Cota (m)</th><th class="pb-1">Presión man. (bar)</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table>` : `<p class="text-slate-400 italic text-[11px]">No se han detectado extremos abiertos (red cerrada).</p>`}
-                <div class="mt-2"><label class="block text-slate-500 mb-1 text-xs">Fluido</label>
-                    <select id="selector-fluido-modal" class="w-full bg-slate-50 border border-slate-300 rounded p-1.5 text-xs">
-                        ${Object.keys(FLUIDOS).map(f => `<option ${f === document.getElementById('selector-fluido').value ? 'selected' : ''}>${f}</option>`).join('')}
-                    </select>
+                <div class="mt-2 grid grid-cols-3 gap-2">
+                    <div class="col-span-2"><label class="block text-slate-500 mb-1 text-xs">Fluido</label>
+                        <select id="selector-fluido-modal" class="w-full bg-slate-50 border border-slate-300 rounded p-1.5 text-xs">
+                            ${Object.keys(CAT.fluidos).map(f => `<option ${f === document.getElementById('selector-fluido').value ? 'selected' : ''}>${f}</option>`).join('')}
+                        </select></div>
+                    <div><label class="block text-slate-500 mb-1 text-xs">Temperatura (°C)</label>
+                        <input type="number" step="1" id="temp-fluido-modal" value="${document.getElementById('temp-fluido').value}" class="w-full bg-slate-50 border border-slate-300 rounded p-1.5 text-xs"></div>
                 </div>
+                <div id="info-fluido-modal" class="text-[11px] mt-1"></div>
             `;
+            const refrescarInfoModal = () => {
+                const p = propiedadesFluido(document.getElementById('selector-fluido-modal').value, parseFloat(document.getElementById('temp-fluido-modal').value));
+                document.getElementById('info-fluido-modal').innerHTML = p.ok
+                    ? `<span class="text-slate-500">ρ ${p.rho.toFixed(1)} kg/m³ · ν ${(p.nu * 1e6).toPrecision(3)} mm²/s · pv ${(p.pv / 1000).toPrecision(3)} kPa${p.nota ? ' · ' + p.nota : ''}</span>`
+                    : `<span class="text-rose-600">${p.msg}</span>`;
+            };
+            document.getElementById('selector-fluido-modal').onchange = refrescarInfoModal;
+            document.getElementById('temp-fluido-modal').oninput = refrescarInfoModal;
+            refrescarInfoModal();
             document.getElementById('red-footer').innerHTML = `
                 <button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cancelar</button>
                 <button id="btn-ejecutar-calculo" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Calcular</button>
@@ -1742,8 +2064,9 @@
                     condicionesContorno[key] = { elevacion, presion };
                 });
                 marcarCambios(true);
-                let fluidoSel = document.getElementById('selector-fluido-modal').value;
-                document.getElementById('selector-fluido').value = fluidoSel;
+                document.getElementById('selector-fluido').value = document.getElementById('selector-fluido-modal').value;
+                document.getElementById('temp-fluido').value = document.getElementById('temp-fluido-modal').value;
+                actualizarInfoFluido();
                 ejecutarCalculo(grafo, aristas);
             };
             document.getElementById('modal-red').style.display = 'flex';
@@ -1817,8 +2140,9 @@
                 }
             });
 
-            const fluidoNombre = document.getElementById('selector-fluido').value;
-            const fluido = FLUIDOS[fluidoNombre] || FLUIDOS['Agua (20°C)'];
+            const fluido = fluidoSeleccionado();
+            if (!fluido.ok) { alert(fluido.msg + '\nCambia la temperatura o el fluido.'); return; }
+            const fluidoNombre = `${fluido.nombre} a ${fluido.T} °C`;
 
             let resultado;
             try {
@@ -1840,7 +2164,8 @@
 
             let bloqueLineaCritica = '';
             if (lineaCritica) {
-                let nombres = lineaCritica.aristasCamino.map(a => a.el.name).join(' → ');
+                // las tres ramas de una te son aristas distintas del mismo elemento: se nombra una sola vez
+                let nombres = lineaCritica.aristasCamino.map(a => a.el.name).filter((n, i, arr) => i === 0 || n !== arr[i - 1]).join(' → ');
                 bloqueLineaCritica = `
                 <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-2 mb-3 text-[11px]">
                     <p class="font-bold mb-0.5"><i class="fa-solid fa-circle-exclamation mr-1"></i>Línea crítica (resaltada en rojo en el plano)</p>
@@ -1849,24 +2174,34 @@
                 </div>`;
             }
 
-            let avisos = ['Los "Tee" se modelan como una unión sin pérdida propia; la pérdida de las ramas se representa añadiendo un accesorio junto al Tee si se necesita mayor precisión.'];
-            if (fluidoNombre === 'Vapor Saturado') {
-                avisos.unshift('Las propiedades del vapor saturado son aproximadas (punto de presión fijo). Para un dimensionado real de vapor se necesita un cálculo de flujo compresible con tablas de vapor a la presión de trabajo.');
-            }
+            let avisos = [];
+            aristas.forEach(a => (a.avisos || []).forEach(t => avisos.push(t)));
+            // Régimen de transición (2300 < Re < 4000): f incierto
+            aristas.filter(a => !a.esBomba && a.Re > 2300 && a.Re < 4000).forEach(a =>
+                avisos.push(`${a.el.name}: Re = ${Math.round(a.Re)} en zona de transición; el factor de fricción es incierto.`));
+            // Retenciones: velocidad mínima para abrir del todo (Crane): v_min = C·√(1/ρ)
+            aristas.filter(a => a.el.type === 'valvula' && a.el.subtype === 'retencion').forEach(a => {
+                const tipo = a.el.modoK === 'crane' ? a.el.craneTipo : 'Clapeta oscilante (swing)';
+                const C = CAT.vmin[tipo];
+                if (!C) return;
+                const vmin = C * Math.sqrt(1 / fluido.rho);
+                if (a.V < vmin) avisos.push(`${a.el.name}: V = ${a.V.toFixed(2)} m/s por debajo de la mínima para abrir del todo (${vmin.toFixed(2)} m/s, ${tipo}). La retención trabajará entreabierta: más pérdida y desgaste.`);
+            });
 
             let filasTuberia = aristas.filter(a => a.el.type === 'tuberia').map(a => `
                 <tr>
-                    <td class="py-1 pr-2">${a.el.name}</td><td class="pr-2">${a.dn}</td>
-                    <td class="pr-2">${(a.Qprev * 3600).toFixed(2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
+                    <td class="py-1 pr-2">${esc(a.el.name)}</td><td class="pr-2">${a.dn}<span class="text-slate-400"> Ø${(a.D * 1000).toFixed(1)}</span></td>
+                    <td class="pr-2">${(Math.abs(a.Qprev) * 3600).toFixed(2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
                     <td class="pr-2">${Math.round(a.Re)}</td><td class="pr-2">${a.f.toFixed(4)}</td>
                     <td>${(a.f * a.L / a.D * a.V * a.V / (2 * G)).toFixed(3)}</td>
                 </tr>`).join('');
 
             let filasAcc = aristas.filter(a => a.el.type === 'valvula' || a.el.type === 'accesorio').map(a => `
                 <tr>
-                    <td class="py-1 pr-2">${a.el.name}</td><td class="pr-2">${a.dn}</td>
-                    <td class="pr-2">${(a.Qprev * 3600).toFixed(2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
-                    <td class="pr-2">${a.K}</td><td>${(a.K * a.V * a.V / (2 * G)).toFixed(3)}</td>
+                    <td class="py-1 pr-2">${esc(a.el.name)}${a.rama ? ` (rama ${a.rama})` : ''}${a.sentidoRed ? ` (${a.sentidoRed})` : ''}</td><td class="pr-2">${a.dn}</td>
+                    <td class="pr-2">${(Math.abs(a.Qprev) * 3600).toFixed(2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
+                    <td class="pr-2">${a.K.toFixed(3)}</td><td class="pr-2">${(a.K * a.V * a.V / (2 * G)).toFixed(3)}</td>
+                    <td class="text-slate-400">${esc(a.origenK || '')}</td>
                 </tr>`).join('');
 
             let filasBomba = aristas.filter(a => a.el.type === 'bomba').map(a => {
@@ -1889,10 +2224,11 @@
             }).join('');
 
             document.getElementById('red-content').innerHTML = `
+                <p class="text-[11px] text-slate-500 mb-2">Fluido: <b>${esc(fluidoNombre)}</b> · ρ ${fluido.rho.toFixed(1)} kg/m³ · ν ${(fluido.nu * 1e6).toPrecision(3)} mm²/s · pv ${(fluido.pv / 1000).toPrecision(3)} kPa${fluido.nota ? ` · <span class="text-slate-400">${esc(fluido.nota)}</span>` : ''}</p>
                 ${bloqueLineaCritica}
-                <div class="bg-amber-50 border border-amber-200 text-amber-700 rounded p-2 mb-3 text-[11px] space-y-1">
-                    ${avisos.map(a => `<p><i class="fa-solid fa-triangle-exclamation mr-1"></i>${a}</p>`).join('')}
-                </div>
+                ${avisos.length ? `<div class="bg-amber-50 border border-amber-200 text-amber-700 rounded p-2 mb-3 text-[11px] space-y-1">
+                    ${avisos.map(a => `<p><i class="fa-solid fa-triangle-exclamation mr-1"></i>${esc(a)}</p>`).join('')}
+                </div>` : ''}
                 <h4 class="text-xs font-bold text-slate-600 mb-1">Tuberías</h4>
                 <table class="w-full text-[11px] mb-3">
                     <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>DN</th><th>Q (m³/h)</th><th>V (m/s)</th><th>Re</th><th>f</th><th>hf (m)</th></tr></thead>
@@ -1900,8 +2236,8 @@
                 </table>
                 <h4 class="text-xs font-bold text-slate-600 mb-1">Válvulas y Accesorios</h4>
                 <table class="w-full text-[11px] mb-3">
-                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>DN</th><th>Q (m³/h)</th><th>V (m/s)</th><th>K</th><th>hf (m)</th></tr></thead>
-                    <tbody>${filasAcc || '<tr><td colspan="6" class="text-slate-400 italic py-1">Sin válvulas/accesorios</td></tr>'}</tbody>
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>DN</th><th>Q (m³/h)</th><th>V (m/s)</th><th>K</th><th>hf (m)</th><th>Origen de K</th></tr></thead>
+                    <tbody>${filasAcc || '<tr><td colspan="7" class="text-slate-400 italic py-1">Sin válvulas/accesorios</td></tr>'}</tbody>
                 </table>
                 <h4 class="text-xs font-bold text-slate-600 mb-1">Bombas</h4>
                 <table class="w-full text-[11px]">
@@ -2055,7 +2391,7 @@
             canvasContainer.style.cursor = 'crosshair';
         }
 
-        function mostrarCreditos() { document.getElementById('modal-creditos').style.display = 'flex'; }
+        function mostrarCreditos() { document.getElementById('version-catalogo').innerText = CAT ? CAT.version : 'no cargado'; document.getElementById('modal-creditos').style.display = 'flex'; }
         function cerrarCreditos() { document.getElementById('modal-creditos').style.display = 'none'; }
 
         // ==================================================================================

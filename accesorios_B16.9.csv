@@ -1,0 +1,969 @@
+﻿tipo;dn;dn2;dn3;nps;od_mm;A;B;C;M;O;K_dim;E;E1;H;theta_deg;fT;K_fT;K;K_contraccion;K_expansion;referencia_K;nota
+Codo 90° LR;15;;;1/2;21.3;38.0;;;;;;;;;;0.027;14;0.378;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;15;;;1/2;21.3;;16.0;;;;;;;;;0.027;16;0.432;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;20;;;3/4;26.7;38.0;;;;;;;;;;0.025;14;0.35;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;20;;;3/4;26.7;;19.0;;;;;;;;;0.025;16;0.4;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;25;;;1;33.4;38.0;;;;;;;;;;0.023;14;0.322;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;25;;;1;33.4;;22.0;;;;;;;;;0.023;16;0.368;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;32;;;1-1/4;42.2;48.0;;;;;;;;;;0.022;14;0.308;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;32;;;1-1/4;42.2;;25.0;;;;;;;;;0.022;16;0.352;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;40;;;1-1/2;48.3;57.0;;;;;;;;;;0.021;14;0.294;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;40;;;1-1/2;48.3;;29.0;;;;;;;;;0.021;16;0.336;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;50;;;2;60.3;76.0;;;;;;;;;;0.019;14;0.266;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;50;;;2;60.3;;35.0;;;;;;;;;0.019;16;0.304;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;65;;;2-1/2;73.0;95.0;;;;;;;;;;0.018;14;0.252;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;65;;;2-1/2;73.0;;44.0;;;;;;;;;0.018;16;0.288;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;80;;;3;88.9;114.0;;;;;;;;;;0.018;14;0.252;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;80;;;3;88.9;;51.0;;;;;;;;;0.018;16;0.288;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;90;;;3-1/2;101.6;133.0;;;;;;;;;;0.018;14;0.252;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;90;;;3-1/2;101.6;;57.0;;;;;;;;;0.018;16;0.288;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;100;;;4;114.3;152.0;;;;;;;;;;0.017;14;0.238;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;100;;;4;114.3;;64.0;;;;;;;;;0.017;16;0.272;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;125;;;5;141.3;190.0;;;;;;;;;;0.016;14;0.224;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;125;;;5;141.3;;79.0;;;;;;;;;0.016;16;0.256;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;150;;;6;168.3;229.0;;;;;;;;;;0.015;14;0.21;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;150;;;6;168.3;;95.0;;;;;;;;;0.015;16;0.24;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;200;;;8;219.1;305.0;;;;;;;;;;0.014;14;0.196;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;200;;;8;219.1;;127.0;;;;;;;;;0.014;16;0.224;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;250;;;10;273.0;381.0;;;;;;;;;;0.014;14;0.196;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;250;;;10;273.0;;159.0;;;;;;;;;0.014;16;0.224;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;300;;;12;323.8;457.0;;;;;;;;;;0.013;14;0.182;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;300;;;12;323.8;;190.0;;;;;;;;;0.013;16;0.208;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;350;;;14;355.6;533.0;;;;;;;;;;0.013;14;0.182;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;350;;;14;355.6;;222.0;;;;;;;;;0.013;16;0.208;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;400;;;16;406.4;610.0;;;;;;;;;;0.013;14;0.182;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;400;;;16;406.4;;254.0;;;;;;;;;0.013;16;0.208;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;450;;;18;457;686.0;;;;;;;;;;0.012;14;0.168;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;450;;;18;457;;286.0;;;;;;;;;0.012;16;0.192;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;500;;;20;508;762.0;;;;;;;;;;0.012;14;0.168;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;500;;;20;508;;318.0;;;;;;;;;0.012;16;0.192;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;550;;;22;559;838.0;;;;;;;;;;0.012;14;0.168;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;550;;;22;559;;343.0;;;;;;;;;0.012;16;0.192;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;600;;;24;610;914.0;;;;;;;;;;0.012;14;0.168;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;600;;;24;610;;381.0;;;;;;;;;0.012;16;0.192;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;650;;;26;660;991.0;;;;;;;;;;0.0112;14;0.157;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;650;;;26;660;;405.0;;;;;;;;;0.0112;16;0.179;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;700;;;28;711;1067.0;;;;;;;;;;0.0111;14;0.155;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;700;;;28;711;;438.0;;;;;;;;;0.0111;16;0.178;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;750;;;30;762;1143.0;;;;;;;;;;0.011;14;0.154;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;750;;;30;762;;470.0;;;;;;;;;0.011;16;0.176;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;800;;;32;813;1219.0;;;;;;;;;;0.0108;14;0.151;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;800;;;32;813;;502.0;;;;;;;;;0.0108;16;0.173;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;850;;;34;864;1295.0;;;;;;;;;;0.0107;14;0.15;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;850;;;34;864;;533.0;;;;;;;;;0.0107;16;0.171;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;900;;;36;914;1372.0;;;;;;;;;;0.0106;14;0.148;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;900;;;36;914;;565.0;;;;;;;;;0.0106;16;0.17;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;950;;;38;965;1448.0;;;;;;;;;;0.0105;14;0.147;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;950;;;38;965;;600.0;;;;;;;;;0.0105;16;0.168;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;1000;;;40;1016;1524.0;;;;;;;;;;0.0104;14;0.146;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;1000;;;40;1016;;632.0;;;;;;;;;0.0104;16;0.166;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;1050;;;42;1067;1600.0;;;;;;;;;;0.0103;14;0.144;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;1050;;;42;1067;;660.0;;;;;;;;;0.0103;16;0.165;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;1100;;;44;1118;1676.0;;;;;;;;;;0.0102;14;0.143;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;1100;;;44;1118;;695.0;;;;;;;;;0.0102;16;0.163;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;1150;;;46;1168;1753.0;;;;;;;;;;0.0101;14;0.141;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;1150;;;46;1168;;727.0;;;;;;;;;0.0101;16;0.162;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° LR;1200;;;48;1219;1829.0;;;;;;;;;;0.01;14;0.14;;;Crane A-24: 14 fT (r/d = 1,5);
+Codo 45° LR;1200;;;48;1219;;759.0;;;;;;;;;0.01;16;0.16;;;Crane A-24: codo 45° estándar 16 fT;"Crane no tabula el codo 45° soldado; se adopta el valor del codo 45° estándar (conservador)"
+Codo 90° SR;25;;;1;33.4;25.0;;;;;;;;;;0.023;20;0.46;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;32;;;1-1/4;42.2;32.0;;;;;;;;;;0.022;20;0.44;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;40;;;1-1/2;48.3;38.0;;;;;;;;;;0.021;20;0.42;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;50;;;2;60.3;51.0;;;;;;;;;;0.019;20;0.38;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;65;;;2-1/2;73.0;64.0;;;;;;;;;;0.018;20;0.36;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;80;;;3;88.9;76.0;;;;;;;;;;0.018;20;0.36;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;90;;;3-1/2;101.6;89.0;;;;;;;;;;0.018;20;0.36;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;100;;;4;114.3;102.0;;;;;;;;;;0.017;20;0.34;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;125;;;5;141.3;127.0;;;;;;;;;;0.016;20;0.32;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;150;;;6;168.3;152.0;;;;;;;;;;0.015;20;0.3;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;200;;;8;219.1;203.0;;;;;;;;;;0.014;20;0.28;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;250;;;10;273.0;254.0;;;;;;;;;;0.014;20;0.28;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;300;;;12;323.8;305.0;;;;;;;;;;0.013;20;0.26;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;350;;;14;355.6;356.0;;;;;;;;;;0.013;20;0.26;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;400;;;16;406.4;406.0;;;;;;;;;;0.013;20;0.26;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;450;;;18;457;457.0;;;;;;;;;;0.012;20;0.24;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;500;;;20;508;508.0;;;;;;;;;;0.012;20;0.24;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;550;;;22;559;559.0;;;;;;;;;;0.012;20;0.24;;;Crane A-24: 20 fT (r/d = 1);
+Codo 90° SR;600;;;24;610;610.0;;;;;;;;;;0.012;20;0.24;;;Crane A-24: 20 fT (r/d = 1);
+Retorno 180° LR;15;;;1/2;21.3;;;;;76.0;48.0;;;;;0.027;22.2;0.599;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;20;;;3/4;26.7;;;;;76.0;51.0;;;;;0.025;22.2;0.555;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;25;;;1;33.4;;;;;76.0;56.0;;;;;0.023;22.2;0.511;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;32;;;1-1/4;42.2;;;;;95.0;70.0;;;;;0.022;22.2;0.488;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;40;;;1-1/2;48.3;;;;;114.0;83.0;;;;;0.021;22.2;0.466;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;50;;;2;60.3;;;;;152.0;106.0;;;;;0.019;22.2;0.422;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;65;;;2-1/2;73.0;;;;;190.0;132.0;;;;;0.018;22.2;0.4;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;80;;;3;88.9;;;;;229.0;159.0;;;;;0.018;22.2;0.4;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;90;;;3-1/2;101.6;;;;;267.0;184.0;;;;;0.018;22.2;0.4;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;100;;;4;114.3;;;;;305.0;210.0;;;;;0.017;22.2;0.377;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;125;;;5;141.3;;;;;381.0;262.0;;;;;0.016;22.2;0.355;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;150;;;6;168.3;;;;;457.0;313.0;;;;;0.015;22.2;0.333;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;200;;;8;219.1;;;;;610.0;414.0;;;;;0.014;22.2;0.311;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;250;;;10;273.0;;;;;762.0;518.0;;;;;0.014;22.2;0.311;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;300;;;12;323.8;;;;;914.0;619.0;;;;;0.013;22.2;0.289;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;350;;;14;355.6;;;;;1067.0;711.0;;;;;0.013;22.2;0.289;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;400;;;16;406.4;;;;;1219.0;813.0;;;;;0.013;22.2;0.289;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;450;;;18;457;;;;;1372.0;914.0;;;;;0.012;22.2;0.266;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;500;;;20;508;;;;;1524.0;1016.0;;;;;0.012;22.2;0.266;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;550;;;22;559;;;;;1676.0;1118.0;;;;;0.012;22.2;0.266;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° LR;600;;;24;610;;;;;1829.0;1219.0;;;;;0.012;22.2;0.266;;;Crane A-24: K_B, n = 2, r/d = 1,5;
+Retorno 180° SR;25;;;1;33.4;;;;;51.0;41.0;;;;;0.023;30.8;0.708;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;32;;;1-1/4;42.2;;;;;64.0;52.0;;;;;0.022;30.8;0.678;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;40;;;1-1/2;48.3;;;;;76.0;62.0;;;;;0.021;30.8;0.647;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;50;;;2;60.3;;;;;102.0;81.0;;;;;0.019;30.8;0.585;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;65;;;2-1/2;73.0;;;;;127.0;100.0;;;;;0.018;30.8;0.554;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;80;;;3;88.9;;;;;152.0;121.0;;;;;0.018;30.8;0.554;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;90;;;3-1/2;101.6;;;;;178.0;140.0;;;;;0.018;30.8;0.554;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;100;;;4;114.3;;;;;203.0;159.0;;;;;0.017;30.8;0.524;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;125;;;5;141.3;;;;;254.0;197.0;;;;;0.016;30.8;0.493;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;150;;;6;168.3;;;;;305.0;237.0;;;;;0.015;30.8;0.462;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;200;;;8;219.1;;;;;406.0;313.0;;;;;0.014;30.8;0.431;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;250;;;10;273.0;;;;;508.0;391.0;;;;;0.014;30.8;0.431;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;300;;;12;323.8;;;;;610.0;467.0;;;;;0.013;30.8;0.4;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;350;;;14;355.6;;;;;711.0;533.0;;;;;0.013;30.8;0.4;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;400;;;16;406.4;;;;;813.0;610.0;;;;;0.013;30.8;0.4;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;450;;;18;457;;;;;914.0;686.0;;;;;0.012;30.8;0.37;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;500;;;20;508;;;;;1016.0;762.0;;;;;0.012;30.8;0.37;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;550;;;22;559;;;;;1118.0;838.0;;;;;0.012;30.8;0.37;;;Crane A-24: K_B, n = 2, r/d = 1;
+Retorno 180° SR;600;;;24;610;;;;;1219.0;914.0;;;;;0.012;30.8;0.37;;;Crane A-24: K_B, n = 2, r/d = 1;
+Te recta – paso directo;15;;;1/2;21.3;;;25.0;25.0;;;;;;;0.027;20;0.54;;;Crane A-24: 20 fT;
+Te recta – derivación;15;;;1/2;21.3;;;25.0;25.0;;;;;;;0.027;60;1.62;;;Crane A-24: 60 fT;
+Te recta – paso directo;20;;;3/4;26.7;;;29.0;29.0;;;;;;;0.025;20;0.5;;;Crane A-24: 20 fT;
+Te recta – derivación;20;;;3/4;26.7;;;29.0;29.0;;;;;;;0.025;60;1.5;;;Crane A-24: 60 fT;
+Te recta – paso directo;25;;;1;33.4;;;38.0;38.0;;;;;;;0.023;20;0.46;;;Crane A-24: 20 fT;
+Te recta – derivación;25;;;1;33.4;;;38.0;38.0;;;;;;;0.023;60;1.38;;;Crane A-24: 60 fT;
+Te recta – paso directo;32;;;1-1/4;42.2;;;48.0;48.0;;;;;;;0.022;20;0.44;;;Crane A-24: 20 fT;
+Te recta – derivación;32;;;1-1/4;42.2;;;48.0;48.0;;;;;;;0.022;60;1.32;;;Crane A-24: 60 fT;
+Te recta – paso directo;40;;;1-1/2;48.3;;;57.0;57.0;;;;;;;0.021;20;0.42;;;Crane A-24: 20 fT;
+Te recta – derivación;40;;;1-1/2;48.3;;;57.0;57.0;;;;;;;0.021;60;1.26;;;Crane A-24: 60 fT;
+Te recta – paso directo;50;;;2;60.3;;;64.0;64.0;;;;;;;0.019;20;0.38;;;Crane A-24: 20 fT;
+Te recta – derivación;50;;;2;60.3;;;64.0;64.0;;;;;;;0.019;60;1.14;;;Crane A-24: 60 fT;
+Te recta – paso directo;65;;;2-1/2;73.0;;;76.0;76.0;;;;;;;0.018;20;0.36;;;Crane A-24: 20 fT;
+Te recta – derivación;65;;;2-1/2;73.0;;;76.0;76.0;;;;;;;0.018;60;1.08;;;Crane A-24: 60 fT;
+Te recta – paso directo;80;;;3;88.9;;;86.0;86.0;;;;;;;0.018;20;0.36;;;Crane A-24: 20 fT;
+Te recta – derivación;80;;;3;88.9;;;86.0;86.0;;;;;;;0.018;60;1.08;;;Crane A-24: 60 fT;
+Te recta – paso directo;90;;;3-1/2;101.6;;;95.0;95.0;;;;;;;0.018;20;0.36;;;Crane A-24: 20 fT;
+Te recta – derivación;90;;;3-1/2;101.6;;;95.0;95.0;;;;;;;0.018;60;1.08;;;Crane A-24: 60 fT;
+Te recta – paso directo;100;;;4;114.3;;;105.0;105.0;;;;;;;0.017;20;0.34;;;Crane A-24: 20 fT;
+Te recta – derivación;100;;;4;114.3;;;105.0;105.0;;;;;;;0.017;60;1.02;;;Crane A-24: 60 fT;
+Te recta – paso directo;125;;;5;141.3;;;124.0;124.0;;;;;;;0.016;20;0.32;;;Crane A-24: 20 fT;
+Te recta – derivación;125;;;5;141.3;;;124.0;124.0;;;;;;;0.016;60;0.96;;;Crane A-24: 60 fT;
+Te recta – paso directo;150;;;6;168.3;;;143.0;143.0;;;;;;;0.015;20;0.3;;;Crane A-24: 20 fT;
+Te recta – derivación;150;;;6;168.3;;;143.0;143.0;;;;;;;0.015;60;0.9;;;Crane A-24: 60 fT;
+Te recta – paso directo;200;;;8;219.1;;;178.0;178.0;;;;;;;0.014;20;0.28;;;Crane A-24: 20 fT;
+Te recta – derivación;200;;;8;219.1;;;178.0;178.0;;;;;;;0.014;60;0.84;;;Crane A-24: 60 fT;
+Te recta – paso directo;250;;;10;273.0;;;216.0;216.0;;;;;;;0.014;20;0.28;;;Crane A-24: 20 fT;
+Te recta – derivación;250;;;10;273.0;;;216.0;216.0;;;;;;;0.014;60;0.84;;;Crane A-24: 60 fT;
+Te recta – paso directo;300;;;12;323.8;;;254.0;254.0;;;;;;;0.013;20;0.26;;;Crane A-24: 20 fT;
+Te recta – derivación;300;;;12;323.8;;;254.0;254.0;;;;;;;0.013;60;0.78;;;Crane A-24: 60 fT;
+Te recta – paso directo;350;;;14;355.6;;;279.0;279.0;;;;;;;0.013;20;0.26;;;Crane A-24: 20 fT;
+Te recta – derivación;350;;;14;355.6;;;279.0;279.0;;;;;;;0.013;60;0.78;;;Crane A-24: 60 fT;
+Te recta – paso directo;400;;;16;406.4;;;305.0;305.0;;;;;;;0.013;20;0.26;;;Crane A-24: 20 fT;
+Te recta – derivación;400;;;16;406.4;;;305.0;305.0;;;;;;;0.013;60;0.78;;;Crane A-24: 60 fT;
+Te recta – paso directo;450;;;18;457;;;343.0;343.0;;;;;;;0.012;20;0.24;;;Crane A-24: 20 fT;
+Te recta – derivación;450;;;18;457;;;343.0;343.0;;;;;;;0.012;60;0.72;;;Crane A-24: 60 fT;
+Te recta – paso directo;500;;;20;508;;;381.0;381.0;;;;;;;0.012;20;0.24;;;Crane A-24: 20 fT;
+Te recta – derivación;500;;;20;508;;;381.0;381.0;;;;;;;0.012;60;0.72;;;Crane A-24: 60 fT;
+Te recta – paso directo;550;;;22;559;;;419.0;419.0;;;;;;;0.012;20;0.24;;;Crane A-24: 20 fT;
+Te recta – derivación;550;;;22;559;;;419.0;419.0;;;;;;;0.012;60;0.72;;;Crane A-24: 60 fT;
+Te recta – paso directo;600;;;24;610;;;432.0;432.0;;;;;;;0.012;20;0.24;;;Crane A-24: 20 fT;
+Te recta – derivación;600;;;24;610;;;432.0;432.0;;;;;;;0.012;60;0.72;;;Crane A-24: 60 fT;
+Te recta – paso directo;650;;;26;660;;;495.0;495.0;;;;;;;0.0112;20;0.224;;;Crane A-24: 20 fT;
+Te recta – derivación;650;;;26;660;;;495.0;495.0;;;;;;;0.0112;60;0.672;;;Crane A-24: 60 fT;
+Te recta – paso directo;700;;;28;711;;;521.0;521.0;;;;;;;0.0111;20;0.222;;;Crane A-24: 20 fT;
+Te recta – derivación;700;;;28;711;;;521.0;521.0;;;;;;;0.0111;60;0.666;;;Crane A-24: 60 fT;
+Te recta – paso directo;750;;;30;762;;;559.0;559.0;;;;;;;0.011;20;0.22;;;Crane A-24: 20 fT;
+Te recta – derivación;750;;;30;762;;;559.0;559.0;;;;;;;0.011;60;0.66;;;Crane A-24: 60 fT;
+Te recta – paso directo;800;;;32;813;;;597.0;597.0;;;;;;;0.0108;20;0.216;;;Crane A-24: 20 fT;
+Te recta – derivación;800;;;32;813;;;597.0;597.0;;;;;;;0.0108;60;0.648;;;Crane A-24: 60 fT;
+Te recta – paso directo;850;;;34;864;;;635.0;635.0;;;;;;;0.0107;20;0.214;;;Crane A-24: 20 fT;
+Te recta – derivación;850;;;34;864;;;635.0;635.0;;;;;;;0.0107;60;0.642;;;Crane A-24: 60 fT;
+Te recta – paso directo;900;;;36;914;;;673.0;673.0;;;;;;;0.0106;20;0.212;;;Crane A-24: 20 fT;
+Te recta – derivación;900;;;36;914;;;673.0;673.0;;;;;;;0.0106;60;0.636;;;Crane A-24: 60 fT;
+Te recta – paso directo;950;;;38;965;;;711.0;711.0;;;;;;;0.0105;20;0.21;;;Crane A-24: 20 fT;
+Te recta – derivación;950;;;38;965;;;711.0;711.0;;;;;;;0.0105;60;0.63;;;Crane A-24: 60 fT;
+Te recta – paso directo;1000;;;40;1016;;;749.0;749.0;;;;;;;0.0104;20;0.208;;;Crane A-24: 20 fT;
+Te recta – derivación;1000;;;40;1016;;;749.0;749.0;;;;;;;0.0104;60;0.624;;;Crane A-24: 60 fT;
+Te recta – paso directo;1050;;;42;1067;;;762.0;711.0;;;;;;;0.0103;20;0.206;;;Crane A-24: 20 fT;
+Te recta – derivación;1050;;;42;1067;;;762.0;711.0;;;;;;;0.0103;60;0.618;;;Crane A-24: 60 fT;
+Te recta – paso directo;1100;;;44;1118;;;813.0;762.0;;;;;;;0.0102;20;0.204;;;Crane A-24: 20 fT;
+Te recta – derivación;1100;;;44;1118;;;813.0;762.0;;;;;;;0.0102;60;0.612;;;Crane A-24: 60 fT;
+Te recta – paso directo;1150;;;46;1168;;;851.0;800.0;;;;;;;0.0101;20;0.202;;;Crane A-24: 20 fT;
+Te recta – derivación;1150;;;46;1168;;;851.0;800.0;;;;;;;0.0101;60;0.606;;;Crane A-24: 60 fT;
+Te recta – paso directo;1200;;;48;1219;;;889.0;838.0;;;;;;;0.01;20;0.2;;;Crane A-24: 20 fT;
+Te recta – derivación;1200;;;48;1219;;;889.0;838.0;;;;;;;0.01;60;0.6;;;Crane A-24: 60 fT;
+Casquete (cap);15;;;1/2;21.3;;;;;;;25.0;25.0;;;0.027;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);20;;;3/4;26.7;;;;;;;25.0;25.0;;;0.025;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);25;;;1;33.4;;;;;;;38.0;38.0;;;0.023;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);32;;;1-1/4;42.2;;;;;;;38.0;38.0;;;0.022;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);40;;;1-1/2;48.3;;;;;;;38.0;38.0;;;0.021;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);50;;;2;60.3;;;;;;;38.0;44.0;;;0.019;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);65;;;2-1/2;73.0;;;;;;;38.0;51.0;;;0.018;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);80;;;3;88.9;;;;;;;51.0;64.0;;;0.018;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);90;;;3-1/2;101.6;;;;;;;64.0;76.0;;;0.018;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);100;;;4;114.3;;;;;;;64.0;76.0;;;0.017;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);125;;;5;141.3;;;;;;;76.0;89.0;;;0.016;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);150;;;6;168.3;;;;;;;89.0;102.0;;;0.015;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);200;;;8;219.1;;;;;;;102.0;127.0;;;0.014;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);250;;;10;273.0;;;;;;;127.0;152.0;;;0.014;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);300;;;12;323.8;;;;;;;152.0;178.0;;;0.013;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);350;;;14;355.6;;;;;;;165.0;191.0;;;0.013;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);400;;;16;406.4;;;;;;;178.0;203.0;;;0.013;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);450;;;18;457;;;;;;;203.0;229.0;;;0.012;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);500;;;20;508;;;;;;;229.0;254.0;;;0.012;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);550;;;22;559;;;;;;;254.0;254.0;;;0.012;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);600;;;24;610;;;;;;;267.0;305.0;;;0.012;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);650;;;26;660;;;;;;;267.0;;;;0.0112;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);700;;;28;711;;;;;;;267.0;;;;0.0111;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);750;;;30;762;;;;;;;267.0;;;;0.011;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);800;;;32;813;;;;;;;267.0;;;;0.0108;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);850;;;34;864;;;;;;;267.0;;;;0.0107;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);900;;;36;914;;;;;;;267.0;;;;0.0106;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);950;;;38;965;;;;;;;305.0;;;;0.0105;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);1000;;;40;1016;;;;;;;305.0;;;;0.0104;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);1050;;;42;1067;;;;;;;305.0;;;;0.0103;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);1100;;;44;1118;;;;;;;343.0;;;;0.0102;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);1150;;;46;1168;;;;;;;343.0;;;;0.0101;;;;;—;Extremo cerrado: sin flujo
+Casquete (cap);1200;;;48;1219;;;;;;;343.0;;;;0.01;;;;;—;Extremo cerrado: sin flujo
+Codo 90° LR reductor;50;40;;2;60.3;76.0;;;;;;;;;;0.019;14;0.266;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;250;200;;10;273.0;381.0;;;;;;;;;;0.014;14;0.196;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;50;32;;2;60.3;76.0;;;;;;;;;;0.019;14;0.266;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;250;150;;10;273.0;381.0;;;;;;;;;;0.014;14;0.196;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;50;25;;2;60.3;76.0;;;;;;;;;;0.019;14;0.266;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;250;125;;10;273.0;381.0;;;;;;;;;;0.014;14;0.196;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;65;50;;2-1/2;73.0;95.0;;;;;;;;;;0.018;14;0.252;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;300;250;;12;323.8;457.0;;;;;;;;;;0.013;14;0.182;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;65;40;;2-1/2;73.0;95.0;;;;;;;;;;0.018;14;0.252;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;300;200;;12;323.8;457.0;;;;;;;;;;0.013;14;0.182;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;65;32;;2-1/2;73.0;95.0;;;;;;;;;;0.018;14;0.252;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;300;150;;12;323.8;457.0;;;;;;;;;;0.013;14;0.182;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;80;65;;3;88.9;114.0;;;;;;;;;;0.018;14;0.252;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;350;300;;14;355.6;533.0;;;;;;;;;;0.013;14;0.182;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;80;50;;3;88.9;114.0;;;;;;;;;;0.018;14;0.252;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;350;250;;14;355.6;533.0;;;;;;;;;;0.013;14;0.182;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;80;40;;3;88.9;114.0;;;;;;;;;;0.018;14;0.252;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;350;200;;14;355.6;533.0;;;;;;;;;;0.013;14;0.182;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;90;80;;3-1/2;101.6;133.0;;;;;;;;;;0.018;14;0.252;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;400;350;;16;406.4;610.0;;;;;;;;;;0.013;14;0.182;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;90;65;;3-1/2;101.6;133.0;;;;;;;;;;0.018;14;0.252;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;400;300;;16;406.4;610.0;;;;;;;;;;0.013;14;0.182;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;90;50;;3-1/2;101.6;133.0;;;;;;;;;;0.018;14;0.252;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;400;250;;16;406.4;610.0;;;;;;;;;;0.013;14;0.182;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;100;90;;4;114.3;152.0;;;;;;;;;;0.017;14;0.238;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;450;400;;18;457;686.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;100;80;;4;114.3;152.0;;;;;;;;;;0.017;14;0.238;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;450;350;;18;457;686.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;100;65;;4;114.3;152.0;;;;;;;;;;0.017;14;0.238;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;450;300;;18;457;686.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;100;50;;4;114.3;152.0;;;;;;;;;;0.017;14;0.238;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;450;250;;18;457;686.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;125;100;;5;141.3;190.0;;;;;;;;;;0.016;14;0.224;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;500;450;;20;508;762.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;125;90;;5;141.3;190.0;;;;;;;;;;0.016;14;0.224;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;500;400;;20;508;762.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;125;80;;5;141.3;190.0;;;;;;;;;;0.016;14;0.224;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;500;350;;20;508;762.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;125;65;;5;141.3;190.0;;;;;;;;;;0.016;14;0.224;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;500;300;;20;508;762.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;150;125;;6;168.3;229.0;;;;;;;;;;0.015;14;0.21;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;500;250;;20;508;762.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;150;100;;6;168.3;229.0;;;;;;;;;;0.015;14;0.21;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;600;550;;24;610;914.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;150;90;;6;168.3;229.0;;;;;;;;;;0.015;14;0.21;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;600;500;;24;610;914.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;150;80;;6;168.3;229.0;;;;;;;;;;0.015;14;0.21;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;600;450;;24;610;914.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;200;150;;8;219.1;305.0;;;;;;;;;;0.014;14;0.196;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;600;400;;24;610;914.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;200;125;;8;219.1;305.0;;;;;;;;;;0.014;14;0.196;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;600;350;;24;610;914.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;200;100;;8;219.1;305.0;;;;;;;;;;0.014;14;0.196;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Codo 90° LR reductor;600;300;;24;610;914.0;;;;;;;;;;0.012;14;0.168;;;Crane: 14 fT + reducción (aprox.);Sumar K de la reducción referida al diámetro menor
+Te reductora – paso directo;15;15;10;1/2;21.3;;;25.0;25.0;;;;;;;0.027;20;0.54;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;15;15;10;1/2;21.3;;;25.0;25.0;;;;;;;0.027;60;1.62;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;20;20;15;3/4;26.7;;;29.0;29.0;;;;;;;0.025;20;0.5;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;20;20;15;3/4;26.7;;;29.0;29.0;;;;;;;0.027;60;1.62;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;20;20;10;3/4;26.7;;;29.0;29.0;;;;;;;0.025;20;0.5;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;20;20;10;3/4;26.7;;;29.0;29.0;;;;;;;0.027;60;1.62;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;25;25;20;1;33.4;;;38.0;38.0;;;;;;;0.023;20;0.46;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;25;25;20;1;33.4;;;38.0;38.0;;;;;;;0.025;60;1.5;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;25;25;15;1;33.4;;;38.0;38.0;;;;;;;0.023;20;0.46;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;25;25;15;1;33.4;;;38.0;38.0;;;;;;;0.027;60;1.62;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;32;32;25;1-1/4;42.2;;;48.0;48.0;;;;;;;0.022;20;0.44;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;32;32;25;1-1/4;42.2;;;48.0;48.0;;;;;;;0.023;60;1.38;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;32;32;20;1-1/4;42.2;;;48.0;48.0;;;;;;;0.022;20;0.44;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;32;32;20;1-1/4;42.2;;;48.0;48.0;;;;;;;0.025;60;1.5;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;32;32;15;1-1/4;42.2;;;48.0;48.0;;;;;;;0.022;20;0.44;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;32;32;15;1-1/4;42.2;;;48.0;48.0;;;;;;;0.027;60;1.62;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;40;40;32;1-1/2;48.3;;;57.0;57.0;;;;;;;0.021;20;0.42;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;40;40;32;1-1/2;48.3;;;57.0;57.0;;;;;;;0.022;60;1.32;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;40;40;25;1-1/2;48.3;;;57.0;57.0;;;;;;;0.021;20;0.42;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;40;40;25;1-1/2;48.3;;;57.0;57.0;;;;;;;0.023;60;1.38;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;40;40;20;1-1/2;48.3;;;57.0;57.0;;;;;;;0.021;20;0.42;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;40;40;20;1-1/2;48.3;;;57.0;57.0;;;;;;;0.025;60;1.5;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;40;40;15;1-1/2;48.3;;;57.0;57.0;;;;;;;0.021;20;0.42;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;40;40;15;1-1/2;48.3;;;57.0;57.0;;;;;;;0.027;60;1.62;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;50;50;40;2;60.3;;;64.0;60.0;;;;;;;0.019;20;0.38;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;50;50;40;2;60.3;;;64.0;60.0;;;;;;;0.021;60;1.26;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;50;50;32;2;60.3;;;64.0;57.0;;;;;;;0.019;20;0.38;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;50;50;32;2;60.3;;;64.0;57.0;;;;;;;0.022;60;1.32;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;50;50;25;2;60.3;;;64.0;51.0;;;;;;;0.019;20;0.38;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;50;50;25;2;60.3;;;64.0;51.0;;;;;;;0.023;60;1.38;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;50;50;20;2;60.3;;;64.0;44.0;;;;;;;0.019;20;0.38;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;50;50;20;2;60.3;;;64.0;44.0;;;;;;;0.025;60;1.5;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;65;65;50;2-1/2;73.0;;;76.0;70.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;65;65;50;2-1/2;73.0;;;76.0;70.0;;;;;;;0.019;60;1.14;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;65;65;40;2-1/2;73.0;;;76.0;67.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;65;65;40;2-1/2;73.0;;;76.0;67.0;;;;;;;0.021;60;1.26;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;65;65;32;2-1/2;73.0;;;76.0;64.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;65;65;32;2-1/2;73.0;;;76.0;64.0;;;;;;;0.022;60;1.32;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;65;65;25;2-1/2;73.0;;;76.0;57.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;65;65;25;2-1/2;73.0;;;76.0;57.0;;;;;;;0.023;60;1.38;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;80;80;65;3;88.9;;;86.0;83.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;80;80;65;3;88.9;;;86.0;83.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;80;80;50;3;88.9;;;86.0;76.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;80;80;50;3;88.9;;;86.0;76.0;;;;;;;0.019;60;1.14;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;80;80;40;3;88.9;;;86.0;73.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;80;80;40;3;88.9;;;86.0;73.0;;;;;;;0.021;60;1.26;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;80;80;32;3;88.9;;;86.0;70.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;80;80;32;3;88.9;;;86.0;70.0;;;;;;;0.022;60;1.32;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;90;90;80;3-1/2;101.6;;;95.0;92.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;90;90;80;3-1/2;101.6;;;95.0;92.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;90;90;65;3-1/2;101.6;;;95.0;89.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;90;90;65;3-1/2;101.6;;;95.0;89.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;90;90;50;3-1/2;101.6;;;95.0;83.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;90;90;50;3-1/2;101.6;;;95.0;83.0;;;;;;;0.019;60;1.14;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;90;90;40;3-1/2;101.6;;;95.0;79.0;;;;;;;0.018;20;0.36;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;90;90;40;3-1/2;101.6;;;95.0;79.0;;;;;;;0.021;60;1.26;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;100;100;90;4;114.3;;;105.0;102.0;;;;;;;0.017;20;0.34;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;100;100;90;4;114.3;;;105.0;102.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;100;100;80;4;114.3;;;105.0;98.0;;;;;;;0.017;20;0.34;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;100;100;80;4;114.3;;;105.0;98.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;100;100;65;4;114.3;;;105.0;95.0;;;;;;;0.017;20;0.34;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;100;100;65;4;114.3;;;105.0;95.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;100;100;50;4;114.3;;;105.0;89.0;;;;;;;0.017;20;0.34;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;100;100;50;4;114.3;;;105.0;89.0;;;;;;;0.019;60;1.14;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;100;100;40;4;114.3;;;105.0;86.0;;;;;;;0.017;20;0.34;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;100;100;40;4;114.3;;;105.0;86.0;;;;;;;0.021;60;1.26;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;125;125;100;5;141.3;;;125.0;117.0;;;;;;;0.016;20;0.32;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;125;125;100;5;141.3;;;125.0;117.0;;;;;;;0.017;60;1.02;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;125;125;90;5;141.3;;;124.0;114.0;;;;;;;0.016;20;0.32;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;125;125;90;5;141.3;;;124.0;114.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;125;125;80;5;141.3;;;124.0;111.0;;;;;;;0.016;20;0.32;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;125;125;80;5;141.3;;;124.0;111.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;125;125;65;5;141.3;;;124.0;108.0;;;;;;;0.016;20;0.32;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;125;125;65;5;141.3;;;124.0;108.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;125;125;50;5;141.3;;;124.0;105.0;;;;;;;0.016;20;0.32;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;125;125;50;5;141.3;;;124.0;105.0;;;;;;;0.019;60;1.14;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;150;150;125;6;168.3;;;143.0;137.0;;;;;;;0.015;20;0.3;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;150;150;125;6;168.3;;;143.0;137.0;;;;;;;0.016;60;0.96;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;150;150;100;6;168.3;;;143.0;130.0;;;;;;;0.015;20;0.3;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;150;150;100;6;168.3;;;143.0;130.0;;;;;;;0.017;60;1.02;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;150;150;90;6;168.3;;;143.0;127.0;;;;;;;0.015;20;0.3;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;150;150;90;6;168.3;;;143.0;127.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;150;150;80;6;168.3;;;143.0;124.0;;;;;;;0.015;20;0.3;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;150;150;80;6;168.3;;;143.0;124.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;150;150;65;6;168.3;;;143.0;121.0;;;;;;;0.015;20;0.3;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;150;150;65;6;168.3;;;143.0;121.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;200;200;150;8;219.1;;;178.0;168.0;;;;;;;0.014;20;0.28;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;200;200;150;8;219.1;;;178.0;168.0;;;;;;;0.015;60;0.9;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;200;200;125;8;219.1;;;178.0;162.0;;;;;;;0.014;20;0.28;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;200;200;125;8;219.1;;;178.0;162.0;;;;;;;0.016;60;0.96;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;200;200;100;8;219.1;;;178.0;156.0;;;;;;;0.014;20;0.28;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;200;200;100;8;219.1;;;178.0;156.0;;;;;;;0.017;60;1.02;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;200;200;90;8;219.1;;;178.0;152.0;;;;;;;0.014;20;0.28;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;200;200;90;8;219.1;;;178.0;152.0;;;;;;;0.018;60;1.08;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;250;250;200;10;273.0;;;216.0;203.0;;;;;;;0.014;20;0.28;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;250;250;200;10;273.0;;;216.0;203.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;250;250;150;10;273.0;;;216.0;194.0;;;;;;;0.014;20;0.28;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;250;250;150;10;273.0;;;216.0;194.0;;;;;;;0.015;60;0.9;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;250;250;125;10;273.0;;;216.0;191.0;;;;;;;0.014;20;0.28;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;250;250;125;10;273.0;;;216.0;191.0;;;;;;;0.016;60;0.96;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;250;250;100;10;273.0;;;216.0;184.0;;;;;;;0.014;20;0.28;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;250;250;100;10;273.0;;;216.0;184.0;;;;;;;0.017;60;1.02;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;300;300;250;12;323.8;;;254.0;241.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;300;300;250;12;323.8;;;254.0;241.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;300;300;200;12;323.8;;;254.0;229.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;300;300;200;12;323.8;;;254.0;229.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;300;300;150;12;323.8;;;254.0;219.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;300;300;150;12;323.8;;;254.0;219.0;;;;;;;0.015;60;0.9;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;300;300;125;12;323.8;;;254.0;216.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;300;300;125;12;323.8;;;254.0;216.0;;;;;;;0.016;60;0.96;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;350;350;300;14;355.6;;;279.0;270.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;350;350;300;14;355.6;;;279.0;270.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;350;350;250;14;355.6;;;279.0;257.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;350;350;250;14;355.6;;;279.0;257.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;350;350;200;14;355.6;;;279.0;248.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;350;350;200;14;355.6;;;279.0;248.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;350;350;150;14;355.6;;;279.0;238.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;350;350;150;14;355.6;;;279.0;238.0;;;;;;;0.015;60;0.9;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;400;400;350;16;406.4;;;305.0;305.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;400;400;350;16;406.4;;;305.0;305.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;400;400;300;16;406.4;;;305.0;295.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;400;400;300;16;406.4;;;305.0;295.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;400;400;250;16;406.4;;;305.0;283.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;400;400;250;16;406.4;;;305.0;283.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;400;400;200;16;406.4;;;305.0;273.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;400;400;200;16;406.4;;;305.0;273.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;400;400;150;16;406.4;;;305.0;264.0;;;;;;;0.013;20;0.26;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;400;400;150;16;406.4;;;305.0;264.0;;;;;;;0.015;60;0.9;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;450;450;400;18;457;;;343.0;330.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;450;450;400;18;457;;;343.0;330.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;450;450;350;18;457;;;343.0;330.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;450;450;350;18;457;;;343.0;330.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;450;450;300;18;457;;;343.0;321.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;450;450;300;18;457;;;343.0;321.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;450;450;250;18;457;;;343.0;308.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;450;450;250;18;457;;;343.0;308.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;450;450;200;18;457;;;343.0;298.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;450;450;200;18;457;;;343.0;298.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;500;500;450;20;508;;;381.0;368.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;500;500;450;20;508;;;381.0;368.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;500;500;400;20;508;;;381.0;356.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;500;500;400;20;508;;;381.0;356.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;500;500;350;20;508;;;381.0;356.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;500;500;350;20;508;;;381.0;356.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;500;500;300;20;508;;;381.0;346.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;500;500;300;20;508;;;381.0;346.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;500;500;250;20;508;;;381.0;333.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;500;500;250;20;508;;;381.0;333.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;500;500;200;20;508;;;381.0;324.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;500;500;200;20;508;;;381.0;324.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;550;550;500;22;559;;;419.0;406.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;550;550;500;22;559;;;419.0;406.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;550;550;450;22;559;;;419.0;394.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;550;550;450;22;559;;;419.0;394.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;550;550;400;22;559;;;419.0;381.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;550;550;400;22;559;;;419.0;381.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;550;550;350;22;559;;;419.0;381.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;550;550;350;22;559;;;419.0;381.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;550;550;300;22;559;;;419.0;371.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;550;550;300;22;559;;;419.0;371.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;550;550;250;22;559;;;419.0;359.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;550;550;250;22;559;;;419.0;359.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;600;600;550;24;610;;;432.0;432.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;600;600;550;24;610;;;432.0;432.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;600;600;500;24;610;;;432.0;432.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;600;600;500;24;610;;;432.0;432.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;600;600;450;24;610;;;432.0;419.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;600;600;450;24;610;;;432.0;419.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;600;600;400;24;610;;;432.0;406.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;600;600;400;24;610;;;432.0;406.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;600;600;350;24;610;;;432.0;406.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;600;600;350;24;610;;;432.0;406.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;600;600;300;24;610;;;432.0;397.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;600;600;300;24;610;;;432.0;397.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;600;600;250;24;610;;;432.0;384.0;;;;;;;0.012;20;0.24;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;600;600;250;24;610;;;432.0;384.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;650;650;600;26;660;;;495.0;483.0;;;;;;;0.0112;20;0.224;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;650;650;600;26;660;;;495.0;483.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;650;650;550;26;660;;;495.0;470.0;;;;;;;0.0112;20;0.224;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;650;650;550;26;660;;;495.0;470.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;650;650;550;26;660;;;495.0;457.0;;;;;;;0.0112;20;0.224;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;650;650;550;26;660;;;495.0;457.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;650;650;450;26;660;;;495.0;444.0;;;;;;;0.0112;20;0.224;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;650;650;450;26;660;;;495.0;444.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;650;650;400;26;660;;;495.0;432.0;;;;;;;0.0112;20;0.224;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;650;650;400;26;660;;;495.0;432.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;650;650;350;26;660;;;495.0;432.0;;;;;;;0.0112;20;0.224;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;650;650;350;26;660;;;495.0;432.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;650;650;300;26;660;;;495.0;422.0;;;;;;;0.0112;20;0.224;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;650;650;300;26;660;;;495.0;422.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;700;700;650;28;711;;;521.0;521.0;;;;;;;0.0111;20;0.222;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;700;700;650;28;711;;;521.0;521.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;700;700;600;28;711;;;521.0;508.0;;;;;;;0.0111;20;0.222;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;700;700;600;28;711;;;521.0;508.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;700;700;550;28;711;;;521.0;495.0;;;;;;;0.0111;20;0.222;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;700;700;550;28;711;;;521.0;495.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;700;700;500;28;711;;;521.0;483.0;;;;;;;0.0111;20;0.222;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;700;700;500;28;711;;;521.0;483.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;700;700;450;28;711;;;521.0;470.0;;;;;;;0.0111;20;0.222;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;700;700;450;28;711;;;521.0;470.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;700;700;400;28;711;;;521.0;457.0;;;;;;;0.0111;20;0.222;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;700;700;400;28;711;;;521.0;457.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;700;700;350;28;711;;;521.0;457.0;;;;;;;0.0111;20;0.222;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;700;700;350;28;711;;;521.0;457.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;700;700;300;28;711;;;521.0;448.0;;;;;;;0.0111;20;0.222;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;700;700;300;28;711;;;521.0;448.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;750;750;700;30;762;;;559.0;546.0;;;;;;;0.011;20;0.22;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;750;750;700;30;762;;;559.0;546.0;;;;;;;0.0111;60;0.666;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;750;750;650;30;762;;;559.0;546.0;;;;;;;0.011;20;0.22;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;750;750;650;30;762;;;559.0;546.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;750;750;600;30;762;;;559.0;533.0;;;;;;;0.011;20;0.22;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;750;750;600;30;762;;;559.0;533.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;750;750;550;30;762;;;559.0;521.0;;;;;;;0.011;20;0.22;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;750;750;550;30;762;;;559.0;521.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;750;750;500;30;762;;;559.0;508.0;;;;;;;0.011;20;0.22;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;750;750;500;30;762;;;559.0;508.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;750;750;450;30;762;;;559.0;495.0;;;;;;;0.011;20;0.22;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;750;750;450;30;762;;;559.0;495.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;750;750;400;30;762;;;559.0;483.0;;;;;;;0.011;20;0.22;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;750;750;400;30;762;;;559.0;483.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;750;750;350;30;762;;;559.0;483.0;;;;;;;0.011;20;0.22;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;750;750;350;30;762;;;559.0;483.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;750;750;300;30;762;;;559.0;473.0;;;;;;;0.011;20;0.22;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;750;750;300;30;762;;;559.0;473.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;750;750;250;30;762;;;559.0;460.0;;;;;;;0.011;20;0.22;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;750;750;250;30;762;;;559.0;460.0;;;;;;;0.014;60;0.84;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;800;800;750;32;813;;;597.0;584.0;;;;;;;0.0108;20;0.216;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;800;800;750;32;813;;;597.0;584.0;;;;;;;0.011;60;0.66;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;800;800;700;32;813;;;597.0;572.0;;;;;;;0.0108;20;0.216;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;800;800;700;32;813;;;597.0;572.0;;;;;;;0.0111;60;0.666;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;800;800;650;32;813;;;597.0;572.0;;;;;;;0.0108;20;0.216;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;800;800;650;32;813;;;597.0;572.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;800;800;600;32;813;;;597.0;559.0;;;;;;;0.0108;20;0.216;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;800;800;600;32;813;;;597.0;559.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;800;800;550;32;813;;;597.0;546.0;;;;;;;0.0108;20;0.216;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;800;800;550;32;813;;;597.0;546.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;800;800;500;32;813;;;597.0;533.0;;;;;;;0.0108;20;0.216;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;800;800;500;32;813;;;597.0;533.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;800;800;450;32;813;;;597.0;521.0;;;;;;;0.0108;20;0.216;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;800;800;450;32;813;;;597.0;521.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;800;800;400;32;813;;;597.0;508.0;;;;;;;0.0108;20;0.216;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;800;800;400;32;813;;;597.0;508.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;800;800;350;32;813;;;597.0;508.0;;;;;;;0.0108;20;0.216;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;800;800;350;32;813;;;597.0;508.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;850;850;800;34;864;;;635.0;622.0;;;;;;;0.0107;20;0.214;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;850;850;800;34;864;;;635.0;622.0;;;;;;;0.0108;60;0.648;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;850;850;750;34;864;;;635.0;610.0;;;;;;;0.0107;20;0.214;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;850;850;750;34;864;;;635.0;610.0;;;;;;;0.011;60;0.66;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;850;850;700;34;864;;;635.0;597.0;;;;;;;0.0107;20;0.214;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;850;850;700;34;864;;;635.0;597.0;;;;;;;0.0111;60;0.666;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;850;850;650;34;864;;;635.0;597.0;;;;;;;0.0107;20;0.214;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;850;850;650;34;864;;;635.0;597.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;850;850;600;34;864;;;635.0;584.0;;;;;;;0.0107;20;0.214;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;850;850;600;34;864;;;635.0;584.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;850;850;550;34;864;;;635.0;572.0;;;;;;;0.0107;20;0.214;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;850;850;550;34;864;;;635.0;572.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;850;850;500;34;864;;;635.0;559.0;;;;;;;0.0107;20;0.214;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;850;850;500;34;864;;;635.0;559.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;850;850;450;34;864;;;635.0;546.0;;;;;;;0.0107;20;0.214;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;850;850;450;34;864;;;635.0;546.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;850;850;400;34;864;;;635.0;533.0;;;;;;;0.0107;20;0.214;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;850;850;400;34;864;;;635.0;533.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;900;900;850;36;914;;;673.0;660.0;;;;;;;0.0106;20;0.212;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;900;900;850;36;914;;;673.0;660.0;;;;;;;0.0107;60;0.642;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;900;900;800;36;914;;;673.0;648.0;;;;;;;0.0106;20;0.212;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;900;900;800;36;914;;;673.0;648.0;;;;;;;0.0108;60;0.648;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;900;900;750;36;914;;;673.0;635.0;;;;;;;0.0106;20;0.212;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;900;900;750;36;914;;;673.0;635.0;;;;;;;0.011;60;0.66;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;900;900;700;36;914;;;673.0;622.0;;;;;;;0.0106;20;0.212;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;900;900;700;36;914;;;673.0;622.0;;;;;;;0.0111;60;0.666;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;900;900;650;36;914;;;673.0;622.0;;;;;;;0.0106;20;0.212;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;900;900;650;36;914;;;673.0;622.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;900;900;600;36;914;;;673.0;610.0;;;;;;;0.0106;20;0.212;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;900;900;600;36;914;;;673.0;610.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;900;900;550;36;914;;;673.0;597.0;;;;;;;0.0106;20;0.212;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;900;900;550;36;914;;;673.0;597.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;900;900;500;36;914;;;673.0;584.0;;;;;;;0.0106;20;0.212;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;900;900;500;36;914;;;673.0;584.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;900;900;450;36;914;;;673.0;572.0;;;;;;;0.0106;20;0.212;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;900;900;450;36;914;;;673.0;572.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;900;900;400;36;914;;;673.0;559.0;;;;;;;0.0106;20;0.212;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;900;900;400;36;914;;;673.0;559.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;950;950;900;38;965;;;711.0;711.0;;;;;;;0.0105;20;0.21;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;950;950;900;38;965;;;711.0;711.0;;;;;;;0.0106;60;0.636;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;950;950;850;38;965;;;711.0;698.0;;;;;;;0.0105;20;0.21;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;950;950;850;38;965;;;711.0;698.0;;;;;;;0.0107;60;0.642;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;950;950;800;38;965;;;711.0;686.0;;;;;;;0.0105;20;0.21;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;950;950;800;38;965;;;711.0;686.0;;;;;;;0.0108;60;0.648;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;950;950;750;38;965;;;711.0;673.0;;;;;;;0.0105;20;0.21;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;950;950;750;38;965;;;711.0;673.0;;;;;;;0.011;60;0.66;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;950;950;700;38;965;;;711.0;648.0;;;;;;;0.0105;20;0.21;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;950;950;700;38;965;;;711.0;648.0;;;;;;;0.0111;60;0.666;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;950;950;650;38;965;;;711.0;648.0;;;;;;;0.0105;20;0.21;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;950;950;650;38;965;;;711.0;648.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;950;950;600;38;965;;;711.0;635.0;;;;;;;0.0105;20;0.21;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;950;950;600;38;965;;;711.0;635.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;950;950;550;38;965;;;711.0;622.0;;;;;;;0.0105;20;0.21;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;950;950;550;38;965;;;711.0;622.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;950;950;500;38;965;;;711.0;610.0;;;;;;;0.0105;20;0.21;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;950;950;500;38;965;;;711.0;610.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;950;950;450;38;965;;;711.0;597.0;;;;;;;0.0105;20;0.21;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;950;950;450;38;965;;;711.0;597.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;950;40;1016;;;749.0;749.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;950;40;1016;;;749.0;749.0;;;;;;;0.0105;60;0.63;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;900;40;1016;;;749.0;737.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;900;40;1016;;;749.0;737.0;;;;;;;0.0106;60;0.636;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;850;40;1016;;;749.0;724.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;850;40;1016;;;749.0;724.0;;;;;;;0.0107;60;0.642;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;800;40;1016;;;749.0;711.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;800;40;1016;;;749.0;711.0;;;;;;;0.0108;60;0.648;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;750;40;1016;;;749.0;698.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;750;40;1016;;;749.0;698.0;;;;;;;0.011;60;0.66;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;700;40;1016;;;749.0;673.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;700;40;1016;;;749.0;673.0;;;;;;;0.0111;60;0.666;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;650;40;1016;;;749.0;673.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;650;40;1016;;;749.0;673.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;600;40;1016;;;749.0;660.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;600;40;1016;;;749.0;660.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;550;40;1016;;;749.0;648.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;550;40;1016;;;749.0;648.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;500;40;1016;;;749.0;635.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;500;40;1016;;;749.0;635.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1000;1000;450;40;1016;;;749.0;622.0;;;;;;;0.0104;20;0.208;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1000;1000;450;40;1016;;;749.0;622.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;1000;42;1067;;;762.0;711.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;1000;42;1067;;;762.0;711.0;;;;;;;0.0104;60;0.624;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;950;42;1067;;;762.0;711.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;950;42;1067;;;762.0;711.0;;;;;;;0.0105;60;0.63;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;900;42;1067;;;762.0;711.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;900;42;1067;;;762.0;711.0;;;;;;;0.0106;60;0.636;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;850;42;1067;;;762.0;711.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;850;42;1067;;;762.0;711.0;;;;;;;0.0107;60;0.642;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;800;42;1067;;;762.0;711.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;800;42;1067;;;762.0;711.0;;;;;;;0.0108;60;0.648;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;750;42;1067;;;762.0;711.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;750;42;1067;;;762.0;711.0;;;;;;;0.011;60;0.66;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;700;42;1067;;;762.0;698.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;700;42;1067;;;762.0;698.0;;;;;;;0.0111;60;0.666;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;650;42;1067;;;762.0;698.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;650;42;1067;;;762.0;698.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;600;42;1067;;;762.0;660.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;600;42;1067;;;762.0;660.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;550;42;1067;;;762.0;660.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;550;42;1067;;;762.0;660.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;500;42;1067;;;762.0;660.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;500;42;1067;;;762.0;660.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;450;42;1067;;;762.0;648.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;450;42;1067;;;762.0;648.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1050;1050;400;42;1067;;;762.0;635.0;;;;;;;0.0103;20;0.206;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1050;1050;400;42;1067;;;762.0;635.0;;;;;;;0.013;60;0.78;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;1050;44;1118;;;813.0;762.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;1050;44;1118;;;813.0;762.0;;;;;;;0.0103;60;0.618;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;1000;44;1118;;;813.0;749.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;1000;44;1118;;;813.0;749.0;;;;;;;0.0104;60;0.624;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;950;44;1118;;;813.0;737.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;950;44;1118;;;813.0;737.0;;;;;;;0.0105;60;0.63;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;900;44;1118;;;813.0;724.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;900;44;1118;;;813.0;724.0;;;;;;;0.0106;60;0.636;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;850;44;1118;;;813.0;724.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;850;44;1118;;;813.0;724.0;;;;;;;0.0107;60;0.642;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;800;44;1118;;;813.0;711.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;800;44;1118;;;813.0;711.0;;;;;;;0.0108;60;0.648;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;750;44;1118;;;813.0;711.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;750;44;1118;;;813.0;711.0;;;;;;;0.011;60;0.66;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;700;44;1118;;;813.0;698.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;700;44;1118;;;813.0;698.0;;;;;;;0.0111;60;0.666;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;650;44;1118;;;813.0;698.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;650;44;1118;;;813.0;698.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;600;44;1118;;;813.0;698.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;600;44;1118;;;813.0;698.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;550;44;1118;;;813.0;686.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;550;44;1118;;;813.0;686.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1100;1100;500;44;1118;;;813.0;686.0;;;;;;;0.0102;20;0.204;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1100;1100;500;44;1118;;;813.0;686.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;1100;46;1168;;;851.0;800.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;1100;46;1168;;;851.0;800.0;;;;;;;0.0102;60;0.612;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;1050;46;1168;;;851.0;787.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;1050;46;1168;;;851.0;787.0;;;;;;;0.0103;60;0.618;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;1000;46;1168;;;851.0;775.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;1000;46;1168;;;851.0;775.0;;;;;;;0.0104;60;0.624;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;950;46;1168;;;851.0;762.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;950;46;1168;;;851.0;762.0;;;;;;;0.0105;60;0.63;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;900;46;1168;;;851.0;762.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;900;46;1168;;;851.0;762.0;;;;;;;0.0106;60;0.636;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;850;46;1168;;;851.0;749.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;850;46;1168;;;851.0;749.0;;;;;;;0.0107;60;0.642;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;800;46;1168;;;851.0;749.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;800;46;1168;;;851.0;749.0;;;;;;;0.0108;60;0.648;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;750;46;1168;;;851.0;737.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;750;46;1168;;;851.0;737.0;;;;;;;0.011;60;0.66;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;700;46;1168;;;851.0;737.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;700;46;1168;;;851.0;737.0;;;;;;;0.0111;60;0.666;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;650;46;1168;;;851.0;737.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;650;46;1168;;;851.0;737.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;600;46;1168;;;851.0;724.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;600;46;1168;;;851.0;724.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1150;1150;550;46;1168;;;851.0;724.0;;;;;;;0.0101;20;0.202;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1150;1150;550;46;1168;;;851.0;724.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;1150;48;1219;;;889.0;838.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;1150;48;1219;;;889.0;838.0;;;;;;;0.0101;60;0.606;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;1100;48;1219;;;889.0;838.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;1100;48;1219;;;889.0;838.0;;;;;;;0.0102;60;0.612;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;1050;48;1219;;;889.0;813.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;1050;48;1219;;;889.0;813.0;;;;;;;0.0103;60;0.618;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;1000;48;1219;;;889.0;813.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;1000;48;1219;;;889.0;813.0;;;;;;;0.0104;60;0.624;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;950;48;1219;;;889.0;813.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;950;48;1219;;;889.0;813.0;;;;;;;0.0105;60;0.63;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;900;48;1219;;;889.0;787.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;900;48;1219;;;889.0;787.0;;;;;;;0.0106;60;0.636;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;850;48;1219;;;889.0;787.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;850;48;1219;;;889.0;787.0;;;;;;;0.0107;60;0.642;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;800;48;1219;;;889.0;787.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;800;48;1219;;;889.0;787.0;;;;;;;0.0108;60;0.648;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;750;48;1219;;;889.0;762.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;750;48;1219;;;889.0;762.0;;;;;;;0.011;60;0.66;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;700;48;1219;;;889.0;762.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;700;48;1219;;;889.0;762.0;;;;;;;0.0111;60;0.666;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;650;48;1219;;;889.0;762.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;650;48;1219;;;889.0;762.0;;;;;;;0.0112;60;0.672;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;600;48;1219;;;889.0;737.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;600;48;1219;;;889.0;737.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Te reductora – paso directo;1200;1200;550;48;1219;;;889.0;737.0;;;;;;;0.01;20;0.2;;;Crane: 20 fT (aprox., te recta);
+Te reductora – derivación;1200;1200;550;48;1219;;;889.0;737.0;;;;;;;0.012;60;0.72;;;Crane: 60 fT del DN de la derivación (aprox.);"K referido a la velocidad en la derivación; usar fT de la derivación"
+Reducción concéntrica;20;15;;3/4;26.7;;;;;;;;;38.0;8.1;;;;0.025;0.035;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;20;15;;3/4;26.7;;;;;;;;;38.0;8.1;;;;0.025;0.035;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;125;100;;5;141.3;;;;;;;;;127.0;12.1;;;;0.031;0.036;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;125;100;;5;141.3;;;;;;;;;127.0;12.1;;;;0.031;0.036;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;20;10;;3/4;26.7;;;;;;;;;38.0;14.4;;;;0.064;0.134;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;20;10;;3/4;26.7;;;;;;;;;38.0;14.4;;;;0.064;0.134;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;125;90;;5;141.3;;;;;;;;;127.0;17.8;;;;0.062;0.102;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;125;90;;5;141.3;;;;;;;;;127.0;17.8;;;;0.062;0.102;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;25;20;;1;33.4;;;;;;;;;51.0;7.5;;;;0.02;0.025;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;25;20;;1;33.4;;;;;;;;;51.0;7.5;;;;0.02;0.025;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;125;80;;5;141.3;;;;;;;;;127.0;23.3;;;;0.102;0.209;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;125;80;;5;141.3;;;;;;;;;127.0;23.3;;;;0.102;0.209;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;25;15;;1;33.4;;;;;;;;;51.0;13.5;;;;0.061;0.13;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;25;15;;1;33.4;;;;;;;;;51.0;13.5;;;;0.061;0.13;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;125;65;;5;141.3;;;;;;;;;127.0;30.1;;;;0.158;0.391;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;125;65;;5;141.3;;;;;;;;;127.0;30.1;;;;0.158;0.391;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;125;50;;5;141.3;;;;;;;;;127.0;35.4;;;;0.202;0.547;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;125;50;;5;141.3;;;;;;;;;127.0;35.4;;;;0.202;0.547;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;32;25;;1-1/4;42.2;;;;;;;;;51.0;9.9;;;;0.029;0.04;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;32;25;;1-1/4;42.2;;;;;;;;;51.0;9.9;;;;0.029;0.04;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;32;20;;1-1/4;42.2;;;;;;;;;51.0;17.3;;;;0.077;0.162;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;32;20;;1-1/4;42.2;;;;;;;;;51.0;17.3;;;;0.077;0.162;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;150;125;;6;168.3;;;;;;;;;140.0;11.0;;;;0.024;0.024;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;150;125;;6;168.3;;;;;;;;;140.0;11.0;;;;0.024;0.024;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;32;15;;1-1/4;42.2;;;;;;;;;51.0;23.2;;;;0.128;0.333;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;32;15;;1-1/4;42.2;;;;;;;;;51.0;23.2;;;;0.128;0.333;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;150;100;;6;168.3;;;;;;;;;140.0;21.8;;;;0.085;0.154;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;150;100;;6;168.3;;;;;;;;;140.0;21.8;;;;0.085;0.154;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;150;90;;6;168.3;;;;;;;;;140.0;26.8;;;;0.122;0.26;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;150;90;;6;168.3;;;;;;;;;140.0;26.8;;;;0.122;0.26;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;40;32;;1-1/2;48.3;;;;;;;;;64.0;5.5;;;;0.01;0.009;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;40;32;;1-1/2;48.3;;;;;;;;;64.0;5.5;;;;0.01;0.009;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;150;80;;6;168.3;;;;;;;;;140.0;31.7;;;;0.162;0.393;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;150;80;;6;168.3;;;;;;;;;140.0;31.7;;;;0.162;0.393;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;40;25;;1-1/2;48.3;;;;;;;;;64.0;13.3;;;;0.053;0.1;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;40;25;;1-1/2;48.3;;;;;;;;;64.0;13.3;;;;0.053;0.1;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;150;65;;6;168.3;;;;;;;;;140.0;37.6;;;;0.215;0.584;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;150;65;;6;168.3;;;;;;;;;140.0;37.6;;;;0.215;0.584;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;40;20;;1-1/2;48.3;;;;;;;;;64.0;19.2;;;;0.098;0.236;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;40;20;;1-1/2;48.3;;;;;;;;;64.0;19.2;;;;0.098;0.236;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;40;15;;1-1/2;48.3;;;;;;;;;64.0;23.8;;;;0.141;0.39;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;40;15;;1-1/2;48.3;;;;;;;;;64.0;23.8;;;;0.141;0.39;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;200;150;;8;219.1;;;;;;;;;152.0;19.0;;;;0.056;0.076;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;200;150;;8;219.1;;;;;;;;;152.0;19.0;;;;0.056;0.076;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;200;125;;8;219.1;;;;;;;;;152.0;28.7;;;;0.119;0.233;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;200;125;;8;219.1;;;;;;;;;152.0;28.7;;;;0.119;0.233;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;50;40;;2;60.3;;;;;;;;;76.0;9.0;;;;0.025;0.032;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;50;40;;2;60.3;;;;;;;;;76.0;9.0;;;;0.025;0.032;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;200;100;;8;219.1;;;;;;;;;152.0;38.0;;;;0.194;0.471;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;200;100;;8;219.1;;;;;;;;;152.0;38.0;;;;0.194;0.471;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;50;32;;2;60.3;;;;;;;;;76.0;13.6;;;;0.053;0.095;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;50;32;;2;60.3;;;;;;;;;76.0;13.6;;;;0.053;0.095;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;200;90;;8;219.1;;;;;;;;;152.0;42.3;;;;0.231;0.603;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;200;90;;8;219.1;;;;;;;;;152.0;42.3;;;;0.231;0.603;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;50;25;;2;60.3;;;;;;;;;76.0;20.1;;;;0.104;0.25;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;50;25;;2;60.3;;;;;;;;;76.0;20.1;;;;0.104;0.25;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;50;20;;2;60.3;;;;;;;;;76.0;24.9;;;;0.145;0.397;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;50;20;;2;60.3;;;;;;;;;76.0;24.9;;;;0.145;0.397;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;250;200;;10;273.0;;;;;;;;;178.0;17.2;;;;0.044;0.052;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;250;200;;10;273.0;;;;;;;;;178.0;17.2;;;;0.044;0.052;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;250;150;;10;273.0;;;;;;;;;178.0;32.8;;;;0.143;0.294;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;250;150;;10;273.0;;;;;;;;;178.0;32.8;;;;0.143;0.294;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;65;50;;2-1/2;73.0;;;;;;;;;89.0;8.2;;;;0.017;0.016;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;65;50;;2-1/2;73.0;;;;;;;;;89.0;8.2;;;;0.017;0.016;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;250;125;;10;273.0;;;;;;;;;178.0;40.6;;;;0.207;0.503;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;250;125;;10;273.0;;;;;;;;;178.0;40.6;;;;0.207;0.503;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;65;40;;2-1/2;73.0;;;;;;;;;89.0;15.8;;;;0.063;0.117;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;65;40;;2-1/2;73.0;;;;;;;;;89.0;15.8;;;;0.063;0.117;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;250;100;;10;273.0;;;;;;;;;178.0;48.1;;;;0.267;0.703;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;250;100;;10;273.0;;;;;;;;;178.0;48.1;;;;0.267;0.703;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;65;32;;2-1/2;73.0;;;;;;;;;89.0;19.6;;;;0.094;0.209;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;65;32;;2-1/2;73.0;;;;;;;;;89.0;19.6;;;;0.094;0.209;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;65;25;;2-1/2;73.0;;;;;;;;;89.0;25.1;;;;0.142;0.379;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;65;25;;2-1/2;73.0;;;;;;;;;89.0;25.1;;;;0.142;0.379;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;300;250;;12;323.8;;;;;;;;;203.0;14.3;;;;0.029;0.028;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;300;250;;12;323.8;;;;;;;;;203.0;14.3;;;;0.029;0.028;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;300;200;;12;323.8;;;;;;;;;203.0;28.9;;;;0.111;0.199;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;300;200;;12;323.8;;;;;;;;;203.0;28.9;;;;0.111;0.199;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;80;65;;3;88.9;;;;;;;;;89.0;10.2;;;;0.025;0.029;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;80;65;;3;88.9;;;;;;;;;89.0;10.2;;;;0.025;0.029;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;300;150;;12;323.8;;;;;;;;;203.0;41.9;;;;0.212;0.512;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;300;150;;12;323.8;;;;;;;;;203.0;41.9;;;;0.212;0.512;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;80;50;;3;88.9;;;;;;;;;89.0;18.3;;;;0.069;0.123;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;80;50;;3;88.9;;;;;;;;;89.0;18.3;;;;0.069;0.123;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;300;125;;12;323.8;;;;;;;;;203.0;48.4;;;;0.263;0.675;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;300;125;;12;323.8;;;;;;;;;203.0;48.4;;;;0.263;0.675;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;80;40;;3;88.9;;;;;;;;;89.0;25.7;;;;0.129;0.303;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;80;40;;3;88.9;;;;;;;;;89.0;25.7;;;;0.129;0.303;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;80;32;;3;88.9;;;;;;;;;89.0;29.4;;;;0.162;0.42;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;80;32;;3;88.9;;;;;;;;;89.0;29.4;;;;0.162;0.42;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;350;300;;14;355.6;;;;;;;;;330.0;5.5;;;;0.007;0.004;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;350;300;;14;355.6;;;;;;;;;330.0;5.5;;;;0.007;0.004;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;350;250;;14;355.6;;;;;;;;;330.0;14.3;;;;0.042;0.056;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;350;250;;14;355.6;;;;;;;;;330.0;14.3;;;;0.042;0.056;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;90;80;;3-1/2;101.6;;;;;;;;;102.0;7.1;;;;0.013;0.01;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;90;80;;3-1/2;101.6;;;;;;;;;102.0;7.1;;;;0.013;0.01;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;350;200;;14;355.6;;;;;;;;;330.0;23.4;;;;0.102;0.209;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;350;200;;14;355.6;;;;;;;;;330.0;23.4;;;;0.102;0.209;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;90;65;;3-1/2;101.6;;;;;;;;;102.0;16.0;;;;0.058;0.097;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;90;65;;3-1/2;101.6;;;;;;;;;102.0;16.0;;;;0.058;0.097;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;350;150;;14;355.6;;;;;;;;;330.0;31.7;;;;0.172;0.439;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;350;150;;14;355.6;;;;;;;;;330.0;31.7;;;;0.172;0.439;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;90;50;;3-1/2;101.6;;;;;;;;;102.0;22.9;;;;0.105;0.226;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;90;50;;3-1/2;101.6;;;;;;;;;102.0;22.9;;;;0.105;0.226;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;90;40;;3-1/2;101.6;;;;;;;;;102.0;29.3;;;;0.161;0.415;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;90;40;;3-1/2;101.6;;;;;;;;;102.0;29.3;;;;0.161;0.415;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;400;350;;16;406.4;;;;;;;;;356.0;8.2;;;;0.013;0.01;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;400;350;;16;406.4;;;;;;;;;356.0;8.2;;;;0.013;0.01;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;90;32;;3-1/2;101.6;;;;;;;;;102.0;32.5;;;;0.19;0.524;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;90;32;;3-1/2;101.6;;;;;;;;;102.0;32.5;;;;0.19;0.524;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;400;300;;16;406.4;;;;;;;;;356.0;13.2;;;;0.034;0.04;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;400;300;;16;406.4;;;;;;;;;356.0;13.2;;;;0.034;0.04;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;400;250;;16;406.4;;;;;;;;;356.0;21.2;;;;0.082;0.147;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;400;250;;16;406.4;;;;;;;;;356.0;21.2;;;;0.082;0.147;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;100;90;;4;114.3;;;;;;;;;102.0;7.1;;;;0.011;0.008;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;100;90;;4;114.3;;;;;;;;;102.0;7.1;;;;0.011;0.008;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;400;200;;16;406.4;;;;;;;;;356.0;29.5;;;;0.146;0.34;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;400;200;;16;406.4;;;;;;;;;356.0;29.5;;;;0.146;0.34;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;100;80;;4;114.3;;;;;;;;;102.0;14.2;;;;0.042;0.057;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;100;80;;4;114.3;;;;;;;;;102.0;14.2;;;;0.042;0.057;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;100;65;;4;114.3;;;;;;;;;102.0;22.9;;;;0.099;0.202;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;100;65;;4;114.3;;;;;;;;;102.0;22.9;;;;0.099;0.202;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;450;400;;18;457;;;;;;;;;381.0;7.6;;;;0.011;0.008;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;450;400;;18;457;;;;;;;;;381.0;7.6;;;;0.011;0.008;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;100;50;;4;114.3;;;;;;;;;102.0;29.7;;;;0.151;0.361;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;100;50;;4;114.3;;;;;;;;;102.0;29.7;;;;0.151;0.361;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;450;350;;18;457;;;;;;;;;381.0;15.2;;;;0.042;0.053;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;450;350;;18;457;;;;;;;;;381.0;15.2;;;;0.042;0.053;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;100;40;;4;114.3;;;;;;;;;102.0;35.9;;;;0.207;0.565;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;100;40;;4;114.3;;;;;;;;;102.0;35.9;;;;0.207;0.565;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;450;300;;18;457;;;;;;;;;381.0;19.8;;;;0.069;0.112;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;450;300;;18;457;;;;;;;;;381.0;19.8;;;;0.069;0.112;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;450;250;;18;457;;;;;;;;;381.0;27.2;;;;0.122;0.256;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;450;250;;18;457;;;;;;;;;381.0;27.2;;;;0.122;0.256;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;500;450;;20;508;;;;;;;;;508.0;5.7;;;;0.008;0.005;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;500;450;;20;508;;;;;;;;;508.0;5.7;;;;0.008;0.005;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;900;850;;36;914;;;;;;;;;610.0;4.7;;;;0.003;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;900;850;;36;914;;;;;;;;;610.0;4.7;;;;0.003;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;500;400;;20;508;;;;;;;;;508.0;11.4;;;;0.029;0.034;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;500;400;;20;508;;;;;;;;;508.0;11.4;;;;0.029;0.034;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;900;800;;36;914;;;;;;;;;610.0;9.5;;;;0.014;0.01;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;900;800;;36;914;;;;;;;;;610.0;9.5;;;;0.014;0.01;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;500;350;;20;508;;;;;;;;;508.0;17.1;;;;0.061;0.102;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;500;350;;20;508;;;;;;;;;508.0;17.1;;;;0.061;0.102;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;900;750;;36;914;;;;;;;;;610.0;14.2;;;;0.031;0.032;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;900;750;;36;914;;;;;;;;;610.0;14.2;;;;0.031;0.032;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;500;300;;20;508;;;;;;;;;508.0;20.6;;;;0.085;0.165;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;500;300;;20;508;;;;;;;;;508.0;20.6;;;;0.085;0.165;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;900;700;;36;914;;;;;;;;;610.0;18.9;;;;0.049;0.06;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;900;700;;36;914;;;;;;;;;610.0;18.9;;;;0.049;0.06;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;900;650;;36;914;;;;;;;;;610.0;23.5;;;;0.076;0.114;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;900;650;;36;914;;;;;;;;;610.0;23.5;;;;0.076;0.114;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;550;500;;22;559;;;;;;;;;508.0;5.7;;;;0.009;0.006;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;550;500;;22;559;;;;;;;;;508.0;5.7;;;;0.009;0.006;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;550;450;;22;559;;;;;;;;;508.0;11.5;;;;0.03;0.035;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;550;450;;22;559;;;;;;;;;508.0;11.5;;;;0.03;0.035;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;950;900;;38;965;;;;;;;;;610.0;4.8;;;;0.005;0.002;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;950;900;;38;965;;;;;;;;;610.0;4.8;;;;0.005;0.002;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;550;400;;22;559;;;;;;;;;508.0;17.1;;;;0.06;0.097;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;550;400;;22;559;;;;;;;;;508.0;17.1;;;;0.06;0.097;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;950;850;;38;965;;;;;;;;;610.0;9.5;;;;0.015;0.012;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;950;850;;38;965;;;;;;;;;610.0;9.5;;;;0.015;0.012;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;550;350;;22;559;;;;;;;;;508.0;22.6;;;;0.097;0.195;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;550;350;;22;559;;;;;;;;;508.0;22.6;;;;0.097;0.195;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;950;800;;38;965;;;;;;;;;610.0;14.2;;;;0.032;0.034;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;950;800;;38;965;;;;;;;;;610.0;14.2;;;;0.032;0.034;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;950;750;;38;965;;;;;;;;;610.0;18.9;;;;0.054;0.073;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;950;750;;38;965;;;;;;;;;610.0;18.9;;;;0.054;0.073;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;600;550;;24;610;;;;;;;;;508.0;5.7;;;;0.005;0.002;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;600;550;;24;610;;;;;;;;;508.0;5.7;;;;0.005;0.002;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;950;700;;38;965;;;;;;;;;610.0;23.5;;;;0.076;0.114;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;950;700;;38;965;;;;;;;;;610.0;23.5;;;;0.076;0.114;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;600;500;;24;610;;;;;;;;;508.0;11.5;;;;0.025;0.025;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;600;500;;24;610;;;;;;;;;508.0;11.5;;;;0.025;0.025;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;950;650;;38;965;;;;;;;;;610.0;28.1;;;;0.105;0.184;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;950;650;;38;965;;;;;;;;;610.0;28.1;;;;0.105;0.184;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;600;450;;24;610;;;;;;;;;508.0;17.1;;;;0.053;0.076;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;600;450;;24;610;;;;;;;;;508.0;17.1;;;;0.053;0.076;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;600;400;;24;610;;;;;;;;;508.0;22.7;;;;0.088;0.161;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;600;400;;24;610;;;;;;;;;508.0;22.7;;;;0.088;0.161;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1000;950;;40;1016;;;;;;;;;610.0;4.8;;;;0.003;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1000;950;;40;1016;;;;;;;;;610.0;4.8;;;;0.003;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1000;900;;40;1016;;;;;;;;;610.0;9.6;;;;0.015;0.011;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1000;900;;40;1016;;;;;;;;;610.0;9.6;;;;0.015;0.011;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;650;600;;26;660;;;;;;;;;610.0;4.7;;;;0.006;0.004;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;650;600;;26;660;;;;;;;;;610.0;4.7;;;;0.006;0.004;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1000;850;;40;1016;;;;;;;;;610.0;14.2;;;;0.031;0.031;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1000;850;;40;1016;;;;;;;;;610.0;14.2;;;;0.031;0.031;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;650;550;;26;660;;;;;;;;;610.0;9.5;;;;0.019;0.018;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;650;550;;26;660;;;;;;;;;610.0;9.5;;;;0.019;0.018;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1000;800;;40;1016;;;;;;;;;610.0;18.9;;;;0.051;0.065;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1000;800;;40;1016;;;;;;;;;610.0;18.9;;;;0.051;0.065;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;650;500;;26;660;;;;;;;;;610.0;14.2;;;;0.044;0.064;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;650;500;;26;660;;;;;;;;;610.0;14.2;;;;0.044;0.064;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1000;750;;40;1016;;;;;;;;;610.0;23.5;;;;0.077;0.119;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1000;750;;40;1016;;;;;;;;;610.0;23.5;;;;0.077;0.119;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;650;450;;26;660;;;;;;;;;610.0;18.9;;;;0.073;0.131;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;650;450;;26;660;;;;;;;;;610.0;18.9;;;;0.073;0.131;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1050;1000;;42;1067;;;;;;;;;610.0;4.8;;;;0.003;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1050;1000;;42;1067;;;;;;;;;610.0;4.8;;;;0.003;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;700;650;;28;711;;;;;;;;;610.0;4.8;;;;0.005;0.002;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;700;650;;28;711;;;;;;;;;610.0;4.8;;;;0.005;0.002;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1050;950;;42;1067;;;;;;;;;610.0;9.6;;;;0.012;0.007;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1050;950;;42;1067;;;;;;;;;610.0;9.6;;;;0.012;0.007;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;700;600;;28;711;;;;;;;;;610.0;9.5;;;;0.02;0.021;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;700;600;;28;711;;;;;;;;;610.0;9.5;;;;0.02;0.021;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1050;900;;42;1067;;;;;;;;;610.0;14.3;;;;0.03;0.029;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1050;900;;42;1067;;;;;;;;;610.0;14.3;;;;0.03;0.029;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;700;550;;28;711;;;;;;;;;610.0;14.2;;;;0.039;0.049;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;700;550;;28;711;;;;;;;;;610.0;14.2;;;;0.039;0.049;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1050;850;;42;1067;;;;;;;;;610.0;18.9;;;;0.049;0.06;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1050;850;;42;1067;;;;;;;;;610.0;18.9;;;;0.049;0.06;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;700;500;;28;711;;;;;;;;;610.0;18.9;;;;0.069;0.117;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;700;500;;28;711;;;;;;;;;610.0;18.9;;;;0.069;0.117;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1050;800;;42;1067;;;;;;;;;610.0;23.5;;;;0.073;0.107;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1050;800;;42;1067;;;;;;;;;610.0;23.5;;;;0.073;0.107;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1050;750;;42;1067;;;;;;;;;610.0;28.1;;;;0.101;0.172;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1050;750;;42;1067;;;;;;;;;610.0;28.1;;;;0.101;0.172;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;750;700;;30;762;;;;;;;;;610.0;4.8;;;;0.003;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;750;700;;30;762;;;;;;;;;610.0;4.8;;;;0.003;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;750;650;;30;762;;;;;;;;;610.0;9.6;;;;0.014;0.01;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;750;650;;30;762;;;;;;;;;610.0;9.6;;;;0.014;0.01;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1100;1050;;44;1118;;;;;;;;;610.0;4.8;;;;0.003;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1100;1050;;44;1118;;;;;;;;;610.0;4.8;;;;0.003;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;750;600;;30;762;;;;;;;;;610.0;14.2;;;;0.037;0.044;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;750;600;;30;762;;;;;;;;;610.0;14.2;;;;0.037;0.044;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1100;1000;;44;1118;;;;;;;;;610.0;9.6;;;;0.012;0.007;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1100;1000;;44;1118;;;;;;;;;610.0;9.6;;;;0.012;0.007;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;750;550;;30;762;;;;;;;;;610.0;18.9;;;;0.058;0.084;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;750;550;;30;762;;;;;;;;;610.0;18.9;;;;0.058;0.084;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1100;950;;44;1118;;;;;;;;;610.0;14.3;;;;0.026;0.022;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1100;950;;44;1118;;;;;;;;;610.0;14.3;;;;0.026;0.022;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1100;900;;44;1118;;;;;;;;;610.0;19.0;;;;0.048;0.057;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1100;900;;44;1118;;;;;;;;;610.0;19.0;;;;0.048;0.057;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;800;750;;32;813;;;;;;;;;610.0;4.8;;;;0.004;0.002;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;800;750;;32;813;;;;;;;;;610.0;4.8;;;;0.004;0.002;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;800;700;;32;813;;;;;;;;;610.0;9.6;;;;0.014;0.009;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;800;700;;32;813;;;;;;;;;610.0;9.6;;;;0.014;0.009;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1150;1100;;46;1168;;;;;;;;;711.0;4.0;;;;0.002;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1150;1100;;46;1168;;;;;;;;;711.0;4.0;;;;0.002;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;800;650;;32;813;;;;;;;;;610.0;14.3;;;;0.032;0.033;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;800;650;;32;813;;;;;;;;;610.0;14.3;;;;0.032;0.033;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1150;1050;;46;1168;;;;;;;;;711.0;8.1;;;;0.01;0.005;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1150;1050;;46;1168;;;;;;;;;711.0;8.1;;;;0.01;0.005;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;800;600;;32;813;;;;;;;;;610.0;18.9;;;;0.06;0.088;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;800;600;;32;813;;;;;;;;;610.0;18.9;;;;0.06;0.088;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1150;1000;;46;1168;;;;;;;;;711.0;12.2;;;;0.021;0.017;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1150;1000;;46;1168;;;;;;;;;711.0;12.2;;;;0.021;0.017;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1150;950;;46;1168;;;;;;;;;711.0;16.2;;;;0.036;0.038;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1150;950;;46;1168;;;;;;;;;711.0;16.2;;;;0.036;0.038;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;850;800;;34;864;;;;;;;;;610.0;4.8;;;;0.004;0.002;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;850;800;;34;864;;;;;;;;;610.0;4.8;;;;0.004;0.002;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;850;750;;34;864;;;;;;;;;610.0;9.6;;;;0.016;0.012;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;850;750;;34;864;;;;;;;;;610.0;9.6;;;;0.016;0.012;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1200;1150;;48;1219;;;;;;;;;711.0;4.1;;;;0.002;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1200;1150;;48;1219;;;;;;;;;711.0;4.1;;;;0.002;0.001;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;850;700;;34;864;;;;;;;;;610.0;14.3;;;;0.03;0.03;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;850;700;;34;864;;;;;;;;;610.0;14.3;;;;0.03;0.03;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1200;1100;;48;1219;;;;;;;;;711.0;8.1;;;;0.009;0.005;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1200;1100;;48;1219;;;;;;;;;711.0;8.1;;;;0.009;0.005;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;850;650;;34;864;;;;;;;;;610.0;19.0;;;;0.053;0.069;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;850;650;;34;864;;;;;;;;;610.0;19.0;;;;0.053;0.069;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1200;1050;;48;1219;;;;;;;;;711.0;12.2;;;;0.02;0.016;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1200;1050;;48;1219;;;;;;;;;711.0;12.2;;;;0.02;0.016;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica
+Reducción concéntrica;1200;1000;;48;1219;;;;;;;;;711.0;16.2;;;;0.035;0.035;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";
+Reducción excéntrica;1200;1000;;48;1219;;;;;;;;;711.0;16.2;;;;0.035;0.035;"Crane A-24 fórmulas 1–4, K referido al diámetro menor; β con Dint Sch40/STD";Crane no distingue concéntrica de excéntrica

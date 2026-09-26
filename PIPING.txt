@@ -1,0 +1,39 @@
+PIPING
+
+1. Si se cierra bruscamente, pedirá que se guarde.
+Eliminar en la parte superior, nuevo, abrir, guardar, guardar como, reajustes conexiones.
+En su lugar insertar los menús indicados en 2. con su correspondiente iconito en pequeño y atajo de teclado indicado
+2. Menu al estilo del de Paint con
+	a. Archivo
+		Nuevo (Ctrl+n)
+		Abrir (cTRL+O)
+		Guardar (Ctrl+G)
+		Guardar como
+		Imprimir (Ctrl+P)
+
+	b. Edición
+		Búsqueda/Reemplazo (Ctrl+R)
+		Copiar (Ctrl+C)
+		Cortar (Ctrl+x)
+		Deshacer
+		Rehacer
+	c.Librerías
+		Accesorios (Alt+A)
+			
+	d. Cálculo
+	e. Seleccionar
+	f. Vista
+	g. Insertar
+	h. Extras
+	i. Resultados.
+	j. Herramientas.
+	k. Tabla
+	l. Opciones
+	m. Ventana
+	n. Zoom
+		Ajustar
+		Todo
+		Ventana (W)
+	o. Ayuda
+		Créditos.
+		

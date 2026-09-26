@@ -1,0 +1,2229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PIPING - Diseño P&ID Vectorial Avanzado (mm)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .resizer {
+            width: 6px;
+            cursor: col-resize;
+            background: transparent;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            z-index: 20;
+        }
+        .resizer:hover { background: #3b82f6; opacity: 0.5; }
+        #canvas-container {
+            overflow: auto;
+            position: relative;
+            background-color: #cbd5e1;
+        }
+        #marco-a3 {
+            /* Hoja A3 apaisada: 420 x 297 mm a 96 ppp = 1587 x 1123 unidades (ver ANCHO_A3/ALTO_A3) */
+            width: 1587px;
+            height: 1123px;
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            background: white;
+            transform-origin: 0 0;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.25);
+            overflow: hidden;
+        }
+        #lienzo-espaciador { position: absolute; width: 1px; height: 1px; pointer-events: none; }
+        @media print {
+            @page { size: A3 landscape; margin: 0; }
+            body * { visibility: hidden !important; }
+            #marco-a3, #marco-a3 * { visibility: visible !important; }
+            #marco-a3 { position: fixed !important; left: 0 !important; top: 0 !important; transform: none !important;
+                        width: 420mm !important; height: 297mm !important; box-shadow: none !important; background-image: none !important; }
+            #marco-a3 .connection-port, #empty-state { display: none !important; }
+        }
+        #axis-gizmo {
+            pointer-events: none;
+            width: 64px;
+            height: 64px;
+        }
+        #zoom-window-box {
+            position: absolute;
+            border: 2px dashed #2563eb;
+            background: rgba(37, 99, 235, 0.1);
+            pointer-events: none;
+            display: none;
+            z-index: 50;
+        }
+        #svg-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .symbol-group {
+            cursor: move;
+            user-select: none;
+        }
+        .symbol-selected rect, .symbol-selected circle, .symbol-selected path, .symbol-selected line, .symbol-selected polygon {
+            stroke: #2563eb !important;
+            stroke-width: 3px !important;
+        }
+        #context-menu {
+            display: none;
+            position: absolute;
+            z-index: 1000;
+            background: white;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            border-radius: 6px;
+            padding: 4px 0;
+            width: 160px;
+            font-size: 11px;
+        }
+        #context-menu button {
+            width: 100%;
+            text-align: left;
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            color: #334155;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+        }
+        #context-menu button:hover {
+            background: #f1f5f9;
+            color: #2563eb;
+        }
+        #context-menu button i { width: 18px; margin-right: 6px; }
+
+        #modal-edicion {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .connection-port {
+            fill: #3b82f6;
+            stroke: #ffffff;
+            stroke-width: 1.5px;
+            cursor: pointer;
+        }
+
+        /* ===== BARRA DE MENÚS ===== */
+        #barra-menus { display:flex; flex-wrap:wrap; align-items:stretch; background:#f8fafc; border-bottom:1px solid #e2e8f0; font-size:12px; padding:1px 4px; position:relative; z-index:1900; }
+        .menu-top { position:relative; }
+        .menu-top > button { padding:3px 7px; color:#334155; border-radius:3px; background:transparent; border:1px solid transparent; }
+        .menu-top > button:hover { background:#e2e8f0; }
+        .menu-top.abierto > button { background:#dbeafe; border-color:#bfdbfe; color:#1d4ed8; }
+        .menu-desplegable { display:none; position:absolute; top:100%; left:0; min-width:230px; background:#fff; border:1px solid #cbd5e1; box-shadow:0 6px 16px rgba(0,0,0,.14); border-radius:4px; padding:4px 0; z-index:1500; }
+        .menu-top.abierto > .menu-desplegable { display:block; }
+        .menu-sub { position:relative; }
+        .menu-sub > .menu-desplegable { top:-5px; left:100%; }
+        .menu-sub:hover > .menu-desplegable { display:block; }
+        .menu-item { display:flex; align-items:center; width:100%; padding:5px 12px 5px 8px; text-align:left; color:#334155; background:transparent; border:none; cursor:pointer; white-space:nowrap; font-size:12px; }
+        .menu-item:hover:not(:disabled) { background:#eff6ff; color:#1d4ed8; }
+        .menu-item:disabled { opacity:.4; cursor:default; }
+        .menu-item .ico { width:16px; text-align:center; margin-right:8px; font-size:11px; color:#2563eb; }
+        .menu-item .atajo { margin-left:auto; padding-left:28px; color:#94a3b8; font-size:11px; }
+        .menu-item .flecha { margin-left:auto; padding-left:28px; color:#94a3b8; font-size:9px; }
+        .menu-sep { border-top:1px solid #e2e8f0; margin:4px 0; }
+        .menu-vacio { padding:5px 12px 5px 32px; color:#94a3b8; font-style:italic; font-size:11px; }
+        @media print { #barra-menus, #panel-buscar, #modal-creditos { display:none !important; } }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col overflow-hidden font-sans select-none" onclick="cerrarMenuContextual(event)">
+
+    <!-- MENÚ CONTEXTUAL DINÁMICO -->
+    <div id="context-menu">
+        <button onclick="menuAccion('editar')"><i class="fa-solid fa-pen-to-square text-blue-600"></i> Editar...</button>
+        <button onclick="menuAccion('girar')"><i class="fa-solid fa-rotate-right text-emerald-600"></i> Girar (+90°)</button>
+        <button onclick="menuAccion('escalar')"><i class="fa-solid fa-expand text-purple-600"></i> Escalar...</button>
+        <button onclick="menuAccion('desconectar')"><i class="fa-solid fa-arrows-up-down-left-right text-amber-600"></i> Mover / Desconectar</button>
+        <div class="border-t border-slate-100 my-1"></div>
+        <button onclick="menuAccion('eliminar')" class="text-rose-600 hover:text-rose-700"><i class="fa-solid fa-trash-can"></i> Eliminar</button>
+    </div>
+
+    <!-- VENTANA MODAL PARA EDICIÓN DE ATRIBUTOS -->
+    <div id="modal-edicion">
+        <div class="bg-white rounded-lg shadow-xl w-96 p-5 border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between">
+                <span><i class="fa-solid fa-sliders text-blue-600 mr-1.5"></i> Propiedades del Componente</span>
+                <button onclick="cerrarModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </h3>
+            <div id="modal-content-body" class="space-y-3 text-xs"></div>
+            <div class="mt-5 flex justify-end space-x-2">
+                <button onclick="cerrarModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cancelar</button>
+                <button onclick="guardarEdicionModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VENTANA MODAL DE CÁLCULO DE RED (CONTORNO Y RESULTADOS) -->
+    <div id="modal-red" style="display:none;" class="fixed inset-0 bg-black/40 z-[2000] justify-center items-center">
+        <div class="bg-white rounded-lg shadow-xl w-[640px] max-h-[85vh] overflow-y-auto p-5 border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between">
+                <span><i class="fa-solid fa-diagram-project text-blue-600 mr-1.5"></i> Cálculo Hidráulico de la Red</span>
+                <button onclick="cerrarModalRed()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </h3>
+            <div id="red-content"></div>
+            <div class="mt-5 flex justify-end space-x-2" id="red-footer"></div>
+        </div>
+    </div>
+
+    <!-- PANEL FLOTANTE BÚSQUEDA / REEMPLAZO (Edición > Búsqueda/Reemplazo, Ctrl+R) -->
+    <div id="panel-buscar" style="display:none; position:fixed; top:96px; right:240px; z-index:1800; width:370px;" class="bg-white rounded-lg shadow-xl border border-slate-200 p-3 text-xs">
+        <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-2 flex items-center justify-between">
+            <span><i class="fa-solid fa-magnifying-glass text-blue-600 mr-1.5"></i> Búsqueda / Reemplazo</span>
+            <button onclick="cerrarBuscarReemplazar()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+        </h3>
+        <label class="block text-slate-500 mb-0.5">Buscar (nombre del elemento)</label>
+        <input type="text" id="buscar-texto" class="w-full border border-slate-300 rounded p-1.5 mb-2">
+        <label class="block text-slate-500 mb-0.5">Reemplazar por</label>
+        <input type="text" id="reemplazar-texto" class="w-full border border-slate-300 rounded p-1.5 mb-2">
+        <label class="flex items-center text-slate-600 mb-2"><input type="checkbox" id="buscar-mayus" class="mr-1.5"> Coincidir mayúsculas/minúsculas</label>
+        <div class="flex justify-end space-x-1.5">
+            <button onclick="buscarSiguiente()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Buscar siguiente</button>
+            <button onclick="reemplazarActual()" class="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded font-medium">Reemplazar</button>
+            <button onclick="reemplazarTodo()" class="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded font-medium">Reemplazar todo</button>
+        </div>
+        <div id="buscar-estado" class="text-[11px] text-slate-500 mt-2 min-h-[14px]"></div>
+    </div>
+
+    <!-- VENTANA DE CRÉDITOS (Ayuda > Créditos) -->
+    <div id="modal-creditos" onclick="if(event.target===this) cerrarCreditos()" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.4); z-index:2000; justify-content:center; align-items:center;">
+        <div class="bg-white rounded-lg shadow-xl w-96 p-5 border border-slate-200 text-xs text-slate-600">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between">
+                <span><i class="fa-solid fa-circle-info text-blue-600 mr-1.5"></i> Créditos</span>
+                <button onclick="cerrarCreditos()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </h3>
+            <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
+            <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
+            <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
+            <p class="mt-1"><span class="text-slate-400">Formato de proyecto:</span> 6.5-hidraulico</p>
+            <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
+            <p class="mt-3 text-slate-400">© 2026</p>
+            <div class="mt-4 flex justify-end"><button onclick="cerrarCreditos()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>
+        </div>
+    </div>
+
+    <!-- BARRA SUPERIOR -->
+    <header class="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shadow-sm z-30">
+        <div class="flex items-center space-x-3">
+            <h1 class="text-sm font-bold tracking-wider text-slate-700 uppercase flex items-center">
+                <i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&ID (A3 Avanzado)
+            </h1>
+        </div>
+        <div class="flex items-center space-x-2 text-xs">
+            <span class="text-slate-400 mr-2 text-[11px]"><kbd class="bg-slate-100 px-1 border rounded">F</kbd> Ajustar | <kbd class="bg-slate-100 px-1 border rounded">W</kbd> Zoom ventana</span>
+        </div>
+    </header>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div class="flex flex-1 overflow-hidden relative" id="main-container">
+
+        <!-- PANEL IZQUIERDO -->
+        <aside id="panel-izq" class="bg-white border-r border-slate-200 p-2.5 flex flex-col space-y-3 overflow-y-auto z-10" style="width: 220px; min-width: 160px; max-width: 400px;">
+            <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5 flex items-center">
+                <i class="fa-solid fa-gears mr-1 text-blue-600"></i> Atributos (mm)
+            </h2>
+            <div class="space-y-2 text-xs">
+                <div>
+                    <label class="block text-slate-500 font-medium mb-1">Fluido</label>
+                    <select id="selector-fluido" class="w-full bg-slate-50 border border-slate-300 rounded p-1 text-slate-700">
+                        <option>Agua (20°C)</option>
+                        <option>Aceite Térmico</option>
+                        <option>Vapor Saturado</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-100 pt-2 flex-1 flex flex-col">
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+                    <span>Selección Activa</span>
+                    <span id="lbl-tipo-activo" class="text-blue-600 font-normal">Ninguno</span>
+                </h3>
+                <div id="panel-propiedades" class="text-[11px] text-slate-600 mt-1 bg-slate-50 p-2 rounded border border-slate-200 flex-1 overflow-y-auto space-y-1.5">
+                    <p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>
+                </div>
+            </div>
+        </aside>
+
+        <div class="resizer" id="resizer-1" style="left: 220px;"></div>
+
+        <!-- ZONA GRÁFICA -->
+        <main class="bg-slate-100 flex-1 flex flex-col overflow-hidden relative">
+            <!-- BARRA DE MENÚS (estilo Paint). Se construye desde la tabla MENUS del script -->
+            <nav id="barra-menus"></nav>
+            <div class="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-between z-10 text-xs shadow-xs">
+                <div class="flex items-center space-x-1.5">
+                    <button id="btn-deshacer" onclick="deshacer()" title="Deshacer (Ctrl+Z)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-left mr-1 text-blue-600"></i> Deshacer</button>
+                    <button id="btn-rehacer" onclick="rehacer()" title="Rehacer (Ctrl+Y)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-right mr-1 text-blue-600"></i> Rehacer</button>
+                </div>
+            </div>
+
+            <div id="canvas-container" class="flex-1 relative">
+                <div id="zoom-window-box"></div>
+                <div id="lienzo-espaciador"></div>
+                <div id="marco-a3" class="bg-white [background-image:radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px]">
+                    <svg id="svg-canvas" ondragover="allowDrop(event)" ondrop="dropElemento(event)">
+                        <g id="empty-state" transform="translate(793, 561)">
+                            <text x="0" y="0" font-family="sans-serif" font-size="14" fill="#94a3b8" text-anchor="middle">Lienzo infinito - Arrastra Componentes y Tuberías Aquí</text>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- ICONO DE ORIENTACIÓN DE EJES (fijo a la esquina de la ventana, no representa el origen real) -->
+            <svg id="axis-gizmo" class="absolute bottom-3 left-3 z-20" width="56" height="56" viewBox="0 0 56 56">
+                <line x1="8" y1="48" x2="42" y2="48" stroke="#dc2626" stroke-width="2.5"/>
+                <polygon points="44,48 37,44.5 37,51.5" fill="#dc2626"/>
+                <text x="46" y="51" font-family="sans-serif" font-size="10" font-weight="bold" fill="#dc2626">X</text>
+                <line x1="8" y1="48" x2="8" y2="14" stroke="#16a34a" stroke-width="2.5"/>
+                <polygon points="8,12 4.5,19 11.5,19" fill="#16a34a"/>
+                <text x="3" y="10" font-family="sans-serif" font-size="10" font-weight="bold" fill="#16a34a">Y</text>
+            </svg>
+        </main>
+
+        <div class="resizer" id="resizer-2" style="right: 220px;"></div>
+
+        <!-- PANEL DERECHO: LIBRERÍA -->
+        <aside id="panel-der" class="bg-white border-l border-slate-200 p-2.5 flex flex-col space-y-3 overflow-y-auto z-10" style="width: 220px; min-width: 160px; max-width: 400px;">
+            <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5 flex items-center">
+                <i class="fa-solid fa-shapes mr-1 text-blue-600"></i> Símbolos P&ID
+            </h2>
+
+            <div class="border border-slate-200 rounded">
+                <button type="button" onclick="toggleCategoria('accesorios')" class="w-full flex items-center justify-between px-1.5 py-1 bg-white hover:bg-slate-50 rounded text-left">
+                    <span class="text-[10px] font-bold text-blue-600 uppercase">Accesorios</span>
+                    <i id="chevron-accesorios" class="fa-solid fa-chevron-down text-slate-400 text-[9px] transition-transform duration-150"></i>
+                </button>
+                <div id="lista-accesorios" class="grid grid-cols-1 gap-1 p-1 pl-1.5 border-t border-slate-100 text-[10px]">
+                    <div draggable="true" ondragstart="drag(event)" data-type="accesorio" data-subtype="codo" data-name="Codo 90°" data-angulo="90" data-k="0.75" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Codo 90°</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="accesorio" data-subtype="tee" data-name="Tee" data-k="0.9" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Tee</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="accesorio" data-subtype="union" data-name="Brida / Unión" data-k="0.05" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Unión / Brida</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                </div>
+            </div>
+
+            <div class="border border-slate-200 rounded">
+                <button type="button" onclick="toggleCategoria('bombas')" class="w-full flex items-center justify-between px-1.5 py-1 bg-white hover:bg-slate-50 rounded text-left">
+                    <span class="text-[10px] font-bold text-blue-600 uppercase">Bombas</span>
+                    <i id="chevron-bombas" class="fa-solid fa-chevron-down text-slate-400 text-[9px] transition-transform duration-150"></i>
+                </button>
+                <div id="lista-bombas" class="space-y-1 p-1 pl-1.5 border-t border-slate-100">
+                    <div draggable="true" ondragstart="drag(event)" data-type="bomba" data-name="Bomba Centrífuga" data-caudal="50" data-presion="3.5" data-npsh="2500" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center text-[10px] font-medium text-slate-700">
+                        <span>Bomba Centrífuga</span><i class="fa-solid fa-circle-play text-blue-600"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border border-slate-200 rounded">
+                <button type="button" onclick="toggleCategoria('valvulas')" class="w-full flex items-center justify-between px-1.5 py-1 bg-white hover:bg-slate-50 rounded text-left">
+                    <span class="text-[10px] font-bold text-blue-600 uppercase">Válvulas</span>
+                    <i id="chevron-valvulas" class="fa-solid fa-chevron-down text-slate-400 text-[9px] transition-transform duration-150"></i>
+                </button>
+                <div id="lista-valvulas" class="grid grid-cols-1 gap-1 p-1 pl-1.5 border-t border-slate-100 text-[10px]">
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="bola" data-name="Válvula Bola" data-k="0.05" data-cv="200" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Bola (Ball)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="compuerta" data-name="Válvula Compuerta" data-k="0.2" data-cv="120" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Compuerta (Gate)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="globo" data-name="Válvula Globo" data-k="6.0" data-cv="35" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Globo (Globe)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="mariposa" data-name="Válvula Mariposa" data-k="0.5" data-cv="150" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Mariposa (Butterfly)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="neumatica" data-name="Válvula Neumática" data-k="0.3" data-cv="140" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Neumática</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="valvula" data-subtype="retencion" data-name="Válvula Retención" data-k="2.0" data-cv="80" class="bg-slate-50 hover:bg-blue-50 border border-slate-200 p-1 rounded cursor-grab flex justify-between items-center"><span>Retención (Check)</span><i class="fa-solid fa-plus text-blue-600"></i></div>
+                </div>
+            </div>
+
+            <div class="border border-slate-200 rounded">
+                <button type="button" onclick="toggleCategoria('tuberias')" class="w-full flex items-center justify-between px-1.5 py-1 bg-white hover:bg-slate-50 rounded text-left">
+                    <span class="text-[10px] font-bold text-blue-600 uppercase">Tuberías</span>
+                    <i id="chevron-tuberias" class="fa-solid fa-chevron-down text-slate-400 text-[9px] transition-transform duration-150"></i>
+                </button>
+                <div id="lista-tuberias" class="space-y-1 p-1 pl-1.5 border-t border-slate-100">
+                    <div draggable="true" ondragstart="drag(event)" data-type="tuberia" data-material="Acero al Carbono" data-name="Tubería DN 50" data-dn="DN 50" data-espesor="3.91" data-longitud="3000" class="bg-white border border-slate-200 hover:border-blue-400 p-1 rounded cursor-grab flex justify-between items-center text-[10px]">
+                        <span>Tubería DN 50 (3000 mm)</span><i class="fa-solid fa-plus text-blue-600"></i>
+                    </div>
+                    <div draggable="true" ondragstart="drag(event)" data-type="tuberia" data-material="Acero al Carbono" data-name="Tubería DN 100" data-dn="DN 100" data-espesor="6.02" data-longitud="3000" class="bg-white border border-slate-200 hover:border-blue-400 p-1 rounded cursor-grab flex justify-between items-center text-[10px]">
+                        <span>Tubería DN 100 (3000 mm)</span><i class="fa-solid fa-plus text-blue-600"></i>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+    </div>
+
+    <script>
+        let elementosRed = [];
+        let idSeleccionado = null;
+        let idMenuContextual = null;
+        let zoomScale = 1.0;
+        let currentFileHandle = null;
+
+        let isDraggingSymbol = false;
+        let activeSymbolId = null;
+        let dragStartX = 0, dragStartY = 0;
+        let desenganchado = false;
+
+        let modoZoomVentana = false;
+        let isSelectingZoom = false;
+        let zoomStartX = 0, zoomStartY = 0;
+
+        // Historial de Deshacer/Rehacer: snapshots JSON de elementosRed. guardarEstado() se llama
+        // SIEMPRE antes de mutar elementosRed (no después), para que el snapshot guardado sea el
+        // estado previo a la acción que se quiere poder deshacer.
+        let historialUndo = [];
+        let historialRedo = [];
+        const MAX_HISTORIAL = 60;
+
+        function guardarEstado() {
+            historialUndo.push(JSON.stringify(elementosRed));
+            if (historialUndo.length > MAX_HISTORIAL) historialUndo.shift();
+            historialRedo = []; // cualquier acción nueva invalida lo que se pudiera rehacer
+            marcarCambios(true);
+            actualizarBotonesHistorial();
+        }
+
+        function restaurarEstado(json) {
+            elementosRed = JSON.parse(json);
+            idSeleccionado = null;
+            renderizarVectorial();
+            const panel = document.getElementById("panel-propiedades");
+            if (panel) panel.innerHTML = `<p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>`;
+            const lbl = document.getElementById("lbl-tipo-activo");
+            if (lbl) lbl.innerText = "Ninguno";
+        }
+
+        function deshacer() {
+            if (historialUndo.length === 0) return;
+            historialRedo.push(JSON.stringify(elementosRed));
+            restaurarEstado(historialUndo.pop());
+            marcarCambios(true);
+            actualizarBotonesHistorial();
+        }
+
+        function rehacer() {
+            if (historialRedo.length === 0) return;
+            historialUndo.push(JSON.stringify(elementosRed));
+            restaurarEstado(historialRedo.pop());
+            marcarCambios(true);
+            actualizarBotonesHistorial();
+        }
+
+        function actualizarBotonesHistorial() {
+            const btnU = document.getElementById('btn-deshacer');
+            const btnR = document.getElementById('btn-rehacer');
+            if (btnU) btnU.disabled = historialUndo.length === 0;
+            if (btnR) btnR.disabled = historialRedo.length === 0;
+        }
+
+        // Condiciones de contorno de la red (cota/presión en extremos abiertos), indexadas por "elId:portId"
+        let condicionesContorno = {};
+
+        // Lienzo infinito con convenio CAD: el.x/el.y son coordenadas de MUNDO con origen (0,0) en la
+        // esquina inferior izquierda del lienzo y el eje Y creciendo hacia ARRIBA (como AutoCAD/DXF).
+        // El lienzo SVG interno sigue dibujándose en píxeles de pantalla (Y hacia abajo, origen arriba),
+        // así que la conversión mundo↔pantalla se hace en un único punto: mundoAScreenY().
+        // Esto no afecta a la geometría relativa (rotación, imantado/snapping, motor de cálculo
+        // hidráulico), que solo comparan distancias entre puertos y son indiferentes al sentido de Y.
+        // Hoja A3 apaisada (420 x 297 mm) a 96 ppp: 1 unidad de dibujo = 1 px = 0,2646 mm en papel.
+        // Solo se puede trabajar dentro de la hoja: ver limitarAHoja().
+        const ANCHO_A3 = 1587; // debe coincidir con el ancho de #marco-a3
+        const ALTO_A3 = 1123;  // debe coincidir con la altura de #marco-a3
+        const MARGEN_HOJA = 40; // px de fondo gris alrededor de la hoja
+        const ALTO_MUNDO = ALTO_A3;
+        function mundoAScreenY(y) { return ALTO_MUNDO - y; }
+        function screenAMundoY(sy) { return ALTO_MUNDO - sy; } // conversión inversa (misma fórmula, es una reflexión)
+
+        // Muestra la hoja A3 completa, centrada en la ventana (también es el "Zoom Todo")
+        function irAOrigenEnEsquina() {
+            const cw = canvasContainer.clientWidth - 2 * MARGEN_HOJA;
+            const ch = canvasContainer.clientHeight - 2 * MARGEN_HOJA;
+            if (cw > 0 && ch > 0) zoomScale = Math.min(cw / ANCHO_A3, ch / ALTO_A3);
+            aplicarZoom();
+            canvasContainer.scrollLeft = 0;
+            canvasContainer.scrollTop = 0;
+        }
+
+        // Posición de la hoja dentro del contenedor con scroll: centrada si cabe, con margen si no.
+        // offX/offY son necesarios para pasar de coordenadas del contenedor a coordenadas de hoja.
+        let offX = MARGEN_HOJA, offY = MARGEN_HOJA;
+        function aplicarZoom() {
+            const w = ANCHO_A3 * zoomScale, h = ALTO_A3 * zoomScale;
+            offX = Math.max(MARGEN_HOJA, (canvasContainer.clientWidth - w) / 2);
+            offY = Math.max(MARGEN_HOJA, (canvasContainer.clientHeight - h) / 2);
+            marcoA3.style.left = offX + 'px';
+            marcoA3.style.top = offY + 'px';
+            marcoA3.style.transform = `scale(${zoomScale})`;
+            const esp = document.getElementById('lienzo-espaciador');
+            esp.style.left = (offX + w + MARGEN_HOJA - 1) + 'px';
+            esp.style.top = (offY + h + MARGEN_HOJA - 1) + 'px';
+        }
+
+        // Mantiene un elemento dentro de la hoja A3 (símbolo + etiqueta). Devuelve true si lo ha movido.
+        function limitarAHoja(el) {
+            const g = svgCanvas.querySelector(`g[data-id="${el.id}"]`);
+            if (!g) return false;
+            const rM = marcoA3.getBoundingClientRect();
+            if (!rM.width) return false;
+            const esc = rM.width / ANCHO_A3; // escala real en pantalla
+            const r = g.getBoundingClientRect();
+            const izq = (r.left - rM.left) / esc, der = (r.right - rM.left) / esc;
+            const arr = (r.top - rM.top) / esc, aba = (r.bottom - rM.top) / esc;
+            let dx = 0, dy = 0;
+            if (der - izq <= ANCHO_A3) { if (izq < 0) dx = -izq; else if (der > ANCHO_A3) dx = ANCHO_A3 - der; }
+            if (aba - arr <= ALTO_A3) { if (arr < 0) dy = -arr; else if (aba > ALTO_A3) dy = ALTO_A3 - aba; }
+            if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return false;
+            el.x += dx;
+            el.y -= dy; // dy en pantalla (abajo +); en mundo Y-arriba se resta
+            return true;
+        }
+
+        // ---- TABLAS DE INGENIERÍA (Fase 1: motor de cálculo hidráulico) ----
+        const G = 9.81; // m/s²
+        const PRESION_ATM = 101325; // Pa
+
+        // Diámetro interior de tubería de acero al carbono Sch 40 (mm)
+        const TABLA_DN_SCH40 = {
+            'DN 15': 15.8, 'DN 20': 21.0, 'DN 25': 26.6, 'DN 32': 35.1,
+            'DN 40': 40.9, 'DN 50': 52.5, 'DN 65': 62.7, 'DN 80': 77.9,
+            'DN 100': 102.3, 'DN 125': 128.2, 'DN 150': 154.1,
+            'DN 200': 202.7, 'DN 250': 254.5, 'DN 300': 304.8
+        };
+
+        // Rugosidad absoluta típica por material (mm)
+        const RUGOSIDAD_MATERIAL = {
+            'Acero al Carbono': 0.045,
+            'Acero Inoxidable': 0.015,
+            'PVC': 0.0015,
+            'Cobre': 0.0015,
+            'Fundición': 0.26,
+            'Hormigón': 0.3
+        };
+
+        // Propiedades de fluidos: rho (kg/m3), mu (Pa·s), pv (presión de vapor absoluta, Pa; null = no soportado)
+        const FLUIDOS = {
+            'Agua (20°C)': { rho: 998.2, mu: 1.002e-3, pv: 2339 },
+            'Aceite Térmico': { rho: 850, mu: 2.9e-2, pv: 10 },
+            'Vapor Saturado': { rho: 1.13, mu: 1.3e-5, pv: null }
+        };
+
+        const panelIzq = document.getElementById('panel-izq');
+        const panelDer = document.getElementById('panel-der');
+        const resizer1 = document.getElementById('resizer-1');
+        const resizer2 = document.getElementById('resizer-2');
+        const canvasContainer = document.getElementById('canvas-container');
+        const marcoA3 = document.getElementById('marco-a3');
+        const svgCanvas = document.getElementById('svg-canvas');
+        const contextMenu = document.getElementById('context-menu');
+        const modalEdicion = document.getElementById('modal-edicion');
+        const zoomBox = document.getElementById('zoom-window-box');
+
+        function initResizers() {
+            resizer1.style.left = panelIzq.offsetWidth + 'px';
+            resizer2.style.right = panelDer.offsetWidth + 'px';
+
+            resizer1.onmousedown = function(e) {
+                e.preventDefault();
+                document.onmousemove = function(e) {
+                    let newWidth = e.clientX;
+                    if (newWidth >= 160 && newWidth <= 400) {
+                        panelIzq.style.width = newWidth + 'px';
+                        resizer1.style.left = newWidth + 'px';
+                    }
+                };
+                document.onmouseup = function() { document.onmousemove = document.onmouseup = null; };
+            };
+
+            resizer2.onmousedown = function(e) {
+                e.preventDefault();
+                document.onmousemove = function(e) {
+                    let newWidth = window.innerWidth - e.clientX;
+                    if (newWidth >= 160 && newWidth <= 400) {
+                        panelDer.style.width = newWidth + 'px';
+                        resizer2.style.right = newWidth + 'px';
+                    }
+                };
+                document.onmouseup = function() { document.onmousemove = document.onmouseup = null; };
+            };
+        }
+        window.onload = function() {
+            initResizers();
+            irAOrigenEnEsquina();
+            new ResizeObserver(() => aplicarZoom()).observe(canvasContainer);
+        };
+
+        function centrarVistaEnPunto(x, y) {
+            canvasContainer.scrollLeft = offX + x * zoomScale - canvasContainer.clientWidth / 2;
+            canvasContainer.scrollTop = offY + y * zoomScale - canvasContainer.clientHeight / 2;
+        }
+
+        canvasContainer.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            const zoomIntensity = 0.1;
+            const rect = canvasContainer.getBoundingClientRect();
+            // Punto del lienzo bajo el cursor antes de cambiar el zoom (para zoom-al-cursor)
+            const cursorEnContenedorX = e.clientX - rect.left + canvasContainer.scrollLeft;
+            const cursorEnContenedorY = e.clientY - rect.top + canvasContainer.scrollTop;
+            const puntoMundoX = (cursorEnContenedorX - offX) / zoomScale;
+            const puntoMundoY = (cursorEnContenedorY - offY) / zoomScale;
+
+            if (e.deltaY < 0) {
+                zoomScale = Math.min(zoomScale + zoomIntensity, 3.0);
+            } else {
+                zoomScale = Math.max(zoomScale - zoomIntensity, 0.2);
+            }
+            aplicarZoom();
+
+            // Reajustar el scroll para que el punto bajo el cursor no se desplace
+            canvasContainer.scrollLeft = offX + puntoMundoX * zoomScale - (e.clientX - rect.left);
+            canvasContainer.scrollTop = offY + puntoMundoY * zoomScale - (e.clientY - rect.top);
+        }, { passive: false });
+
+        window.addEventListener('keydown', function(e) {
+            if (e.key.toLowerCase() === 'f' && document.activeElement.tagName !== 'INPUT') {
+                ajustarVistaVentana();
+            } else if (e.key.toLowerCase() === 'w' && document.activeElement.tagName !== 'INPUT') {
+                modoZoomVentana = !modoZoomVentana;
+                canvasContainer.style.cursor = modoZoomVentana ? 'crosshair' : 'default';
+            } else if (e.key === 'Escape' && modoZoomVentana) {
+                modoZoomVentana = false;
+                isSelectingZoom = false;
+                zoomBox.style.display = 'none';
+                canvasContainer.style.cursor = 'default';
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && document.activeElement.tagName !== 'INPUT') {
+                e.preventDefault();
+                if (e.shiftKey) rehacer(); else deshacer();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && document.activeElement.tagName !== 'INPUT') {
+                e.preventDefault();
+                rehacer();
+            }
+        });
+
+        function ajustarVistaVentana() {
+            const containerWidth = canvasContainer.clientWidth;
+            const containerHeight = canvasContainer.clientHeight;
+
+            if (elementosRed.length === 0) {
+                zoomScale = 1.0;
+                aplicarZoom();
+                irAOrigenEnEsquina();
+                return;
+            }
+
+            // minX/maxX/minY/maxY están en coordenadas de MUNDO (Y hacia arriba)
+            const margen = 80;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            elementosRed.forEach(el => {
+                minX = Math.min(minX, el.x - margen); minY = Math.min(minY, el.y - margen);
+                maxX = Math.max(maxX, el.x + margen); maxY = Math.max(maxY, el.y + margen);
+            });
+
+            const anchoContenido = Math.max(maxX - minX, 100);
+            const altoContenido = Math.max(maxY - minY, 100);
+            const scaleX = containerWidth / anchoContenido;
+            const scaleY = containerHeight / altoContenido;
+            zoomScale = Math.min(scaleX, scaleY, 2.0);
+            aplicarZoom();
+            // centrarVistaEnPunto espera coordenadas de pantalla (Y hacia abajo) -> convertir el centro Y
+            centrarVistaEnPunto((minX + maxX) / 2, mundoAScreenY((minY + maxY) / 2));
+        }
+
+        canvasContainer.addEventListener('mousedown', function(e) {
+            if (!modoZoomVentana) return;
+            isSelectingZoom = true;
+            const rect = canvasContainer.getBoundingClientRect();
+            zoomStartX = e.clientX - rect.left + canvasContainer.scrollLeft;
+            zoomStartY = e.clientY - rect.top + canvasContainer.scrollTop;
+            zoomBox.style.left = zoomStartX + 'px';
+            zoomBox.style.top = zoomStartY + 'px';
+            zoomBox.style.width = '0px';
+            zoomBox.style.height = '0px';
+            zoomBox.style.display = 'block';
+        });
+
+        canvasContainer.addEventListener('mousemove', function(e) {
+            if (!isSelectingZoom || !modoZoomVentana) return;
+            const rect = canvasContainer.getBoundingClientRect();
+            let currentX = e.clientX - rect.left + canvasContainer.scrollLeft;
+            let currentY = e.clientY - rect.top + canvasContainer.scrollTop;
+            
+            let width = currentX - zoomStartX;
+            let height = currentY - zoomStartY;
+            
+            zoomBox.style.width = Math.abs(width) + 'px';
+            zoomBox.style.height = Math.abs(height) + 'px';
+            if (width < 0) zoomBox.style.left = currentX + 'px';
+            if (height < 0) zoomBox.style.top = currentY + 'px';
+        });
+
+        canvasContainer.addEventListener('mouseup', function(e) {
+            if (!isSelectingZoom || !modoZoomVentana) return;
+            isSelectingZoom = false;
+            zoomBox.style.display = 'none';
+            modoZoomVentana = false;
+            canvasContainer.style.cursor = 'default';
+
+            const rect = canvasContainer.getBoundingClientRect();
+            let finX = e.clientX - rect.left + canvasContainer.scrollLeft;
+            let finY = e.clientY - rect.top + canvasContainer.scrollTop;
+
+            // zoomStartX/Y y finX/Y están en píxeles de pantalla YA escalados por el zoom actual
+            // (son relativos al scroll del contenedor). Se dividen por zoomScale para pasarlos al
+            // mismo espacio "sin escalar" en el que viven el.x y mundoAScreenY(el.y) — el mismo
+            // criterio que usa el zoom con la rueda del ratón.
+            let x1 = (Math.min(zoomStartX, finX) - offX) / zoomScale;
+            let x2 = (Math.max(zoomStartX, finX) - offX) / zoomScale;
+            let y1 = (Math.min(zoomStartY, finY) - offY) / zoomScale;
+            let y2 = (Math.max(zoomStartY, finY) - offY) / zoomScale;
+
+            const anchoSeleccion = x2 - x1;
+            const altoSeleccion = y2 - y1;
+            if (anchoSeleccion < 5 || altoSeleccion < 5) return; // clic sin arrastre real: se ignora, como en AutoCAD
+
+            const scaleX = canvasContainer.clientWidth / anchoSeleccion;
+            const scaleY = canvasContainer.clientHeight / altoSeleccion;
+            // El zoom ventana sí permite acercarse más que el límite habitual de la rueda (3.0),
+            // ya que su objetivo es precisamente encuadrar un detalle pequeño.
+            zoomScale = Math.min(scaleX, scaleY, 15.0);
+            aplicarZoom();
+            centrarVistaEnPunto((x1 + x2) / 2, (y1 + y2) / 2);
+        });
+
+        function cerrarMenuContextual(e) {
+            if (!contextMenu.contains(e.target)) {
+                contextMenu.style.display = 'none';
+            }
+        }
+
+        function drag(ev) {
+            ev.dataTransfer.setData("text/plain", JSON.stringify(ev.target.dataset));
+        }
+
+        function allowDrop(ev) { ev.preventDefault(); }
+
+        // Desplegar/plegar una categoría de la librería de símbolos (panel derecho)
+        function toggleCategoria(nombre) {
+            const lista = document.getElementById('lista-' + nombre);
+            const chevron = document.getElementById('chevron-' + nombre);
+            const estabaAbierto = lista.style.display !== 'none';
+            lista.style.display = estabaAbierto ? 'none' : '';
+            chevron.style.transform = estabaAbierto ? 'rotate(-90deg)' : 'rotate(0deg)';
+        }
+
+        function dropElemento(ev) {
+            ev.preventDefault();
+            document.getElementById("empty-state")?.remove();
+            // "Mover/Desconectar" deja esta bandera en true para el siguiente arrastre manual; un
+            // componente NUEVO desde la librería siempre debe intentar imantarse.
+            desenganchado = false;
+            guardarEstado();
+
+            const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
+            const rectMarco = marcoA3.getBoundingClientRect();
+
+            // Posición del cursor en píxeles de pantalla (Y hacia abajo) dentro del lienzo...
+            let screenX = (ev.clientX - rectMarco.left) / zoomScale - 25;
+            let screenY = (ev.clientY - rectMarco.top) / zoomScale - 25;
+            // ...convertida a coordenadas de MUNDO (Y hacia arriba) para almacenar en el elemento
+            let dropX = screenX;
+            let dropY = screenAMundoY(screenY);
+
+            const idUnico = 'sym_' + Date.now();
+            let nuevoElemento = {
+                id: idUnico,
+                type: data.type,
+                subtype: data.subtype || '',
+                name: data.name,
+                x: dropX,
+                y: dropY,
+                scale: 1.0,
+                // Antes las válvulas se insertaban a 90°; girarlas 270° en sentido horario sobre
+                // esa posición (90+270=360=0°) las deja horizontales por defecto, coherente con que
+                // el fluido siempre se dibuja de izquierda a derecha en posición horizontal.
+                rotation: 0
+            };
+
+            if (data.type === 'tuberia') {
+                nuevoElemento.material = data.material || "Acero al Carbono";
+                nuevoElemento.dn = data.dn || "DN 50";
+                nuevoElemento.espesor = parseFloat(data.espesor) || 3.91;
+                nuevoElemento.longitud = parseFloat(data.longitud) || 3000;
+            } else if (data.type === 'bomba') {
+                nuevoElemento.caudal = parseFloat(data.caudal) || 50; // m³/h, punto de diseño
+                nuevoElemento.presion = parseFloat(data.presion) || 3.5; // bar, altura en el punto de diseño
+                nuevoElemento.npsh = (parseFloat(data.npsh) || 2500) / 1000; // NPSH requerido, en metros
+                nuevoElemento.h0 = +((nuevoElemento.presion * 1.2).toFixed(2)); // bar a caudal cero (cierre), editable
+                nuevoElemento.cota = 0; // m, cota de referencia de la bomba (para NPSH)
+            } else if (data.type === 'valvula') {
+                nuevoElemento.k = parseFloat(data.k) || 0.2;
+                nuevoElemento.cv = parseFloat(data.cv) || 120;
+                nuevoElemento.dn = data.dn || 'DN 50';
+            } else if (data.type === 'accesorio') {
+                nuevoElemento.angulo = parseFloat(data.angulo) || 90;
+                nuevoElemento.k = parseFloat(data.k) || 0.75;
+                nuevoElemento.dn = data.dn || 'DN 50';
+            }
+
+            normalizarElemento(nuevoElemento);
+            aplicarSnapping(nuevoElemento);
+            elementosRed.push(nuevoElemento);
+            renderizarVectorial();
+            seleccionarElemento(idUnico);
+        }
+
+        // Puertos locales (sin rotar/trasladar) de cada símbolo, coherentes con su dibujo SVG.
+        // Cada puerto lleva un "id" semántico estable (usado por el motor de cálculo), independiente
+        // de la posición/rotación visual.
+        function obtenerPuertosLocales(el) {
+            if (el.type === 'tuberia') {
+                let largoPx = (el.longitud || 3000) / 30;
+                return [
+                    { x: 0, y: 20, id: 'a' },
+                    { x: largoPx, y: 20, id: 'b' }
+                ];
+            }
+            if (el.type === 'valvula') {
+                return [
+                    { x: 10, y: 25, id: 'a' },
+                    { x: 40, y: 25, id: 'b' }
+                ];
+            }
+            if (el.type === 'bomba') {
+                // Coinciden con el borde real del círculo dibujado (cx=25, cy=25, r=20)
+                return [
+                    { x: 5, y: 25, id: 'succion' },
+                    { x: 45, y: 25, id: 'descarga' }
+                ];
+            }
+            if (el.type === 'accesorio') {
+                if (el.subtype === 'tee') {
+                    return [
+                        { x: 10, y: 25, id: 'a' },
+                        { x: 40, y: 25, id: 'b' },
+                        { x: 25, y: 40, id: 'c' }
+                    ];
+                }
+                if (el.subtype === 'codo') {
+                    return [
+                        { x: 15, y: 35, id: 'a' },
+                        { x: 35, y: 15, id: 'b' }
+                    ];
+                }
+                // unión / brida y accesorios genéricos
+                return [
+                    { x: 10, y: 25, id: 'a' },
+                    { x: 40, y: 25, id: 'b' }
+                ];
+            }
+            return [{ x: 0, y: 25, id: 'a' }, { x: 50, y: 25, id: 'b' }];
+        }
+
+        function obtenerPuertosConexion(el) {
+            // Debe replicar EXACTAMENTE la transformación SVG con la que se dibuja el símbolo
+            // (`translate(el.x, screenY) rotate(rot, 25, 25) scale(el.scale)`, ver renderizarVectorial),
+            // para que el puerto calculado coincida en pantalla, sin ninguna desviación, con el
+            // puntito azul realmente dibujado. Antes esta función mezclaba mundo (el.y, Y-arriba)
+            // con coordenadas locales pensadas en pantalla (Y-abajo) y usaba, para la tubería, un
+            // pivote de rotación distinto al que realmente usa el render (que SIEMPRE rota alrededor
+            // de (25,25), sea cual sea la longitud) — ambas cosas dejaban huecos reales aunque el
+            // propio snapping "creyera" haber conectado exacto.
+            let rot = el.rotation || 0;
+            let rad = rot * Math.PI / 180;
+            let escala = el.scale || 1;
+            const PIVOTE = { x: 25, y: 25 }; // coincide siempre con rotate(rot, 25, 25) del render
+            let screenYEl = mundoAScreenY(el.y);
+            return obtenerPuertosLocales(el).map(p => {
+                let pEscalado = { x: p.x * escala, y: p.y * escala };
+                let global = rotarPunto(pEscalado, PIVOTE, rad, el.x, screenYEl);
+                global.id = p.id;
+                return global; // coordenadas de PANTALLA reales (Y hacia abajo), no de mundo
+            });
+        }
+
+        function rotarPunto(p, centro, rad, posX, posY) {
+            let cos = Math.cos(rad);
+            let sin = Math.sin(rad);
+            let nx = cos * (p.x - centro.x) - sin * (p.y - centro.y) + centro.x;
+            let ny = sin * (p.x - centro.x) + cos * (p.y - centro.y) + centro.y;
+            return { x: posX + nx, y: posY + ny };
+        }
+
+        // Rellena valores por defecto que puedan faltar (elementos creados con versiones anteriores)
+        function normalizarElemento(el) {
+            el.esLineaCritica = false; // se recalcula en el próximo "Calcular Red"
+            if (el.type === 'bomba') {
+                if (el.h0 == null) el.h0 = +(((el.presion || 3.5) * 1.2).toFixed(2));
+                if (el.cota == null) el.cota = 0;
+                if (el.npsh == null) el.npsh = 2.5;
+                else if (el.npsh > 100) el.npsh = el.npsh / 1000; // formato antiguo en mm
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
+                if (el.dn == null) el.dn = 'DN 50';
+                if (el.k == null) el.k = el.type === 'valvula' ? 0.5 : 0.75;
+            }
+        }
+
+        function aplicarSnapping(el, umbral = 35) {
+            if (desenganchado) return;
+            const snapThreshold = umbral;
+            let puertosArrastrados = obtenerPuertosConexion(el);
+
+            // Se evalúan TODAS las combinaciones puerto-arrastrado / puerto-fijo dentro del umbral
+            // (de cualquier otro elemento) y se elige la de MENOR distancia, no la primera que se
+            // encuentre. Antes, al haber varios puertos cercanos a la vez, el imán podía "irse" a
+            // uno más lejano solo porque se comprobaba antes en el orden de la lista.
+            let mejor = null;
+            for (let otroEl of elementosRed) {
+                if (otroEl.id === el.id) continue;
+                let puertosFijos = obtenerPuertosConexion(otroEl);
+                for (let pa of puertosArrastrados) {
+                    for (let pf of puertosFijos) {
+                        let distancia = Math.hypot(pa.x - pf.x, pa.y - pf.y);
+                        if (distancia < snapThreshold && (!mejor || distancia < mejor.distancia)) {
+                            mejor = { pa, pf, distancia };
+                        }
+                    }
+                }
+            }
+
+            if (mejor) {
+                // pa/pf son coordenadas de PANTALLA (ver obtenerPuertosConexion). En X, mundo y
+                // pantalla avanzan igual, pero en Y el mundo está invertido respecto a pantalla, así
+                // que la corrección de pantalla se SUMA a el.y (no se resta, al contrario que con
+                // el.x) para que el puerto quede exacto sobre el fijo, sin ninguna desviación.
+                let offsetX = mejor.pa.x - el.x;
+                let offsetYPantalla = mejor.pa.y - mejor.pf.y;
+                el.x = mejor.pf.x - offsetX;
+                el.y = el.y + offsetYPantalla;
+            }
+        }
+
+        // Reajusta el imantado de TODOS los elementos ya colocados, con un umbral más estrecho que
+        // el arrastre interactivo (para no unir elementos que no se pretendía conectar). Corrige
+        // huecos que quedan cuando: se abre un proyecto guardado con una geometría de puertos
+        // ligeramente distinta a una versión anterior, o se ha movido a mano un conjunto ya
+        // conectado y algún extremo quedó suelto.
+        function reajustarTodasLasConexiones(registrarEnHistorial = true) {
+            desenganchado = false; // una acción manual de reajuste nunca debe quedar bloqueada por esta bandera
+            if (registrarEnHistorial) guardarEstado();
+            const UMBRAL_REAJUSTE = 15;
+            for (let pasada = 0; pasada < 3; pasada++) {
+                elementosRed.forEach(el => aplicarSnapping(el, UMBRAL_REAJUSTE));
+            }
+            renderizarVectorial();
+        }
+
+        function renderizarVectorial() {
+            const emptyState = document.getElementById("empty-state");
+            svgCanvas.innerHTML = "";
+            if (emptyState && elementosRed.length === 0) {
+                svgCanvas.appendChild(emptyState);
+            }
+
+            elementosRed.forEach(el => {
+                const isSelected = idSeleccionado === el.id;
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.setAttribute("class", `symbol-group ${isSelected ? 'symbol-selected' : ''}`);
+                
+                let rotacionElem = el.rotation || 0;
+                let rotacionTexto = -rotacionElem;
+                // el.x/el.y son coordenadas de MUNDO (Y arriba); se convierten a pantalla (Y abajo) solo al dibujar
+                g.setAttribute("transform", `translate(${el.x}, ${mundoAScreenY(el.y)}) rotate(${rotacionElem}, 25, 25) scale(${el.scale})`);
+                g.setAttribute("data-id", el.id);
+
+                g.addEventListener('mousedown', function(e) {
+                    if (e.button === 2) return;
+                    e.stopPropagation();
+                    activeSymbolId = el.id;
+                    isDraggingSymbol = true;
+                    desenganchado = false;
+                    // Un único snapshot al EMPEZAR el arrastre (no en cada mousemove), para que
+                    // Deshacer devuelva la pieza a su posición anterior al arrastre completo.
+                    guardarEstado();
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    seleccionarElemento(el.id);
+                });
+
+                g.addEventListener('dblclick', function(e) {
+                    e.stopPropagation();
+                    abrirModalEdicion(el.id);
+                });
+
+                g.oncontextmenu = function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    idMenuContextual = el.id;
+                    seleccionarElemento(el.id);
+                    
+                    contextMenu.style.display = 'block';
+                    contextMenu.style.left = e.clientX + 'px';
+                    contextMenu.style.top = e.clientY + 'px';
+                };
+
+                let dibujoHTML = '';
+                let textAnchor = "middle";
+                let textX = 25;
+                let textY = 58;
+                if ((rotacionElem === 90 || rotacionElem === 270)) {
+                    textX = 25;
+                    textY = -8;
+                }
+                // Halo blanco alrededor del texto (vía stroke, sin necesidad de calcular un
+                // rectángulo de fondo) para que se lea aunque pase por debajo una tubería u otro
+                // símbolo; tamaño reducido (7 en vez de 9) para que quepa mejor entre componentes.
+                const estiloTexto = `font-family="sans-serif" font-size="7" fill="#475569" text-anchor="${textAnchor}" paint-order="stroke" stroke="white" stroke-width="3" stroke-linejoin="round"`;
+                // Pequeña flecha verde que indica el sentido de referencia del flujo (izquierda a
+                // derecha en posición horizontal, sin rotación); gira junto con el resto del símbolo.
+                const flechaFlujo = `<polygon points="44,15.5 48,18 44,20.5" fill="#16a34a"/>`;
+                // La línea crítica de la red (mayor pérdida de carga acumulada desde la bomba hasta
+                // un extremo abierto) se resalta en rojo en vez de en azul; ver identificarLineaCritica().
+                const colorTuberia = el.esLineaCritica ? '#dc2626' : '#2563eb';
+
+                if (el.type === 'bomba') {
+                    dibujoHTML = `
+                        <circle cx="25" cy="25" r="20" fill="white" stroke="#334155" stroke-width="2"/>
+                        <polygon points="20,15 33,25 20,35" fill="#334155"/>
+                        <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>
+                    `;
+                } else if (el.type === 'tuberia') {
+                    let largoTuberia = el.longitud || 3000;
+                    let largoPx = largoTuberia / 30;
+                    dibujoHTML = `
+                        <line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${colorTuberia}" stroke-width="4" stroke-linecap="round"/>
+                        ${flechaFlujo}
+                        <text x="${largoPx / 2}" y="36" transform="rotate(${rotacionTexto}, ${largoPx / 2}, 36)" font-family="sans-serif" font-size="7" fill="${colorTuberia}" text-anchor="middle" paint-order="stroke" stroke="white" stroke-width="3" stroke-linejoin="round">${el.dn} - L:${largoTuberia} mm</text>
+                    `;
+                } else if (el.type === 'accesorio') {
+                    if (el.subtype === 'codo') {
+                        dibujoHTML = `
+                            <path d="M 15 35 L 15 15 L 35 15" fill="none" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="15" cy="25" r="3" fill="#2563eb"/>
+                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>
+                        `;
+                    } else if (el.subtype === 'tee') {
+                        dibujoHTML = `
+                            <line x1="10" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>
+                            <line x1="25" y1="25" x2="25" y2="40" stroke="#334155" stroke-width="3"/>
+                            ${flechaFlujo}
+                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>
+                        `;
+                    } else {
+                        dibujoHTML = `
+                            <rect x="20" y="10" width="10" height="30" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="10" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="2" stroke-dasharray="2,2"/>
+                            ${flechaFlujo}
+                            <text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>
+                        `;
+                    }
+                } else if (el.type === 'valvula') {
+                    // Tramo de tubo que lleva el cuerpo de la válvula (12-38) exactamente hasta el
+                    // puerto de conexión (10/40), para que no quede hueco visual al conectar.
+                    const stubValvula = `<line x1="10" y1="25" x2="12" y2="25" stroke="#334155" stroke-width="3"/><line x1="38" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>`;
+                    if (el.subtype === 'globo') {
+                        // Globo: cuerpo genérico de válvula (el mismo "bowtie" que compuerta — ISA-5.1
+                        // no distingue globo de compuerta por el cuerpo) + un pequeño "bonete"
+                        // rectangular antes del vástago. Antes llevaba un círculo hueco en el centro,
+                        // que se confundía visualmente con el círculo (relleno) de la válvula de bola.
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <rect x="21" y="14" width="8" height="6" fill="white" stroke="#334155" stroke-width="1.5"/>
+                            <line x1="25" y1="14" x2="25" y2="8" stroke="#334155" stroke-width="2"/>
+                            <line x1="21" y1="8" x2="29" y2="8" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else if (el.subtype === 'bola') {
+                        // Bola: cuerpo genérico + círculo RELLENO representando la esfera perforada.
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <circle cx="25" cy="25" r="5" fill="#334155" stroke="#334155" stroke-width="2"/>
+                            <line x1="25" y1="20" x2="25" y2="8" stroke="#334155" stroke-width="2"/>
+                            <line x1="21" y1="8" x2="29" y2="8" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else if (el.subtype === 'mariposa') {
+                        // Mariposa: círculo (referencia al cuerpo/diámetro de paso) con el disco visto
+                        // de canto como una lente — símbolo habitual ISA/ISO para válvulas de mariposa,
+                        // en vez del "bowtie" genérico que usan el resto de válvulas.
+                        dibujoHTML = `
+                            <line x1="10" y1="25" x2="17" y2="25" stroke="#334155" stroke-width="3"/>
+                            <line x1="33" y1="25" x2="40" y2="25" stroke="#334155" stroke-width="3"/>
+                            <circle cx="25" cy="25" r="10" fill="white" stroke="#334155" stroke-width="2"/>
+                            <ellipse cx="25" cy="25" rx="3" ry="10" fill="none" stroke="#334155" stroke-width="2"/>
+                            <line x1="25" y1="15" x2="25" y2="6" stroke="#334155" stroke-width="2"/>
+                            <line x1="21" y1="6" x2="29" y2="6" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else if (el.subtype === 'neumatica') {
+                        // Neumática: cuerpo genérico + actuador de diafragma (forma de cúpula/"home
+                        // plate", símbolo ISA-5.1 de actuador neumático) en vez de un rectángulo liso.
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <path d="M 16 12 L 16 6 A 9 6 0 0 1 34 6 L 34 12 Z" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="25" y1="12" x2="25" y2="19" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else if (el.subtype === 'retencion') {
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,15 38,25 12,35" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="38" y1="15" x2="38" y2="35" stroke="#334155" stroke-width="2"/>
+                        `;
+                    } else {
+                        dibujoHTML = `
+                            ${stubValvula}
+                            <polygon points="12,10 12,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <polygon points="38,10 38,40 25,25" fill="white" stroke="#334155" stroke-width="2"/>
+                            <line x1="25" y1="19" x2="25" y2="8" stroke="#334155" stroke-width="2"/>
+                            <line x1="21" y1="8" x2="29" y2="8" stroke="#334155" stroke-width="2"/>
+                        `;
+                    }
+                    dibujoHTML += flechaFlujo;
+                    dibujoHTML += `<text x="${textX}" y="${textY}" transform="rotate(${rotacionTexto}, ${textX}, ${textY})" ${estiloTexto}>${el.name}</text>`;
+                }
+
+                let puertosLocales = obtenerPuertosLocales(el);
+                puertosLocales.forEach((p) => {
+                    dibujoHTML += `<circle class="connection-port" cx="${p.x}" cy="${p.y}" r="3.5" data-portid="${p.id}"/>`;
+                });
+
+                g.innerHTML = dibujoHTML;
+                svgCanvas.appendChild(g);
+            });
+
+            // Solo se trabaja dentro de la hoja A3: si algo queda fuera, se devuelve al borde y se redibuja
+            if (!renderizarVectorial._limitando) {
+                let movido = false;
+                elementosRed.forEach(el => { if (limitarAHoja(el)) movido = true; });
+                if (movido) {
+                    renderizarVectorial._limitando = true;
+                    renderizarVectorial();
+                    renderizarVectorial._limitando = false;
+                }
+            }
+        }
+
+        window.addEventListener('mousemove', function(e) {
+            if (!isDraggingSymbol || !activeSymbolId) return;
+            const dx = (e.clientX - dragStartX) / zoomScale;
+            const dy = (e.clientY - dragStartY) / zoomScale;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+
+            const el = elementosRed.find(item => item.id === activeSymbolId);
+            if (el) {
+                if (Math.hypot(dx, dy) > 8) {
+                    // Si se arrastra con fuerza, se rompe el enganche actual para poder moverlo
+                }
+                el.x += dx;
+                el.y -= dy; // dy es un delta de pantalla (abajo = positivo); en mundo Y-arriba se resta
+                aplicarSnapping(el);
+                renderizarVectorial();
+            }
+        });
+
+        window.addEventListener('mouseup', function() {
+            isDraggingSymbol = false;
+            activeSymbolId = null;
+        });
+
+        function menuAccion(accion) {
+            contextMenu.style.display = 'none';
+            if (!idMenuContextual) return;
+            const el = elementosRed.find(item => item.id === idMenuContextual);
+            if (!el) return;
+
+            if (accion === 'eliminar') {
+                eliminarElemento(el.id);
+            } else if (accion === 'girar') {
+                guardarEstado();
+                el.rotation = ((el.rotation || 0) + 90) % 360;
+                renderizarVectorial();
+                seleccionarElemento(el.id);
+            } else if (accion === 'escalar') {
+                let nuevaEscala = prompt("Introduce el factor de escala:", el.scale || 1.0);
+                if (nuevaEscala && !isNaN(nuevaEscala)) {
+                    guardarEstado();
+                    el.scale = parseFloat(nuevaEscala);
+                    renderizarVectorial();
+                    seleccionarElemento(el.id);
+                }
+            } else if (accion === 'desconectar') {
+                desenganchado = true;
+                alert("Componente liberado de la imantación. Arrástralo a otra posición.");
+            } else if (accion === 'editar') {
+                abrirModalEdicion(el.id);
+            }
+        }
+
+        function opcionesDN(actual) {
+            return Object.keys(TABLA_DN_SCH40).map(dn =>
+                `<option value="${dn}" ${dn === actual ? 'selected' : ''}>${dn}</option>`
+            ).join('');
+        }
+
+        function opcionesMaterial(actual) {
+            return Object.keys(RUGOSIDAD_MATERIAL).map(m =>
+                `<option value="${m}" ${m === actual ? 'selected' : ''}>${m}</option>`
+            ).join('');
+        }
+
+        function abrirModalEdicion(id) {
+            const el = elementosRed.find(item => item.id === id);
+            if (!el) return;
+            idSeleccionado = id;
+
+            let bodyHtml = `
+                <div><label class="block text-slate-500 mb-1">Nombre</label><input type="text" id="modal-name" value="${el.name}" class="w-full border rounded p-1.5"></div>
+                <div><label class="block text-slate-500 mb-1">Escala</label><input type="number" step="0.1" id="modal-scale" value="${el.scale}" class="w-full border rounded p-1.5"></div>
+                <div><label class="block text-slate-500 mb-1">Rotación (°)</label><input type="number" step="90" id="modal-rotation" value="${el.rotation || 0}" class="w-full border rounded p-1.5"></div>
+            `;
+
+            if (el.type === 'tuberia') {
+                bodyHtml += `
+                    <div><label class="block text-slate-500 mb-1">Material</label><select id="modal-material" class="w-full border rounded p-1.5">${opcionesMaterial(el.material || 'Acero al Carbono')}</select></div>
+                    <div><label class="block text-slate-500 mb-1">Diámetro Nominal (DN)</label><select id="modal-dn" class="w-full border rounded p-1.5">${opcionesDN(el.dn)}</select></div>
+                    <div><label class="block text-slate-500 mb-1">Longitud (mm)</label><input type="number" id="modal-longitud" value="${el.longitud}" class="w-full border rounded p-1.5"></div>
+                `;
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
+                bodyHtml += `
+                    <div><label class="block text-slate-500 mb-1">Diámetro Nominal (DN)</label><select id="modal-dn" class="w-full border rounded p-1.5">${opcionesDN(el.dn || 'DN 50')}</select></div>
+                    <div><label class="block text-slate-500 mb-1">Coeficiente de pérdidas K</label><input type="number" step="0.05" id="modal-k" value="${el.k}" class="w-full border rounded p-1.5"></div>
+                `;
+            } else if (el.type === 'bomba') {
+                bodyHtml += `
+                    <div><label class="block text-slate-500 mb-1">Caudal de diseño (m³/h)</label><input type="number" step="0.1" id="modal-caudal" value="${el.caudal}" class="w-full border rounded p-1.5"></div>
+                    <div><label class="block text-slate-500 mb-1">Presión de diseño (bar)</label><input type="number" step="0.1" id="modal-presion" value="${el.presion}" class="w-full border rounded p-1.5"></div>
+                    <div><label class="block text-slate-500 mb-1">Presión a caudal cero / cierre (bar)</label><input type="number" step="0.1" id="modal-h0" value="${el.h0}" class="w-full border rounded p-1.5"></div>
+                    <div><label class="block text-slate-500 mb-1">NPSH requerido (m)</label><input type="number" step="0.1" id="modal-npsh" value="${el.npsh}" class="w-full border rounded p-1.5"></div>
+                    <div><label class="block text-slate-500 mb-1">Cota de la bomba (m)</label><input type="number" step="0.1" id="modal-cota" value="${el.cota || 0}" class="w-full border rounded p-1.5"></div>
+                `;
+            }
+
+            document.getElementById('modal-content-body').innerHTML = bodyHtml;
+            modalEdicion.style.display = 'flex';
+        }
+
+        function cerrarModal() { modalEdicion.style.display = 'none'; }
+
+        function guardarEdicionModal() {
+            const el = elementosRed.find(item => item.id === idSeleccionado);
+            if (!el) return;
+            guardarEstado();
+
+            el.name = document.getElementById('modal-name').value;
+            el.scale = parseFloat(document.getElementById('modal-scale').value) || 1.0;
+            el.rotation = parseFloat(document.getElementById('modal-rotation').value) || 0;
+
+            if (el.type === 'tuberia') {
+                el.material = document.getElementById('modal-material').value;
+                el.dn = document.getElementById('modal-dn').value;
+                el.longitud = parseFloat(document.getElementById('modal-longitud').value) || 3000;
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
+                el.dn = document.getElementById('modal-dn').value;
+                el.k = parseFloat(document.getElementById('modal-k').value);
+                if (isNaN(el.k)) el.k = el.type === 'valvula' ? 0.5 : 0.75;
+            } else if (el.type === 'bomba') {
+                el.caudal = parseFloat(document.getElementById('modal-caudal').value) || el.caudal;
+                el.presion = parseFloat(document.getElementById('modal-presion').value) || el.presion;
+                el.h0 = parseFloat(document.getElementById('modal-h0').value) || el.h0;
+                el.npsh = parseFloat(document.getElementById('modal-npsh').value) || el.npsh;
+                el.cota = parseFloat(document.getElementById('modal-cota').value) || 0;
+            }
+
+            cerrarModal();
+            renderizarVectorial();
+            seleccionarElemento(el.id);
+        }
+
+        function seleccionarElemento(id) {
+            idSeleccionado = id;
+            renderizarVectorial();
+            const el = elementosRed.find(item => item.id === id);
+            if (!el) return;
+
+            document.getElementById("lbl-tipo-activo").innerText = el.type.toUpperCase();
+            const panel = document.getElementById("panel-propiedades");
+
+            let htmlAtributos = `
+                <div class="font-bold text-slate-700 mb-1 flex justify-between items-center">
+                    <span>${el.name}</span>
+                    <button onclick="eliminarElemento('${el.id}')" class="text-rose-500 hover:text-rose-700 text-[10px]"><i class="fa-solid fa-trash-can mr-1"></i>Eliminar</button>
+                </div>
+                <div class="space-y-1.5 mt-1">
+                    <div>Escala: <input type="number" step="0.1" value="${el.scale}" onchange="actualizarAtributo('${el.id}', 'scale', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                    <div>Rotación (°): <input type="number" step="90" value="${el.rotation || 0}" onchange="actualizarAtributo('${el.id}', 'rotation', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+            `;
+
+            if (el.type === 'tuberia') {
+                htmlAtributos += `
+                    <div>Material: <select onchange="actualizarAtributo('${el.id}', 'material', this.value)" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5">${opcionesMaterial(el.material || 'Acero al Carbono')}</select></div>
+                    <div>Diámetro (DN): <select onchange="actualizarAtributo('${el.id}', 'dn', this.value)" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5">${opcionesDN(el.dn)}</select></div>
+                    <div>Longitud (mm): <input type="number" value="${el.longitud}" onchange="actualizarAtributo('${el.id}', 'longitud', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                `;
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
+                htmlAtributos += `
+                    <div>DN: <select onchange="actualizarAtributo('${el.id}', 'dn', this.value)" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5">${opcionesDN(el.dn || 'DN 50')}</select></div>
+                    <div>Coef. pérdidas K: <input type="number" step="0.05" value="${el.k}" onchange="actualizarAtributo('${el.id}', 'k', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                `;
+            } else if (el.type === 'bomba') {
+                htmlAtributos += `
+                    <div>Caudal diseño (m³/h): <input type="number" step="0.1" value="${el.caudal}" onchange="actualizarAtributo('${el.id}', 'caudal', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                    <div>Presión diseño (bar): <input type="number" step="0.1" value="${el.presion}" onchange="actualizarAtributo('${el.id}', 'presion', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                    <div>Presión cierre (bar): <input type="number" step="0.1" value="${el.h0}" onchange="actualizarAtributo('${el.id}', 'h0', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                    <div>NPSH requerido (m): <input type="number" step="0.1" value="${el.npsh}" onchange="actualizarAtributo('${el.id}', 'npsh', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                    <div>Cota bomba (m): <input type="number" step="0.1" value="${el.cota || 0}" onchange="actualizarAtributo('${el.id}', 'cota', parseFloat(this.value))" class="w-full bg-white border border-slate-300 rounded p-1 mt-0.5"></div>
+                `;
+            }
+
+            htmlAtributos += `</div>`;
+            panel.innerHTML = htmlAtributos;
+        }
+
+        function actualizarAtributo(id, campo, valor) {
+            const el = elementosRed.find(item => item.id === id);
+            if (el) {
+                guardarEstado();
+                el[campo] = valor;
+                renderizarVectorial();
+            }
+        }
+
+        function eliminarElemento(id) {
+            guardarEstado();
+            elementosRed = elementosRed.filter(item => item.id !== id);
+            if(idSeleccionado === id) {
+                idSeleccionado = null;
+                document.getElementById("lbl-tipo-activo").innerText = "Ninguno";
+                document.getElementById("panel-propiedades").innerHTML = `<p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>`;
+            }
+            renderizarVectorial();
+        }
+
+        function nuevoProyecto() {
+            const msgNuevo = hayCambiosSinGuardar
+                ? "Hay cambios sin guardar que se perderán. ¿Iniciar un nuevo proyecto igualmente?"
+                : "¿Iniciar un nuevo proyecto?";
+            if(confirm(msgNuevo)) {
+                guardarEstado();
+                elementosRed = [];
+                idSeleccionado = null;
+                currentFileHandle = null;
+                condicionesContorno = {};
+                zoomScale = 1.0;
+                aplicarZoom();
+                irAOrigenEnEsquina();
+                renderizarVectorial();
+                marcarCambios(false);
+            }
+        }
+
+        async function guardarProyecto() {
+            if (!currentFileHandle) {
+                await guardarComoProyecto('pid');
+            } else {
+                try {
+                    const contenido = generarContenido('pid');
+                    const writable = await currentFileHandle.createWritable();
+                    await writable.write(contenido);
+                    await writable.close();
+                    marcarCambios(false);
+                    alert("Proyecto guardado correctamente.");
+                } catch (err) {
+                    console.error(err);
+                    await guardarComoProyecto('pid');
+                }
+            }
+        }
+
+        async function handleGuardarComo(selectElement) {
+            const formato = selectElement.value;
+            selectElement.value = ""; 
+            if (!formato) return;
+            await guardarComoProyecto(formato);
+        }
+
+        async function guardarComoProyecto(formato) {
+            const contenido = generarContenido(formato);
+            const extensiones = {
+                pid: { description: 'Archivo P&ID (*.pid)', accept: { 'application/json': ['.pid'] } },
+                dxf: { description: 'LibreCAD DXF (*.dxf)', accept: { 'application/dxf': ['.dxf'] } },
+                svg: { description: 'Imagen SVG (*.svg)', accept: { 'image/svg+xml': ['.svg'] } },
+                png: { description: 'Imagen PNG (*.png)', accept: { 'image/png': ['.png'] } }
+            };
+
+            if (window.showSaveFilePicker) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: `proyecto_pid.${formato}`,
+                        types: [extensiones[formato]]
+                    });
+                    if (formato === 'pid') {
+                        currentFileHandle = handle;
+                    }
+                    const writable = await handle.createWritable();
+                    await writable.write(contenido);
+                    await writable.close();
+                    if (formato === 'pid') marcarCambios(false);
+                    alert("Archivo guardado con éxito en el directorio seleccionado.");
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        descargarArchivo(contenido, `proyecto_pid.${formato}`, 'text/plain');
+                    }
+                }
+            } else {
+                let nombre = prompt("Introduce el nombre del archivo:", `proyecto_pid.${formato}`);
+                if (nombre) {
+                    descargarArchivo(contenido, nombre, 'text/plain');
+                    if (formato === 'pid') marcarCambios(false);
+                }
+            }
+        }
+
+        function generarContenido(formato) {
+            if (formato === 'pid') {
+                return JSON.stringify({
+                    version: "6.5-hidraulico",
+                    elementos: elementosRed,
+                    condicionesContorno: condicionesContorno,
+                    fluido: document.getElementById('selector-fluido')?.value
+                }, null, 2);
+            } else if (formato === 'dxf') {
+                // el.x/el.y ya están en convenio CAD (Y hacia arriba, origen abajo-izquierda), igual que DXF:
+                // no se invierte el signo (placeholder pendiente de la exportación real, ver Fase 2).
+                let dxfContent = "0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n";
+                elementosRed.forEach(el => {
+                    dxfContent += `0\nLINE\n8\n0\n10\n${el.x}\n20\n${el.y}\n30\n0.0\n11\n${el.x + 50}\n21\n${el.y}\n31\n0.0\n`;
+                });
+                dxfContent += "0\nENDSEC\n0\nEOF\n";
+                return dxfContent;
+            } else if (formato === 'svg') {
+                return document.getElementById("marco-a3").outerHTML;
+            } else if (formato === 'png') {
+                alert("Para exportar a PNG de alta resolución, utiliza Archivo > Imprimir (A3).");
+                return "";
+            }
+            return "";
+        }
+
+        function descargarArchivo(contenido, nombre, tipo) {
+            const blob = new Blob([contenido], { type: tipo });
+            const url = URL.createObjectURL(blob);
+            const dl = document.createElement('a');
+            dl.href = url;
+            dl.download = nombre;
+            dl.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function abrirProyectoCarpeta() {
+            if (hayCambiosSinGuardar && !confirm("Hay cambios sin guardar que se perderán. ¿Abrir otro proyecto igualmente?")) return;
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,.pid,.dxf';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = event => {
+                    try {
+                        guardarEstado(); // permite deshacer la apertura y recuperar el proyecto anterior
+                        const res = JSON.parse(event.target.result);
+                        elementosRed = res.elementos || [];
+                        elementosRed.forEach(normalizarElemento);
+                        condicionesContorno = res.condicionesContorno || {};
+                        if (res.fluido) {
+                            const sel = document.getElementById('selector-fluido');
+                            if (sel) sel.value = res.fluido;
+                        }
+                        reajustarTodasLasConexiones(false); // corrige huecos por cambios de geometría entre versiones (sin snapshot adicional)
+                        marcarCambios(false);
+                        alert("Proyecto abierto con éxito.");
+                    } catch(err) { alert("Error al abrir archivo o formato no compatible."); }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function imprimirPDF() { window.print(); }
+
+        // ==================================================================================
+        // MOTOR DE CÁLCULO HIDRÁULICO (Fase 1)
+        // Modelo: grafo de nodos/aristas construido por proximidad de puertos tras el snapping.
+        // Simplificaciones asumidas (documentadas también en el panel de resultados):
+        //  - Los "Tee" se tratan como una unión de sus 3 puertos en un único nodo sin pérdida
+        //    propia (la pérdida de la red se sigue calculando en las tuberías/válvulas/accesorios
+        //    conectados a él).
+        //  - La curva de la bomba se aproxima con una parábola H(Q) = H0 - k·Q² ajustada por el
+        //    punto de diseño (caudal/presión) y una presión de cierre editable.
+        //  - El vapor saturado usa propiedades aproximadas de un único punto de presión; para un
+        //    dimensionado real de vapor se requiere un cálculo de flujo compresible.
+        //  - La red se resuelve por el método de teoría lineal (Wood & Charles): iteración de
+        //    resistencias linealizadas hasta convergencia de caudales.
+        // ==================================================================================
+
+        function construirGrafoRed() {
+            let puertosTodos = [];
+            elementosRed.forEach(el => {
+                obtenerPuertosConexion(el).forEach(p => {
+                    puertosTodos.push({ elId: el.id, portId: p.id, x: p.x, y: p.y, nodo: null });
+                });
+            });
+
+            const TOL = 4; // px de tolerancia para considerar dos puertos "conectados"
+            let padre = puertosTodos.map((_, i) => i);
+            function find(i) { while (padre[i] !== i) { padre[i] = padre[padre[i]]; i = padre[i]; } return i; }
+            function unir(i, j) { let ri = find(i), rj = find(j); if (ri !== rj) padre[ri] = rj; }
+
+            for (let i = 0; i < puertosTodos.length; i++) {
+                for (let j = i + 1; j < puertosTodos.length; j++) {
+                    if (puertosTodos[i].elId === puertosTodos[j].elId) continue;
+                    let d = Math.hypot(puertosTodos[i].x - puertosTodos[j].x, puertosTodos[i].y - puertosTodos[j].y);
+                    if (d < TOL) unir(i, j);
+                }
+            }
+
+            // Fusionar internamente los 3 puertos de cada Tee en un único nodo (simplificación)
+            let porElemento = {};
+            puertosTodos.forEach((p, idx) => { (porElemento[p.elId] = porElemento[p.elId] || []).push(idx); });
+            elementosRed.filter(el => el.type === 'accesorio' && el.subtype === 'tee').forEach(el => {
+                let idxs = porElemento[el.id] || [];
+                for (let k = 1; k < idxs.length; k++) unir(idxs[0], idxs[k]);
+            });
+
+            let mapaNodo = {};
+            let nodos = [];
+            puertosTodos.forEach((p, idx) => {
+                let r = find(idx);
+                if (!(r in mapaNodo)) { mapaNodo[r] = nodos.length; nodos.push({ id: nodos.length, puertos: [] }); }
+                p.nodo = mapaNodo[r];
+                nodos[p.nodo].puertos.push(p);
+            });
+
+            return { puertosTodos, nodos, porElemento };
+        }
+
+        function construirAristas(grafo) {
+            let aristas = [];
+            elementosRed.forEach(el => {
+                if (el.type === 'accesorio' && el.subtype === 'tee') return; // fusionado como nodo, sin arista propia
+                let puertos = grafo.puertosTodos.filter(p => p.elId === el.id);
+                if (puertos.length < 2) return;
+                aristas.push({ elId: el.id, el, nodoA: puertos[0].nodo, nodoB: puertos[1].nodo });
+            });
+            return aristas;
+        }
+
+        function nombrePuerto(el, portId) {
+            if (el.type === 'bomba') return portId === 'succion' ? 'Aspiración' : 'Descarga';
+            if (el.type === 'tuberia') return portId === 'a' ? 'extremo A' : 'extremo B';
+            return `puerto ${portId}`;
+        }
+
+        function colebrookWhite(Re, relRug) {
+            // Estimación inicial explícita (Swamee-Jain)
+            let f = 0.25 / Math.pow(Math.log10(relRug / 3.7 + 5.74 / Math.pow(Re, 0.9)), 2);
+            // Refinamiento por Newton sobre la ecuación implícita de Colebrook-White
+            for (let i = 0; i < 6; i++) {
+                const ecuacion = (fi) => {
+                    let sqrtF = Math.sqrt(fi);
+                    return 1 / sqrtF + 2 * Math.log10(relRug / 3.7 + 2.51 / (Re * sqrtF));
+                };
+                let F = ecuacion(f);
+                let df = 1e-6;
+                let deriv = (ecuacion(f + df) - F) / df;
+                if (Math.abs(deriv) < 1e-12) break;
+                let fNuevo = f - F / deriv;
+                if (!isFinite(fNuevo) || fNuevo <= 0) break;
+                f = fNuevo;
+            }
+            return f;
+        }
+
+        function prepararArista(a) {
+            const el = a.el;
+            if (el.type === 'tuberia') {
+                a.dn = el.dn;
+                a.D = (TABLA_DN_SCH40[el.dn] || 50) / 1000;
+                a.L = (el.longitud || 3000) / 1000;
+                a.rugosidad = (RUGOSIDAD_MATERIAL[el.material] || 0.045) / 1000;
+                a.A = Math.PI * a.D * a.D / 4;
+                a.esBomba = false; a.esValvulaAcc = false;
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
+                a.dn = el.dn || 'DN 50';
+                a.D = (TABLA_DN_SCH40[a.dn] || 50) / 1000;
+                a.A = Math.PI * a.D * a.D / 4;
+                a.K = el.k != null ? el.k : (el.type === 'valvula' ? 0.5 : 0.75);
+                a.esValvulaAcc = true; a.esBomba = false;
+            } else if (el.type === 'bomba') {
+                a.esBomba = true; a.esValvulaAcc = false;
+                a.Qd = (el.caudal || 50) / 3600; // m³/s
+                a.Hd_bar = el.presion != null ? el.presion : 3.5;
+                a.H0_bar = el.h0 != null ? el.h0 : a.Hd_bar * 1.2;
+            }
+        }
+
+        function actualizarResistencia(a, fluido) {
+            if (a.esBomba) {
+                let Hd_m = a.Hd_bar * 1e5 / (fluido.rho * G);
+                let H0_m = a.H0_bar * 1e5 / (fluido.rho * G);
+                let k = (H0_m - Hd_m) / Math.max(a.Qd * a.Qd, 1e-9);
+                a.kPump = Math.max(k, 1e-6);
+                a.H0m = H0_m; a.Hd_m = Hd_m;
+                return;
+            }
+            let Q = Math.max(Math.abs(a.Qprev), 1e-6);
+            let V = Q / a.A;
+            let Re = V * a.D * fluido.rho / fluido.mu;
+            let f;
+            if (Re < 2300) { f = Re > 1 ? 64 / Re : 64; }
+            else { f = colebrookWhite(Re, (a.rugosidad || 0) / a.D); }
+            a.Re = Re; a.f = f; a.V = V;
+            a.R = a.esValvulaAcc ? (a.K / (2 * G * a.A * a.A)) : (f * a.L / (a.D * a.A * a.A * 2 * G));
+        }
+
+        function resolverSistemaLineal(A, b) {
+            const n = b.length;
+            if (n === 0) return [];
+            let M = A.map((fila, i) => [...fila, b[i]]);
+            for (let col = 0; col < n; col++) {
+                let maxFila = col;
+                for (let f = col + 1; f < n; f++) if (Math.abs(M[f][col]) > Math.abs(M[maxFila][col])) maxFila = f;
+                [M[col], M[maxFila]] = [M[maxFila], M[col]];
+                if (Math.abs(M[col][col]) < 1e-12) continue;
+                for (let f = 0; f < n; f++) {
+                    if (f === col) continue;
+                    let factor = M[f][col] / M[col][col];
+                    for (let c = col; c <= n; c++) M[f][c] -= factor * M[col][c];
+                }
+            }
+            return M.map((fila, i) => Math.abs(fila[i]) < 1e-12 ? 0 : fila[n] / fila[i]);
+        }
+
+        function resolverRed(grafo, aristas, condiciones, fluido) {
+            let fixedH = {};
+            Object.keys(condiciones).forEach(nid => {
+                let c = condiciones[nid];
+                let pAbs = PRESION_ATM + (c.presion || 0) * 1e5;
+                fixedH[nid] = (c.elevacion || 0) + pAbs / (fluido.rho * G);
+            });
+
+            let libres = [], idxLibre = {};
+            grafo.nodos.forEach(n => { if (!(n.id in fixedH)) { idxLibre[n.id] = libres.length; libres.push(n.id); } });
+
+            aristas.forEach(a => {
+                prepararArista(a);
+                a.Qprev = a.el.type === 'bomba' ? Math.max((a.el.caudal || 10) / 3600, 1e-4) : 1e-3;
+            });
+
+            const QMIN = 1e-6;
+            let Hnodo = {};
+            for (let iter = 0; iter < 60; iter++) {
+                aristas.forEach(a => actualizarResistencia(a, fluido));
+
+                let A = Array.from({ length: libres.length }, () => new Array(libres.length).fill(0));
+                let b = new Array(libres.length).fill(0);
+
+                aristas.forEach(a => {
+                    let Qp = Math.max(Math.abs(a.Qprev), QMIN);
+                    let g, Isrc = 0;
+                    if (a.esBomba) { g = 1 / (a.kPump * Qp); Isrc = g * a.H0m; }
+                    else { g = 1 / (a.R * Qp); }
+
+                    let i = a.nodoA, j = a.nodoB;
+                    let iFijo = (i in fixedH), jFijo = (j in fixedH);
+                    let li = idxLibre[i], lj = idxLibre[j];
+
+                    if (!iFijo) A[li][li] += g;
+                    if (!jFijo) A[lj][lj] += g;
+                    if (!iFijo && !jFijo) { A[li][lj] -= g; A[lj][li] -= g; }
+                    if (!iFijo && jFijo) b[li] += g * fixedH[j];
+                    if (!jFijo && iFijo) b[lj] += g * fixedH[i];
+                    if (Isrc !== 0) {
+                        if (!jFijo) b[lj] += Isrc;
+                        if (!iFijo) b[li] -= Isrc;
+                    }
+                });
+
+                let Hlibres = resolverSistemaLineal(A, b);
+                Hnodo = {};
+                grafo.nodos.forEach(n => { Hnodo[n.id] = (n.id in fixedH) ? fixedH[n.id] : Hlibres[idxLibre[n.id]]; });
+
+                let maxCambioRel = 0;
+                aristas.forEach(a => {
+                    let Hi = Hnodo[a.nodoA], Hj = Hnodo[a.nodoB];
+                    let Qp = Math.max(Math.abs(a.Qprev), QMIN);
+                    let Qnuevo = a.esBomba
+                        ? (1 / (a.kPump * Qp)) * (Hi - Hj) + (1 / (a.kPump * Qp)) * a.H0m
+                        : (1 / (a.R * Qp)) * (Hi - Hj);
+                    let rel = Math.abs(Qnuevo - a.Qprev) / Math.max(Math.abs(a.Qprev), 1e-6);
+                    maxCambioRel = Math.max(maxCambioRel, rel);
+                    a.Qprev = 0.5 * a.Qprev + 0.5 * Qnuevo;
+                });
+                if (maxCambioRel < 1e-4) break;
+            }
+
+            aristas.forEach(a => actualizarResistencia(a, fluido));
+            return { aristas, Hnodo, fluido };
+        }
+
+        function velocidadEnNodo(nodoId, aristas, excluir) {
+            let ar = aristas.find(a => a !== excluir && !a.esBomba && (a.nodoA === nodoId || a.nodoB === nodoId));
+            return ar ? (ar.V || 0) : 0;
+        }
+
+        function calcularNPSH(a, Hnodo, fluido) {
+            if (fluido.pv == null) return null;
+            let Hsuccion = Hnodo[a.nodoA];
+            let cota = a.el.cota || 0;
+            let npshd = (Hsuccion - cota) - fluido.pv / (fluido.rho * G);
+            npshd += Math.pow(velocidadEnNodo(a.nodoA, a._todas, a), 2) / (2 * G);
+            return npshd;
+        }
+
+        function calcularRed() {
+            const grafo = construirGrafoRed();
+            const aristas = construirAristas(grafo);
+
+            if (aristas.length === 0) {
+                alert("No hay elementos conectados entre sí. Conecta al menos dos componentes (tuberías, válvulas, bomba...) para poder calcular la red.");
+                return;
+            }
+
+            let grado = new Array(grafo.nodos.length).fill(0);
+            aristas.forEach(a => { grado[a.nodoA]++; grado[a.nodoB]++; });
+            let nodosContorno = grafo.nodos.filter(n => grado[n.id] === 1);
+
+            mostrarModalContorno(grafo, aristas, nodosContorno);
+        }
+
+        function mostrarModalContorno(grafo, aristas, nodosContorno) {
+            let filas = nodosContorno.map(n => {
+                let p = n.puertos[0];
+                let el = elementosRed.find(e => e.id === p.elId);
+                if (!el) return '';
+                let key = `${p.elId}:${p.portId}`;
+                let cond = condicionesContorno[key] || { elevacion: 0, presion: 0 };
+                return `
+                <tr data-key="${key}">
+                    <td class="pr-2 py-1">${el.name} (${nombrePuerto(el, p.portId)})</td>
+                    <td class="pr-2"><input type="number" step="0.1" class="w-20 border rounded p-1 cota-input" value="${cond.elevacion}"></td>
+                    <td><input type="number" step="0.1" class="w-20 border rounded p-1 presion-input" value="${cond.presion}"></td>
+                </tr>`;
+            }).join('');
+
+            document.getElementById('red-content').innerHTML = `
+                <p class="text-xs text-slate-500 mb-3">Indica la cota y la presión manométrica en cada extremo abierto de la red. Por defecto se asume descarga/aspiración atmosférica a cota 0.</p>
+                ${filas ? `<table class="w-full text-xs mb-2">
+                    <thead><tr class="text-left text-slate-500"><th class="pb-1">Extremo</th><th class="pb-1">Cota (m)</th><th class="pb-1">Presión man. (bar)</th></tr></thead>
+                    <tbody>${filas}</tbody>
+                </table>` : `<p class="text-slate-400 italic text-[11px]">No se han detectado extremos abiertos (red cerrada).</p>`}
+                <div class="mt-2"><label class="block text-slate-500 mb-1 text-xs">Fluido</label>
+                    <select id="selector-fluido-modal" class="w-full bg-slate-50 border border-slate-300 rounded p-1.5 text-xs">
+                        ${Object.keys(FLUIDOS).map(f => `<option ${f === document.getElementById('selector-fluido').value ? 'selected' : ''}>${f}</option>`).join('')}
+                    </select>
+                </div>
+            `;
+            document.getElementById('red-footer').innerHTML = `
+                <button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cancelar</button>
+                <button id="btn-ejecutar-calculo" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Calcular</button>
+            `;
+            document.getElementById('btn-ejecutar-calculo').onclick = function () {
+                document.querySelectorAll('#red-content tr[data-key]').forEach(tr => {
+                    let key = tr.dataset.key;
+                    let elevacion = parseFloat(tr.querySelector('.cota-input').value) || 0;
+                    let presion = parseFloat(tr.querySelector('.presion-input').value) || 0;
+                    condicionesContorno[key] = { elevacion, presion };
+                });
+                marcarCambios(true);
+                let fluidoSel = document.getElementById('selector-fluido-modal').value;
+                document.getElementById('selector-fluido').value = fluidoSel;
+                ejecutarCalculo(grafo, aristas);
+            };
+            document.getElementById('modal-red').style.display = 'flex';
+        }
+
+        function cerrarModalRed() { document.getElementById('modal-red').style.display = 'none'; }
+
+        function hfDeArista(a) {
+            if (a.esBomba) return 0;
+            return a.esValvulaAcc ? (a.K * a.V * a.V / (2 * G)) : (a.f * a.L / a.D * a.V * a.V / (2 * G));
+        }
+
+        // Línea crítica = el camino, desde la descarga de cada bomba hasta un extremo abierto de
+        // la red, con mayor pérdida de carga acumulada (fricción + accesorios, a los caudales ya
+        // convergidos). Es el camino que determina la altura mínima que debe dar la bomba para
+        // garantizar presión suficiente en TODOS los extremos; el resto de ramas, al tener menos
+        // resistencia, quedan con margen de sobra (se equilibrarían con válvulas de balanceo si
+        // hiciera falta). Se calcula por búsqueda en profundidad (caminos simples) desde el nodo de
+        // descarga de cada bomba hasta cada nodo de grado 1 (extremo abierto) que no sea la propia
+        // aspiración de esa bomba.
+        function identificarLineaCritica(grafo, aristas) {
+            elementosRed.forEach(el => { el.esLineaCritica = false; });
+
+            let grado = new Array(grafo.nodos.length).fill(0);
+            aristas.forEach(a => { grado[a.nodoA]++; grado[a.nodoB]++; });
+
+            // Grafo de adyacencia SIN las bombas: el camino siempre arranca en el nodo de descarga
+            // de una bomba, así que no tiene sentido atravesarla en sentido inverso.
+            let adyacencia = {};
+            aristas.forEach(a => {
+                if (a.esBomba) return;
+                let hf = hfDeArista(a);
+                (adyacencia[a.nodoA] = adyacencia[a.nodoA] || []).push({ vecino: a.nodoB, arista: a, hf });
+                (adyacencia[a.nodoB] = adyacencia[a.nodoB] || []).push({ vecino: a.nodoA, arista: a, hf });
+            });
+
+            let mejor = null; // { hfTotal, aristasCamino }
+            function dfs(nodoActual, nodoSuccionBomba, visitados, caminoAristas, hfAcumulado) {
+                let esExtremo = grado[nodoActual] === 1 && nodoActual !== nodoSuccionBomba;
+                if (esExtremo && caminoAristas.length > 0 && (!mejor || hfAcumulado > mejor.hfTotal)) {
+                    mejor = { hfTotal: hfAcumulado, aristasCamino: [...caminoAristas] };
+                }
+                for (let conexion of (adyacencia[nodoActual] || [])) {
+                    if (visitados.has(conexion.vecino)) continue;
+                    visitados.add(conexion.vecino);
+                    caminoAristas.push(conexion.arista);
+                    dfs(conexion.vecino, nodoSuccionBomba, visitados, caminoAristas, hfAcumulado + conexion.hf);
+                    caminoAristas.pop();
+                    visitados.delete(conexion.vecino);
+                }
+            }
+
+            aristas.filter(a => a.esBomba).forEach(bomba => {
+                let visitados = new Set([bomba.nodoB]);
+                dfs(bomba.nodoB, bomba.nodoA, visitados, [], 0);
+            });
+
+            if (mejor) mejor.aristasCamino.forEach(a => { a.el.esLineaCritica = true; });
+            return mejor;
+        }
+
+        function ejecutarCalculo(grafo, aristas) {
+            let grado = new Array(grafo.nodos.length).fill(0);
+            aristas.forEach(a => { grado[a.nodoA]++; grado[a.nodoB]++; });
+            let condiciones = {};
+            grafo.nodos.forEach(n => {
+                if (grado[n.id] === 1) {
+                    let p = n.puertos[0];
+                    let key = `${p.elId}:${p.portId}`;
+                    condiciones[n.id] = condicionesContorno[key] || { elevacion: 0, presion: 0 };
+                }
+            });
+
+            const fluidoNombre = document.getElementById('selector-fluido').value;
+            const fluido = FLUIDOS[fluidoNombre] || FLUIDOS['Agua (20°C)'];
+
+            let resultado;
+            try {
+                resultado = resolverRed(grafo, aristas, condiciones, fluido);
+                resultado.aristas.forEach(a => { a._todas = resultado.aristas; });
+            } catch (err) {
+                console.error(err);
+                alert("No se ha podido resolver la red: " + err.message);
+                return;
+            }
+            resultado.fluidoNombre = fluidoNombre;
+            resultado.lineaCritica = identificarLineaCritica(grafo, resultado.aristas);
+            renderizarVectorial(); // refleja el nuevo color (azul/rojo) de la línea crítica
+            mostrarResultados(resultado);
+        }
+
+        function mostrarResultados(resultado) {
+            const { aristas, Hnodo, fluido, fluidoNombre, lineaCritica } = resultado;
+
+            let bloqueLineaCritica = '';
+            if (lineaCritica) {
+                let nombres = lineaCritica.aristasCamino.map(a => a.el.name).join(' → ');
+                bloqueLineaCritica = `
+                <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-2 mb-3 text-[11px]">
+                    <p class="font-bold mb-0.5"><i class="fa-solid fa-circle-exclamation mr-1"></i>Línea crítica (resaltada en rojo en el plano)</p>
+                    <p>Pérdida de carga total: <strong>${lineaCritica.hfTotal.toFixed(3)} m</strong></p>
+                    <p class="text-rose-600">${nombres}</p>
+                </div>`;
+            }
+
+            let avisos = ['Los "Tee" se modelan como una unión sin pérdida propia; la pérdida de las ramas se representa añadiendo un accesorio junto al Tee si se necesita mayor precisión.'];
+            if (fluidoNombre === 'Vapor Saturado') {
+                avisos.unshift('Las propiedades del vapor saturado son aproximadas (punto de presión fijo). Para un dimensionado real de vapor se necesita un cálculo de flujo compresible con tablas de vapor a la presión de trabajo.');
+            }
+
+            let filasTuberia = aristas.filter(a => a.el.type === 'tuberia').map(a => `
+                <tr>
+                    <td class="py-1 pr-2">${a.el.name}</td><td class="pr-2">${a.dn}</td>
+                    <td class="pr-2">${(a.Qprev * 3600).toFixed(2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
+                    <td class="pr-2">${Math.round(a.Re)}</td><td class="pr-2">${a.f.toFixed(4)}</td>
+                    <td>${(a.f * a.L / a.D * a.V * a.V / (2 * G)).toFixed(3)}</td>
+                </tr>`).join('');
+
+            let filasAcc = aristas.filter(a => a.el.type === 'valvula' || a.el.type === 'accesorio').map(a => `
+                <tr>
+                    <td class="py-1 pr-2">${a.el.name}</td><td class="pr-2">${a.dn}</td>
+                    <td class="pr-2">${(a.Qprev * 3600).toFixed(2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
+                    <td class="pr-2">${a.K}</td><td>${(a.K * a.V * a.V / (2 * G)).toFixed(3)}</td>
+                </tr>`).join('');
+
+            let filasBomba = aristas.filter(a => a.el.type === 'bomba').map(a => {
+                let npshd = calcularNPSH(a, Hnodo, fluido);
+                let npshr = a.el.npsh;
+                let margen = npshd != null ? (npshd - npshr) : null;
+                let estado = npshd == null ? 'N/D'
+                    : (margen >= 0.5 ? '<span class="text-emerald-600 font-bold">OK</span>'
+                    : (margen > 0 ? '<span class="text-amber-600 font-bold">Margen escaso</span>'
+                    : '<span class="text-rose-600 font-bold">Riesgo cavitación</span>'));
+                let Hop = Hnodo[a.nodoB] - Hnodo[a.nodoA];
+                let potencia = fluido.rho * G * a.Qprev * Hop / 1000;
+                return `
+                <tr>
+                    <td class="py-1 pr-2">${a.el.name}</td><td class="pr-2">${(a.Qprev * 3600).toFixed(2)}</td>
+                    <td class="pr-2">${Hop.toFixed(2)}</td><td class="pr-2">${potencia.toFixed(2)}</td>
+                    <td class="pr-2">${npshd != null ? npshd.toFixed(2) : 'N/D'}</td>
+                    <td class="pr-2">${npshr.toFixed(2)}</td><td>${estado}</td>
+                </tr>`;
+            }).join('');
+
+            document.getElementById('red-content').innerHTML = `
+                ${bloqueLineaCritica}
+                <div class="bg-amber-50 border border-amber-200 text-amber-700 rounded p-2 mb-3 text-[11px] space-y-1">
+                    ${avisos.map(a => `<p><i class="fa-solid fa-triangle-exclamation mr-1"></i>${a}</p>`).join('')}
+                </div>
+                <h4 class="text-xs font-bold text-slate-600 mb-1">Tuberías</h4>
+                <table class="w-full text-[11px] mb-3">
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>DN</th><th>Q (m³/h)</th><th>V (m/s)</th><th>Re</th><th>f</th><th>hf (m)</th></tr></thead>
+                    <tbody>${filasTuberia || '<tr><td colspan="7" class="text-slate-400 italic py-1">Sin tuberías</td></tr>'}</tbody>
+                </table>
+                <h4 class="text-xs font-bold text-slate-600 mb-1">Válvulas y Accesorios</h4>
+                <table class="w-full text-[11px] mb-3">
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>DN</th><th>Q (m³/h)</th><th>V (m/s)</th><th>K</th><th>hf (m)</th></tr></thead>
+                    <tbody>${filasAcc || '<tr><td colspan="6" class="text-slate-400 italic py-1">Sin válvulas/accesorios</td></tr>'}</tbody>
+                </table>
+                <h4 class="text-xs font-bold text-slate-600 mb-1">Bombas</h4>
+                <table class="w-full text-[11px]">
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Q (m³/h)</th><th>H (m)</th><th>Potencia (kW)</th><th>NPSHd (m)</th><th>NPSHr (m)</th><th>Estado</th></tr></thead>
+                    <tbody>${filasBomba || '<tr><td colspan="7" class="text-slate-400 italic py-1">Sin bombas</td></tr>'}</tbody>
+                </table>
+            `;
+            document.getElementById('red-footer').innerHTML = `
+                <button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>
+            `;
+        }
+
+        // ==================================================================================
+        // CONTROL DE CAMBIOS SIN GUARDAR
+        // guardarEstado() (se llama antes de cualquier modificación) marca el proyecto como
+        // modificado; guardar en *.pid, Nuevo o Abrir lo dejan limpio. Si se cierra o recarga la
+        // pestaña con cambios pendientes, el navegador pide confirmación.
+        // ==================================================================================
+        let hayCambiosSinGuardar = false;
+        const TITULO_BASE = document.title;
+        function marcarCambios(modificado = true) {
+            hayCambiosSinGuardar = modificado;
+            document.title = (modificado ? '* ' : '') + TITULO_BASE;
+        }
+        window.addEventListener('beforeunload', function(e) {
+            if (!hayCambiosSinGuardar) return;
+            e.preventDefault();
+            e.returnValue = ''; // el navegador muestra su propio aviso de "cambios sin guardar"
+        });
+        document.getElementById('selector-fluido')?.addEventListener('change', () => marcarCambios(true));
+
+        // ==================================================================================
+        // PORTAPAPELES INTERNO (Copiar / Cortar / Pegar)
+        // ==================================================================================
+        let portapapeles = null;
+        let contadorPegado = 0;
+
+        function copiarSeleccion() {
+            const el = elementosRed.find(item => item.id === idSeleccionado);
+            if (!el) return;
+            portapapeles = JSON.parse(JSON.stringify(el));
+            contadorPegado = 0; // cada pegado se desplaza 50 mm respecto al original
+        }
+
+        function cortarSeleccion() {
+            if (!idSeleccionado) return;
+            copiarSeleccion();
+            contadorPegado = -1; // el primer pegado tras Cortar vuelve a la posición original
+            eliminarElemento(idSeleccionado);
+        }
+
+        function pegarPortapapeles() {
+            if (!portapapeles) return;
+            guardarEstado();
+            contadorPegado++;
+            const nuevo = JSON.parse(JSON.stringify(portapapeles));
+            nuevo.id = 'sym_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+            nuevo.x += 50 * contadorPegado;
+            nuevo.y -= 50 * contadorPegado;
+            document.getElementById("empty-state")?.remove();
+            elementosRed.push(nuevo);
+            seleccionarElemento(nuevo.id);
+        }
+
+        // ==================================================================================
+        // BÚSQUEDA / REEMPLAZO (sobre el nombre de los elementos)
+        // ==================================================================================
+        function abrirBuscarReemplazar() {
+            const panel = document.getElementById('panel-buscar');
+            panel.style.display = 'block';
+            const inp = document.getElementById('buscar-texto');
+            inp.focus(); inp.select();
+            document.getElementById('buscar-estado').innerText = '';
+        }
+        function cerrarBuscarReemplazar() { document.getElementById('panel-buscar').style.display = 'none'; }
+        function estadoBusqueda(txt) { document.getElementById('buscar-estado').innerText = txt; }
+
+        function regexBusqueda() {
+            const txt = document.getElementById('buscar-texto').value;
+            if (!txt) return null;
+            const mayus = document.getElementById('buscar-mayus').checked;
+            return new RegExp(txt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), mayus ? 'g' : 'gi');
+        }
+        function coincidenciasBusqueda() {
+            const re = regexBusqueda();
+            if (!re) return [];
+            return elementosRed.filter(el => { re.lastIndex = 0; return re.test(String(el.name || '')); });
+        }
+
+        function buscarSiguiente() {
+            const res = coincidenciasBusqueda();
+            if (!regexBusqueda()) { estadoBusqueda('Escribe el texto a buscar.'); return; }
+            if (!res.length) { estadoBusqueda('Sin coincidencias.'); return; }
+            let i = res.findIndex(el => el.id === idSeleccionado);
+            i = (i + 1) % res.length;
+            const el = res[i];
+            seleccionarElemento(el.id);
+            centrarVistaEnPunto(el.x + 25, mundoAScreenY(el.y) + 25);
+            estadoBusqueda(`${i + 1} de ${res.length}: ${el.name}`);
+        }
+
+        function reemplazarActual() {
+            const re = regexBusqueda();
+            if (!re) { estadoBusqueda('Escribe el texto a buscar.'); return; }
+            const el = elementosRed.find(item => item.id === idSeleccionado);
+            re.lastIndex = 0;
+            if (!el || !re.test(String(el.name || ''))) { buscarSiguiente(); return; }
+            guardarEstado();
+            re.lastIndex = 0;
+            el.name = String(el.name).replace(re, document.getElementById('reemplazar-texto').value);
+            seleccionarElemento(el.id);
+            buscarSiguiente();
+        }
+
+        function reemplazarTodo() {
+            const re = regexBusqueda();
+            if (!re) { estadoBusqueda('Escribe el texto a buscar.'); return; }
+            const res = coincidenciasBusqueda();
+            if (!res.length) { estadoBusqueda('Sin coincidencias.'); return; }
+            guardarEstado();
+            const nuevoTxt = document.getElementById('reemplazar-texto').value;
+            res.forEach(el => { re.lastIndex = 0; el.name = String(el.name).replace(re, nuevoTxt); });
+            if (idSeleccionado) seleccionarElemento(idSeleccionado); else renderizarVectorial();
+            estadoBusqueda(`${res.length} elemento(s) modificados.`);
+        }
+
+        document.getElementById('buscar-texto').addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); buscarSiguiente(); }
+        });
+        document.getElementById('panel-buscar').addEventListener('keydown', e => {
+            if (e.key === 'Escape') cerrarBuscarReemplazar();
+        });
+
+        // ==================================================================================
+        // LIBRERÍAS / ZOOM / AYUDA
+        // ==================================================================================
+        function mostrarLibreriaAccesorios() {
+            const lista = document.getElementById('lista-accesorios');
+            if (lista.style.display === 'none') toggleCategoria('accesorios');
+            const caja = lista.parentElement;
+            caja.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            caja.style.outline = '2px solid #60a5fa';
+            setTimeout(() => { caja.style.outline = ''; }, 1200);
+        }
+
+        // Zoom Todo: muestra la hoja A3 completa
+        function zoomTodo() { irAOrigenEnEsquina(); }
+
+        function activarZoomVentana() {
+            modoZoomVentana = true;
+            canvasContainer.style.cursor = 'crosshair';
+        }
+
+        function mostrarCreditos() { document.getElementById('modal-creditos').style.display = 'flex'; }
+        function cerrarCreditos() { document.getElementById('modal-creditos').style.display = 'none'; }
+
+        // ==================================================================================
+        // BARRA DE MENÚS (estilo Paint)
+        // Para añadir opciones a un menú, añade objetos a su lista "items":
+        //   { icono: 'fa-...', texto: '...', atajo: 'Ctrl+?', accion: () => ..., habilitado: () => true }
+        //   'sep' dibuja un separador; "sub: [ ... ]" crea un submenú desplegable.
+        // Los atajos de teclado se programan aparte, en atajosMenu().
+        // ==================================================================================
+        const MENUS = [
+            { titulo: 'Archivo', items: [
+                { icono: 'fa-file', texto: 'Nuevo', atajo: 'Ctrl+N', accion: () => nuevoProyecto() },
+                { icono: 'fa-folder-open', texto: 'Abrir...', atajo: 'Ctrl+O', accion: () => abrirProyectoCarpeta() },
+                { icono: 'fa-floppy-disk', texto: 'Guardar', atajo: 'Ctrl+G', accion: () => guardarProyecto() },
+                { icono: 'fa-file-export', texto: 'Guardar como', sub: [
+                    { icono: 'fa-file-code', texto: 'Proyecto P&ID (*.pid)', accion: () => guardarComoProyecto('pid') },
+                    { icono: 'fa-compass-drafting', texto: 'Dibujo CAD (*.dxf)', accion: () => guardarComoProyecto('dxf') },
+                    { icono: 'fa-bezier-curve', texto: 'Imagen vectorial (*.svg)', accion: () => guardarComoProyecto('svg') },
+                    { icono: 'fa-file-image', texto: 'Imagen (*.png)', accion: () => guardarComoProyecto('png') }
+                ]},
+                'sep',
+                { icono: 'fa-print', texto: 'Imprimir...', atajo: 'Ctrl+P', accion: () => imprimirPDF() }
+            ]},
+            { titulo: 'Edición', items: [
+                { icono: 'fa-magnifying-glass', texto: 'Búsqueda/Reemplazo...', atajo: 'Ctrl+R', accion: () => abrirBuscarReemplazar() },
+                'sep',
+                { icono: 'fa-copy', texto: 'Copiar', atajo: 'Ctrl+C', accion: () => copiarSeleccion(), habilitado: () => !!idSeleccionado },
+                { icono: 'fa-scissors', texto: 'Cortar', atajo: 'Ctrl+X', accion: () => cortarSeleccion(), habilitado: () => !!idSeleccionado },
+                { icono: 'fa-paste', texto: 'Pegar', atajo: 'Ctrl+V', accion: () => pegarPortapapeles(), habilitado: () => !!portapapeles },
+                'sep',
+                { icono: 'fa-rotate-left', texto: 'Deshacer', atajo: 'Ctrl+Z', accion: () => deshacer(), habilitado: () => historialUndo.length > 0 },
+                { icono: 'fa-rotate-right', texto: 'Rehacer', atajo: 'Ctrl+Y', accion: () => rehacer(), habilitado: () => historialRedo.length > 0 }
+            ]},
+            { titulo: 'Librerías', items: [
+                { icono: 'fa-shapes', texto: 'Accesorios', atajo: 'Alt+A', accion: () => mostrarLibreriaAccesorios() }
+            ]},
+            { titulo: 'Cálculo', items: [
+                { icono: 'fa-calculator', texto: 'Calcular red...', accion: () => calcularRed() }
+            ]},
+            { titulo: 'Seleccionar', items: [] },
+            { titulo: 'Vista', items: [] },
+            { titulo: 'Insertar', items: [] },
+            { titulo: 'Extras', items: [] },
+            { titulo: 'Resultados', items: [] },
+            { titulo: 'Herramientas', items: [] },
+            { titulo: 'Tabla', items: [] },
+            { titulo: 'Opciones', items: [] },
+            { titulo: 'Ventana', items: [] },
+            { titulo: 'Zoom', items: [
+                { icono: 'fa-expand', texto: 'Ajustar', atajo: 'F', accion: () => ajustarVistaVentana() },
+                { icono: 'fa-maximize', texto: 'Todo', accion: () => zoomTodo() },
+                { icono: 'fa-vector-square', texto: 'Ventana', atajo: 'W', accion: () => activarZoomVentana() }
+            ]},
+            { titulo: 'Ayuda', items: [
+                { icono: 'fa-circle-info', texto: 'Créditos...', accion: () => mostrarCreditos() }
+            ]}
+        ];
+
+        const barraMenus = document.getElementById('barra-menus');
+        let menuAbierto = null;
+
+        function construirItems(items, contenedor) {
+            contenedor.innerHTML = '';
+            if (!items.length) {
+                contenedor.innerHTML = '<div class="menu-vacio">Próximamente</div>';
+                return;
+            }
+            items.forEach(it => {
+                if (it === 'sep') {
+                    const sep = document.createElement('div');
+                    sep.className = 'menu-sep';
+                    contenedor.appendChild(sep);
+                    return;
+                }
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'menu-item';
+                btn.innerHTML = `<i class="fa-solid ${it.icono || ''} ico"></i><span>${it.texto}</span>` +
+                    (it.sub ? '<i class="fa-solid fa-chevron-right flecha"></i>' : (it.atajo ? `<span class="atajo">${it.atajo}</span>` : ''));
+                if (it.habilitado && !it.habilitado()) btn.disabled = true;
+                if (it.sub) {
+                    const envoltorio = document.createElement('div');
+                    envoltorio.className = 'menu-sub';
+                    const subMenu = document.createElement('div');
+                    subMenu.className = 'menu-desplegable';
+                    construirItems(it.sub, subMenu);
+                    envoltorio.appendChild(btn);
+                    envoltorio.appendChild(subMenu);
+                    contenedor.appendChild(envoltorio);
+                } else {
+                    btn.addEventListener('click', e => {
+                        e.stopPropagation();
+                        cerrarMenus();
+                        it.accion && it.accion();
+                    });
+                    contenedor.appendChild(btn);
+                }
+            });
+        }
+
+        function abrirMenu(nodo, def) {
+            cerrarMenus();
+            construirItems(def.items, nodo.querySelector('.menu-desplegable')); // refresca activado/desactivado
+            nodo.classList.add('abierto');
+            menuAbierto = nodo;
+        }
+
+        function cerrarMenus() {
+            if (menuAbierto) menuAbierto.classList.remove('abierto');
+            menuAbierto = null;
+        }
+
+        MENUS.forEach(def => {
+            const nodo = document.createElement('div');
+            nodo.className = 'menu-top';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = def.titulo;
+            const desplegable = document.createElement('div');
+            desplegable.className = 'menu-desplegable';
+            nodo.appendChild(btn);
+            nodo.appendChild(desplegable);
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                if (menuAbierto === nodo) cerrarMenus(); else abrirMenu(nodo, def);
+            });
+            // Como en Windows: con un menú abierto, pasar el ratón por otro lo abre
+            btn.addEventListener('mouseenter', () => { if (menuAbierto && menuAbierto !== nodo) abrirMenu(nodo, def); });
+            barraMenus.appendChild(nodo);
+        });
+
+        document.addEventListener('mousedown', e => { if (menuAbierto && !barraMenus.contains(e.target)) cerrarMenus(); });
+
+        // ==================================================================================
+        // ATAJOS DE TECLADO DE LOS MENÚS
+        // Se capturan antes que los del navegador (Ctrl+P imprimir, Ctrl+R recargar, Ctrl+G, Ctrl+O...).
+        // ==================================================================================
+        function atajosMenu(e) {
+            const activo = document.activeElement;
+            const enCampo = activo && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activo.tagName) || activo.isContentEditable);
+            const ctrl = e.ctrlKey || e.metaKey;
+            const k = (e.key || '').toLowerCase();
+            let accion = null;
+
+            if (e.key === 'Escape') {
+                if (menuAbierto) accion = () => {};
+                else if (document.getElementById('modal-creditos').style.display === 'flex') accion = cerrarCreditos;
+            } else if (ctrl && !e.altKey && !e.shiftKey) {
+                if (k === 'n') accion = nuevoProyecto;
+                else if (k === 'o') accion = abrirProyectoCarpeta;
+                else if (k === 'g') accion = guardarProyecto;
+                else if (k === 'p') accion = imprimirPDF;
+                else if (k === 'r') accion = abrirBuscarReemplazar;
+                else if (!enCampo && k === 'c' && idSeleccionado) accion = copiarSeleccion;
+                else if (!enCampo && k === 'x' && idSeleccionado) accion = cortarSeleccion;
+                else if (!enCampo && k === 'v' && portapapeles) accion = pegarPortapapeles;
+            } else if (e.altKey && !ctrl && !e.shiftKey && k === 'a') {
+                accion = mostrarLibreriaAccesorios;
+            }
+
+            if (accion) {
+                e.preventDefault();
+                e.stopPropagation();
+                cerrarMenus();
+                accion();
+            }
+        }
+        window.addEventListener('keydown', atajosMenu, true);
+    </script>
+</body>
+</html>
