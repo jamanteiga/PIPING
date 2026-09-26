@@ -54,7 +54,6 @@
             width: 64px;
             height: 64px;
         }
-        #sel-box { position: absolute; border: 1px dashed #f59e0b; background: rgba(245, 158, 11, .08); display: none; z-index: 60; pointer-events: none; }
         #zoom-window-box {
             position: absolute;
             border: 2px dashed #2563eb;
@@ -306,7 +305,6 @@
             <div class="flex-1 relative overflow-hidden">
             <div id="canvas-container" class="absolute inset-0">
                 <div id="zoom-window-box"></div>
-                <div id="sel-box"></div>
                 <div id="lienzo-espaciador"></div>
                 <div id="marco-a3" class="bg-white [background-image:radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px]">
                     <svg id="svg-canvas" ondragover="allowDrop(event)" ondrop="dropElemento(event)">
@@ -361,8 +359,6 @@
         let currentFileHandle = null;
 
         let isDraggingSymbol = false;
-        const seleccion = new Set(); // selección múltiple (Ctrl/Mayús + clic o ventana sobre el lienzo)
-        let arrastreGrupo = false;
         let activeSymbolId = null;
         let dragStartX = 0, dragStartY = 0;
         let desenganchado = false;
@@ -564,37 +560,6 @@
             const e = t.e[el.serie] != null ? t.e[el.serie] : Object.values(t.e)[0];
             return { od: t.od, e, Dint: t.od - 2 * e, rug: m.rug, norma: m.norma, nps: t.nps, ref: !!m.ref };
         }
-        // Presión máxima admisible (bar man.) de una tubería a la temperatura T (°C).
-        //  - Valor del usuario (pmaManual) si lo hay.
-        //  - PVC-U: PN de la serie × factor de temperatura EN ISO 1452-2 anexo A (≤25 °C 1; ≤35 °C 0,8; ≤45 °C 0,63).
-        //  - PE80/PE100: PN de la serie × factor EN 12201-1 anexo A (20 °C 1; 30 °C 0,87; 40 °C 0,74).
-        //  - Acero al carbono (A106 Gr. B, S = 137,9 MPa) e inoxidable (A312 TP316L, S = 115 MPa): ASME B31.3
-        //    ec. (3a) P = 2·S·E·W·t/(D − 2·Y·t), E = 1, W = 1, Y = 0,4, t = 0,875·e − c (c = sobreespesor).
-        //  - Resto de materiales: sin dato (lo introduce el usuario).
-        const S_ADM = { 'Acero al carbono': { S: 137.9, Tmax: 204, mat: 'ASTM A106 Gr. B', c: 1.0 }, 'Acero inoxidable': { S: 115.1, Tmax: 150, mat: 'ASTM A312 TP316L', c: 0 } };
-        function pmaTuberia(el, T) {
-            if (+el.pmaManual > 0) return { pma: +el.pmaManual, origen: 'dato del usuario' };
-            const dt = datosTuberia(el);
-            const sa = S_ADM[el.material];
-            if (sa) {
-                if (T > sa.Tmax) return { pma: null, origen: `T > ${sa.Tmax} °C: introduce la PMA` };
-                const c = el.sobreespesor != null && !isNaN(+el.sobreespesor) ? +el.sobreespesor : sa.c;
-                const t = 0.875 * dt.e - c;
-                if (t <= 0) return { pma: 0, origen: 'espesor útil nulo (tolerancia + sobreespesor)' };
-                const P = 2 * sa.S * t / (dt.od - 2 * 0.4 * t); // MPa
-                return { pma: P * 10, origen: `ASME B31.3 (${sa.mat}, S ${sa.S} MPa, c ${c} mm)`, t, c, S: sa.S };
-            }
-            const pnM = String(el.serie || '').match(/PN\s*([0-9.]+)/);
-            if (pnM && /^(PVC-U|PE100|PE80)$/.test(el.material)) {
-                const PN = parseFloat(pnM[1]);
-                let f = null;
-                if (el.material === 'PVC-U') f = T <= 25 ? 1 : T <= 35 ? 0.8 : T <= 45 ? 0.63 : null;
-                else f = T <= 20 ? 1 : T <= 30 ? 1 - 0.013 * (T - 20) : T <= 40 ? 0.87 - 0.013 * (T - 30) : null;
-                if (f == null) return { pma: null, origen: `fuera del rango de temperatura de la norma: introduce la PMA` };
-                return { pma: PN * f, origen: `PN ${PN} × ${f.toFixed(2)} (${el.material === 'PVC-U' ? 'EN ISO 1452-2' : 'EN 12201-1'}, ${T} °C)`, PN, fT: f };
-            }
-            return { pma: null, origen: 'sin dato: introduce la PMA' };
-        }
         function etiquetaTuberia(el) {
             const s = String(el.serie || '').replace(/ \(.*\)/, '');
             return /^DN/.test(el.dn) ? `${el.dn} ${/^[0-9]+$/.test(s) ? 'Sch ' + s : s}` : `${el.dn} ${s}`;
@@ -762,20 +727,11 @@
             tomapresion:   { type: 'instrumento', codigo: 'TP', nombre: 'Toma de presión', cat: 'instrumentos', calc: 'sinflujo', puertos: P_INSTR },
             manometro:     { type: 'instrumento', codigo: 'MAN', nombre: 'Manómetro', cat: 'instrumentos', calc: 'sinflujo', puertos: P_INSTR },
             vacuometro:    { type: 'instrumento', codigo: 'VAC', nombre: 'Vacuómetro', cat: 'instrumentos', calc: 'sinflujo', puertos: P_INSTR },
-            portainstr:    { type: 'instrumento', codigo: 'PI', nombre: 'Portainstrumentos', cat: 'instrumentos', calc: 'sinflujo', puertos: P_INSTR },
-            // --- equipos con pérdida de carga conocida (Δp a caudal nominal, dato del fabricante) ---
-            intercambiador:{ type: 'equipo', codigo: 'IC', nombre: 'Intercambiador de calor', cat: 'equipos', calc: 'equipo', puertos: [PA, PB] },
-            enfriador:     { type: 'equipo', codigo: 'EF', nombre: 'Enfriador / cooler', cat: 'equipos', calc: 'equipo', puertos: [PA, PB] },
-            enfriadora:    { type: 'equipo', codigo: 'ENF', nombre: 'Enfriadora (chiller)', cat: 'equipos', calc: 'equipo', puertos: [PA, PB] },
-            fancoil:       { type: 'equipo', codigo: 'FC', nombre: 'Fan-coil / batería', cat: 'equipos', calc: 'equipo', puertos: [PA, PB] },
-            equipo:        { type: 'equipo', codigo: 'EQ', nombre: 'Equipo genérico', cat: 'equipos', calc: 'equipo', puertos: [PA, PB] },
-            // --- terminales de la red ---
-            consumo:       { type: 'terminal', codigo: 'CON', nombre: 'Punto de consumo', cat: 'terminales', calc: 'consumo', puertos: [PA] },
-            deposito:      { type: 'terminal', codigo: 'DEP', nombre: 'Depósito / tanque', cat: 'terminales', calc: 'deposito', puertos: [PB] }
+            portainstr:    { type: 'instrumento', codigo: 'PI', nombre: 'Portainstrumentos', cat: 'instrumentos', calc: 'sinflujo', puertos: P_INSTR }
         };
         // Subtipos de versiones anteriores
         const MIGRA_SUBTIPO = { codo: 'codo90', union: 'bridaunion' };
-        const CATEGORIAS = [['tuberias', 'Tuberías'], ['accesorios', 'Accesorios'], ['uniones', 'Uniones y bridas'], ['valvulas', 'Válvulas'], ['instrumentos', 'Instrumentos'], ['bombas', 'Bombas'], ['equipos', 'Equipos'], ['terminales', 'Consumos y depósitos']];
+        const CATEGORIAS = [['tuberias', 'Tuberías'], ['accesorios', 'Accesorios'], ['uniones', 'Uniones y bridas'], ['valvulas', 'Válvulas'], ['instrumentos', 'Instrumentos'], ['bombas', 'Bombas']];
 
         // Tablas de Crane adicionales (se añaden al catálogo). Un valor numérico es el múltiplo n de
         // fT; un objeto {K} es un K fijo (no depende del DN).
@@ -794,8 +750,6 @@
         }
         const calcDe = el => el.type === 'tuberia' ? 'tuberia' : el.type === 'bomba' ? 'bomba' : ((TIPOS[el.subtype] || {}).calc || 'crane');
         const esNodo = el => calcDe(el) === 'nodo';
-        const esTerminal = el => el.type === 'terminal';
-        const esEquipo = el => el.type === 'equipo';
         const sinFlujo = el => calcDe(el) === 'sinflujo';
 
         // ==================================================================================
@@ -860,11 +814,6 @@
             }
             const n = 1 + Math.max(0, ...lineas.filter(l => l.tipo === 'ramal' && !l.id.includes('.')).map(l => parseInt(l.id.slice(1), 10) || 0));
             return 'R' + String(n).padStart(2, '0');
-        }
-        // Cota (m) del puerto de un elemento
-        function cotaPuerto(el, pid) {
-            if (el.type === 'tuberia') return pid === 'b' ? +el.cotaB || 0 : +el.cotaA || 0;
-            return +el.cota || 0;
         }
         // Elementos cuyos puertos coinciden con los de el (conexión real tras el imantado)
         function vecinosDe(el) {
@@ -1015,34 +964,6 @@
             centrarVistaEnPunto((minX + maxX) / 2, mundoAScreenY((minY + maxY) / 2));
         }
 
-        // Selección por ventana: arrastrar sobre una zona vacía del lienzo
-        let selVentana = null;
-        const selBox = document.getElementById('sel-box');
-        canvasContainer.addEventListener('mousedown', function(e) {
-            if (modoZoomVentana || e.button !== 0) return;
-            if (!(e.target === svgCanvas || e.target === marcoA3 || e.target.id === 'lienzo-espaciador' || e.target.closest('#empty-state'))) return;
-            const rect = canvasContainer.getBoundingClientRect();
-            selVentana = { x0: e.clientX - rect.left + canvasContainer.scrollLeft, y0: e.clientY - rect.top + canvasContainer.scrollTop, sumar: e.ctrlKey || e.shiftKey || e.metaKey };
-            Object.assign(selBox.style, { left: selVentana.x0 + 'px', top: selVentana.y0 + 'px', width: '0px', height: '0px', display: 'block' });
-        });
-        window.addEventListener('mousemove', function(e) {
-            if (!selVentana) return;
-            const rect = canvasContainer.getBoundingClientRect();
-            const x = e.clientX - rect.left + canvasContainer.scrollLeft, y = e.clientY - rect.top + canvasContainer.scrollTop;
-            Object.assign(selBox.style, { left: Math.min(x, selVentana.x0) + 'px', top: Math.min(y, selVentana.y0) + 'px', width: Math.abs(x - selVentana.x0) + 'px', height: Math.abs(y - selVentana.y0) + 'px' });
-            selVentana.x1 = x; selVentana.y1 = y;
-        });
-        window.addEventListener('mouseup', function() {
-            if (!selVentana) return;
-            const v = selVentana; selVentana = null; selBox.style.display = 'none';
-            if (v.x1 == null || (Math.abs(v.x1 - v.x0) < 4 && Math.abs(v.y1 - v.y0) < 4)) { if (!v.sumar) limpiarSeleccion(); return; }
-            const x1 = (Math.min(v.x0, v.x1) - offX) / zoomScale, x2 = (Math.max(v.x0, v.x1) - offX) / zoomScale;
-            const y1 = (Math.min(v.y0, v.y1) - offY) / zoomScale, y2 = (Math.max(v.y0, v.y1) - offY) / zoomScale;
-            if (!v.sumar) seleccion.clear();
-            if (idSeleccionado && v.sumar) seleccion.add(idSeleccionado);
-            elementosRed.forEach(el => { const c = centroElemento(el); if (c.x >= x1 && c.x <= x2 && c.y >= y1 && c.y <= y2) seleccion.add(el.id); });
-            actualizarSeleccion();
-        });
         canvasContainer.addEventListener('mousedown', function(e) {
             if (!modoZoomVentana) return;
             isSelectingZoom = true;
@@ -1190,13 +1111,8 @@
             const vec = vecinosDe(el);
             const v = vec[0];
             if (v && el.type !== 'tuberia' && el.type !== 'bomba' && el.type !== 'instrumento' && v.otro.dn && /^DN/.test(v.otro.dn) && el.subtype !== 'reduccion') {
-                el.dn = v.otro.subtype === 'reduccion' && v.puertoOtro === 'b' ? v.otro.dnMenor : v.otro.dn; normalizarElemento(el);
+                el.dn = v.otro.dn; normalizarElemento(el);
             }
-            // Cota heredada del punto de conexión
-            const zv = v ? cotaPuerto(v.otro, v.puertoOtro) : 0;
-            if (el.type === 'tuberia') { el.cotaA = zv; el.cotaB = zv; el._conectadoEn = v ? v.puertoEl : null; }
-            else el.cota = zv;
-            if (el.subtype === 'deposito') el.cotaLamina = zv + 2;
             let necesitaLinea = true, propuesta = null;
             if (v && v.otro.linea) {
                 // Salir por la derivación de una te/cruce/injerto abre un ramal nuevo, salvo instrumentos y
@@ -1206,15 +1122,14 @@
             }
             if (necesitaLinea && !propuesta) propuesta = lineas.length ? { tipo: 'existente', linea: lineas[lineas.length - 1].id } : { tipo: 'principal' };
             const necesitaK = calcDe(el) === 'pedir';
-            const pedirDatos = el.type === 'tuberia' || esEquipo(el) || esTerminal(el);
             asignarNumero(el);
-            if (!necesitaLinea && !necesitaK && !pedirDatos) { renderizarVectorial(); seleccionarElemento(el.id); return; }
-            abrirModalNuevo(el, necesitaLinea ? propuesta : null, necesitaK, pedirDatos);
+            if (!necesitaLinea && !necesitaK) { renderizarVectorial(); seleccionarElemento(el.id); return; }
+            abrirModalNuevo(el, necesitaLinea ? propuesta : null, necesitaK);
         }
 
         let nuevoPendiente = null;
-        function abrirModalNuevo(el, propuesta, necesitaK, pedirDatos) {
-            nuevoPendiente = { el, propuesta, necesitaK, pedirDatos };
+        function abrirModalNuevo(el, propuesta, necesitaK) {
+            nuevoPendiente = { el, propuesta, necesitaK };
             const t = TIPOS[el.subtype] || {};
             let h = `<p class="text-slate-600 mb-2"><b>${esc(t.nombre || (el.type === 'tuberia' ? 'Tubería' : 'Bomba'))}</b> · ${esc(tagDe(el))}</p>`;
             if (propuesta) {
@@ -1236,47 +1151,12 @@
                     ${craneOps.length ? `<label class="flex items-center gap-1.5"><input type="radio" name="nk-modo" value="crane"> Sin dato: ${esc(craneOps[0][0])}</label>` : ''}
                 </div>`;
             }
-            if (pedirDatos) {
-                const num = (id, et, v, paso = 'any') => `<label class="flex items-center justify-between gap-2">${et}<input type="number" step="${paso}" id="${id}" value="${v}" class="border rounded p-1 w-28"></label>`;
-                h += `<div class="border border-slate-200 rounded p-2 space-y-1.5 mt-2">`;
-                if (el.type === 'tuberia') {
-                    const con = el._conectadoEn;
-                    h += `<p class="font-bold text-slate-600">Cotas de la tubería (m) · L = ${el.longitud} mm</p>
-                        ${num('nd-cotaA', `Cota extremo a${con === 'a' ? ' <span class="text-slate-400">(heredada de la conexión)</span>' : ''}`, el.cotaA, '0.01')}
-                        ${num('nd-cotaB', `Cota extremo b${con === 'b' ? ' <span class="text-slate-400">(heredada de la conexión)</span>' : ''}`, el.cotaB, '0.01')}`;
-                } else if (esEquipo(el)) {
-                    h += `<p class="font-bold text-slate-600">Pérdida de carga del equipo (dato del fabricante)</p>
-                        ${num('nd-qNom', `Caudal nominal (${lQ()})`, mostrarCampo('qNom', el.qNom))}${num('nd-dpNom', `Pérdida de carga a caudal nominal (${lP()})`, mostrarCampo('dpNom', el.dpNom))}
-                        ${num('nd-cota', 'Cota (m)', el.cota, '0.01')}
-                        <p class="text-[10px] text-slate-400">Se aplica Δp = Δp nom · (Q/Q nom)².</p>`;
-                } else if (el.subtype === 'consumo') {
-                    h += `<p class="font-bold text-slate-600">Punto de consumo</p>
-                        ${num('nd-qCons', `Caudal demandado (${lQ()})`, mostrarCampo('qCons', el.qCons))}${num('nd-pMin', `Presión mínima requerida (${lP()} man.)`, mostrarCampo('pMin', el.pMin))}
-                        ${num('nd-cota', 'Cota del punto de consumo (m)', el.cota, '0.01')}`;
-                } else if (el.subtype === 'deposito') {
-                    h += `<p class="font-bold text-slate-600">Depósito</p>
-                        ${num('nd-cota', 'Cota de la conexión (m)', el.cota, '0.01')}${num('nd-cotaLamina', 'Cota de la lámina de líquido (m)', el.cotaLamina, '0.01')}
-                        ${num('nd-presionDep', `Presión sobre la lámina (${lP()} man.; 0 = abierto)`, mostrarCampo('presionDep', el.presionDep))}`;
-                }
-                h += `</div>`;
-            }
             document.getElementById('modal-nuevo-body').innerHTML = h;
             document.getElementById('modal-nuevo').style.display = 'flex';
         }
         function confirmarModalNuevo() {
             if (!nuevoPendiente) return;
-            const { el, propuesta, necesitaK, pedirDatos } = nuevoPendiente;
-            if (pedirDatos) {
-                const leer = id => { const x = document.getElementById(id); return x ? parseFloat(x.value) : NaN; };
-                const campos = el.type === 'tuberia' ? ['cotaA', 'cotaB'] : esEquipo(el) ? ['qNom', 'dpNom', 'cota'] : el.subtype === 'consumo' ? ['qCons', 'pMin', 'cota'] : ['cota', 'cotaLamina', 'presionDep'];
-                const vals = {};
-                for (const c of campos) { const v = leer('nd-' + c); if (isNaN(v)) { alert('Revisa los datos numéricos.'); return; } vals[c] = CAMPOS_UNIDAD[c] ? leerCampo(c, v) : v; }
-                if ((vals.qNom != null && !(vals.qNom > 0)) || (vals.dpNom != null && vals.dpNom < 0) || (vals.qCons != null && vals.qCons < 0)) { alert('El caudal debe ser > 0 y la pérdida de carga ≥ 0.'); return; }
-                if (el.type === 'tuberia' && Math.abs(vals.cotaB - vals.cotaA) > el.longitud / 1000 + 1e-6) { alert(`El desnivel (${Math.abs(vals.cotaB - vals.cotaA).toFixed(2)} m) no puede ser mayor que la longitud de la tubería (${el.longitud / 1000} m).`); return; }
-                if (vals.cotaLamina != null && vals.cotaLamina < vals.cota) { alert('La lámina de líquido no puede estar por debajo de la conexión del depósito.'); return; }
-                Object.assign(el, vals);
-                delete el._conectadoEn;
-            }
+            const { el, propuesta, necesitaK } = nuevoPendiente;
             if (propuesta) {
                 const tipo = (document.querySelector('input[name="nl-tipo"]:checked') || {}).value || 'principal';
                 if (tipo === 'principal') {
@@ -1367,9 +1247,6 @@
         function normalizarElemento(el) {
             el.esLineaCritica = false; // se recalcula en el próximo "Calcular Red"
             el.estado = null;
-            // Cotas (m): tuberías en cada extremo; el resto, una cota única en sus puertos
-            if (el.type === 'tuberia') { if (el.cotaA == null || isNaN(+el.cotaA)) el.cotaA = 0; if (el.cotaB == null || isNaN(+el.cotaB)) el.cotaB = +el.cotaA; }
-            else if (el.cota == null || isNaN(+el.cota)) el.cota = 0;
             if (MIGRA_SUBTIPO[el.subtype]) el.subtype = MIGRA_SUBTIPO[el.subtype];
             if (el.type === 'bomba') {
                 if (el.h0 == null) el.h0 = +(((el.presion || 3.5) * 1.2).toFixed(2));
@@ -1381,15 +1258,6 @@
                 normalizarTuberia(el);
             } else if (el.type === 'instrumento') {
                 // sin caudal: no necesita DN ni K
-            } else if (el.type === 'equipo') {
-                if (!(+el.qNom > 0)) el.qNom = 10;          // m³/h
-                if (!(+el.dpNom >= 0)) el.dpNom = 30;       // kPa a qNom
-            } else if (el.subtype === 'consumo') {
-                if (!(+el.qCons >= 0)) el.qCons = 1;        // m³/h demandado
-                if (el.pMin == null || isNaN(+el.pMin)) el.pMin = 1; // bar man. mínima
-            } else if (el.subtype === 'deposito') {
-                if (el.cotaLamina == null || isNaN(+el.cotaLamina)) el.cotaLamina = (+el.cota || 0) + 2;
-                if (el.presionDep == null || isNaN(+el.presionDep)) el.presionDep = 0; // bar man. sobre la lámina
             } else if (el.type === 'valvula' || el.type === 'accesorio') {
                 if (el.dn == null || !LISTA_DN.includes(el.dn)) el.dn = 'DN 50';
                 const calc = calcDe(el);
@@ -1472,7 +1340,7 @@
         // ==================================================================================
         // OPCIONES DE VISUALIZACIÓN Y COLORES
         // ==================================================================================
-        let opciones = { fondo: 'grisClaro', norma: 'ISO', vmax: 3.0, margenNPSH: 0.5, arbol: true, uPresion: 'bar', uCaudal: 'm3h' };
+        let opciones = { fondo: 'grisClaro', norma: 'ISO', vmax: 3.0, margenNPSH: 0.5, arbol: true };
         const FONDOS = {
             blanco:     { nombre: 'Blanco',      hoja: '#ffffff', punto: '#cbd5e1', oscuro: false },
             grisClaro:  { nombre: 'Gris claro',  hoja: '#e5e7eb', punto: '#c4c9d1', oscuro: false },
@@ -1583,19 +1451,6 @@
                         `<line x1="23" y1="14" x2="23" y2="36" stroke="${c}" stroke-width="2.4" ${guion ? `stroke-dasharray="${guion}"` : ''}/>` +
                         `<line x1="27" y1="14" x2="27" y2="36" stroke="${c}" stroke-width="2.4" ${guion ? `stroke-dasharray="${guion}"` : ''}/>` + extra;
                 }
-                // --- equipos: rectángulo con el código ---
-                case 'intercambiador': case 'enfriador': case 'enfriadora': case 'fancoil': case 'equipo': {
-                    const cod = TIPOS[el.subtype].codigo;
-                    const dib = el.subtype === 'intercambiador' ? `<circle cx="25" cy="25" r="11" ${st}/><polyline points="14,25 19,19 25,31 31,19 36,25" fill="none" stroke="${c}" stroke-width="1.3"/>`
-                        : el.subtype === 'fancoil' ? `<rect x="13" y="15" width="24" height="20" ${st}/><polyline points="13,25 17,19 21,31 25,19 29,31 33,19 37,25" fill="none" stroke="${c}" stroke-width="1.1"/>`
-                        : `<rect x="13" y="14" width="24" height="22" rx="2" ${st}/><text x="25" y="27.5" font-family="sans-serif" font-size="${cod.length > 2 ? 6 : 7.5}" font-weight="bold" fill="${c}" text-anchor="middle">${cod}</text>`;
-                    return ln(10, 25, 14, 25) + ln(36, 25, 40, 25) + dib;
-                }
-                case 'consumo':
-                    return ln(10, 25, 24, 25) + `<polygon points="24,18 38,25 24,32" fill="${c}"/><text x="31" y="41" font-family="sans-serif" font-size="6" font-weight="bold" fill="${c}" text-anchor="middle">Q</text>`;
-                case 'deposito':
-                    return `<path d="M 8 10 L 8 38 Q 8 42 12 42 L 32 42 Q 36 42 36 38 L 36 10" ${st}/>` + `<line x1="10" y1="16" x2="34" y2="16" stroke="${c}" stroke-width="1" stroke-dasharray="3,1.5"/>` +
-                        `<polygon points="21,13 23,16 19,16" fill="${c}"/>` + ln(36, 25, 40, 25);
                 // --- instrumentos: globo con el código ---
                 case 'tomapresion': case 'manometro': case 'vacuometro': case 'portainstr': {
                     const cod = TIPOS[el.subtype].codigo;
@@ -1623,7 +1478,7 @@
             });
 
             elementosRed.forEach(el => {
-                const isSelected = idSeleccionado === el.id || seleccion.has(el.id);
+                const isSelected = idSeleccionado === el.id;
                 const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
                 g.setAttribute("class", `symbol-group ${isSelected ? 'symbol-selected' : ''}`);
                 const rot = el.rotation || 0;
@@ -1636,15 +1491,6 @@
                     if (e.button === 2) return;
                     e.stopPropagation();
                     ocultarTooltip();
-                    if (e.ctrlKey || e.shiftKey || e.metaKey) {
-                        // Ctrl/Mayús + clic: añadir o quitar de la selección múltiple
-                        if (idSeleccionado && !seleccion.size) seleccion.add(idSeleccionado);
-                        if (seleccion.has(el.id)) seleccion.delete(el.id); else seleccion.add(el.id);
-                        actualizarSeleccion();
-                        return;
-                    }
-                    arrastreGrupo = seleccion.size > 1 && seleccion.has(el.id);
-                    if (!arrastreGrupo) seleccion.clear();
                     activeSymbolId = el.id;
                     isDraggingSymbol = true;
                     arrastreMovido = false;
@@ -1654,7 +1500,6 @@
                     guardarEstado();
                     dragStartX = e.clientX;
                     dragStartY = e.clientY;
-                    if (arrastreGrupo) { renderizarVectorial(); return; }
                     seleccionarElemento(el.id);
                 });
                 g.addEventListener('dblclick', function(e) { e.stopPropagation(); abrirModalEdicion(el.id); });
@@ -1666,7 +1511,7 @@
                     e.stopPropagation();
                     ocultarTooltip();
                     idMenuContextual = el.id;
-                    if (!(seleccion.size > 1 && seleccion.has(el.id))) { seleccion.clear(); seleccionarElemento(el.id); }
+                    seleccionarElemento(el.id);
                     contextMenu.style.display = 'block';
                     contextMenu.style.left = e.clientX + 'px';
                     contextMenu.style.top = e.clientY + 'px';
@@ -1726,12 +1571,6 @@
             dragStartX = e.clientX;
             dragStartY = e.clientY;
 
-            if (arrastreGrupo) {
-                if (!arrastreMovido && (dx || dy)) { arrastreMovido = true; invalidarResultados(); }
-                elementosRed.forEach(x => { if (seleccion.has(x.id)) { x.x += dx; x.y -= dy; } });
-                renderizarVectorial();
-                return;
-            }
             const el = elementosRed.find(item => item.id === activeSymbolId);
             if (el) {
                 if (!arrastreMovido && (dx || dy)) { arrastreMovido = true; invalidarResultados(); }
@@ -1755,7 +1594,6 @@
             }
             isDraggingSymbol = false;
             activeSymbolId = null;
-            arrastreGrupo = false;
             programarArbol();
         });
 
@@ -1765,11 +1603,8 @@
             const el = elementosRed.find(item => item.id === idMenuContextual);
             if (!el) return;
 
-            const enGrupo = seleccion.size > 1 && seleccion.has(el.id);
             if (accion === 'eliminar') {
-                if (enGrupo) eliminarSeleccion(); else eliminarElemento(el.id);
-            } else if (enGrupo && (accion === 'girar' || accion === 'girar180' || accion === 'girar270')) {
-                girarSeleccion(accion === 'girar' ? 90 : accion === 'girar180' ? 180 : 270);
+                eliminarElemento(el.id);
             } else if (accion === 'girar' || accion === 'girar180' || accion === 'girar270') {
                 guardarEstado();
                 invalidarResultados();
@@ -1804,8 +1639,7 @@
         // Tras cada cambio se redibujan los campos, porque unos dependen de otros (material -> serie
         // -> tamaño; modo de K -> tipo Crane / serie de catálogo / K manual).
         // ==================================================================================
-        const CAMPOS_NUMERICOS = ['scale', 'rotation', 'longitud', 'caudal', 'presion', 'h0', 'npsh', 'cota', 'k', 'kRun', 'kBranch', 'theta', 'cvUsuario',
-            'cotaA', 'cotaB', 'qNom', 'dpNom', 'qCons', 'pMin', 'cotaLamina', 'presionDep', 'pmaManual', 'sobreespesor'];
+        const CAMPOS_NUMERICOS = ['scale', 'rotation', 'longitud', 'caudal', 'presion', 'h0', 'npsh', 'cota', 'k', 'kRun', 'kBranch', 'theta', 'cvUsuario'];
         const CLS_CTRL = 'w-full bg-white border border-slate-300 rounded p-1 mt-0.5';
         const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
         function opcionesSelect(lista, actual) {
@@ -1822,22 +1656,6 @@
         }
         const info = t => `<div class="text-[10px] text-slate-500 bg-white border border-slate-200 rounded p-1 leading-snug">${t}</div>`;
         const fmt = (x, n = 3) => (x == null || !isFinite(x)) ? '—' : (+x).toFixed(n);
-        // ---------- Unidades de presión y caudal (Opciones > Unidades). Internamente: bar y m³/h ----------
-        const UNIDADES = { p: { bar: [1, 'bar'], kPa: [100, 'kPa'], mca: [1 / 0.0980665, 'm c.a.'] }, q: { m3h: [1, 'm³/h'], ls: [1 / 3.6, 'l/s'] } };
-        const uP = () => UNIDADES.p[opciones.uPresion] || UNIDADES.p.bar, uQ = () => UNIDADES.q[opciones.uCaudal] || UNIDADES.q.m3h;
-        const aP = bar => bar * uP()[0], deP = v => v / uP()[0], aQ = q => q * uQ()[0], deQ = v => v / uQ()[0];
-        const decP = d => opciones.uPresion === 'kPa' ? Math.max(0, d - 2) : opciones.uPresion === 'mca' ? Math.max(0, d - 1) : d;
-        const fP = (bar, d = 2) => fmt(bar == null ? null : aP(bar), decP(d)), fQ = (q, d = 2) => fmt(q == null ? null : aQ(q), d);
-        const lP = () => uP()[1], lQ = () => uQ()[1];
-        // Campos guardados en unidades internas que se muestran y editan en las del usuario
-        const CAMPOS_UNIDAD = { caudal: 'q', qNom: 'q', qCons: 'q', presion: 'p', h0: 'p', pMin: 'p', presionDep: 'p', pmaManual: 'p', dpNom: 'pk' };
-        const mostrarCampo = (campo, v) => { if (v === '' || v == null) return v; const t = CAMPOS_UNIDAD[campo]; return t === 'q' ? +aQ(+v).toFixed(4) : t === 'p' ? +aP(+v).toFixed(4) : t === 'pk' ? +aP(+v / 100).toFixed(4) : v; };
-        const leerCampo = (campo, v) => { const t = CAMPOS_UNIDAD[campo]; return t === 'q' ? deQ(v) : t === 'p' ? deP(v) : t === 'pk' ? deP(v) * 100 : v; };
-        // Control numérico con conversión de unidades; etiqueta sin unidad (se añade la del usuario)
-        function ctrlMag(fn, campo, valor, etiqueta, extra = '') {
-            const t = CAMPOS_UNIDAD[campo], u = t === 'q' ? lQ() : lP();
-            return ctrlNum(fn, campo, mostrarCampo(campo, valor), `${etiqueta} (${u}${extra})`, 'any');
-        }
 
         function camposComunes(obj, fn) {
             return ctrlTexto(fn, 'name', obj.name, 'Descripción') + ctrlNum(fn, 'scale', obj.scale, 'Escala', '0.1') + ctrlNum(fn, 'rotation', obj.rotation || 0, 'Rotación (°)', '90');
@@ -1845,19 +1663,6 @@
 
         function camposEspecificos(obj, fn) {
             let h = info(`<b class="text-slate-700">${esc(tagDe(obj))}</b><br>Línea ${obj.linea || '<span class="text-amber-600">sin asignar</span>'}${lineaPorId(obj.linea) && lineaPorId(obj.linea).nombre ? ' · ' + esc(lineaPorId(obj.linea).nombre) : ''}`);
-            if (obj.type !== 'tuberia' && obj.type !== 'bomba') h += ctrlNum(fn, 'cota', obj.cota || 0, obj.subtype === 'deposito' ? 'Cota de la conexión (m)' : 'Cota (m)', '0.01');
-            if (obj.type === 'equipo') {
-                h += ctrlMag(fn, 'qNom', obj.qNom, 'Caudal nominal') + ctrlMag(fn, 'dpNom', obj.dpNom, 'Δp a caudal nominal');
-                return h + info('Pérdida de carga del fabricante: Δp = Δp nom · (Q/Q nom)².');
-            }
-            if (obj.subtype === 'consumo') {
-                h += ctrlMag(fn, 'qCons', obj.qCons, 'Caudal demandado') + ctrlMag(fn, 'pMin', obj.pMin, 'Presión mínima', ' man.');
-                return h + info('Extremo con caudal impuesto. Se comprueba p ≥ p mín. y se calcula la válvula de equilibrado para el exceso de presión.');
-            }
-            if (obj.subtype === 'deposito') {
-                h += ctrlNum(fn, 'cotaLamina', obj.cotaLamina, 'Cota de la lámina (m)', '0.01') + ctrlMag(fn, 'presionDep', obj.presionDep, 'Presión sobre la lámina', ' man.');
-                return h + info('Condición de contorno: altura piezométrica = cota de lámina + presión.');
-            }
             if (obj.type === 'instrumento' || sinFlujo(obj)) {
                 if (obj.type !== 'instrumento') h += ctrlSelect(fn, 'dn', LISTA_DN.map(d => [d, etiquetaDN(d)]), obj.dn, 'DN');
                 return h + info('Sin caudal en servicio normal: se excluye del cálculo hidráulico y su conexión no necesita condición de contorno.');
@@ -1870,11 +1675,6 @@
                 h += ctrlSelect(fn, 'serie', m.series.filter(sr => m.tamanos.some(t => t.e[sr] != null)).map(sr => [sr, /^[0-9]+$/.test(sr) ? 'Sch ' + sr : sr]), obj.serie, 'Serie / schedule');
                 h += ctrlSelect(fn, 'dn', tams, obj.dn, 'Tamaño');
                 h += ctrlNum(fn, 'longitud', obj.longitud, 'Longitud (mm)', '1');
-                h += ctrlNum(fn, 'cotaA', obj.cotaA, 'Cota extremo a (m)', '0.01') + ctrlNum(fn, 'cotaB', obj.cotaB, 'Cota extremo b (m)', '0.01');
-                const T = parseFloat(document.getElementById('temp-fluido').value) || 20, pm = pmaTuberia(obj, T);
-                if (S_ADM[obj.material]) h += ctrlNum(fn, 'sobreespesor', obj.sobreespesor != null ? obj.sobreespesor : S_ADM[obj.material].c, 'Sobreespesor de corrosión c (mm)', '0.1');
-                h += ctrlMag(fn, 'pmaManual', obj.pmaManual || '', 'PMA manual', '; vacío = automática');
-                h += info(`PMA a ${T} °C: <b>${pm.pma != null ? fP(pm.pma, 1) + ' ' + lP() : '<span class="text-amber-600">sin dato</span>'}</b><br>${esc(pm.origen)}`);
                 h += info(`${dt.norma}${dt.ref ? ' (sin tabla propia)' : ''}<br>OD ${fmt(dt.od, 1)} · e ${fmt(dt.e, 2)} · <b>Dint ${fmt(dt.Dint, 1)} mm</b><br>Rugosidad ε ${dt.rug} mm`);
             } else if (obj.type === 'valvula' || obj.type === 'accesorio') {
                 const esRed = obj.subtype === 'reduccion', esTee = esNodo(obj);
@@ -1931,9 +1731,9 @@
                 }
                 if (obj.modoK === 'catalogo' || obj.modoK === 'cv' || (obj.modoK === 'crane' && calcDe(obj) !== 'pedir')) h += info('En el cálculo, K se recalcula con el Dint de la tubería conectada.');
             } else if (obj.type === 'bomba') {
-                h += ctrlMag(fn, 'caudal', obj.caudal, 'Caudal de diseño');
-                h += ctrlMag(fn, 'presion', obj.presion, 'Presión de diseño');
-                h += ctrlMag(fn, 'h0', obj.h0, 'Presión a caudal cero / cierre');
+                h += ctrlNum(fn, 'caudal', obj.caudal, 'Caudal de diseño (m³/h)', '0.1');
+                h += ctrlNum(fn, 'presion', obj.presion, 'Presión de diseño (bar)', '0.1');
+                h += ctrlNum(fn, 'h0', obj.h0, 'Presión a caudal cero / cierre (bar)', '0.1');
                 h += ctrlNum(fn, 'npsh', obj.npsh, 'NPSH requerido (m)', '0.1');
                 h += ctrlNum(fn, 'cota', obj.cota || 0, 'Cota de la bomba (m)', '0.1');
             }
@@ -1948,18 +1748,10 @@
         }
         // Aplica un cambio a un objeto (elemento o borrador) y deja coherentes los campos dependientes
         function aplicarCambio(obj, campo, valor) {
-            if (campo === 'pmaManual' && String(valor).trim() === '') { delete obj.pmaManual; return true; }
-            let v = convertirValor(campo, valor);
-            if (v === null) return false;
-            if (CAMPOS_UNIDAD[campo]) v = leerCampo(campo, v); // número no válido: se ignora (evita NaN en el cálculo)
+            const v = convertirValor(campo, valor);
+            if (v === null) return false; // número no válido: se ignora (evita NaN en el cálculo)
             if (campo === 'scale' && v <= 0) return false;
             if (campo === 'longitud' && v <= 0) return false;
-            if (campo === 'pmaManual' && String(valor).trim() === '') { delete obj.pmaManual; normalizarElemento(obj); return true; }
-            if (obj.type === 'tuberia' && (campo === 'cotaA' || campo === 'cotaB' || campo === 'longitud')) {
-                const za = campo === 'cotaA' ? v : +obj.cotaA, zb = campo === 'cotaB' ? v : +obj.cotaB, L = (campo === 'longitud' ? v : obj.longitud) / 1000;
-                if (Math.abs(zb - za) > L + 1e-6) { alert(`El desnivel (${Math.abs(zb - za).toFixed(2)} m) no puede superar la longitud (${L} m).`); return false; }
-            }
-            if ((campo === 'qNom' && !(v > 0)) || ((campo === 'dpNom' || campo === 'qCons') && v < 0)) return false;
             obj[campo] = v;
             if (campo === 'modoK' && v === 'manual') {
                 const kk = esNodo(obj) ? kTee(Object.assign({}, obj, { modoK: 'crane' })) : null;
@@ -2014,7 +1806,6 @@
         }
 
         function seleccionarElemento(id) {
-            seleccion.clear();
             idSeleccionado = id;
             renderizarVectorial();
             const el = elementosRed.find(item => item.id === id);
@@ -2140,7 +1931,7 @@
 
         function datosProyecto() {
             return {
-                version: "6.8-cotas",
+                version: "6.7-lineas",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -2164,7 +1955,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="6.8-cotas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="6.7-lineas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -2186,7 +1977,7 @@
         function exportarDXF() {
             renderizarVectorial();
             const S = 420 / ANCHO_A3; // mm de papel por unidad de dibujo
-            const capaDe = el => el.type === 'tuberia' ? 'TUBERIAS' : el.type === 'valvula' ? 'VALVULAS' : (el.type === 'bomba' || el.type === 'equipo' || el.type === 'terminal') ? 'EQUIPOS' : el.type === 'instrumento' ? 'INSTRUMENTOS' : 'ACCESORIOS';
+            const capaDe = el => el.type === 'tuberia' ? 'TUBERIAS' : el.type === 'valvula' ? 'VALVULAS' : el.type === 'bomba' ? 'EQUIPOS' : el.type === 'instrumento' ? 'INSTRUMENTOS' : 'ACCESORIOS';
             const CAPAS = { TUBERIAS: 5, VALVULAS: 1, ACCESORIOS: 3, EQUIPOS: 6, INSTRUMENTOS: 4, TEXTOS: 7, PUERTOS: 8 };
             const out = [];
             const w = (...kv) => { for (let i = 0; i < kv.length; i += 2) out.push(String(kv[i]), String(kv[i + 1])); };
@@ -2260,18 +2051,8 @@
                 const reader = new FileReader();
                 reader.onload = event => {
                     try {
-                        const avisos = cargarProyectoDesdeTexto(event.target.result);
-                        alert("Proyecto abierto con éxito." + (avisos.length ? "\n\n" + avisos.join("\n") : ""));
-                    } catch(err) { console.error(err); alert("Error al abrir archivo o formato no compatible."); }
-                };
-                reader.readAsText(file);
-            };
-            input.click();
-        }
-        // Carga un proyecto (.pid/.json) desde su texto; devuelve los avisos de migración
-        function cargarProyectoDesdeTexto(texto) {
                         guardarEstado(); // permite deshacer la apertura y recuperar el proyecto anterior
-                        const res = JSON.parse(texto);
+                        const res = JSON.parse(event.target.result);
                         elementosRed = res.elementos || [];
                         elementosRed.forEach(normalizarElemento);
                         lineas = res.lineas || [];
@@ -2304,7 +2085,12 @@
                         if (!res.version || res.version < '6.6') avisosApertura.push('Proyecto de una versión anterior: las tuberías, válvulas y accesorios se han adaptado al catálogo nuevo (K automático salvo los K que se habían modificado a mano).');
                         reajustarTodasLasConexiones(false); // corrige huecos por cambios de geometría entre versiones (sin snapshot adicional)
                         marcarCambios(false);
-                        return avisosApertura;
+                        alert("Proyecto abierto con éxito." + (avisosApertura.length ? "\n\n" + avisosApertura.join("\n") : ""));
+                    } catch(err) { alert("Error al abrir archivo o formato no compatible."); }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
         }
 
         function imprimirPDF() { window.print(); }
@@ -2419,10 +2205,9 @@
                 a.L = (el.longitud || 3000) / 1000;
                 a.rugosidad = dt.rug / 1000;
                 a.A = Math.PI * a.D * a.D / 4;
-            } else if (el.type === 'valvula' || el.type === 'accesorio' || el.type === 'equipo') {
+            } else if (el.type === 'valvula' || el.type === 'accesorio') {
                 a.dn = el.subtype === 'reduccion' ? `${el.dn}×${dnNum(el.dnMenor)}` : el.dn;
                 a.esValvulaAcc = true;
-                a.esEquipo = el.type === 'equipo';
             } else if (el.type === 'bomba') {
                 a.esBomba = true;
                 a.Qd = (el.caudal || 50) / 3600; // m³/s
@@ -2441,19 +2226,10 @@
 
         // Tras preparar las tuberías, las válvulas y accesorios toman el diámetro interior REAL de la
         // tubería conectada (si no hay ninguna, el Dint de referencia Sch 40 de su DN) y con él su K.
-        function asignarDiametrosYK(aristas, fluido) {
+        function asignarDiametrosYK(aristas) {
             aristas.forEach(a => {
                 if (!a.esValvulaAcc) return;
                 const el = a.el;
-                if (a.esEquipo) {
-                    // Δp = Δp nom·(Q/Qnom)²  ->  K referido a la tubería conectada: K = 2g·hf_nom/V_nom²
-                    const Dmm = dintTuberiaEnNodo(a.nodoA, aristas) || dintTuberiaEnNodo(a.nodoB, aristas) || dintReferencia(el.dn || 'DN 50');
-                    a.D = Dmm / 1000; a.A = Math.PI * a.D * a.D / 4;
-                    const hfN = (+el.dpNom || 0) * 1000 / (fluido.rho * G), Vn = (+el.qNom || 1) / 3600 / a.A;
-                    a.K = 2 * G * hfN / (Vn * Vn);
-                    a.origenK = `Δp ${el.dpNom} kPa a ${el.qNom} m³/h (fabricante)`;
-                    return;
-                }
                 if (el.subtype === 'reduccion') {
                     const D1 = dintTuberiaEnNodo(a.nodoA, aristas) || dintReferencia(el.dn);
                     const D2 = dintTuberiaEnNodo(a.nodoB, aristas) || dintReferencia(el.dnMenor);
@@ -2518,7 +2294,7 @@
             return M.map((fila, i) => Math.abs(fila[i]) < 1e-12 ? 0 : fila[n] / fila[i]);
         }
 
-        function resolverRed(grafo, aristas, condiciones, fluido, demandas = {}) {
+        function resolverRed(grafo, aristas, condiciones, fluido) {
             let fixedH = {};
             Object.keys(condiciones).forEach(nid => {
                 let c = condiciones[nid];
@@ -2533,7 +2309,7 @@
                 prepararArista(a);
                 a.Qprev = a.el.type === 'bomba' ? Math.max((a.el.caudal || 10) / 3600, 1e-4) : 1e-3;
             });
-            asignarDiametrosYK(aristas, fluido);
+            asignarDiametrosYK(aristas);
 
             const QMIN = 1e-6;
             let Hnodo = {};
@@ -2542,8 +2318,6 @@
 
                 let A = Array.from({ length: libres.length }, () => new Array(libres.length).fill(0));
                 let b = new Array(libres.length).fill(0);
-                // Consumos: caudal saliente impuesto en el nodo (m³/s)
-                Object.entries(demandas).forEach(([nid, q]) => { if (nid in idxLibre) b[idxLibre[nid]] -= q; });
 
                 aristas.forEach(a => {
                     let Qp = Math.max(Math.abs(a.Qprev), QMIN);
@@ -2620,38 +2394,11 @@
             let grado = new Array(grafo.nodos.length).fill(0);
             aristas.forEach(a => { grado[a.nodoA]++; grado[a.nodoB]++; });
             const elPorId = id => elementosRed.find(e => e.id === id);
-            return grafo.nodos.filter(n => grado[n.id] === 1 && !n.puertos.some(p => { const e = elPorId(p.elId); return e && (sinFlujo(e) || esTerminal(e)); }))
+            return grafo.nodos.filter(n => grado[n.id] === 1 && !n.puertos.some(p => { const e = elPorId(p.elId); return e && sinFlujo(e); }))
                 .map(n => Object.assign(n, { puertoContorno: n.puertos.find(p => { const e = elPorId(p.elId); return e && !sinFlujo(e); }) || n.puertos[0] }));
         }
 
-        // Cota (m) de cada nodo a partir de los puertos que lo forman; avisa si no coinciden
-        function cotasNodos(grafo) {
-            const z = {}, incoherencias = [];
-            grafo.nodos.forEach(n => {
-                const vals = n.puertos.map(p => { const e = elementosRed.find(x => x.id === p.elId); return e && !sinFlujo(e) ? { z: cotaPuerto(e, p.portId), e } : null; }).filter(Boolean);
-                if (!vals.length) { z[n.id] = 0; return; }
-                const zs = vals.map(v => v.z), max = Math.max(...zs), min = Math.min(...zs);
-                z[n.id] = zs.reduce((s, x) => s + x, 0) / zs.length;
-                if (max - min > 0.01) incoherencias.push(`Cotas distintas en la unión de ${[...new Set(vals.map(v => tagDe(v.e)))].join(', ')} (${min.toFixed(2)} / ${max.toFixed(2)} m): se toma la media.`);
-            });
-            Object.entries(grafo.centroTee).forEach(([id, nid]) => { const e = elementosRed.find(x => x.id === id); z[nid] = e ? +e.cota || 0 : 0; });
-            return { z, incoherencias };
-        }
-        // Depósitos (altura fija) y consumos (caudal impuesto) conectados a la red
-        function terminalesRed(grafo) {
-            const fijos = {}, demandas = {}, porNodo = {};
-            grafo.nodos.forEach(n => n.puertos.forEach(p => {
-                const e = elementosRed.find(x => x.id === p.elId);
-                if (!e || !esTerminal(e)) return;
-                if (n.puertos.length < 2) return; // terminal suelto, sin conectar
-                porNodo[n.id] = e;
-                if (e.subtype === 'deposito') fijos[n.id] = { elevacion: +e.cotaLamina || 0, presion: +e.presionDep || 0, deposito: e };
-                else demandas[n.id] = (demandas[n.id] || 0) + (+e.qCons || 0) / 3600;
-            }));
-            return { fijos, demandas, porNodo };
-        }
         function mostrarModalContorno(grafo, aristas, nodosContorno) {
-            const zN = cotasNodos(grafo).z;
             let filas = nodosContorno.map(n => {
                 let p = n.puertoContorno;
                 let el = elementosRed.find(e => e.id === p.elId);
@@ -2661,15 +2408,15 @@
                 return `
                 <tr data-key="${key}">
                     <td class="pr-2 py-1">${esc(tagDe(el))} (${nombrePuerto(el, p.portId)})</td>
-                    <td class="pr-2 text-slate-600" title="Se edita en la cota del elemento">${fmt(zN[n.id], 2)}</td>
-                    <td><input type="number" step="any" class="w-20 border rounded p-1 presion-input" value="${+aP(cond.presion || 0).toFixed(4)}"></td>
+                    <td class="pr-2"><input type="number" step="0.1" class="w-20 border rounded p-1 cota-input" value="${cond.elevacion}"></td>
+                    <td><input type="number" step="0.1" class="w-20 border rounded p-1 presion-input" value="${cond.presion}"></td>
                 </tr>`;
             }).join('');
 
             document.getElementById('red-content').innerHTML = `
-                <p class="text-xs text-slate-500 mb-3">Indica la presión manométrica en cada extremo abierto de la red (0 = descarga/aspiración atmosférica). La cota es la del elemento en ese extremo. Los depósitos y los puntos de consumo usan sus propios datos.</p>
+                <p class="text-xs text-slate-500 mb-3">Indica la cota y la presión manométrica en cada extremo abierto de la red. Por defecto se asume descarga/aspiración atmosférica a cota 0.</p>
                 ${filas ? `<table class="w-full text-xs mb-2">
-                    <thead><tr class="text-left text-slate-500"><th class="pb-1">Extremo</th><th class="pb-1">Cota (m)</th><th class="pb-1">Presión man. (${lP()})</th></tr></thead>
+                    <thead><tr class="text-left text-slate-500"><th class="pb-1">Extremo</th><th class="pb-1">Cota (m)</th><th class="pb-1">Presión man. (bar)</th></tr></thead>
                     <tbody>${filas}</tbody>
                 </table>` : `<p class="text-slate-400 italic text-[11px]">No se han detectado extremos abiertos (red cerrada).</p>`}
                 <div class="mt-2 grid grid-cols-3 gap-2">
@@ -2698,8 +2445,8 @@
             document.getElementById('btn-ejecutar-calculo').onclick = function () {
                 document.querySelectorAll('#red-content tr[data-key]').forEach(tr => {
                     let key = tr.dataset.key;
-                    let elevacion = 0;
-                    let presion = deP(parseFloat(tr.querySelector('.presion-input').value) || 0);
+                    let elevacion = parseFloat(tr.querySelector('.cota-input').value) || 0;
+                    let presion = parseFloat(tr.querySelector('.presion-input').value) || 0;
                     condicionesContorno[key] = { elevacion, presion };
                 });
                 marcarCambios(true);
@@ -2715,7 +2462,7 @@
         function huellaRed() {
             const els = elementosRed.map(e => { const c = Object.assign({}, e); delete c.estado; delete c.esLineaCritica; return c; });
             return JSON.stringify([els, lineas, condicionesContorno, document.getElementById('selector-fluido').value, document.getElementById('temp-fluido').value,
-                proyecto.caudalDiseno, proyecto.vAsp, proyecto.vImp, proyecto.tipoInstalacion, proyecto.tCierre, opciones.margenNPSH]);
+                proyecto.caudalDiseno, proyecto.vAsp, proyecto.vImp, proyecto.tipoInstalacion, opciones.margenNPSH]);
         }
         function cerrarModalRed() { document.getElementById('modal-red').style.display = 'none'; }
 
@@ -2732,7 +2479,7 @@
         // hiciera falta). Se calcula por búsqueda en profundidad (caminos simples) desde el nodo de
         // descarga de cada bomba hasta cada nodo de grado 1 (extremo abierto) que no sea la propia
         // aspiración de esa bomba.
-        function identificarLineaCritica(grafo, aristas, hreq = {}) {
+        function identificarLineaCritica(grafo, aristas) {
             elementosRed.forEach(el => { el.esLineaCritica = false; });
 
             let grado = new Array(grafo.nodos.length).fill(0);
@@ -2751,9 +2498,8 @@
             let mejor = null; // { hfTotal, aristasCamino }
             function dfs(nodoActual, nodoSuccionBomba, visitados, caminoAristas, hfAcumulado) {
                 let esExtremo = grado[nodoActual] === 1 && nodoActual !== nodoSuccionBomba;
-                const puntuacion = hfAcumulado + (hreq[nodoActual] || 0);
-                if (esExtremo && caminoAristas.length > 0 && (!mejor || puntuacion > mejor.puntuacion)) {
-                    mejor = { hfTotal: hfAcumulado, puntuacion, nodoFin: nodoActual, aristasCamino: [...caminoAristas] };
+                if (esExtremo && caminoAristas.length > 0 && (!mejor || hfAcumulado > mejor.hfTotal)) {
+                    mejor = { hfTotal: hfAcumulado, aristasCamino: [...caminoAristas] };
                 }
                 for (let conexion of (adyacencia[nodoActual] || [])) {
                     if (visitados.has(conexion.vecino)) continue;
@@ -2814,8 +2560,7 @@
                     const vlim = a.lado === 'asp' ? lim.asp : lim.imp;
                     r.lado = a.lado; r.vlim = vlim;
                     if (a.rama) r.ramas[r.ramas.length - 1].vlim = vlim;
-                    if (a.esEquipo) { r.dp = a.K * a.V * a.V / (2 * G) * fluido.rho * G / 1000; r.vlim = null; }
-                    else if (a.V > vlim) motivos.push(`V ${a.V.toFixed(2)} m/s > Vmax ${a.lado === 'asp' ? 'aspiración' : 'impulsión'} ${vlim} m/s${a.rama ? ' (rama ' + a.rama + ')' : ''}`);
+                    if (a.V > vlim) motivos.push(`V ${a.V.toFixed(2)} m/s > Vmax ${a.lado === 'asp' ? 'aspiración' : 'impulsión'} ${vlim} m/s${a.rama ? ' (rama ' + a.rama + ')' : ''}`);
                     if (el.type === 'valvula' && el.subtype === 'retencion') {
                         const tipo = el.modoK === 'crane' ? el.craneTipo : 'Clapeta oscilante (swing)';
                         const C = CAT.vmin[tipo];
@@ -2825,7 +2570,6 @@
                 r.motivos.push(...motivos);
                 el.estado = (el.estado === 'fallo' || motivos.length) ? 'fallo' : 'ok';
             });
-            comprobacionesPresion(resultado);
             // Caudal de diseño: la suma de los caudales de las bombas debe alcanzarlo
             const Qd = +proyecto.caudalDiseno;
             const bombas = aristas.filter(a => a.esBomba);
@@ -2840,234 +2584,36 @@
             }
         }
 
-        // Módulo de elasticidad del material de la tubería (MPa), para la celeridad de la onda (orientativo)
-        const E_MATERIAL = { 'Acero al carbono': 207000, 'Acero inoxidable': 193000, 'PVC-U': 3000, 'PE100': 1100, 'PE80': 900, 'CPVC': 2900,
-            'PP-R': 900, 'PVDF': 1800, 'PP-H': 1300, 'Cobre (Dint ref. Sch 40)': 117000, 'Fundición (Dint ref. Sch 40)': 170000, 'Hormigón (Dint ref. Sch 40)': 30000 };
-        // Golpe de ariete en una tubería: celeridad de Korteweg a = √[(Kf/ρ)/(1 + Kf·D/(E·e))];
-        // cierre rápido (tc ≤ 2L/a): Joukowsky Δp = ρ·a·V; cierre lento: Michaud Δp = 2·ρ·L·V/tc.
-        // L = longitud de tuberías de la línea (distancia a la reflexión, criterio conservador).
-        function arieteTuberia(a, fluido, Llinea, tc) {
-            const dt = datosTuberia(a.el), Kf = ((CAT.fluidos[fluido.nombre] || {}).Kf || 2200) * 1e6, E = (E_MATERIAL[a.el.material] || 207000) * 1e6;
-            const cel = Math.sqrt((Kf / fluido.rho) / (1 + Kf * dt.Dint / (E * dt.e)));
-            const Tcrit = 2 * Llinea / cel;
-            const rapido = !(tc > Tcrit);
-            const dp = rapido ? fluido.rho * cel * a.V : 2 * fluido.rho * Llinea * a.V / tc;
-            return { cel, Tcrit, L: Llinea, tc, rapido, dp, Kf, E, Dint: dt.Dint, e: dt.e };
-        }
-        // Presiones: vaporización, PMA de tuberías, presión a caudal nulo, golpe de ariete, consumos,
-        // depósitos y avisos de coherencia (DN, sentido de retenciones y bombas)
-        function comprobacionesPresion(resultado) {
-            const { aristas, Hnodo, fluido, pMan, pAbs, z, terminales } = resultado;
-            const avisos = resultado.avisosRed = resultado.avisosRed || [];
-            const fallo = (el, m) => { const r = ultimoResultado[el.id] = ultimoResultado[el.id] || { motivos: [], ramas: [] }; r.motivos.push(m); el.estado = 'fallo'; };
-            const bar = pa => pa / 1e5;
-            aristas.forEach(a => { a.pA = bar(pMan[a.nodoA]); a.pB = bar(pMan[a.nodoB]); const r = ultimoResultado[a.el.id]; if (r && !a.rama) { r.pA = a.pA; r.pB = a.pB; } });
-            // vaporización
-            aristas.forEach(a => {
-                if (a.esBomba) return;
-                const pmin = Math.min(pAbs[a.nodoA], pAbs[a.nodoB]);
-                if (pmin < fluido.pv && !(ultimoResultado[a.el.id].motivos || []).some(m => /vaporización/.test(m))) fallo(a.el, `p abs ${(pmin / 1000).toFixed(2)} kPa < pv ${(fluido.pv / 1000).toFixed(2)} kPa (vaporización)`);
-            });
-            // presión a caudal nulo (bomba contra válvula cerrada), lado de impulsión
-            const bombas = aristas.filter(a => a.esBomba);
-            const Hcierre = bombas.length ? Math.max(...bombas.map(b => Hnodo[b.nodoA] + b.H0m)) : null;
-            // golpe de ariete: longitud de tuberías por línea
-            const Llinea = {};
-            aristas.filter(a => a.el.type === 'tuberia').forEach(a => { Llinea[a.el.linea || '?'] = (Llinea[a.el.linea || '?'] || 0) + a.L; });
-            const tc = +proyecto.tCierre > 0 ? +proyecto.tCierre : 0;
-            aristas.filter(a => a.el.type === 'tuberia').forEach(a => {
-                const el = a.el, tag = tagDe(el), r = ultimoResultado[el.id];
-                const pm = pmaTuberia(el, fluido.T), pmax = Math.max(a.pA, a.pB);
-                a.pma = pm.pma; a.pmaOrigen = pm.origen; a.pmax = pmax;
-                a.pCierre = (Hcierre != null && a.lado === 'imp') ? Math.max(...[a.nodoA, a.nodoB].map(n => bar((Hcierre - z[n]) * fluido.rho * G - PRESION_ATM))) : null;
-                a.ariete = arieteTuberia(a, fluido, Llinea[el.linea || '?'], tc);
-                Object.assign(r, { pma: pm.pma, pmaOrigen: pm.origen, pmax, pCierre: a.pCierre, ariete: a.ariete });
-                if (pm.pma == null) { avisos.push(`${tag}: sin presión máxima admisible (${pm.origen}).`); return; }
-                if (pmax > pm.pma) fallo(el, `p ${pmax.toFixed(2)} bar > PMA ${pm.pma.toFixed(1)} bar`);
-                if (a.pCierre != null && a.pCierre > pm.pma) avisos.push(`${tag}: a caudal nulo (bomba contra válvula cerrada) p = ${a.pCierre.toFixed(2)} bar > PMA ${pm.pma.toFixed(1)} bar.`);
-                const pAriete = pmax + bar(a.ariete.dp);
-                if (pAriete > pm.pma) avisos.push(`${tag}: golpe de ariete Δp = ${bar(a.ariete.dp).toFixed(2)} bar (${a.ariete.rapido ? 'Joukowsky' : 'Michaud'}); p + Δp = ${pAriete.toFixed(2)} bar > PMA ${pm.pma.toFixed(1)} bar → prever cierre lento, calderín o antiariete.`);
-            });
-            // consumos y depósitos
-            Object.entries(terminales.porNodo).forEach(([n, e]) => {
-                const qNodo = aristas.reduce((s, a) => s + (a.nodoA == n ? a.Qprev : a.nodoB == n ? -a.Qprev : 0), 0); // caudal que sale del nodo por la red
-                const p = bar(pMan[n]);
-                const r = ultimoResultado[e.id] = { motivos: [], ramas: [], p, z: z[n], H: Hnodo[n] };
-                if (e.subtype === 'consumo') {
-                    const exceso = p - (+e.pMin || 0);
-                    Object.assign(r, { Q: +e.qCons || 0, pMin: +e.pMin || 0, exceso });
-                    if (exceso < -1e-4) { r.motivos.push(`p ${p.toFixed(2)} bar < p mín ${(+e.pMin).toFixed(2)} bar`); e.estado = 'fallo'; }
-                    else e.estado = 'ok';
-                } else {
-                    Object.assign(r, { Q: Math.abs(qNodo) * 3600, sentido: qNodo >= 0 ? 'aporta a la red' : 'recibe de la red' });
-                    e.estado = 'ok';
-                }
-            });
-            // Equilibrado: el consumo con menor exceso de presión es el más desfavorable; el resto se
-            // equilibra a su mismo exceso (Δp = exceso_i − exceso_mín). El exceso del más desfavorable es
-            // el margen de la bomba (se ajusta con variador o válvula de regulación en la impulsión).
-            const cons = Object.values(terminales.porNodo).filter(e => e.subtype === 'consumo' && e.estado === 'ok');
-            if (cons.length) {
-                const exMin = Math.min(...cons.map(e => ultimoResultado[e.id].exceso));
-                const crit = cons.find(e => ultimoResultado[e.id].exceso === exMin);
-                resultado.consumoCritico = { el: crit, margen: exMin };
-                cons.forEach(e => {
-                    const r = ultimoResultado[e.id]; r.critico = e === crit;
-                    const dp = r.exceso - exMin;
-                    if (!r.critico && dp > 0.01 && r.Q > 0) { const Kv = r.Q * Math.sqrt((fluido.rho / 1000) / dp); r.equilibrado = { dp, Kv, Cv: 1.156 * Kv }; }
-                });
-                if (exMin > 0.1) avisos.push(`El consumo más desfavorable (${tagDe(crit)}) tiene ${exMin.toFixed(2)} bar por encima de su presión mínima: margen de la bomba, a ajustar con variador o válvula de regulación.`);
-            }
-            // coherencia de DN entre componentes y tuberías conectadas
-            const dnCompatible = (dn, tub) => tub.el.dn === dn || (!/^DN/.test(tub.el.dn) && datosTuberia(tub.el).od === DN_A_PLASTICO[dnNum(dn)]);
-            aristas.filter(a => (a.el.type === 'valvula' || a.el.type === 'accesorio') && a.el.dn).forEach(a => {
-                const el = a.el;
-                [[a.nodoA, 'a'], [a.nodoB, 'b']].forEach(([n, puerto]) => {
-                    if (esNodo(el) && puerto === 'b') return; // en tes, nodoB es el centro interno
-                    const dn = el.subtype === 'reduccion' && puerto === 'b' ? el.dnMenor : el.dn;
-                    aristas.filter(t => t.el.type === 'tuberia' && (t.nodoA === n || t.nodoB === n)).forEach(t => {
-                        if (!dnCompatible(dn, t)) avisos.push(`${tagDe(el)} (${dn}) conectado a ${tagDe(t.el)} (${t.el.dn}, Dint ${(t.D * 1000).toFixed(1)} mm): diámetros distintos.`);
-                    });
-                });
-            });
-            // sentido del flujo
-            aristas.forEach(a => {
-                if (a.el.subtype === 'retencion' && a.Qprev < -1e-7) avisos.push(`${tagDe(a.el)}: el caudal circula en sentido contrario a la retención (la válvula cerraría). Gírala o revisa la red.`);
-                if (a.esBomba && a.Qprev < -1e-7) avisos.push(`${tagDe(a.el)}: la bomba trabaja con caudal inverso. Revisa su orientación.`);
-            });
-            resultado.avisosRed = [...new Set(avisos)];
-        }
         function ejecutarCalculo(grafo, aristas) {
-            const r = calcularResultado(grafo, aristas);
-            if (r.error) { alert(r.error); return; }
-            renderizarVectorial(); // colores: verde cumple, rojo no cumple, violeta ruta crítica
-            ultimoCalculo = { resultado: r.resultado, condiciones: r.condiciones, huella: huellaRed() };
-            mostrarResultados(r.resultado);
-        }
-        // Cálculo completo sin interfaz: { resultado, condiciones } o { error }
-        function calcularResultado(grafo, aristas) {
-            const { z: zNodo, incoherencias } = cotasNodos(grafo);
-            const term = terminalesRed(grafo);
             let condiciones = {};
             nodosContornoDe(grafo, aristas).forEach(n => {
                 const p = n.puertoContorno;
-                const c = condicionesContorno[`${p.elId}:${p.portId}`] || { presion: 0 };
-                condiciones[n.id] = { elevacion: zNodo[n.id], presion: c.presion || 0 };
+                condiciones[n.id] = condicionesContorno[`${p.elId}:${p.portId}`] || { elevacion: 0, presion: 0 };
             });
-            Object.entries(term.fijos).forEach(([nid, c]) => { condiciones[nid] = { elevacion: c.elevacion, presion: c.presion, deposito: c.deposito.id }; });
 
             const fluido = fluidoSeleccionado();
-            if (!fluido.ok) return { error: fluido.msg + '\nCambia la temperatura o el fluido.' };
+            if (!fluido.ok) { alert(fluido.msg + '\nCambia la temperatura o el fluido.'); return; }
             const fluidoNombre = `${fluido.nombre} a ${fluido.T} °C`;
-            if (!Object.keys(condiciones).length) return { error: 'La red necesita al menos un punto de presión conocida: un extremo abierto o un depósito.' };
 
             let resultado;
             try {
-                resultado = resolverRed(grafo, aristas, condiciones, fluido, term.demandas);
+                resultado = resolverRed(grafo, aristas, condiciones, fluido);
                 resultado.aristas.forEach(a => { a._todas = resultado.aristas; });
             } catch (err) {
                 console.error(err);
-                return { error: "No se ha podido resolver la red: " + err.message };
+                alert("No se ha podido resolver la red: " + err.message);
+                return;
             }
             resultado.fluidoNombre = fluidoNombre;
-            // Presiones en los nodos: p_abs = (H − z)·ρ·g; manométrica = p_abs − p_atm
-            resultado.z = zNodo; resultado.pAbs = {}; resultado.pMan = {};
-            Object.keys(resultado.Hnodo).forEach(n => { const pa = (resultado.Hnodo[n] - (zNodo[n] || 0)) * fluido.rho * G; resultado.pAbs[n] = pa; resultado.pMan[n] = pa - PRESION_ATM; });
-            resultado.terminales = term; resultado.condiciones = condiciones;
-            resultado.avisosRed = incoherencias.slice();
             evaluarCriterios(resultado);
-            // Altura necesaria en cada extremo: la de contorno (abiertos, depósitos) o la de consumo (z + p mín)
-            const hreq = {};
-            Object.entries(condiciones).forEach(([n, c]) => { hreq[n] = c.elevacion + (PRESION_ATM + (c.presion || 0) * 1e5) / (fluido.rho * G); });
-            Object.entries(term.porNodo).forEach(([n, e]) => { if (e.subtype === 'consumo') hreq[n] = (zNodo[n] || 0) + (PRESION_ATM + (+e.pMin || 0) * 1e5) / (fluido.rho * G); });
-            resultado.lineaCritica = identificarLineaCritica(grafo, resultado.aristas, hreq);
-            if (resultado.lineaCritica) { const eFin = term.porNodo[resultado.lineaCritica.nodoFin]; if (eFin) { eFin.esLineaCritica = true; resultado.lineaCritica.terminal = eFin; } }
+            resultado.lineaCritica = identificarLineaCritica(grafo, resultado.aristas);
             if (resultado.lineaCritica) {
                 const els = [...new Set(resultado.lineaCritica.aristasCamino.map(a => a.el))];
                 resultado.lineaCritica.ok = els.every(e => e.estado !== 'fallo');
             }
-            return { resultado, condiciones };
-        }
-
-        // ==================================================================================
-        // DIMENSIONADO AUTOMÁTICO (Herramientas > Dimensionar tuberías)
-        // Para cada tubería se elige el menor tamaño de su material y serie con V ≤ Vmax del lado
-        // (aspiración/impulsión). Se itera recalculando la red (los caudales cambian con los diámetros
-        // si hay extremos a presión fija). Los componentes conectados que tenían el DN de la tubería lo
-        // siguen; las reducciones se ajustan a los tubos de sus extremos. Se muestra la propuesta y se
-        // aplica solo si se acepta (con Deshacer).
-        // ==================================================================================
-        function dnEquivalente(tub) { // DN de acero equivalente a una tubería (plásticos: por diámetro exterior)
-            if (/^DN/.test(tub.dn)) return tub.dn;
-            const od = datosTuberia(tub).od, par = Object.entries(DN_A_PLASTICO).find(([, o]) => o === od);
-            return par ? 'DN ' + par[0] : null;
-        }
-        function propagarDN(cambios) { // cambios: [{ el, dnAntes }]
-            const avisos = [];
-            cambios.forEach(({ el, dnAntes }) => {
-                const nuevoEq = dnEquivalente(el), antesEq = dnEquivalente(Object.assign({}, el, { dn: dnAntes }));
-                if (!nuevoEq) return;
-                // recorrido por los componentes contiguos de la misma línea con el DN anterior
-                const vistos = new Set([el.id]), cola = [el];
-                while (cola.length) {
-                    const x = cola.shift();
-                    vecinosDe(x).forEach(v => {
-                        const o = v.otro;
-                        if (vistos.has(o.id) || o.type === 'tuberia' || o.type === 'bomba' || sinFlujo(o) || o.linea !== el.linea) return;
-                        vistos.add(o.id);
-                        if (o.subtype === 'reduccion') {
-                            if (v.puertoOtro === 'a' && o.dn === antesEq) o.dn = nuevoEq;
-                            else if (v.puertoOtro === 'b' && o.dnMenor === antesEq) o.dnMenor = nuevoEq;
-                            if (dnNum(o.dnMenor) >= dnNum(o.dn)) avisos.push(`${tagDe(o)}: tras el cambio ${o.dn} × ${o.dnMenor} ya no reduce; sustitúyela o elimínala.`);
-                            return; // la reducción corta la propagación
-                        }
-                        if (o.dn === antesEq || esEquipo(o) || esTerminal(o)) { if (!esEquipo(o) && !esTerminal(o)) o.dn = nuevoEq; cola.push(o); }
-                    });
-                }
-            });
-            return avisos;
-        }
-        function dimensionarTuberias() {
-            const antes = instantanea();
-            const tubs0 = elementosRed.filter(e => e.type === 'tuberia').map(e => ({ id: e.id, dn: e.dn }));
-            if (!tubs0.length) { alert('No hay tuberías en la red.'); return; }
-            let iter = 0, cambiosTot = 0, ok = false, error = null, avisos = [];
-            for (; iter < 10; iter++) {
-                const grafo = construirGrafoRed(), aristas = construirAristas(grafo);
-                const r = calcularResultado(grafo, aristas);
-                if (r.error) { error = r.error; break; }
-                const lim = r.resultado.limites, cambios = [];
-                r.resultado.aristas.filter(a => a.el.type === 'tuberia').forEach(a => {
-                    const el = a.el, m = materialDe(el), Q = Math.abs(a.Qprev), vl = a.lado === 'asp' ? lim.asp : lim.imp;
-                    const cand = m.tamanos.filter(t => t.e[el.serie] != null).map(t => ({ clave: t.clave, D: (t.od - 2 * t.e[el.serie]) / 1000 })).sort((x, y) => x.D - y.D);
-                    const elegido = cand.find(t => Q / (Math.PI * t.D * t.D / 4) <= vl) || cand[cand.length - 1];
-                    if (elegido && elegido.clave !== el.dn) { cambios.push({ el, dnAntes: el.dn }); el.dn = elegido.clave; normalizarElemento(el); }
-                });
-                if (!cambios.length) { ok = true; break; }
-                cambiosTot += cambios.length;
-                avisos = avisos.concat(propagarDN(cambios));
-            }
-            // propuesta: estado final frente al inicial
-            const propuesta = elementosRed.filter(e => e.type === 'tuberia').map(e => ({ tag: tagDe(e), antes: tubs0.find(t => t.id === e.id).dn, despues: e.dn })).filter(x => x.antes !== x.despues);
-            const componentes = elementosRed.filter(e => e.type !== 'tuberia').map(e => { const a = JSON.parse(antes).e.find(x => x.id === e.id); return a && (a.dn !== e.dn || a.dnMenor !== e.dnMenor) ? { tag: tagDe(e), antes: a.dnMenor ? `${a.dn} × ${a.dnMenor}` : a.dn, despues: e.dnMenor ? `${e.dn} × ${e.dnMenor}` : e.dn } : null; }).filter(Boolean);
-            const finalEstado = instantanea();
-            restaurarEstado(antes);
-            if (error) { alert(error); return; }
-            const filas = x => x.map(c => `<tr><td class="py-0.5 pr-2">${esc(c.tag)}</td><td class="pr-2">${esc(c.antes)}</td><td class="pr-2">→</td><td class="font-bold">${esc(c.despues)}</td></tr>`).join('');
-            document.getElementById('red-content').innerHTML = `
-                <p class="text-[11px] text-slate-500 mb-2">Criterio: menor tamaño de la misma serie con V ≤ ${limitesVelocidad().asp} m/s en aspiración y ≤ ${limitesVelocidad().imp} m/s en impulsión (Archivo &gt; Datos del proyecto). ${ok ? `Converge en ${iter + 1} cálculo(s).` : '<span class="text-amber-600">No ha convergido en 10 iteraciones: revisa el resultado.</span>'}</p>
-                ${propuesta.length || componentes.length ? `
-                <h4 class="text-xs font-bold text-slate-600 mb-1">Tuberías</h4>
-                <table class="text-[11px] mb-3">${filas(propuesta) || '<tr><td class="text-slate-400 italic">Sin cambios</td></tr>'}</table>
-                <h4 class="text-xs font-bold text-slate-600 mb-1">Componentes que siguen a su tubería</h4>
-                <table class="text-[11px] mb-3">${filas(componentes) || '<tr><td class="text-slate-400 italic">Sin cambios</td></tr>'}</table>` : '<p class="text-emerald-700 text-xs font-bold">Todas las tuberías ya tienen el tamaño adecuado.</p>'}
-                ${avisos.length ? `<div class="bg-amber-50 border border-amber-200 text-amber-700 rounded p-2 text-[11px]">${[...new Set(avisos)].map(a => `<p>${esc(a)}</p>`).join('')}</div>` : ''}`;
-            document.getElementById('red-footer').innerHTML = `
-                <button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cancelar</button>
-                ${propuesta.length || componentes.length ? `<button id="btn-aplicar-dim" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Aplicar cambios</button>` : ''}`;
-            const b = document.getElementById('btn-aplicar-dim');
-            if (b) b.onclick = () => { guardarEstado(); restaurarEstado(finalEstado); marcarCambios(true); cerrarModalRed(); calcularRed(); };
-            document.getElementById('modal-red').style.display = 'flex';
+            renderizarVectorial(); // colores: verde cumple, rojo no cumple, violeta ruta crítica
+            ultimoCalculo = { resultado, condiciones, huella: huellaRed() };
+            mostrarResultados(resultado);
         }
 
         function mostrarResultados(resultado) {
@@ -3089,7 +2635,7 @@
                 </div>`;
             }
 
-            let avisos = [...(resultado.avisosRed || [])];
+            let avisos = [];
             aristas.forEach(a => (a.avisos || []).forEach(t => avisos.push(t)));
             aristas.filter(a => !a.esBomba && a.Re > 2300 && a.Re < 4000).forEach(a =>
                 avisos.push(`${tagDe(a.el)}: Re = ${Math.round(a.Re)} en zona de transición; el factor de fricción es incierto.`));
@@ -3099,16 +2645,15 @@
             let filasTuberia = aristas.filter(a => a.el.type === 'tuberia').map(a => `
                 <tr>
                     <td class="py-1 pr-2">${esc(tagDe(a.el))}</td><td class="pr-2">Ø${(a.D * 1000).toFixed(1)}</td>
-                    <td class="pr-2">${fQ(Math.abs(a.Qprev) * 3600, 2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
+                    <td class="pr-2">${(Math.abs(a.Qprev) * 3600).toFixed(2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
                     <td class="pr-2">${Math.round(a.Re)}</td><td class="pr-2">${a.f.toFixed(4)}</td>
-                    <td class="pr-2">${(a.f * a.L / a.D * a.V * a.V / (2 * G)).toFixed(3)}</td>
-                    <td class="pr-2">${fP(a.pmax, 2)}</td><td class="pr-2">${a.pma != null ? fP(a.pma, 1) : '<span class="text-amber-600">—</span>'}</td><td class="pr-2">${a.ariete ? fP(a.ariete.dp / 1e5, 2) : '—'}</td><td>${marca(a.el)}</td>
+                    <td class="pr-2">${(a.f * a.L / a.D * a.V * a.V / (2 * G)).toFixed(3)}</td><td>${marca(a.el)}</td>
                 </tr>`).join('');
 
-            let filasAcc = aristas.filter(a => a.el.type === 'valvula' || a.el.type === 'accesorio' || a.el.type === 'equipo').map(a => `
+            let filasAcc = aristas.filter(a => a.el.type === 'valvula' || a.el.type === 'accesorio').map(a => `
                 <tr>
                     <td class="py-1 pr-2">${esc(tagDe(a.el))}${a.rama ? ` (rama ${a.rama})` : ''}${a.sentidoRed ? ` (${a.sentidoRed})` : ''}</td>
-                    <td class="pr-2">${fQ(Math.abs(a.Qprev) * 3600, 2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
+                    <td class="pr-2">${(Math.abs(a.Qprev) * 3600).toFixed(2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
                     <td class="pr-2">${a.K.toFixed(3)}</td><td class="pr-2">${(a.K * a.V * a.V / (2 * G)).toFixed(3)}</td>
                     <td class="pr-2 text-slate-400">${esc(a.origenK || '')}</td><td>${marca(a.el)}</td>
                 </tr>`).join('');
@@ -3117,24 +2662,16 @@
                 const r = ultimoResultado[a.el.id];
                 return `
                 <tr>
-                    <td class="py-1 pr-2">${esc(tagDe(a.el))}</td><td class="pr-2">${fQ(r.Q, 2)}</td>
+                    <td class="py-1 pr-2">${esc(tagDe(a.el))}</td><td class="pr-2">${r.Q.toFixed(2)}</td>
                     <td class="pr-2">${r.H.toFixed(2)}</td><td class="pr-2">${r.potencia.toFixed(2)}</td>
                     <td class="pr-2">${r.npshd != null ? r.npshd.toFixed(2) : 'N/D'}</td>
                     <td class="pr-2">${a.el.npsh.toFixed(2)}</td><td>${marca(a.el)}</td>
                 </tr>`;
             }).join('');
 
-            const term = resultado.terminales || { porNodo: {} };
-            const filasTerm = Object.values(term.porNodo).map(e => {
-                const r = ultimoResultado[e.id] || {};
-                return e.subtype === 'consumo'
-                    ? `<tr><td class="py-1 pr-2">${esc(tagDe(e))}</td><td class="pr-2">Consumo</td><td class="pr-2">${fQ(r.Q, 2)}</td><td class="pr-2">${fmt(r.z, 2)}</td><td class="pr-2">${fP(r.p, 2)}</td><td class="pr-2">${fP(r.pMin, 2)}</td>
-                       <td class="pr-2">${r.equilibrado ? `Δp ${fP(r.equilibrado.dp, 2)} ${lP()} · Kv ${fmt(r.equilibrado.Kv, 2)} m³/h` : (r.critico ? `más desfavorable · margen ${fP(r.exceso, 2)} ${lP()}` : '—')}</td><td>${marca(e)}</td></tr>`
-                    : `<tr><td class="py-1 pr-2">${esc(tagDe(e))}</td><td class="pr-2">Depósito</td><td class="pr-2">${fQ(r.Q, 2)}</td><td class="pr-2">${fmt(r.z, 2)}</td><td class="pr-2">${fP(r.p, 2)}</td><td class="pr-2">—</td><td class="pr-2">${esc(r.sentido || '')} · lámina ${fmt(e.cotaLamina, 2)} m</td><td>${marca(e)}</td></tr>`;
-            }).join('');
             document.getElementById('red-content').innerHTML = `
                 <p class="text-[11px] text-slate-500 mb-2">Fluido: <b>${esc(fluidoNombre)}</b> · ρ ${fluido.rho.toFixed(1)} kg/m³ · ν ${(fluido.nu * 1e6).toPrecision(3)} mm²/s · pv ${(fluido.pv / 1000).toPrecision(3)} kPa${fluido.nota ? ` · <span class="text-slate-400">${esc(fluido.nota)}</span>` : ''}
-                <br>Criterios: V aspiración ≤ ${resultado.limites.asp} m/s · V impulsión ≤ ${resultado.limites.imp} m/s · retenciones totalmente abiertas · margen NPSH ≥ ${opciones.margenNPSH} m${resultado.Qdiseno ? ` · Q bombas ≥ ${fQ(resultado.Qdiseno, 2)} ${lQ()} (diseño)` : ' · <span class="text-amber-600">sin caudal de diseño (Archivo &gt; Datos del proyecto)</span>'}</p>
+                <br>Criterios: V aspiración ≤ ${resultado.limites.asp} m/s · V impulsión ≤ ${resultado.limites.imp} m/s · retenciones totalmente abiertas · margen NPSH ≥ ${opciones.margenNPSH} m${resultado.Qdiseno ? ` · Q bombas ≥ ${resultado.Qdiseno} m³/h (diseño)` : ' · <span class="text-amber-600">sin caudal de diseño (Archivo &gt; Datos del proyecto)</span>'}</p>
                 ${bloqueLineaCritica}
                 ${fallos.length ? `<div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-2 mb-3 text-[11px] space-y-1">
                     ${fallos.map(a => `<p><i class="fa-solid fa-xmark mr-1"></i>${esc(a)}</p>`).join('')}
@@ -3144,22 +2681,17 @@
                 </div>` : ''}
                 <h4 class="text-xs font-bold text-slate-600 mb-1">Tuberías</h4>
                 <table class="w-full text-[11px] mb-3">
-                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Dint (mm)</th><th>Q (${lQ()})</th><th>V (m/s)</th><th>Re</th><th>f</th><th>hf (m)</th><th title="Presión manométrica máxima en sus extremos">p máx (${lP()})</th><th title="Presión máxima admisible">PMA (${lP()})</th><th title="Sobrepresión por golpe de ariete">Δp ariete (${lP()})</th><th>Estado</th></tr></thead>
-                    <tbody>${filasTuberia || '<tr><td colspan="11" class="text-slate-400 italic py-1">Sin tuberías</td></tr>'}</tbody>
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Dint (mm)</th><th>Q (m³/h)</th><th>V (m/s)</th><th>Re</th><th>f</th><th>hf (m)</th><th>Estado</th></tr></thead>
+                    <tbody>${filasTuberia || '<tr><td colspan="8" class="text-slate-400 italic py-1">Sin tuberías</td></tr>'}</tbody>
                 </table>
                 <h4 class="text-xs font-bold text-slate-600 mb-1">Válvulas y Accesorios</h4>
                 <table class="w-full text-[11px] mb-3">
-                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Q (${lQ()})</th><th>V (m/s)</th><th>K</th><th>hf (m)</th><th>Origen de K</th><th>Estado</th></tr></thead>
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Q (m³/h)</th><th>V (m/s)</th><th>K</th><th>hf (m)</th><th>Origen de K</th><th>Estado</th></tr></thead>
                     <tbody>${filasAcc || '<tr><td colspan="7" class="text-slate-400 italic py-1">Sin válvulas/accesorios</td></tr>'}</tbody>
                 </table>
-                ${filasTerm ? `<h4 class="text-xs font-bold text-slate-600 mb-1">Consumos y depósitos</h4>
-                <table class="w-full text-[11px] mb-3">
-                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Tipo</th><th>Q (${lQ()})</th><th>Cota (m)</th><th>p (${lP()})</th><th>p mín (${lP()})</th><th>Válvula de equilibrado / observaciones</th><th>Estado</th></tr></thead>
-                    <tbody>${filasTerm}</tbody>
-                </table>` : ''}
                 <h4 class="text-xs font-bold text-slate-600 mb-1">Bombas</h4>
                 <table class="w-full text-[11px]">
-                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Q (${lQ()})</th><th>H (m)</th><th>Potencia (kW)</th><th>NPSHd (m)</th><th>NPSHr (m)</th><th>Estado</th></tr></thead>
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Q (m³/h)</th><th>H (m)</th><th>Potencia (kW)</th><th>NPSHd (m)</th><th>NPSHr (m)</th><th>Estado</th></tr></thead>
                     <tbody>${filasBomba || '<tr><td colspan="7" class="text-slate-400 italic py-1">Sin bombas</td></tr>'}</tbody>
                 </table>
             `;
@@ -3247,16 +2779,9 @@
                 f('Tamaño', `${el.dn}${dt.nps ? ' (' + dt.nps + '")' : ''} · ${esc(el.serie)}`);
                 f('Geometría', `OD ${fmt(dt.od, 1)} · e ${fmt(dt.e, 2)} · Dint ${fmt(dt.Dint, 1)} mm · L ${el.longitud} mm`);
                 f('Rugosidad', `${dt.rug} mm`);
-                f('Cotas', `a ${fmt(el.cotaA, 2)} m · b ${fmt(el.cotaB, 2)} m`);
             } else if (el.type === 'bomba') {
-                f('Diseño', `${fQ(el.caudal, 2)} ${lQ()} a ${fP(el.presion, 2)} ${lP()} · cierre ${fP(el.h0, 2)} ${lP()}`);
+                f('Diseño', `${el.caudal} m³/h a ${el.presion} bar · cierre ${el.h0} bar`);
                 f('NPSHr / cota', `${el.npsh} m · ${el.cota || 0} m`);
-            } else if (el.type === 'equipo') {
-                f('Δp fabricante', `${fP(el.dpNom / 100, 3)} ${lP()} a ${fQ(el.qNom, 2)} ${lQ()} · cota ${fmt(el.cota, 2)} m`);
-            } else if (el.subtype === 'consumo') {
-                f('Consumo', `${fQ(el.qCons, 2)} ${lQ()} · p mín ${fP(el.pMin, 2)} ${lP()} · cota ${fmt(el.cota, 2)} m`);
-            } else if (el.subtype === 'deposito') {
-                f('Depósito', `lámina ${fmt(el.cotaLamina, 2)} m · conexión ${fmt(el.cota, 2)} m · ${fP(el.presionDep, 2)} ${lP()} man.`);
             } else if (el.type !== 'instrumento') {
                 f('DN', el.subtype === 'reduccion' ? `${etiquetaDN(el.dn)} × ${etiquetaDN(el.dnMenor)} · ${el.excentrica ? 'excéntrica' : 'concéntrica'}` : etiquetaDN(el.dn));
                 if (sinFlujo(el)) f('Cálculo', 'Sin caudal en servicio normal (excluido)');
@@ -3266,11 +2791,9 @@
             } else f('Cálculo', 'Instrumento sin caudal (excluido)');
             const r = ultimoResultado && ultimoResultado[el.id];
             if (r) {
-                if (el.type === 'bomba') f('Resultado', `Q ${fQ(r.Q, 2)} ${lQ()} · H ${fmt(r.H, 2)} m · ${fmt(r.potencia, 2)} kW · NPSHd ${fmt(r.npshd, 2)} m`);
-                else if (r.ramas && r.ramas.length) r.ramas.forEach(x => f(`Rama ${x.rama}`, `Q ${fQ(x.Q, 2)} ${lQ()} · V ${fmt(x.V, 2)} m/s · K ${fmt(x.K)} · hf ${fmt(x.hf, 3)} m`));
-                else if (esTerminal(el)) f('Resultado', el.subtype === 'consumo' ? `Q ${fQ(r.Q, 2)} ${lQ()} · p ${fP(r.p, 2)} ${lP()} (mín ${fP(r.pMin, 2)})${r.equilibrado ? ` · equilibrado Δp ${fP(r.equilibrado.dp, 2)} ${lP()}, Kv ${fmt(r.equilibrado.Kv, 2)}` : ''}` : `Q ${fQ(r.Q, 2)} ${lQ()} (${esc(r.sentido)}) · p ${fP(r.p, 2)} ${lP()}`);
-                else f('Resultado', `Q ${fQ(r.Q, 2)} ${lQ()} · V ${fmt(r.V, 2)} m/s${r.Re ? ' · Re ' + Math.round(r.Re) : ''}${r.f ? ' · f ' + fmt(r.f, 4) : ''} · hf ${fmt(r.hf, 3)} m${r.sentido ? ' · ' + r.sentido : ''}${r.dp != null ? ' · Δp ' + fmt(r.dp, 1) + ' kPa' : ''}`);
-                if (r.pA != null && !esTerminal(el)) f('Presión', `${fP(r.pA, 2)} → ${fP(r.pB, 2)} ${lP()} man.${r.pma != null ? ` · PMA ${fP(r.pma, 1)} ${lP()}` : ''}${r.ariete ? ` · ariete Δp ${fP(r.ariete.dp / 1e5, 2)} ${lP()}` : ''}`);
+                if (el.type === 'bomba') f('Resultado', `Q ${fmt(r.Q, 2)} m³/h · H ${fmt(r.H, 2)} m · ${fmt(r.potencia, 2)} kW · NPSHd ${fmt(r.npshd, 2)} m`);
+                else if (r.ramas && r.ramas.length) r.ramas.forEach(x => f(`Rama ${x.rama}`, `Q ${fmt(x.Q, 2)} m³/h · V ${fmt(x.V, 2)} m/s · K ${fmt(x.K)} · hf ${fmt(x.hf, 3)} m`));
+                else f('Resultado', `Q ${fmt(r.Q, 2)} m³/h · V ${fmt(r.V, 2)} m/s${r.Re ? ' · Re ' + Math.round(r.Re) : ''}${r.f ? ' · f ' + fmt(r.f, 4) : ''} · hf ${fmt(r.hf, 3)} m${r.sentido ? ' · ' + r.sentido : ''}`);
                 f('Estado', el.estado === 'fallo' ? `<span class="text-rose-300 font-bold">No cumple</span>: ${esc(r.motivos.join('; '))}` : `<span class="text-emerald-300 font-bold">Cumple</span>${el.esLineaCritica ? ' · <span class="text-violet-300">ruta crítica</span>' : ''}`);
             }
             return `<div class="font-bold text-white mb-1">${esc(tagDe(el))}</div><table>${filas.join('')}</table>`;
@@ -3390,11 +2913,6 @@
             if (n === 'CLIENTE') alert('Símbolos de la empresa cliente: mientras no se carguen sus plantillas se usan los de ISO 10628-2.');
             construirLibreria(); renderizarVectorial(); marcarCambios(true);
         }
-        function cambiarUnidad(clave, valor) {
-            opciones[clave] = valor; marcarCambios(true);
-            if (idSeleccionado) seleccionarElemento(idSeleccionado);
-            if (ultimoCalculo && document.getElementById('modal-red').style.display === 'flex') mostrarResultados(ultimoCalculo.resultado);
-        }
         function alternarArbol() { opciones.arbol = !opciones.arbol; renderArbol(); }
         // Velocidades y caudal de diseño viven en los datos del proyecto; aquí solo el margen NPSH
         function abrirCriterios() {
@@ -3413,7 +2931,7 @@
             cliente: '', refCliente: '', descripcion: '', instalacion: '', direccion: '', ciudad: '', provincia: '', pais: 'España',
             esBuque: false,
             buque: { astillero: '', construccion: '', nombre: '', armador: '', tipo: '', imo: '', bandera: '', clasificacion: '', esloraTotal: '', esloraPP: '', manga: '', puntal: '', calado: '', peMuerto: '' },
-            tipoInstalacion: 'industrial', caudalDiseno: '', vAsp: '', vImp: '', tCierre: ''
+            tipoInstalacion: 'industrial', caudalDiseno: '', vAsp: '', vImp: ''
         });
         let proyecto = PROYECTO_VACIO();
         const TIPOS_INSTALACION = { edificacion: 'Edificación (RITE/CTE)', industrial: 'Industrial / proceso', naval: 'Naval / buque' };
@@ -3469,7 +2987,7 @@
                     <div><label class="block text-slate-500 mb-0.5">Tipo de instalación</label><select id="dp-tipoInstalacion" class="w-full border rounded p-1.5" onchange="actualizarVRecomendada()">${Object.entries(TIPOS_INSTALACION).map(([k, t]) => `<option value="${k}" ${p.tipoInstalacion === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
                     <div><label class="block text-slate-500 mb-0.5">Fluido (panel izquierdo)</label><input disabled value="${esc(fl)} a ${esc(document.getElementById('temp-fluido').value)} °C" class="w-full border rounded p-1.5 bg-slate-50"></div>
                     ${campoHTML('caudalDiseno', 'Caudal de diseño (m³/h) *', 'number', p.caudalDiseno, 'p')}
-                    ${campoHTML('tCierre', 'Tiempo de cierre de válvulas (s) · golpe de ariete (vacío = instantáneo)', 'number', p.tCierre, 'p')}
+                    <div></div>
                     ${campoHTML('vAsp', `Velocidad máx. en aspiración (m/s) · recomendada <span id="rec-asp">${rec[0]}</span>`, 'number', p.vAsp || rec[0], 'p')}
                     ${campoHTML('vImp', `Velocidad máx. en impulsión (m/s) · recomendada <span id="rec-imp">${rec[1]}</span>`, 'number', p.vImp || rec[1], 'p')}
                 </div>
@@ -3484,14 +3002,14 @@
         function cerrarDatosProyecto() { document.getElementById('modal-proyecto').style.display = 'none'; alGuardarProyecto = null; }
         function guardarDatosProyecto() {
             const v = id => (document.getElementById(id) || {}).value;
-            const claveCalculo = () => [proyecto.tipoInstalacion, proyecto.caudalDiseno, proyecto.vAsp, proyecto.vImp, proyecto.tCierre].join('|');
+            const claveCalculo = () => [proyecto.tipoInstalacion, proyecto.caudalDiseno, proyecto.vAsp, proyecto.vImp].join('|');
             const antes = claveCalculo();
             CAMPOS_PROYECTO.forEach(([k]) => { proyecto[k] = (v('dp-p-' + k) || '').trim(); });
             proyecto.esBuque = document.getElementById('dp-esBuque').checked;
             CAMPOS_BUQUE.forEach(([k]) => { proyecto.buque[k] = (v('dp-b-' + k) || '').trim(); });
             proyecto.tipoInstalacion = v('dp-tipoInstalacion');
-            ['caudalDiseno', 'vAsp', 'vImp', 'tCierre'].forEach(k => { proyecto[k] = (v('dp-p-' + k) || '').trim(); });
-            const neg = ['caudalDiseno', 'vAsp', 'vImp', 'tCierre'].filter(k => proyecto[k] !== '' && !(+proyecto[k] > 0));
+            ['caudalDiseno', 'vAsp', 'vImp'].forEach(k => { proyecto[k] = (v('dp-p-' + k) || '').trim(); });
+            const neg = ['caudalDiseno', 'vAsp', 'vImp'].filter(k => proyecto[k] !== '' && !(+proyecto[k] > 0));
             if (neg.length) { alert('El caudal y las velocidades deben ser números mayores que cero.'); return; }
             document.getElementById('modal-proyecto').style.display = 'none';
             marcarCambios(true);
@@ -3564,7 +3082,7 @@
             const ars = ultimoCalculo.resultado.aristas;
             const calculados = new Set(ars.map(a => a.el.id));
             const fallos = elementosRed.filter(e => e.estado === 'fallo').map(e => `${tagDe(e)}: ${(ultimoResultado[e.id] || { motivos: [] }).motivos.join('; ')}`);
-            elementosRed.filter(e => !sinFlujo(e) && !calculados.has(e.id) && !(esTerminal(e) && ultimoResultado[e.id])).forEach(e => fallos.push(`${tagDe(e)}: no está conectado a la red (no se ha calculado)`));
+            elementosRed.filter(e => !sinFlujo(e) && !calculados.has(e.id)).forEach(e => fallos.push(`${tagDe(e)}: no está conectado a la red (no se ha calculado)`));
             if (!ars.some(a => a.esBomba)) fallos.push('La red no tiene ninguna bomba: no se puede comprobar el caudal de diseño.');
             if (fallos.length) return { tipo: 'fallos', fallos };
             return null;
@@ -3726,37 +3244,6 @@
             const res = ultimoCalculo.resultado, fl = res.fluido, F = [];
             let kTexto = '';
             if (sinFlujo(el)) { F.push(['—', 'Elemento sin caudal', 'No interviene en el balance hidráulico', '—']); return { filas: F, k: '—' }; }
-            const rhoG = `${nf(fl.rho, 1)} × 9,81`;
-            if (esTerminal(el)) {
-                const r = ultimoResultado[el.id];
-                if (!r) { F.push(['—', 'Terminal sin conectar', '', '—']); return { filas: F, k: '—' }; }
-                if (el.subtype === 'consumo') {
-                    F.push(['Caudal demandado', 'Q (dato)', '', `${nf(r.Q, 3)} m³/h`]);
-                    F.push(['Presión en el punto de consumo', 'p = (H − z)·ρ·g − p_atm', `(${nf(r.H, 3)} − ${nf(r.z, 2)}) × ${rhoG} − 101 325 Pa`, `${nf(r.p, 3)} bar`]);
-                    F.push(['Comprobación de presión', 'p ≥ p mín', `${nf(r.p, 3)} ≥ ${nf(r.pMin, 2)} bar`, r.exceso >= -1e-4 ? 'CUMPLE' : 'NO CUMPLE']);
-                    F.push(['Exceso de presión', 'Δp exc = p − p mín', `${nf(r.p, 3)} − ${nf(r.pMin, 2)}`, `${nf(r.exceso, 3)} bar`]);
-                    const cc = res.consumoCritico;
-                    if (r.equilibrado) {
-                        F.push(['Presión a equilibrar', 'Δp = Δp exc − Δp exc (consumo más desfavorable)', `${nf(r.exceso, 3)} − ${nf(cc.margen, 3)}  (${tagDe(cc.el)})`, `${nf(r.equilibrado.dp, 3)} bar`]);
-                        F.push(['Válvula de equilibrado', 'Kv = Q·√[(ρ/1000)/Δp];  Cv = 1,156·Kv', `${nf(r.Q, 3)} × √[(${nf(fl.rho / 1000, 4)})/${nf(r.equilibrado.dp, 3)}]`, `Kv ${nf(r.equilibrado.Kv, 2)} m³/h · Cv ${nf(r.equilibrado.Cv, 2)}`]);
-                    } else F.push(['Válvula de equilibrado', r.critico ? 'Consumo más desfavorable: sin válvula; su exceso es el margen de la bomba' : 'No necesaria (diferencia < 0,01 bar)', '', '—']);
-                    return { filas: F, k: `Q ${nf(r.Q, 2)} · p mín ${nf(r.pMin, 2)} bar` };
-                }
-                F.push(['Altura piezométrica impuesta', 'H = z lámina + (p_atm + p)/(ρ·g)', `${nf(el.cotaLamina, 2)} + (101 325 + ${nf(el.presionDep * 1e5, 0)}) / (${rhoG})`, `${nf(r.H, 3)} m`]);
-                F.push(['Presión en la conexión', 'p = (H − z)·ρ·g − p_atm', `(${nf(r.H, 3)} − ${nf(r.z, 2)}) × ${rhoG} − 101 325 Pa`, `${nf(r.p, 3)} bar`]);
-                F.push(['Caudal', 'Balance de masa en el nodo', r.sentido, `${nf(r.Q, 3)} m³/h`]);
-                return { filas: F, k: `lámina ${nf(el.cotaLamina, 2)} m` };
-            }
-            if (el.type === 'equipo') {
-                const a = ars[0], hfN = el.dpNom * 1000 / (fl.rho * G), Vn = el.qNom / 3600 / a.A;
-                F.push(['Dato del fabricante', 'Δp nom a Q nom', '', `${nf(el.dpNom, 2)} kPa a ${nf(el.qNom, 2)} m³/h`]);
-                F.push(['Pérdida nominal en altura', 'hf nom = Δp nom/(ρ·g)', `${nf(el.dpNom * 1000, 0)} / (${rhoG})`, `${nf(hfN, 3)} m`]);
-                F.push(['K equivalente (Dint de la tubería conectada)', 'K = 2g·hf nom / V nom²', `2 × 9,81 × ${nf(hfN, 3)} / ${nf(Vn, 3)}²  (D = ${nf(a.D * 1000, 2)} mm)`, nf(a.K, 3)]);
-                filasVelocidad(a, F);
-                const hf = hfDeArista(a);
-                F.push(['Pérdida de carga en funcionamiento', 'Δp = Δp nom·(Q/Q nom)²', `${nf(el.dpNom, 2)} × (${nf(Math.abs(a.Qprev) * 3600, 3)}/${nf(el.qNom, 2)})²`, `${nf(hf * fl.rho * G / 1000, 2)} kPa = ${nf(hf, 3)} m`]);
-                return { filas: F, k: `Δp ${nf(el.dpNom, 1)} kPa @ ${nf(el.qNom, 1)} m³/h` };
-            }
             if (el.type === 'tuberia') {
                 const a = ars[0], dt = datosTuberia(el), hf = hfDeArista(a);
                 F.push(['Diámetro interior', 'Dint = De − 2·e', `${nf(dt.od, 1)} − 2 × ${nf(dt.e, 2)} mm`, `${nf(dt.Dint, 2)} mm`]);
@@ -3766,25 +3253,6 @@
                 else F.push([`Factor de fricción (${a.Re < 4000 ? 'transición, ' : ''}Colebrook-White)`, '1/√f = −2·log₁₀[ε/(3,7·D) + 2,51/(Re·√f)]', `ε = ${nf(dt.rug, 3)} mm; ε/D = ${nsci(a.rugosidad / a.D)}; Re = ${Math.round(a.Re)}`, nf(a.f, 5)]);
                 F.push(['Pérdida de carga por fricción', 'hf = f·(L/D)·V²/(2g)', `${nf(a.f, 5)} × (${nf(a.L, 3)} / ${nf(a.D, 4)}) × ${nf(a.V, 3)}² / (2 × 9,81)`, `${nf(hf, 4)} m`]);
                 filaVmax(a, F);
-                F.push(['Cotas de los extremos', 'z a, z b', '', `${nf(el.cotaA, 2)} / ${nf(el.cotaB, 2)} m`]);
-                F.push(['Presión manométrica en los extremos', 'p = (H − z)·ρ·g − p_atm', `H = ${nf(res.Hnodo[a.nodoA], 3)} / ${nf(res.Hnodo[a.nodoB], 3)} m`, `${nf(a.pA, 3)} / ${nf(a.pB, 3)} bar`]);
-                F.push(['Presión mínima (vaporización)', 'p abs ≥ pv', `${nf(Math.min(res.pAbs[a.nodoA], res.pAbs[a.nodoB]) / 1000, 2)} ≥ ${nf(fl.pv / 1000, 3)} kPa`, 'CUMPLE']);
-                const pm = pmaTuberia(el, fl.T);
-                if (pm.t != null) F.push(['Presión máxima admisible', 'PMA = 2·S·E·W·t/(D − 2·Y·t);  t = 0,875·e − c', `S = ${nf(pm.S, 1)} MPa; E = W = 1; Y = 0,4; t = 0,875 × ${nf(dt.e, 2)} − ${nf(pm.c, 1)} = ${nf(pm.t, 3)} mm; D = ${nf(dt.od, 1)} mm`, `${nf(pm.pma, 1)} bar`]);
-                else if (pm.PN != null) F.push(['Presión máxima admisible', 'PMA = PN·fT', `${nf(pm.PN, 0)} × ${nf(pm.fT, 2)}  (${pm.origen.replace(/^.*\(/, '').replace(/\)$/, '')})`, `${nf(pm.pma, 1)} bar`]);
-                else F.push(['Presión máxima admisible', 'Dato del usuario', '', pm.pma != null ? `${nf(pm.pma, 1)} bar` : '—']);
-                if (pm.pma != null) {
-                    F.push(['Comprobación de presión de servicio', 'p máx ≤ PMA', `${nf(a.pmax, 3)} ≤ ${nf(pm.pma, 1)} bar`, a.pmax <= pm.pma ? 'CUMPLE' : 'NO CUMPLE']);
-                    if (a.pCierre != null) F.push(['Presión a caudal nulo (bomba contra válvula cerrada)', 'p = (Hs + H₀ − z)·ρ·g − p_atm', '', `${nf(a.pCierre, 2)} bar → ${a.pCierre <= pm.pma ? 'CUMPLE' : 'AVISO'}`]);
-                }
-                const w = a.ariete;
-                if (w) {
-                    F.push(['Celeridad de la onda (Korteweg)', 'a = √[(Kf/ρ)/(1 + Kf·D/(E·e))]', `Kf = ${nf(w.Kf / 1e6, 0)} MPa; E = ${nf(w.E / 1e6, 0)} MPa; D = ${nf(w.Dint, 2)} mm; e = ${nf(w.e, 2)} mm`, `${nf(w.cel, 0)} m/s`]);
-                    F.push(['Tiempo crítico', 'Tc = 2·L/a', `2 × ${nf(w.L, 2)} / ${nf(w.cel, 0)}  (L de la línea)`, `${nf(w.Tcrit, 3)} s`]);
-                    F.push([`Sobrepresión de golpe de ariete (${w.rapido ? 'Joukowsky, cierre rápido' : 'Michaud, cierre lento'})`, w.rapido ? 'Δp = ρ·a·V' : 'Δp = 2·ρ·L·V/tc',
-                        w.rapido ? `${nf(fl.rho, 1)} × ${nf(w.cel, 0)} × ${nf(a.V, 3)}${w.tc ? `  (tc ${nf(w.tc, 2)} s ≤ Tc)` : '  (cierre instantáneo)'}` : `2 × ${nf(fl.rho, 1)} × ${nf(w.L, 2)} × ${nf(a.V, 3)} / ${nf(w.tc, 2)}`, `${nf(w.dp / 1e5, 3)} bar`]);
-                    if (pm.pma != null) F.push(['Comprobación con golpe de ariete', 'p máx + Δp ≤ PMA', `${nf(a.pmax, 3)} + ${nf(w.dp / 1e5, 3)} ≤ ${nf(pm.pma, 1)} bar`, a.pmax + w.dp / 1e5 <= pm.pma ? 'CUMPLE' : 'AVISO']);
-                }
                 return { filas: F, k: `f = ${nf(a.f, 4)}` };
             }
             if (el.type === 'bomba') {
@@ -3934,10 +3402,7 @@
             titulo(2, '2.4. Criterios de comprobación');
             cuerpo.push(leyenda('Tabla', 'Criterios de aceptación'));
             cuerpo.push(tabla(['Elemento', 'Criterio'], [['Tuberías, válvulas y accesorios', `V ≤ ${nf(lim.asp, 2)} m/s en aspiración y V ≤ ${nf(lim.imp, 2)} m/s en impulsión`], ['Válvulas de retención', 'V ≥ velocidad mínima de apertura total, Vmin = C·√(1/ρ) (Crane TP-410)'],
-                ['Bombas: cavitación', `NPSHd − NPSHr ≥ ${nf(opciones.margenNPSH, 2)} m`], ['Bombas: caudal', `Σ Q bombas ≥ ${nf(res.Qdiseno, 2)} m³/h (caudal de diseño)`],
-                ['Tuberías: presión', 'p máx de servicio ≤ PMA (ASME B31.3 en acero; PN × factor de temperatura en PVC-U y PE)'], ['Toda la red: vaporización', 'p absoluta ≥ pv del fluido en todos los nodos'],
-                ['Puntos de consumo', 'p ≥ p mínima requerida; el exceso se absorbe con válvula de equilibrado'],
-                ['Golpe de ariete (aviso)', `p máx + Δp ariete ≤ PMA; tiempo de cierre ${+p.tCierre > 0 ? nf(+p.tCierre, 1) + ' s' : 'instantáneo'}`], ['Presión a caudal nulo (aviso)', 'p con la bomba contra válvula cerrada ≤ PMA']], [35, 65]));
+                ['Bombas: cavitación', `NPSHd − NPSHr ≥ ${nf(opciones.margenNPSH, 2)} m`], ['Bombas: caudal', `Σ Q bombas ≥ ${nf(res.Qdiseno, 2)} m³/h (caudal de diseño)`]], [35, 65]));
             titulo(2, '2.5. Método de cálculo y referencias');
             cuerpo.push(leyenda('Tabla', 'Formulación empleada'));
             cuerpo.push(tabla(['Magnitud', 'Expresión', 'Referencia'], [
@@ -3951,14 +3416,7 @@
                 ['Curva de bomba', 'H = H₀ − k·Q²', 'Parábola por el punto de diseño y la altura a caudal nulo'],
                 ['NPSH disponible', 'NPSHd = Hs − z − pv/(ρg) + v²/(2g)', 'Hs: altura piezométrica absoluta en la aspiración'],
                 ['Resolución de la red', 'Teoría lineal (Wood y Charles), convergencia 10⁻⁴ en caudales', 'Balance de masa en nodos y de energía en elementos'],
-                ['Dimensiones de tubería', 'Dint = De − 2·e', 'ASME B36.10M/B36.19M, EN ISO 1452-2, EN 12201-2, ISO 4065'],
-                ['Presión en un nodo', 'p = (H − z)·ρ·g − p_atm', 'H: altura piezométrica absoluta; z: cota'],
-                ['PMA acero', 'P = 2·S·E·W·t/(D − 2·Y·t);  t = 0,875·e − c', 'ASME B31.3 ec. (3a); A106 Gr. B / A312 TP316L'],
-                ['PMA termoplásticos', 'PMA = PN·fT', 'EN ISO 1452-2 anexo A (PVC-U), EN 12201-1 anexo A (PE)'],
-                ['Equipos', 'Δp = Δp nom·(Q/Q nom)²', 'Dato del fabricante'],
-                ['Válvulas de equilibrado', 'Kv = Q·√[(ρ/1000)/Δp];  Cv = 1,156·Kv', 'IEC 60534 / EN 60534'],
-                ['Celeridad de la onda', 'a = √[(Kf/ρ)/(1 + Kf·D/(E·e))]', 'Korteweg'],
-                ['Golpe de ariete', 'tc ≤ 2L/a: Δp = ρ·a·V;  tc > 2L/a: Δp = 2·ρ·L·V/tc', 'Joukowsky / Michaud']], [28, 42, 30]));
+                ['Dimensiones de tubería', 'Dint = De − 2·e', 'ASME B36.10M/B36.19M, EN ISO 1452-2, EN 12201-2, ISO 4065']], [28, 42, 30]));
 
             // ===== 3 DESCRIPCIÓN DE LA RED Y RESUMEN =====
             titulo(1, '3. Descripción de la red y resumen de resultados');
@@ -3983,34 +3441,13 @@
                 const nombres = lc.aristasCamino.map(a => tagDe(a.el)).filter((n, i, arr) => i === 0 || n !== arr[i - 1]);
                 cuerpo.push(par(`La ruta crítica es el camino desde la descarga de la bomba hasta un extremo abierto con mayor pérdida de carga acumulada: ${nf(lc.hfTotal, 3)} m. Recorrido: ${nombres.join(' → ')}. Su balance detallado figura en el apartado 5.`));
             } else cuerpo.push(par('No se ha identificado ruta crítica (la red no tiene extremos abiertos aguas abajo de una bomba).'));
-            const termV = Object.values((res.terminales || { porNodo: {} }).porNodo);
-            const consumos = termV.filter(e => e.subtype === 'consumo'), depositos = termV.filter(e => e.subtype === 'deposito');
-            if (consumos.length) {
-                titulo(2, '3.5. Puntos de consumo y válvulas de equilibrado');
-                cuerpo.push(par(`Cada punto de consumo recibe su caudal con una presión igual o superior a la mínima. El consumo más desfavorable${res.consumoCritico ? ` (${tagDe(res.consumoCritico.el)}, con ${nf(res.consumoCritico.margen, 2)} bar de margen)` : ''} no lleva válvula; en el resto, la diferencia de presión respecto a él se absorbe con una válvula de equilibrado cuyo Kv se indica.`));
-                cuerpo.push(leyenda('Tabla', 'Puntos de consumo y equilibrado'));
-                cuerpo.push(tabla(['Consumo', 'Q (m³/h)', 'Cota (m)', 'p (bar)', 'p mín (bar)', 'Δp a equilibrar (bar)', 'Kv (m³/h)', 'Estado'], consumos.map(e => {
-                    const r = ultimoResultado[e.id];
-                    return [tagDe(e), nf(r.Q, 2), nf(r.z, 2), nf(r.p, 3), nf(r.pMin, 2), r.equilibrado ? nf(r.equilibrado.dp, 3) : '—', r.equilibrado ? nf(r.equilibrado.Kv, 2) : (r.critico ? 'más desfavorable' : '—'), e.esLineaCritica ? 'OK · crítica' : 'OK'];
-                }), [20, 10, 10, 10, 11, 14, 13, 12]));
-            }
-            if (depositos.length) {
-                titulo(2, `3.${consumos.length ? 6 : 5}. Depósitos`);
-                cuerpo.push(leyenda('Tabla', 'Depósitos de la red'));
-                cuerpo.push(tabla(['Depósito', 'Cota conexión (m)', 'Cota lámina (m)', 'p sobre lámina (bar)', 'Q (m³/h)', 'Sentido'], depositos.map(e => { const r = ultimoResultado[e.id]; return [tagDe(e), nf(e.cota, 2), nf(e.cotaLamina, 2), nf(e.presionDep, 2), nf(r.Q, 2), r.sentido]; }), [20, 15, 15, 17, 13, 20]));
-            }
-            titulo(2, `3.${5 + (consumos.length ? 1 : 0) + (depositos.length ? 1 : 0)}. Resumen de comprobaciones`);
+            titulo(2, '3.5. Resumen de comprobaciones');
             const nEl = elementosRed.filter(e => !sinFlujo(e)).length;
             cuerpo.push(par(`Se han comprobado ${nEl} elementos hidráulicos (${elementosRed.length - nEl} instrumentos o elementos sin caudal). Todos cumplen los criterios del apartado 2.4.`));
             const avisos = [];
             ars.forEach(a => (a.avisos || []).forEach(t => avisos.push(t)));
             ars.filter(a => !a.esBomba && a.Re > 2300 && a.Re < 4000).forEach(a => avisos.push(`${tagDe(a.el)}: Re = ${Math.round(a.Re)} en zona de transición; el factor de fricción es incierto.`));
-            (res.avisosRed || []).forEach(t => avisos.push(t));
-            if (avisos.length) {
-                cuerpo.push(par('Se registran las siguientes observaciones, que no impiden el cumplimiento de los criterios pero deben revisarse:'));
-                cuerpo.push(leyenda('Tabla', 'Observaciones y avisos del cálculo'));
-                cuerpo.push(tabla(['Nº', 'Observación'], [...new Set(avisos)].map((t, i) => [String(i + 1), t]), [6, 94]));
-            }
+            if (avisos.length) cuerpo.push(par('Observaciones del cálculo: ' + [...new Set(avisos)].join(' '), { run: { italics: true } }));
 
             // ===== 4 CÁLCULO JUSTIFICATIVO POR LÍNEAS =====
             titulo(1, '4. Cálculo justificativo por líneas');
@@ -4034,25 +3471,20 @@
                     if (e.type === 'tuberia') { const dt = datosTuberia(e); desc = `${e.material} · ${etiquetaTuberia(e)} · De ${nf(dt.od, 1)} × e ${nf(dt.e, 2)} mm · ε ${nf(dt.rug, 3)} mm (${dt.norma})`; }
                     else if (e.type === 'bomba') desc = `Diseño ${nf(e.caudal, 1)} m³/h a ${nf(e.presion, 2)} bar · H₀ ${nf(e.h0, 2)} bar · NPSHr ${nf(e.npsh, 2)} m · cota ${nf(e.cota || 0, 2)} m`;
                     else if (sinFlujo(e)) desc = 'Sin caudal (no interviene en el cálculo)';
-                    else if (e.subtype === 'consumo') desc = `Q ${nf(e.qCons, 2)} m³/h · p mín ${nf(e.pMin, 2)} bar · cota ${nf(e.cota, 2)} m`;
-                    else if (e.subtype === 'deposito') desc = `Lámina ${nf(e.cotaLamina, 2)} m · conexión ${nf(e.cota, 2)} m · ${nf(e.presionDep, 2)} bar man.`;
-                    else if (e.type === 'equipo') desc = `Δp ${nf(e.dpNom, 1)} kPa a ${nf(e.qNom, 2)} m³/h (fabricante) · cota ${nf(e.cota, 2)} m`;
                     else desc = `${e.subtype === 'reduccion' ? `${e.dn} × ${e.dnMenor}` : e.dn || ''}${a && a.origenK ? ' · ' + a.origenK.replace(/ · rama \w+$/, '') : ''}`;
                     return [String(numeros[e.id]), tagDe(e), nombreTipo(e), desc, a && a.D ? nf(a.D * 1000, 2) : '—', e.type === 'tuberia' ? nf(a.L, 3) : '—', just[e.id].k];
                 }), [5, 17, 14, 34, 9, 7, 14]));
                 titulo(3, `4.${nL}.3. Resultados`);
                 cuerpo.push(leyenda('Tabla', `Resultados de la línea ${l.id}`));
                 const filasR = [];
-                els.filter(esTerminal).forEach(e => { const r = ultimoResultado[e.id]; if (r) filasR.push([String(numeros[e.id]), tagDe(e), '—', nf(r.Q, 2), '—', '—', '—', '—', '—', nf(r.p, 2), e.esLineaCritica ? 'OK · crítica' : 'OK']); });
                 els.forEach(e => de(e.id).forEach(a => {
                     const vl = a.lado === 'asp' ? lim.asp : lim.imp;
                     const est = e.esLineaCritica ? 'OK · crítica' : 'OK';
-                    if (a.esBomba) { const r = ultimoResultado[e.id]; filasR.push([String(numeros[e.id]), tagDe(e), '—', nf(r.Q, 2), '—', '—', '—', '—', `H = ${nf(r.H, 2)}`, `${nf(a.pA, 2)}→${nf(a.pB, 2)}`, est]); return; }
-                    filasR.push([String(numeros[e.id]), tagDe(e) + (a.rama ? ` (${a.rama})` : ''), a.lado === 'asp' ? 'Asp.' : 'Imp.', nf(Math.abs(a.Qprev) * 3600, 2), nf(a.V, 3), a.esEquipo ? '—' : nf(vl, 2), String(Math.round(a.Re)),
-                        e.type === 'tuberia' ? `f ${nf(a.f, 4)}` : `K ${nf(a.K, 3)}`, nf(hfDeArista(a), 4), nf(Math.max(a.pA, a.pB), 2), est]);
+                    if (a.esBomba) { const r = ultimoResultado[e.id]; filasR.push([String(numeros[e.id]), tagDe(e), '—', nf(r.Q, 2), '—', '—', '—', '—', `H = ${nf(r.H, 2)}`, est]); return; }
+                    filasR.push([String(numeros[e.id]), tagDe(e) + (a.rama ? ` (${a.rama})` : ''), a.lado === 'asp' ? 'Asp.' : 'Imp.', nf(Math.abs(a.Qprev) * 3600, 2), nf(a.V, 3), nf(vl, 2), String(Math.round(a.Re)),
+                        e.type === 'tuberia' ? `f ${nf(a.f, 4)}` : `K ${nf(a.K, 3)}`, nf(hfDeArista(a), 4), est]);
                 }));
-                filasR.sort((x, y) => (+x[0]) - (+y[0]));
-                cuerpo.push(tabla(['Nº', 'Elemento', 'Lado', 'Q (m³/h)', 'V (m/s)', 'Vmax (m/s)', 'Re', 'f / K', 'hf (m)', 'p máx (bar)', 'Estado'], filasR.length ? filasR : [['—', 'Sin elementos con caudal', '', '', '', '', '', '', '', '', '']], [5, 19, 6, 9, 8, 8, 9, 10, 8, 8, 10]));
+                cuerpo.push(tabla(['Nº', 'Elemento', 'Lado', 'Q (m³/h)', 'V (m/s)', 'Vmax (m/s)', 'Re', 'f / K', 'hf (m)', 'Estado'], filasR.length ? filasR : [['—', 'Sin elementos con caudal', '', '', '', '', '', '', '', '']], [5, 20, 7, 10, 9, 9, 9, 10, 9, 12]));
                 titulo(3, `4.${nL}.4. Justificación del cálculo`);
                 cuerpo.push(leyenda('Tabla', `Justificación de cálculo de la línea ${l.id}`));
                 const filasJ = [];
@@ -4086,9 +3518,7 @@
             const bs = ars.filter(a => a.esBomba);
             cuerpo.push(par(`Con ${fl.nombre} a ${fl.T} °C, la red de la instalación «${p.instalacion}» trabaja a ${nf(res.Qbombas, 2)} m³/h, igual o superior al caudal de diseño de ${nf(res.Qdiseno, 2)} m³/h. ` +
                 `Todos los tramos respetan las velocidades máximas adoptadas (${nf(lim.asp, 2)} m/s en aspiración y ${nf(lim.imp, 2)} m/s en impulsión), las válvulas de retención trabajan totalmente abiertas y ` +
-                `${bs.length > 1 ? 'las bombas disponen' : 'la bomba dispone'} de NPSH suficiente con un margen mínimo de ${nf(opciones.margenNPSH, 2)} m. ` +
-                `Las presiones de servicio no superan la presión máxima admisible de ninguna tubería y en ningún punto se alcanza la presión de vapor.` + (consumos.length ? ` Todos los puntos de consumo disponen de la presión mínima requerida.` : '') + (lc ? ` La ruta crítica acumula ${nf(lc.hfTotal, 3)} m de pérdida de carga.` : '') +
-                (avisos.length ? ` Se han registrado ${[...new Set(avisos)].length} observaciones (apartado 3), que deben revisarse.` : '')));
+                `${bs.length > 1 ? 'las bombas disponen' : 'la bomba dispone'} de NPSH suficiente con un margen mínimo de ${nf(opciones.margenNPSH, 2)} m.` + (lc ? ` La ruta crítica acumula ${nf(lc.hfTotal, 3)} m de pérdida de carga.` : '')));
             cuerpo.push(par('En consecuencia, la red CUMPLE los criterios de diseño establecidos.', { run: { bold: true } }));
 
             // ===== ANEXOS =====
@@ -4097,10 +3527,9 @@
             const filasC = Object.entries(ultimoCalculo.condiciones).map(([nid, c]) => {
                 const n = nodosG[nid]; const pc = n && (n.puertos.find(x => { const e = elementosRed.find(y => y.id === x.elId); return e && !sinFlujo(e); }) || n.puertos[0]);
                 const e = pc && elementosRed.find(y => y.id === pc.elId);
-                const dep = c.deposito && elementosRed.find(y => y.id === c.deposito);
-                return [dep ? `${tagDe(dep)} (lámina)` : e ? `${tagDe(e)} (${nombrePuerto(e, pc.portId)})` : `Nodo ${nid}`, nf(c.elevacion || 0, 2), nf(c.presion || 0, 3), nf(res.Hnodo[nid], 3)];
+                return [e ? `${tagDe(e)} (${nombrePuerto(e, pc.portId)})` : `Nodo ${nid}`, nf(c.elevacion || 0, 2), nf(c.presion || 0, 3), nf(res.Hnodo[nid], 3)];
             });
-            cuerpo.push(leyenda('Tabla', 'Extremos con altura conocida (abiertos y depósitos)'));
+            cuerpo.push(leyenda('Tabla', 'Extremos abiertos de la red'));
             cuerpo.push(tabla(['Extremo', 'Cota (m)', 'Presión man. (bar)', 'H absoluta (m)'], filasC.length ? filasC : [['Red cerrada', '—', '—', '—']], [46, 16, 20, 18]));
             titulo(1, 'Anexo B. Nomenclatura');
             cuerpo.push(leyenda('Tabla', 'Símbolos y abreviaturas'));
@@ -4153,102 +3582,6 @@
             });
         }
 
-
-        // ==================================================================================
-        // LISTADOS (Informe > Listados *.xlsx): líneas, válvulas, materiales, equipos y consumos
-        // Librería SheetJS cargada bajo demanda. Si la red está calculada (y sin cambios) se añaden
-        // caudales, velocidades y presiones.
-        // ==================================================================================
-        const URL_XLSX = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-        function cargarXLSX() {
-            if (window.XLSX) return Promise.resolve(window.XLSX);
-            return new Promise((ok, ko) => {
-                const s = document.createElement('script'); s.src = URL_XLSX;
-                s.onload = () => window.XLSX ? ok(window.XLSX) : ko(new Error('La librería de Excel no se ha inicializado.'));
-                s.onerror = () => ko(new Error('No se ha podido descargar la librería de Excel (SheetJS) desde jsDelivr. Comprueba la conexión a internet.'));
-                document.head.appendChild(s);
-            });
-        }
-        function datosListados() {
-            const calc = ultimoCalculo && ultimoCalculo.huella === huellaRed() ? ultimoCalculo.resultado : null;
-            const ars = calc ? calc.aristas : [], de = id => ars.filter(a => a.el.id === id);
-            const r2 = x => x == null || !isFinite(x) ? '' : +(+x).toFixed(3);
-            const cab = [['PIPING · ' + (proyecto.numero || '') + ' · ' + (proyecto.cliente || '')], [proyecto.instalacion || ''], ['Fluido: ' + document.getElementById('selector-fluido').value + ' a ' + document.getElementById('temp-fluido').value + ' °C' + (calc ? '' : ' · (sin resultados de cálculo)')], []];
-            // Líneas
-            const L = [['Línea', 'Tipo', 'Nombre', 'Sale de', 'Nº elementos', 'Materiales', 'Tamaños', 'Longitud de tubería (m)', 'Cota mín (m)', 'Cota máx (m)', 'Q máx (m³/h)', 'V máx (m/s)', 'p máx (bar)', 'PMA mín (bar)', 'Estado']];
-            lineasEnOrden().forEach(o => {
-                const l = o.linea, els = o.orden.map(id => elementosRed.find(e => e.id === id)), tubs = els.filter(e => e.type === 'tuberia');
-                const cotas = els.flatMap(e => e.type === 'tuberia' ? [+e.cotaA, +e.cotaB] : [+e.cota || 0]);
-                const aL = els.flatMap(e => de(e.id)).filter(a => !a.esBomba);
-                const desde = l.desde && elementosRed.find(e => e.id === l.desde);
-                L.push([{ v: '  '.repeat(o.nivel) + l.id }, l.tipo === 'principal' ? 'Principal' : 'Ramal', l.nombre || '', desde ? tagDe(desde) : (l.padre || ''), els.length,
-                    [...new Set(tubs.map(e => e.material))].join(', '), [...new Set(tubs.map(e => e.dn))].join(', '), r2(tubs.reduce((s, e) => s + e.longitud / 1000, 0)),
-                    cotas.length ? r2(Math.min(...cotas)) : '', cotas.length ? r2(Math.max(...cotas)) : '',
-                    aL.length ? r2(Math.max(...aL.map(a => Math.abs(a.Qprev) * 3600))) : '', aL.length ? r2(Math.max(...aL.map(a => a.V))) : '', aL.length ? r2(Math.max(...aL.map(a => Math.max(a.pA, a.pB)))) : '',
-                    (() => { const p = aL.filter(a => a.pma != null).map(a => a.pma); return p.length ? r2(Math.min(...p)) : ''; })(),
-                    calc ? (els.some(e => e.estado === 'fallo') ? 'NO CUMPLE' : 'OK') : '']);
-            });
-            // Válvulas
-            const V = [['Etiqueta', 'Tipo', 'Línea', 'DN', 'Cálculo de K', 'Serie / tipo', 'Cv', 'Kv', 'K', 'Q (m³/h)', 'V (m/s)', 'Δp (kPa)', 'Estado']];
-            elementosRed.filter(e => e.type === 'valvula').forEach(e => {
-                const a = de(e.id)[0], nps = npsDeDN(e.dn);
-                let cv = '';
-                if (e.modoK === 'cv') cv = +e.cvUsuario || '';
-                else if (e.modoK === 'catalogo') { const sv = CAT.valvulas.find(v => v.nombre === e.serieCat); cv = sv && sv.cv[nps] || ''; }
-                const Dmm = a ? a.D * 1000 : dintReferencia(e.dn), K = a ? a.K : (sinFlujo(e) ? null : kElemento(e, Dmm).K);
-                if (!cv && K > 0) cv = Math.sqrt(891 * Math.pow(Dmm / 25.4, 4) / K);
-                V.push([tagDe(e), nombreTipo(e), e.linea || '', e.dn || '', sinFlujo(e) ? 'Sin caudal' : ({ crane: 'Crane', catalogo: 'Catálogo', cv: 'Cv usuario', manual: 'K usuario' }[e.modoK] || ''),
-                    e.modoK === 'catalogo' ? e.serieCat : (e.craneTipo || ''), cv ? r2(cv) : '', cv ? r2(cv / 1.156) : '', K != null ? r2(K) : '',
-                    a ? r2(Math.abs(a.Qprev) * 3600) : '', a ? r2(a.V) : '', a ? r2(hfDeArista(a) * calc.fluido.rho * G / 1000) : '', calc ? (e.estado === 'fallo' ? 'NO CUMPLE' : e.estado ? 'OK' : '') : '']);
-            });
-            if (calc) Object.values(calc.terminales.porNodo).forEach(e => { const r = ultimoResultado[e.id]; if (r && r.equilibrado) V.push([`VE-${tagDe(e)}`, 'Válvula de equilibrado (propuesta)', e.linea || '', '', 'Kv necesario', `Δp ${r2(r.equilibrado.dp)} bar`, r2(r.equilibrado.Cv), r2(r.equilibrado.Kv), '', r2(r.Q), '', r2(r.equilibrado.dp * 100), 'A instalar']); });
-            // Materiales (mediciones)
-            const M = [['Grupo', 'Descripción', 'Norma / serie', 'Tamaño', 'Cantidad', 'Unidad']];
-            const agrupar = (lista, clave) => { const m = new Map(); lista.forEach(x => { const k = clave(x); m.set(k, (m.get(k) || []).concat([x])); }); return m; };
-            agrupar(elementosRed.filter(e => e.type === 'tuberia'), e => [e.material, e.serie, e.dn].join('|')).forEach((v, k) => {
-                const [mat, ser, dn] = k.split('|'), dt = datosTuberia(v[0]);
-                M.push(['Tubería', `${mat} · De ${dt.od} × e ${dt.e} mm`, `${dt.norma} · ${/^[0-9]+$/.test(ser) ? 'Sch ' + ser : ser}`, dn, r2(v.reduce((s, e) => s + e.longitud / 1000, 0)), 'm']);
-            });
-            [['accesorio', 'Accesorio'], ['valvula', 'Válvula'], ['equipo', 'Equipo'], ['bomba', 'Bomba'], ['instrumento', 'Instrumento'], ['terminal', 'Terminal']].forEach(([t, g]) => {
-                agrupar(elementosRed.filter(e => e.type === t), e => [nombreTipo(e), e.subtype === 'reduccion' ? `${e.dn} × ${e.dnMenor}` : (e.dn || '')].join('|')).forEach((v, k) => {
-                    const [n, dn] = k.split('|'); M.push([g, n, '', dn, v.length, 'ud']);
-                });
-            });
-            // Equipos, bombas y consumos
-            const E = [['Etiqueta', 'Tipo', 'Línea', 'Cota (m)', 'Datos de diseño', 'Q calc. (m³/h)', 'H / Δp / p calc.', 'Estado']];
-            elementosRed.filter(e => e.type === 'bomba' || e.type === 'equipo' || esTerminal(e)).forEach(e => {
-                const r = calc && ultimoResultado[e.id];
-                const dis = e.type === 'bomba' ? `${e.caudal} m³/h a ${e.presion} bar · H0 ${e.h0} bar · NPSHr ${e.npsh} m` : e.type === 'equipo' ? `Δp ${e.dpNom} kPa a ${e.qNom} m³/h` : e.subtype === 'consumo' ? `${e.qCons} m³/h · p mín ${e.pMin} bar` : `lámina ${e.cotaLamina} m · ${e.presionDep} bar`;
-                const res = !r ? '' : e.type === 'bomba' ? `H ${r2(r.H)} m · NPSHd ${r2(r.npshd)} m` : e.type === 'equipo' ? `Δp ${r2(r.dp)} kPa` : `p ${r2(r.p)} bar`;
-                E.push([tagDe(e), nombreTipo(e), e.linea || '', e.type === 'bomba' ? e.cota || 0 : r2(e.cota), dis, r ? r2(r.Q) : '', res, calc ? (e.estado === 'fallo' ? 'NO CUMPLE' : e.estado ? 'OK' : '') : '']);
-            });
-            return { cab, hojas: [['Líneas', L], ['Válvulas', V], ['Materiales', M], ['Equipos y consumos', E]] };
-        }
-        async function generarListados() {
-            const nombre = `Listados_${String(proyecto.numero || 'PIPING').replace(/[^\w.-]+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-            let handle = null;
-            if (window.showSaveFilePicker) {
-                try { handle = await window.showSaveFilePicker({ suggestedName: nombre, types: [{ description: 'Libro de Excel (*.xlsx)', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] }); }
-                catch (err) { if (err.name === 'AbortError') return; handle = null; }
-            }
-            try {
-                mostrarAvisoProgreso('Generando listados…');
-                const X = await cargarXLSX(), d = datosListados(), wb = X.utils.book_new();
-                d.hojas.forEach(([n, filas]) => {
-                    const aoa = d.cab.concat(filas.map(f => f.map(c => c && typeof c === 'object' ? c.v : c)));
-                    const ws = X.utils.aoa_to_sheet(aoa);
-                    ws['!cols'] = filas[0].map((_, i) => ({ wch: Math.min(60, Math.max(8, ...filas.map(f => String((f[i] && f[i].v) || f[i] || '').length + 2))) }));
-                    ws['!autofilter'] = { ref: X.utils.encode_range({ s: { r: d.cab.length, c: 0 }, e: { r: d.cab.length + filas.length - 1, c: filas[0].length - 1 } }) };
-                    X.utils.book_append_sheet(wb, ws, n);
-                });
-                const buf = X.write(wb, { type: 'array', bookType: 'xlsx' });
-                const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                if (handle) { const w = await handle.createWritable(); await w.write(blob); await w.close(); }
-                else { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000); }
-                mostrarAvisoProgreso(null);
-                alert(`Listados guardados: ${handle ? handle.name : nombre}`);
-            } catch (err) { console.error(err); mostrarAvisoProgreso(null); alert('No se han podido generar los listados: ' + err.message); }
-        }
         // ==================================================================================
         // CONTROL DE CAMBIOS SIN GUARDAR
         // guardarEstado() (se llama antes de cualquier modificación) marca el proyecto como
@@ -4260,29 +3593,7 @@
         function marcarCambios(modificado = true) {
             hayCambiosSinGuardar = modificado;
             document.title = (modificado ? '* ' : '') + TITULO_BASE;
-            if (modificado) programarAutoguardado(); else borrarAutoguardado();
         }
-        // ---------- Autoguardado en el navegador (copia de trabajo, por si se cierra sin guardar) ----------
-        const CLAVE_AUTOGUARDADO = 'piping-autoguardado';
-        let temporizadorAutoguardado = null;
-        function programarAutoguardado() { clearTimeout(temporizadorAutoguardado); temporizadorAutoguardado = setTimeout(autoguardar, 2000); }
-        function autoguardar() {
-            if (!hayCambiosSinGuardar || !elementosRed.length) return;
-            try { localStorage.setItem(CLAVE_AUTOGUARDADO, JSON.stringify({ fecha: new Date().toISOString(), numero: proyecto.numero || '', n: elementosRed.length, contenido: generarContenido('pid') })); } catch (e) { /* almacenamiento no disponible */ }
-        }
-        function borrarAutoguardado() { clearTimeout(temporizadorAutoguardado); try { localStorage.removeItem(CLAVE_AUTOGUARDADO); } catch (e) { } }
-        setInterval(autoguardar, 30000);
-        function ofrecerRecuperacion() {
-            let copia = null;
-            try { copia = JSON.parse(localStorage.getItem(CLAVE_AUTOGUARDADO) || 'null'); } catch (e) { copia = null; }
-            if (!copia || !copia.contenido) return;
-            const f = new Date(copia.fecha);
-            if (confirm(`Hay una copia de trabajo autoguardada sin guardar en archivo:\n\n${copia.numero ? 'Proyecto ' + copia.numero + ' · ' : ''}${copia.n} elementos · ${f.toLocaleString('es-ES')}\n\n¿Recuperarla? (Cancelar la descarta)`)) {
-                try { cargarProyectoDesdeTexto(copia.contenido); marcarCambios(true); ajustarVistaVentana(); }
-                catch (e) { alert('No se ha podido recuperar la copia autoguardada.'); }
-            } else borrarAutoguardado();
-        }
-        setTimeout(ofrecerRecuperacion, 400);
         window.addEventListener('beforeunload', function(e) {
             if (!hayCambiosSinGuardar) return;
             e.preventDefault();
@@ -4293,97 +3604,36 @@
         // ==================================================================================
         // PORTAPAPELES INTERNO (Copiar / Cortar / Pegar)
         // ==================================================================================
-        let portapapeles = null; // lista de elementos copiados
+        let portapapeles = null;
         let contadorPegado = 0;
-        const idsSeleccion = () => seleccion.size ? [...seleccion] : (idSeleccionado ? [idSeleccionado] : []);
-        const haySeleccion = () => idsSeleccion().length > 0;
 
         function copiarSeleccion() {
-            const ids = idsSeleccion();
-            if (!ids.length) return;
-            portapapeles = elementosRed.filter(e => ids.includes(e.id)).map(e => JSON.parse(JSON.stringify(e)));
-            contadorPegado = 0; // cada pegado se desplaza 50 px respecto al original
+            const el = elementosRed.find(item => item.id === idSeleccionado);
+            if (!el) return;
+            portapapeles = JSON.parse(JSON.stringify(el));
+            contadorPegado = 0; // cada pegado se desplaza 50 mm respecto al original
         }
 
         function cortarSeleccion() {
-            if (!haySeleccion()) return;
+            if (!idSeleccionado) return;
             copiarSeleccion();
             contadorPegado = -1; // el primer pegado tras Cortar vuelve a la posición original
-            eliminarSeleccion();
+            eliminarElemento(idSeleccionado);
         }
 
         function pegarPortapapeles() {
-            if (!portapapeles || !portapapeles.length) return;
+            if (!portapapeles) return;
             guardarEstado();
             contadorPegado++;
+            const nuevo = JSON.parse(JSON.stringify(portapapeles));
+            nuevo.id = 'sym_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+            nuevo.num = null; nuevo.inicioLinea = false; asignarNumero(nuevo);
             invalidarResultados();
+            nuevo.x += 50 * contadorPegado;
+            nuevo.y -= 50 * contadorPegado;
             document.getElementById("empty-state")?.remove();
-            seleccion.clear();
-            const nuevos = portapapeles.map((orig, i) => {
-                const nuevo = JSON.parse(JSON.stringify(orig));
-                nuevo.id = 'sym_' + Date.now() + '_' + i + '_' + Math.floor(Math.random() * 1000);
-                nuevo.num = null; nuevo.inicioLinea = false;
-                if (nuevo.linea && !lineaPorId(nuevo.linea)) delete nuevo.linea;
-                nuevo.x += 50 * contadorPegado;
-                nuevo.y -= 50 * contadorPegado;
-                elementosRed.push(nuevo); asignarNumero(nuevo);
-                return nuevo;
-            });
-            if (nuevos.length === 1) seleccionarElemento(nuevos[0].id);
-            else { nuevos.forEach(n => seleccion.add(n.id)); actualizarSeleccion(); }
-        }
-
-        // ---------- Selección múltiple ----------
-        function actualizarSeleccion() {
-            if (seleccion.size === 1) { const id = [...seleccion][0]; seleccion.clear(); seleccionarElemento(id); return; }
-            if (!seleccion.size) { limpiarSeleccion(); return; }
-            idSeleccionado = null;
-            renderizarVectorial();
-            document.getElementById('lbl-tipo-activo').innerText = 'SELECCIÓN';
-            const els = elementosRed.filter(e => seleccion.has(e.id));
-            const L = els.filter(e => e.type === 'tuberia').reduce((s, e) => s + e.longitud / 1000, 0);
-            document.getElementById('panel-propiedades').innerHTML = `
-                <div class="font-bold text-slate-700 mb-1">${els.length} elementos seleccionados</div>
-                ${info(`${[...new Set(els.map(e => nombreTipo(e)))].slice(0, 6).join(', ')}${L ? `<br>Tubería: ${fmt(L, 2)} m` : ''}<br>Arrastra cualquiera de ellos para mover el grupo.`)}
-                <div class="grid grid-cols-2 gap-1 mt-2">
-                    <button onclick="girarSeleccion(90)" class="border rounded p-1 hover:bg-slate-50"><i class="fa-solid fa-rotate-right text-emerald-600 mr-1"></i>Girar 90°</button>
-                    <button onclick="girarSeleccion(180)" class="border rounded p-1 hover:bg-slate-50"><i class="fa-solid fa-rotate text-emerald-600 mr-1"></i>Girar 180°</button>
-                    <button onclick="copiarSeleccion()" class="border rounded p-1 hover:bg-slate-50"><i class="fa-solid fa-copy text-blue-600 mr-1"></i>Copiar</button>
-                    <button onclick="eliminarSeleccion()" class="border rounded p-1 hover:bg-rose-50 text-rose-600"><i class="fa-solid fa-trash-can mr-1"></i>Eliminar</button>
-                </div>`;
-        }
-        function limpiarSeleccion() {
-            seleccion.clear(); idSeleccionado = null;
-            renderizarVectorial();
-            document.getElementById('lbl-tipo-activo').innerText = 'Ninguno';
-            document.getElementById('panel-propiedades').innerHTML = `<p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>`;
-        }
-        function seleccionarTodo() { seleccion.clear(); elementosRed.forEach(e => seleccion.add(e.id)); actualizarSeleccion(); }
-        function seleccionarLinea(id) { seleccion.clear(); elementosRed.filter(e => e.linea === id).forEach(e => seleccion.add(e.id)); actualizarSeleccion(); }
-        function eliminarSeleccion() {
-            const ids = idsSeleccion();
-            if (!ids.length) return;
-            if (ids.length === 1) { eliminarElemento(ids[0]); return; }
-            guardarEstado(); invalidarResultados();
-            elementosRed = elementosRed.filter(e => !ids.includes(e.id));
-            limpiarSeleccion();
-        }
-        // Giro rígido del grupo alrededor de su centro (cada elemento gira sobre su pivote y se recoloca)
-        function girarSeleccion(inc) {
-            const ids = idsSeleccion();
-            if (!ids.length) return;
-            guardarEstado(); invalidarResultados();
-            const els = elementosRed.filter(e => ids.includes(e.id));
-            const piv = els.map(e => ({ x: e.x + 25, y: mundoAScreenY(e.y) + 25 }));
-            const cx = piv.reduce((s, p) => s + p.x, 0) / piv.length, cy = piv.reduce((s, p) => s + p.y, 0) / piv.length;
-            const r = inc * Math.PI / 180, c = Math.cos(r), sn = Math.sin(r);
-            els.forEach((e, i) => {
-                const dx = piv[i].x - cx, dy = piv[i].y - cy;
-                const nx = cx + dx * c - dy * sn, ny = cy + dx * sn + dy * c;
-                e.x = nx - 25; e.y = screenAMundoY(ny - 25);
-                e.rotation = (((e.rotation || 0) + inc) % 360 + 360) % 360;
-            });
-            if (els.length === 1) seleccionarElemento(els[0].id); else actualizarSeleccion();
+            elementosRed.push(nuevo);
+            seleccionarElemento(nuevo.id);
         }
 
         // ==================================================================================
@@ -4506,10 +3756,9 @@
             { titulo: 'Edición', items: [
                 { icono: 'fa-magnifying-glass', texto: 'Búsqueda/Reemplazo...', atajo: 'Ctrl+R', accion: () => abrirBuscarReemplazar() },
                 'sep',
-                { icono: 'fa-copy', texto: 'Copiar', atajo: 'Ctrl+C', accion: () => copiarSeleccion(), habilitado: () => haySeleccion() },
-                { icono: 'fa-scissors', texto: 'Cortar', atajo: 'Ctrl+X', accion: () => cortarSeleccion(), habilitado: () => haySeleccion() },
-                { icono: 'fa-paste', texto: 'Pegar', atajo: 'Ctrl+V', accion: () => pegarPortapapeles(), habilitado: () => !!(portapapeles && portapapeles.length) },
-                { icono: 'fa-trash-can', texto: 'Eliminar selección', atajo: 'Supr', accion: () => eliminarSeleccion(), habilitado: () => haySeleccion() },
+                { icono: 'fa-copy', texto: 'Copiar', atajo: 'Ctrl+C', accion: () => copiarSeleccion(), habilitado: () => !!idSeleccionado },
+                { icono: 'fa-scissors', texto: 'Cortar', atajo: 'Ctrl+X', accion: () => cortarSeleccion(), habilitado: () => !!idSeleccionado },
+                { icono: 'fa-paste', texto: 'Pegar', atajo: 'Ctrl+V', accion: () => pegarPortapapeles(), habilitado: () => !!portapapeles },
                 'sep',
                 { icono: 'fa-rotate-left', texto: 'Deshacer', atajo: 'Ctrl+Z', accion: () => deshacer(), habilitado: () => historialUndo.length > 0 },
                 { icono: 'fa-rotate-right', texto: 'Rehacer', atajo: 'Ctrl+Y', accion: () => rehacer(), habilitado: () => historialRedo.length > 0 }
@@ -4520,14 +3769,7 @@
             { titulo: 'Cálculo', items: [
                 { icono: 'fa-calculator', texto: 'Calcular red...', accion: () => calcularRed() }
             ]},
-            { titulo: 'Seleccionar', items: [
-                { icono: 'fa-object-group', texto: 'Todo', atajo: 'Ctrl+A', accion: () => seleccionarTodo() },
-                { icono: 'fa-object-ungroup', texto: 'Nada', atajo: 'Esc', accion: () => limpiarSeleccion() },
-                { icono: 'fa-diagram-project', texto: 'Línea', sub: () => lineas.length ? lineas.map(l => ({ icono: l.tipo === 'principal' ? 'fa-diagram-project' : 'fa-code-branch', texto: l.id + (l.nombre ? ' · ' + l.nombre : ''), accion: () => seleccionarLinea(l.id) })) : [{ icono: 'fa-ban', texto: 'Sin líneas', accion: () => {} }] },
-                'sep',
-                { icono: 'fa-rotate-right', texto: 'Girar selección 90°', accion: () => girarSeleccion(90), habilitado: () => haySeleccion() },
-                { icono: 'fa-circle-info', texto: 'Ctrl/Mayús + clic: añadir o quitar · arrastrar en vacío: ventana', accion: () => {} }
-            ]},
+            { titulo: 'Seleccionar', items: [] },
             { titulo: 'Vista', items: [
                 { icono: 'fa-sitemap', texto: 'Árbol de estructura (mostrar/ocultar)', accion: () => alternarArbol() }
             ]},
@@ -4535,20 +3777,12 @@
             { titulo: 'Extras', items: [] },
             { titulo: 'Resultados', items: [] },
             { titulo: 'Informe', items: [
-                { icono: 'fa-file-word', texto: 'Generar informe (*.docx)...', accion: () => generarInforme() },
-                { icono: 'fa-file-excel', texto: 'Listados de líneas, válvulas y materiales (*.xlsx)...', accion: () => generarListados() }
+                { icono: 'fa-file-word', texto: 'Generar informe (*.docx)...', accion: () => generarInforme() }
             ]},
-            { titulo: 'Herramientas', items: [
-                { icono: 'fa-ruler-combined', texto: 'Dimensionar tuberías (velocidad máxima)...', accion: () => dimensionarTuberias() }
-            ]},
+            { titulo: 'Herramientas', items: [] },
             { titulo: 'Tabla', items: [] },
             { titulo: 'Opciones', items: [
                 { icono: 'fa-fill-drip', texto: 'Fondo del lienzo', sub: () => Object.entries(FONDOS).map(([k, f]) => ({ icono: opciones.fondo === k ? 'fa-check' : 'fa-square', texto: f.nombre, accion: () => cambiarFondo(k) })) },
-                { icono: 'fa-scale-balanced', texto: 'Unidades', sub: () => [
-                    ...Object.entries(UNIDADES.p).map(([k, u]) => ({ icono: (opciones.uPresion || 'bar') === k ? 'fa-check' : 'fa-square', texto: 'Presión: ' + u[1], accion: () => cambiarUnidad('uPresion', k) })),
-                    'sep',
-                    ...Object.entries(UNIDADES.q).map(([k, u]) => ({ icono: (opciones.uCaudal || 'm3h') === k ? 'fa-check' : 'fa-square', texto: 'Caudal: ' + u[1], accion: () => cambiarUnidad('uCaudal', k) }))
-                ] },
                 { icono: 'fa-shapes', texto: 'Norma de símbolos', sub: () => Object.entries(NORMAS).map(([k, n]) => ({ icono: opciones.norma === k ? 'fa-check' : 'fa-square', texto: n, accion: () => cambiarNorma(k) })) },
                 'sep',
                 { icono: 'fa-sliders', texto: 'Criterios de cálculo (margen NPSH)...', accion: () => abrirCriterios() },
@@ -4654,19 +3888,15 @@
             if (e.key === 'Escape') {
                 if (menuAbierto) accion = () => {};
                 else if (document.getElementById('modal-creditos').style.display === 'flex') accion = cerrarCreditos;
-                else if (!enCampo && seleccion.size && !modoZoomVentana) accion = limpiarSeleccion;
             } else if (ctrl && !e.altKey && !e.shiftKey) {
                 if (k === 'n') accion = nuevoProyecto;
                 else if (k === 'o') accion = abrirProyectoCarpeta;
                 else if (k === 'g') accion = guardarProyecto;
                 else if (k === 'p') accion = imprimirPDF;
                 else if (k === 'r') accion = abrirBuscarReemplazar;
-                else if (!enCampo && k === 'c' && haySeleccion()) accion = copiarSeleccion;
-                else if (!enCampo && k === 'x' && haySeleccion()) accion = cortarSeleccion;
-                else if (!enCampo && k === 'v' && portapapeles && portapapeles.length) accion = pegarPortapapeles;
-                else if (!enCampo && k === 'a') accion = seleccionarTodo;
-            } else if (!enCampo && !ctrl && (e.key === 'Delete' || e.key === 'Supr') && haySeleccion() && !menuAbierto) {
-                accion = eliminarSeleccion;
+                else if (!enCampo && k === 'c' && idSeleccionado) accion = copiarSeleccion;
+                else if (!enCampo && k === 'x' && idSeleccionado) accion = cortarSeleccion;
+                else if (!enCampo && k === 'v' && portapapeles) accion = pegarPortapapeles;
             } else if (e.altKey && !ctrl && !e.shiftKey && k === 'a') {
                 accion = mostrarLibreriaAccesorios;
             }
