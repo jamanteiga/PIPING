@@ -224,7 +224,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.3.1-a4vertical</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.3.2-sinbombas</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -2975,7 +2975,7 @@
 
         function datosProyecto() {
             return {
-                version: "7.3.1-a4vertical",
+                version: "7.3.2-sinbombas",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -2999,7 +2999,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.3.1-a4vertical" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.3.2-sinbombas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -3652,6 +3652,11 @@
                 let visitados = new Set([bomba.nodoB]);
                 dfs(bomba.nodoB, bomba.nodoA, visitados, [], 0);
             });
+            // Red sin bombas (gravedad o depósito presurizado): la ruta arranca en cada depósito de alimentación
+            if (!aristas.some(a => a.esBomba)) {
+                let t = null; try { t = terminalesRed(grafo); } catch (e) { t = null; }
+                Object.entries((t && t.porNodo) || {}).filter(([, e]) => esDeposito(e)).forEach(([n]) => { const k = Number(n); dfs(k, k, new Set([k]), [], 0); });
+            }
 
             if (mejor) mejor.aristasCamino.forEach(a => { a.el.esLineaCritica = true; });
             return mejor;
@@ -3717,11 +3722,20 @@
             resultado.Qdiseno = Qd > 0 ? Qd : null;
             if (Qd > 0 && bombas.length) {
                 const Qb = bombas.reduce((s, a) => s + Math.abs(a.Qprev) * 3600, 0);
-                resultado.Qbombas = Qb;
+                resultado.Qbombas = Qb; resultado.origenQ = 'bombas';
                 if (Qb < Qd * 0.999) bombas.forEach(a => {
                     ultimoResultado[a.el.id].motivos.push(`Q de funcionamiento ${Qb.toFixed(2)} m³/h < caudal de diseño ${Qd} m³/h`);
                     a.el.estado = 'fallo';
                 });
+            } else if (Qd > 0) {
+                // Red sin bombas (por gravedad o desde un depósito presurizado / hidróforo): el caudal de
+                // funcionamiento es el que aportan a la red los depósitos y extremos de alimentación
+                const fuentes = elementosRed.filter(e => esTerminal(e) && e.subtype !== 'consumo' && ultimoResultado[e.id] && /aporta/.test(ultimoResultado[e.id].sentido || ''));
+                let Qf = fuentes.reduce((s, e) => s + (ultimoResultado[e.id].Q || 0), 0);
+                if (!fuentes.length) Qf = elementosRed.filter(e => e.subtype === 'consumo' && ultimoResultado[e.id]).reduce((s, e) => s + (ultimoResultado[e.id].Q || 0), 0);
+                resultado.Qbombas = Qf; resultado.origenQ = fuentes.length ? 'fuentes' : 'consumos'; resultado.fuentesQ = fuentes.map(e => tagDe(e));
+                if (Qf < Qd * 0.999) fuentes.forEach(e => { ultimoResultado[e.id].motivos.push(`Q aportado por la alimentación ${Qf.toFixed(2)} m³/h < caudal de diseño ${Qd} m³/h`); e.estado = 'fallo'; });
+                if (Qf < Qd * 0.999 && !fuentes.length) resultado.avisosRed.push(`Red sin bombas ni depósitos de alimentación: la suma de consumos (${Qf.toFixed(2)} m³/h) no alcanza el caudal de diseño (${Qd} m³/h).`);
             }
             proponerAlternativas(resultado);
         }
@@ -3898,7 +3912,7 @@
                     const dp = r.exceso - exMin;
                     if (!r.critico && dp > 0.01 && r.Q > 0) { const Kv = r.Q * Math.sqrt((fluido.rho / 1000) / dp); r.equilibrado = { dp, Kv, Cv: 1.156 * Kv }; }
                 });
-                if (exMin > 0.1) avisos.push(`El consumo más desfavorable (${tagDe(crit)}) tiene ${exMin.toFixed(2)} bar por encima de su presión mínima: margen de la bomba, a ajustar con variador o válvula de regulación.`);
+                if (exMin > 0.1) avisos.push(`El consumo más desfavorable (${tagDe(crit)}) tiene ${exMin.toFixed(2)} bar por encima de su presión mínima: ${resultado.aristas.some(a => a.esBomba) ? 'margen de la bomba, a ajustar con variador o válvula de regulación' : 'margen de la alimentación, a ajustar con válvula de regulación'}.`);
             }
             // coherencia de DN entre componentes y tuberías conectadas
             const dnCompatible = (dn, tub) => tub.el.dn === dn || (!/^DN/.test(tub.el.dn) && datosTuberia(tub.el).od === DN_A_PLASTICO[dnNum(dn)]);
@@ -4902,7 +4916,7 @@
             const calculados = new Set(ars.map(a => a.el.id));
             const fallos = elementosRed.filter(e => e.estado === 'fallo').map(e => { const r = ultimoResultado[e.id] || { motivos: [] }; return `${tagDe(e)}: ${r.motivos.join('; ')}${(r.alternativas || []).map(x => '\n    → ' + x).join('')}`; });
             elementosRed.filter(e => !sinFlujo(e) && !calculados.has(e.id) && !(esTerminal(e) && ultimoResultado[e.id]) && bombaEnMarcha(e)).forEach(e => fallos.push(`${tagDe(e)}: no está conectado a la red (no se ha calculado)`));
-            if (!ars.some(a => a.esBomba)) fallos.push('La red no tiene ninguna bomba: no se puede comprobar el caudal de diseño.');
+            if (!ars.some(a => a.esBomba) && ultimoCalculo.resultado.Qbombas != null && ultimoCalculo.resultado.Qbombas < (+proyecto.caudalDiseno || 0) * 0.999) fallos.push(`Red sin bombas: el caudal de funcionamiento (${ultimoCalculo.resultado.Qbombas.toFixed(2)} m³/h) no alcanza el caudal de diseño (${proyecto.caudalDiseno} m³/h).`);
             if (fallos.length) return { tipo: 'fallos', fallos };
             // con bombas de reserva, también debe cumplir el escenario "reserva en marcha"
             const esc = escenarioReserva();
@@ -5100,7 +5114,7 @@
                     if (r.equilibrado) {
                         F.push(['Presión a equilibrar', 'Δp = Δp exc − Δp exc (consumo más desfavorable)', `${nf(r.exceso, 3)} − ${nf(cc.margen, 3)}  (${tagDe(cc.el)})`, `${nf(r.equilibrado.dp, 3)} bar`]);
                         F.push(['Válvula de equilibrado', 'Kv = Q·√[(ρ/1000)/Δp];  Cv = 1,156·Kv', `${nf(r.Q, 3)} × √[(${nf(fl.rho / 1000, 4)})/${nf(r.equilibrado.dp, 3)}]`, `Kv ${nf(r.equilibrado.Kv, 2)} m³/h · Cv ${nf(r.equilibrado.Cv, 2)}`]);
-                    } else F.push(['Válvula de equilibrado', r.critico ? 'Consumo más desfavorable: sin válvula; su exceso es el margen de la bomba' : 'No necesaria (diferencia < 0,01 bar)', '', '—']);
+                    } else F.push(['Válvula de equilibrado', r.critico ? 'Consumo más desfavorable: sin válvula; su exceso es el margen de la bomba o de la alimentación' : 'No necesaria (diferencia < 0,01 bar)', '', '—']);
                     return { filas: F, k: `Q ${nf(r.Q, 2)} · p mín ${nf(r.pMin, 2)} bar` };
                 }
                 F.push(['Altura piezométrica impuesta', 'H = z lámina + (p_atm + p)/(ρ·g)', `${nf(el.cotaLamina, 2)} + (101 325 + ${nf(el.presionDep * 1e5, 0)}) / (${rhoG})`, `${nf(r.H, 3)} m`]);
@@ -5296,9 +5310,9 @@
             cuerpo.push(clave([['Fluido', fl.nombre], ['Temperatura de cálculo', `${fl.T} °C`], ['Densidad ρ', `${nf(fl.rho, 1)} kg/m³`], ['Viscosidad cinemática ν', `${nf(fl.nu * 1e6, 3)} mm²/s`],
                 ['Viscosidad dinámica μ', `${nsci(fl.mu)} Pa·s`], ['Presión de vapor pv', `${nf(fl.pv / 1000, 3)} kPa`], ['Rango de datos del catálogo', `${fl.Tmin} a ${fl.Tmax} °C (sin extrapolación)`], ['Observaciones', fl.nota || '']]));
             titulo(2, '2.2. Caudal de diseño');
-            cuerpo.push(par(`El caudal de diseño de la instalación es Q = ${nf(+p.caudalDiseno, 2)} m³/h. El punto de funcionamiento de las bombas, obtenido del cálculo de la red, debe ser igual o superior a este caudal.`));
+            cuerpo.push(par(`El caudal de diseño de la instalación es Q = ${nf(+p.caudalDiseno, 2)} m³/h. ${res.origenQ === 'bombas' || !res.origenQ ? 'El punto de funcionamiento de las bombas, obtenido del cálculo de la red, debe ser igual o superior a este caudal.' : `La red no tiene bombas (alimentación por gravedad o desde depósito presurizado): el caudal que ${res.origenQ === 'fuentes' ? 'aportan a la red ' + (res.fuentesQ || []).join(', ') : 'suman los puntos de consumo'}, obtenido del cálculo, debe ser igual o superior a este caudal.`}`));
             cuerpo.push(leyenda('Tabla', 'Comprobación del caudal de diseño'));
-            cuerpo.push(tabla(['Concepto', 'Valor', 'Estado'], [['Caudal de diseño', `${nf(res.Qdiseno, 2)} m³/h`, ''], ['Caudal de funcionamiento (suma de bombas)', `${nf(res.Qbombas, 2)} m³/h`, res.Qbombas >= res.Qdiseno * 0.999 ? 'CUMPLE' : 'NO CUMPLE']], [50, 30, 20]));
+            cuerpo.push(tabla(['Concepto', 'Valor', 'Estado'], [['Caudal de diseño', `${nf(res.Qdiseno, 2)} m³/h`, ''], [res.origenQ === 'fuentes' ? 'Caudal aportado por la alimentación (sin bombas)' : res.origenQ === 'consumos' ? 'Caudal de los consumos (sin bombas)' : 'Caudal de funcionamiento (suma de bombas)', `${nf(res.Qbombas, 2)} m³/h`, res.Qbombas >= res.Qdiseno * 0.999 ? 'CUMPLE' : 'NO CUMPLE']], [50, 30, 20]));
             titulo(2, '2.3. Velocidades de diseño');
             cuerpo.push(par(`Velocidades máximas orientativas para instalación de tipo «${TIPOS_INSTALACION[p.tipoInstalacion]}», según el fluido. En aspiración se limita la velocidad para asegurar el NPSH disponible; en impulsión, para acotar pérdidas, ruido y erosión.`));
             cuerpo.push(leyenda('Tabla', 'Velocidades máximas recomendadas por fluido'));
@@ -5353,7 +5367,9 @@
             titulo(2, '3.2. Esquema general');
             await figura({ principales: elementosRed.slice(), contexto: [], rotulosLinea: true }, 'Esquema general de la red (verde: cumple · violeta: ruta crítica)');
             titulo(2, '3.3. Bombas');
-            cuerpo.push(leyenda('Tabla', 'Punto de funcionamiento de las bombas'));
+            if (!ars.some(a => a.esBomba)) cuerpo.push(par(`La red no tiene bombas: la alimentación es por gravedad o desde un depósito presurizado${(res.fuentesQ || []).length ? ' (' + res.fuentesQ.join(', ') + ')' : ''}. El caudal de funcionamiento resultante es ${nf(res.Qbombas, 2)} m³/h.`));
+            else cuerpo.push(leyenda('Tabla', 'Punto de funcionamiento de las bombas'));
+            if (ars.some(a => a.esBomba))
             cuerpo.push(tabla(['Bomba', 'Q (m³/h)', 'H (m)', 'Ph (kW)', 'NPSHd (m)', 'NPSHr (m)', 'Estado'], ars.filter(a => a.esBomba).map(a => {
                 const r = ultimoResultado[a.el.id];
                 return [tagDe(a.el), nf(r.Q, 2), nf(r.H, 2), nf(r.potencia, 3), nf(r.npshd, 2), nf(a.el.npsh, 2), a.el.esLineaCritica ? 'OK · crítica' : 'OK'];
@@ -5395,8 +5411,8 @@
             const lc = res.lineaCritica;
             if (lc) {
                 const nombres = lc.aristasCamino.map(a => tagDe(a.el)).filter((n, i, arr) => i === 0 || n !== arr[i - 1]);
-                cuerpo.push(par(`La ruta crítica es el camino desde la descarga de la bomba hasta un extremo abierto con mayor pérdida de carga acumulada: ${nf(lc.hfTotal, 3)} m. Recorrido: ${nombres.join(' → ')}. Su balance detallado figura en el apartado 7.`));
-            } else cuerpo.push(par('No se ha identificado ruta crítica (la red no tiene extremos abiertos aguas abajo de una bomba).'));
+                cuerpo.push(par(`La ruta crítica es el camino desde ${ars.some(a => a.esBomba) ? 'la descarga de la bomba' : 'el depósito de alimentación'} hasta un extremo abierto con mayor pérdida de carga acumulada: ${nf(lc.hfTotal, 3)} m. Recorrido: ${nombres.join(' → ')}. Su balance detallado figura en el apartado 7.`));
+            } else cuerpo.push(par('No se ha identificado ruta crítica (la red no tiene extremos aguas abajo de una bomba o de un depósito de alimentación).'));
             const termV = (res.terminales || { elementos: [] }).elementos;
             const consumos = termV.filter(e => e.subtype === 'consumo'), depositos = termV.filter(e => esDeposito(e));
             if (consumos.length) {
@@ -5568,7 +5584,7 @@
             const bs = ars.filter(a => a.esBomba);
             cuerpo.push(par(`Con ${fl.nombre} a ${fl.T} °C, la red de la instalación «${p.instalacion}» trabaja a ${nf(res.Qbombas, 2)} m³/h, igual o superior al caudal de diseño de ${nf(res.Qdiseno, 2)} m³/h. ` +
                 `Todos los tramos respetan las velocidades máximas adoptadas (${nf(lim.asp, 2)} m/s en aspiración y ${nf(lim.imp, 2)} m/s en impulsión), las válvulas de retención trabajan totalmente abiertas y ` +
-                `${bs.length > 1 ? 'las bombas disponen' : 'la bomba dispone'} de NPSH suficiente con un margen mínimo de ${nf(opciones.margenNPSH, 2)} m. ` +
+                (bs.length ? `${bs.length > 1 ? 'las bombas disponen' : 'la bomba dispone'} de NPSH suficiente con un margen mínimo de ${nf(opciones.margenNPSH, 2)} m. ` : 'la red funciona sin bombas (alimentación por gravedad o desde depósito presurizado). ') +
                 `Las presiones de servicio no superan la presión máxima admisible de ninguna tubería y en ningún punto se alcanza la presión de vapor.` + (consumos.length ? ` Todos los puntos de consumo disponen de la presión mínima requerida.` : '') + (lc ? ` La ruta crítica acumula ${nf(lc.hfTotal, 3)} m de pérdida de carga.` : '') +
                 (avisos.length ? ` Se han registrado ${[...new Set(avisos)].length} observaciones (apartado 3), que deben revisarse.` : '')));
             cuerpo.push(par('En consecuencia, la red CUMPLE los criterios de diseño establecidos.', { run: { bold: true } }));
