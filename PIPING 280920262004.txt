@@ -1,0 +1,97 @@
+Mejoras a implementar en PIPING.
+
+	1. Al salir de un ramal principal, como por ejemplo a través de una te, las ramas si la principal es P01, los ramales serán R01 y R02.
+	2. Los menús de la derecha aparecerán contraídos.
+		2.1	Solamente se expandirá el que el diseñador considere.
+		2.2	Si el diseñador expande otro que no sea el inicialmente expandido, el inicialmente expandido se contraerá.
+		2.3	El orden do los símbolos P&ID.
+				Tuberías, accesorios, uniones y bridas, válvulas, instrumentos, bombas, equipos, consumos y anotaciones aparecerán en orden alfabético.
+		2.4	Dentro de accesorios aparecerán por orden alfabético "Tanques y depósitos", intercambiadores y accesorios de tubería.
+			2.4.1 	Dentro de los tanques, se podrá indicar a que altura está la conexión del tanque respecto al fondo del mismo, así como la conexión existente 
+				en este.
+			2.4.2	Dentro de los accesorios, solamente estarán expandidos manteniendo el mismo criterio que el indicado en 2.2
+			2.4.3 	Tanques y depósitos, intercambiadores (buques) y accesorios de tubería se podrán expandir o contraer, dentro de ACCESORIOS.
+				Si se expande uno de ellos, el resto se contraerán.
+			2.4.4	Dentro del menú derecho del ratón aparte de girar 90º, 180º y 270º, dará la opción de que sea horario o antihorario.
+		
+		2.5 	En el texto indicativo de tubería no se indicará la longitud de la tubería, solo la nomenclatura de la misma.
+		2.6	Al hacer doble clic a un elementos aparecerá una ventana flotante con la información del elemento activo, para poder modificarlo.
+		2.7	Las bombas deberán tener conexiones de indicar la conexión de entrada y salida.
+		2.8 	Cuando se inserta un elemento a continuación de otro, este tomará las propiedades del primero, es decir, si por ejemplo existe un tubo de 2" sch20 class 150, si por 			ejemplo se le conecta una válvula, esta será automáticamente de un tamaño de 2" class 150, lo mismo con un codo, una te o cualquier otro elemento que se conecte.
+		2.9	Hasta lo de ahora, había que arrastrar el elemento al lienzo, y después moverlo al punto de conexión.
+			Ahora, automáticamente al arrastrar y acercarlo al elemento de destino, unirá automáticamente al elemento existente.
+		2.10	De un cruce, podrán salir 3 ramales, es decir, si se insertar un cruce en P01, los ramales de salida serán R01, RO2 o R03, o como estén numerados en ese momento.
+		2.11	El botón "Calcular red", estará disponible, si al estar con el ratón encima del lienzo, se clica en el botón derecho.
+			Además aparecerán disponibles los siguientes menus.
+
+			2.11.1	Calcular red.
+			2.11.2	Seleccionar línea, y de ahí se desplegará otro menú con las líneas existentes.
+			2.11.3	Zoom , y dentro de zoom, ajustar, todo, ventana.
+			2.11.4	Redimensionar red, redimensionará los elementos de acuerdo a las condiciones iniciales de proyecto.
+			2.11.5	Leyenda de componentes.
+			2.11.6	Nota de texto, igual que la que sale de insertar>nota de texto. Analizar la posibilidad de imantar la nota a un componente del circuito.
+			2.11.7	Listado de componentes.
+			2.11.8 de 2.11.1 a 2.11.8 aparecerán por orden alfabético.
+
+
+		2.12	Una vez definidos las condiciones o datos del proyecto, estos serán imposibles de modificar, es decir, para modificarlos habrá que abrir los datos del proyecto
+			para cambiar las condiciones.
+			En datos de proyecto e instalación, los datos de diseño, como el fluido el caudal y la velocidad, serán definidas desde el principio.
+			En fluido deberá de aparecer la lista desplegable de fluidos existentes en la base de datos, así como la temperatura de servicio.
+			Fluido, temperatura del fluido, caudal, temperatura máxima admisible, velocidad máxima en impulsión, serán datos que son necesarios si o si.
+			En caso de una bomba, aparte de velocidad máxima en impulsión, también es necesaria la velocidad máxima en aspiración.
+			Para evitar problemas con las velocidades en impulsión, se indicarán las que en condiciones de proyecto se consideren para cada caso.
+			Datos del proyecto, en caso de no ser en España, en Provicina, también se indicará Estado, Departamento.
+		2.13	El dato correspondiente a fluido, en el menú lateral izquierdo mostrará el indicado en el dato del proyecto, aparte de indicar el caudal de proyecto y la 				velocidad máxima en conductos. Desactivados, solo modificable desde Archivo>Datos del proyecto.
+		2.14	Cuando se inserta el primer elemento, normalmente es una tubería, pero también puede ser un codo o una válvula.
+			El elemento en cuestión debe insertarse automáticamente ya dimensionado para igualar o no superar la velocidad máxima en P01.
+		2.15 	Si no hay elementos en pantalla, el árbol de red, estará vacío. Cuando se inserte un elemento, sea el que sea, todos los contadores de elementos se reiniciarán,
+			empezando en P01, si es una tubería, VAG-P01 si es una válvula de aguja, etc.
+		2.16	No podrán quedar elementos remanentes en el lienzo, es decir, sueltos una vez se dé a guardar al fichero, en cuyo caso, avisará de que se posicione en su 
+			posición de trabajo, o por se elimine del lienzo.
+		2.17	Los textos de la nomenclatura del cualquier componente no se entrecruzará con otro.
+		2.18	Su por ejemplo un componente se pone en vertical, el texto de su nomenclatura que lo acompaña también será vertical, lo mismo con válvulas, codos, uniones, tes, 			etc.
+		2.19	Cualquier texto de cualquier elemento se tendrá que leer en posición horizontal, o si está en posición vertical se leerá desde la posición de las 15:00 horas, es 			decir se leerá desde la parte derecha del plano.
+		2.20	Si el texto de la nomenclatura es más largo que el componente, entonces se "encogerá" teniendo un largo máximo como el del componente al que define.
+		2.21	Remarcar el NPSH, para evitar problemas sobre todo en bombas.
+		2.22	Definición de las tablas de accesorios, para convertir cada tipo de accesorio, o por grupos, como consideres, para hacer de cada accesorio, bomba, etc una tabla e			supabase.
+		2.23	El texto de nomenclatura del componente, se podrá mover con el puntero del ratón a donde se considere, cerca del componente, y no perderán el link entre ellos.
+		2.24	Se podrá sacar automáticamente en cualquier momento una leyenda de componentes (leyenda de símbolos, sin hacer referencia a uso 10628-2), simplemente indicar 				LEYENDA DE COMPONENTES.
+		2.25	La ruta crítica de una red de tubería aparecerá en color violeta, independientemente que esté bien dimensionada/redimensionada, para que el diseñador sepa cual es
+			la ruta más desfavorable.
+		2.26	Barajar la posibilidad de crear un marco para el formato A3, con las dimensiones de un formato A3.
+		2.27	Se podrá disponer de formato A4, A2, A1 y A0, con si debido marco.
+		2.28	El cajetín se definirá más adelante, por que depende de cada proyecto. El cajetín de proyecto nos lo pueden facilitar en .dwg .dgn o .dxf; pudiendo insertarse sin 			problema alguno.
+		2.29	Los marcos del formato del lienzo, A4, A3, A2, o A1 tendrán en los ejes Y del mismo, desde la esquina inferior izquierda las letras A, B, etc, y en el eje X, 				desde la esquina inferior izquierda números, tal que:
+			Formato A4:
+				Eje Y, empezará en A y acabará en F, dividido a partes iguales.
+				Eje X  desde la izquierda empezará en 4 e irá hasta el 1 en la esquina inferior derecha, dividido en partes iguales.
+			Formato A3:
+				Eje Y, empezará en A y acabará en F, dividido a partes iguales.
+				Eje X  desde la izquierda empezará en 8 e irá hasta el 1 en la esquina inferior derecha, dividido en partes iguales.
+
+			Formato A2:
+				Eje Y, empezará en A y acabará en H, dividido a partes iguales.
+				Eje X  desde la izquierda empezará en 12 e irá hasta el 1 en la esquina inferior derecha, dividido en partes iguales.
+			Formato A1:
+				Eje Y, empezará en A y acabará en M, dividido a partes iguales.
+				Eje X  desde la izquierda empezará en 16 e irá hasta el 1 en la esquina inferior derecha, dividido en partes iguales.
+			Formato A0:
+				Eje Y, empezará en A y acabará en T, dividido a partes iguales.
+				Eje X  desde la izquierda empezará en 24 e irá hasta el 1 en la esquina inferior derecha, dividido en partes iguales.
+
+			Las letras y números estáran por fuera del marco y si es necesario, te proporciono una foto de un marco típico en A3 para que lo repliques en A3, y el mismo 				estilo en todos los planos.
+			
+		2.30 	En el lienzo en la zona de trabajo, se podrá ver rejilla y se podrá modificar de acuerdo al criterio del diseñador, por cuestiones de dbujo y claridad.
+		2.31	La rejilla se representará al estilo en dibujos de SolidWorks 2026.
+		2.32	en la estructura en árbol, debajo de anotaciones, se verá un apartado que se denominará formato, y en el se pueden ver y cambiar de un formato a otro de papel sin 
+			problema alguno.
+			Punto de posición de la LEYENDA DE SIMBOLOS, por defecto se insertará en la esquina superior derecha.
+			La posición de la tabla con el contenido de materiales, es decir una tabla con todos los elementos insertados en el dibujo, se podrá insertar donde el diseñador
+			considere.
+		2.33	Al hacer doble clic sobre el texto del componente, este texto se moverá a donde se quiera, cerca del componente, pudiendo incluso girarlo.
+
+	
+	3. Posibilidad de uso de un motor gráfico para representación en 3D, que condiciones ha de cumplir, y que características ha de tener.
+	4. Implementar más interactividad entre usuario y sistema, para mejorar con un interface más amigable.
+	5. Qué hacer para no meter todo el código en la pagina HTML. Más código en servidor, y bajar al usuario en el frontend la menor cantidad posible de datos.

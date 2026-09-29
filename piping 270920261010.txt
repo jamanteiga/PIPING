@@ -1,0 +1,115 @@
+La linea principal, se le podrá dar un nombre, y será la raíz del árbol del que partirán todas las ramas de la red de tubería.
+El árbol de estructura se verá en el lienzo en la parte superior izquierda del mismo
+
+Los textos para los elementos serán:
+	T	Tuberia
+	TAC	TUBERIA ACERO CARBONO
+	TAI	TUBERIA DE INOX.
+	TPVC	TUBERIA DE PVC
+	TPE	TUBERIA DE POLIETILENO
+	THPDE	TUBERIA DE POLIETILENO DE ALTA DENSIDAD
+	TPVCF	TUBERIA DE PVCF
+	B	Brida
+	VB	válvula bola
+	VC	válvula compuerta.
+	VN	válvula neumática
+	C	Codo
+	TE	te.
+	CR	cruce
+	VR	válvula retención.
+	RC	reducción concéntrica
+	RE	reducción excéntrica.
+	BU	Brida unión
+	C90	CODO DE 90º
+	C45	CODO DE 45º
+	C60	CODO DE 60º
+	MU	MANGUITO UNION
+	TU	TUERCA UNIÓN.
+	MA	MACHONES
+	RA	RACORES
+	TU	TUERCA DE UNIÓN.
+	WN	BRIDA CON CUELLO
+	CC	BRIDA PLANA
+	BR	BRIDA ROSCADA
+	RT	BRIDA TIPO RT
+	RJ	BRIDA TIPO RJ
+	BL	BRIDA LOCA
+	BP	BRIDA PLASTICA
+	IN	INJERTO
+	PI	PORTAINSTRUMENTOS.
+	FI	FILTRO.
+	ST	STRAINER
+	VM	VALVULA DE MARIPOSA
+	VG	VALVULA DE GLOBO.
+	VM	VALVULA DE MEMBRA,A
+	VMA	VALVULA MACHO.
+	VRP	VALVULA REDUCTORA DE PRESIÓN.
+	PSV	VALVULA DE SEGURIDAD
+	VAL	VALVULA DE ALIVIO.
+	TP	TOMA DE PRESIÓN.
+	MAN	MANOMETRO.
+	VAC	VACUOMETROS
+	RA	RACORES.
+
+Por ejemplo, una linea principal de tubo de acero carbono de 2" sch10, será
+	TAC0001-2-10
+	TAC	TUBERIA ACERO CARBONO
+	2	DOS PULGADAS
+	10	SCHEDULE 10
+	0001	NUMERO INICIAL PARA EL PRIMER ELEMENTO DE LA LINEA PRINCIPAL
+	
+	R01		RAMAL 1
+	R02		RAMAL 2
+	VB01-R01-2	VALVULA DE BOLA 01 DE 2" DEL RAMAL R01
+	
+Los contadores de cada elemento o componente empezarán en 01, y se irá incrementando a medida que se meten mismo elemento, aunque sea de distinto tamaño.
+Si encuentras otra forma de numerar más congruente, dimelo, y lo analizo.
+
+
+La líneas de los componentes, seguirán en color azul, pero más finas, para poder distinguir la flecha de indicación del sentido de flujo
+Las válvulas, una vez se inserten seguirán siendo de color azul, pero más finas.
+No hay distinción en el símbolo de válvula de bola y compuerta, y en los PID son distintas.
+La válvula de mariposa no tiene el símbolo correcto, la válvula pneumática, el saliente de la válvula pneumatica tiene que ser más largo.
+
+Cuando se hace una red de tuberías, se ha de dar distintas nomenclaturas a la tubería principal y a los ramales
+Has de presentar la estructura en árbol de la estructura de la tubería, desde el tubo principal, con sus ramas,nodos y los componentes en cada rama.
+En los accesorios faltan:
+	
+	- 	Codos 45º
+	- 	Codos 60º
+	-	Reducción excéntrica
+	-	Manguitos de unión (caso de materiales plásticos como pvc, pe hpde, pvcf).
+	-	Tuercas de unión.
+	-	Cruces.
+	-	Racores.
+	-	Machones.
+	-	Juntas de expansión.
+	-	Manguitos antivibratorios.
+	-	Bridas (ANSI, DIN,)
+			Con cuello, WN.
+			Planas
+			Roscadas.
+			RT
+			RJ
+			Loca.
+			Plástica.
+	-	Injertos.
+	-	Portainstrumentos.
+	-	Filtros, rejillas strainer.
+	-	Válvulas.
+			De aguja.
+			Mariposa.
+			Globo.
+			Membrana
+			Macho (plug).
+			Reductora de presión.
+			Seguridad
+			Alivio.
+	-	Tomas de presión.
+	-	Manómetro.
+	-	Vacuómetro.
+	-	Racores.
+El fondo del lienzo podrá ser blanco, gris claro, gris oscuro, azul y negro, teniendo por defecto el color gris claro.
+se podrá guardar en formato .pid, dwg, dxf y json
+
+Cualquier incongruencia o comentario aclaratorio, indicamelo
