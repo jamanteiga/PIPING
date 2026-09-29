@@ -224,7 +224,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.3-solidworks</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.3.1-a4vertical</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -433,7 +433,7 @@
         // así que la conversión mundo↔pantalla se hace en un único punto: mundoAScreenY().
         // Esto no afecta a la geometría relativa (rotación, imantado/snapping, motor de cálculo
         // hidráulico), que solo comparan distancias entre puertos y son indiferentes al sentido de Y.
-        // Hoja A3 apaisada (420 x 297 mm) a 96 ppp: 1 unidad de dibujo = 1 px = 0,2646 mm en papel.
+        // Hoja A3 apaisada por defecto (420 x 297 mm; A4 en vertical) a 96 ppp: 1 unidad de dibujo = 1 px = 0,2646 mm en papel.
         // Solo se puede trabajar dentro de la hoja: ver limitarAHoja().
         // Tamaño de la hoja en unidades de dibujo: cambia con el formato (ver aplicarFormato)
         let ANCHO_A3 = 1587;
@@ -1997,13 +1997,14 @@
             return h;
         }
         // ==================================================================================
-        // FORMATO DE LA HOJA (A4…A0 apaisado) Y REJILLA
+        // FORMATO DE LA HOJA (A4 vertical; A3…A0 apaisados) Y REJILLA
         // 1 unidad de dibujo = 1 px a 96 ppp. Marco ISO 5457: 20 mm a la izquierda (encuadernación) y
         // 10 mm en los demás lados; referencias por zonas fuera del marco: letras (sin I ni O) desde la
         // esquina inferior izquierda hacia arriba y números de mayor (izquierda) a 1 (derecha).
         // ==================================================================================
         const PX_MM = 96 / 25.4;
-        const FORMATOS = { A4: { w: 297, h: 210, cols: 4, filas: 6 }, A3: { w: 420, h: 297, cols: 8, filas: 6 }, A2: { w: 594, h: 420, cols: 12, filas: 8 },
+        const FORMATOS = { A4: { w: 210, h: 297, cols: 4, filas: 6 }, // A4 vertical (A3 girado 90° antihorario): letras en Y, números en X
+             A3: { w: 420, h: 297, cols: 8, filas: 6 }, A2: { w: 594, h: 420, cols: 12, filas: 8 },
             A1: { w: 841, h: 594, cols: 16, filas: 12 }, A0: { w: 1189, h: 841, cols: 24, filas: 18 } };
         const LETRAS_ZONA = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
         const formatoActual = () => FORMATOS[opciones.formato] || FORMATOS.A3;
@@ -2015,7 +2016,7 @@
             marcoA3.style.width = ANCHO_A3 + 'px'; marcoA3.style.height = ALTO_A3 + 'px';
             let st = document.getElementById('estilo-impresion');
             if (!st) { st = document.createElement('style'); st.id = 'estilo-impresion'; document.head.appendChild(st); }
-            st.textContent = `@media print { @page { size: ${opciones.formato || 'A3'} landscape; margin: 0; } #marco-a3 { width: ${f.w}mm !important; height: ${f.h}mm !important; } }`;
+            st.textContent = `@media print { @page { size: ${opciones.formato || 'A3'} ${f.w < f.h ? 'portrait' : 'landscape'}; margin: 0; } #marco-a3 { width: ${f.w}mm !important; height: ${f.h}mm !important; } }`;
             aplicarZoom();
         }
         // Cambio de formato: el dibujo conserva sus coordenadas (origen abajo a la izquierda); no se
@@ -2974,7 +2975,7 @@
 
         function datosProyecto() {
             return {
-                version: "7.3-solidworks",
+                version: "7.3.1-a4vertical",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -2998,7 +2999,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.3-solidworks" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.3.1-a4vertical" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
