@@ -182,6 +182,26 @@
         </div>
     </div>
 
+    <!-- PALETA DE COMANDOS (Ctrl+K) -->
+    <div id="paleta" style="display:none;" onmousedown="if (event.target === this) cerrarPaleta()" class="fixed inset-0 bg-black/30 z-[2600] justify-center items-start pt-24">
+        <div class="bg-white rounded-lg shadow-2xl w-[600px] max-w-[92vw] overflow-hidden text-xs">
+            <div class="flex items-center gap-2 px-3 py-2 border-b"><i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+                <input id="paleta-texto" oninput="filtrarPaleta()" onkeydown="tecladoPaleta(event)" autocomplete="off" placeholder="Escribe un comando, un componente para insertar, una línea o una etiqueta…" class="flex-1 outline-none text-sm py-1">
+                <span class="text-[10px] text-slate-400">↑↓ Intro · Esc</span></div>
+            <div id="paleta-lista" class="max-h-[55vh] overflow-y-auto py-1"></div>
+        </div>
+    </div>
+
+    <!-- TABLA DE PROPIEDADES (Edición > Tabla de propiedades) -->
+    <div id="modal-masivo" style="display:none;" class="fixed inset-0 bg-black/40 z-[2050] justify-center items-center">
+        <div class="bg-white rounded-lg shadow-2xl w-[1200px] max-w-[96vw] max-h-[92vh] flex flex-col text-xs">
+            <div class="flex items-center gap-2 px-4 py-2 border-b"><i class="fa-solid fa-table-cells-large text-blue-600"></i><h3 class="font-bold text-sm flex-1">Tabla de propiedades</h3>
+                <span class="text-[10px] text-slate-400">Los cambios se aplican al momento (Ctrl+Z deshace)</span>
+                <button onclick="cerrarTablaPropiedades()" class="text-slate-500 hover:text-slate-800 px-1" title="Cerrar"><i class="fa-solid fa-xmark"></i></button></div>
+            <div id="masivo-cuerpo" class="p-3 overflow-auto"></div>
+        </div>
+    </div>
+
     <!-- VENTANA MODAL AL INSERTAR UN COMPONENTE (línea a la que pertenece y K/Cv si hace falta) -->
     <div id="modal-nuevo" style="display:none;" class="fixed inset-0 bg-black/40 z-[2100] justify-center items-center">
         <div class="bg-white rounded-lg shadow-xl w-[460px] p-5 border border-slate-200 text-xs">
@@ -235,7 +255,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.6-librerias</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.7-productividad</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -326,7 +346,14 @@
             <div id="tooltip-comp" style="display:none; position:fixed; z-index:3000; pointer-events:none; max-width:320px;" class="bg-slate-800 text-slate-100 text-[11px] rounded shadow-lg px-2.5 py-1.5 leading-snug"></div>
             <!-- ICONO DE ORIENTACIÓN DE EJES (fijo a la esquina de la ventana, no representa el origen real) -->
             <!-- ESTADO DEL CÁLCULO AUTOMÁTICO (clic: ver resultados) -->
-            <div id="estado-calculo" onclick="verResultadosAuto()" title="Cálculo automático · clic para ver los resultados" class="absolute bottom-2 right-3 z-20 text-[11px] bg-white/90 border border-slate-300 rounded px-2 py-0.5 shadow-sm cursor-pointer" style="display:none"></div>
+            <div id="estado-calculo" onclick="alternarPanelAvisos()" title="Cálculo automático · clic para ver el panel de avisos (fallos, correcciones con un clic)" class="absolute bottom-2 right-3 z-20 text-[11px] bg-white/90 border border-slate-300 rounded px-2 py-0.5 shadow-sm cursor-pointer" style="display:none"></div>
+            <!-- PANEL DE AVISOS DEL CÁLCULO (clic en el estado del cálculo o Vista > Panel de avisos) -->
+            <div id="panel-avisos" style="display:none; max-height:45%;" class="absolute bottom-9 right-3 z-30 w-[380px] flex-col bg-white border border-slate-300 rounded shadow-lg text-[11px]">
+                <div class="flex items-center gap-2 px-2 py-1.5 bg-slate-100 border-b border-slate-200 rounded-t"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i><span id="panel-avisos-titulo" class="flex-1 font-bold text-slate-700">Avisos del cálculo</span>
+                    <a href="#" onclick="event.preventDefault(); verResultadosAuto()" class="text-blue-700 hover:underline text-[10px]">Ver resultados completos</a>
+                    <button onclick="alternarPanelAvisos(false)" class="text-slate-500 hover:text-slate-800 px-1" title="Cerrar"><i class="fa-solid fa-xmark"></i></button></div>
+                <div id="panel-avisos-cuerpo" class="overflow-y-auto flex-1"></div>
+            </div>
             <svg id="axis-gizmo" class="absolute bottom-3 left-3 z-20" width="56" height="56" viewBox="0 0 56 56">
                 <line x1="8" y1="48" x2="42" y2="48" stroke="#dc2626" stroke-width="2.5"/>
                 <polygon points="44,48 37,44.5 37,51.5" fill="#dc2626"/>
@@ -434,6 +461,7 @@
             ultimoResultado = null; ultimoCalculo = null;
             elementosRed.forEach(e => { e.estado = null; e.esLineaCritica = false; });
             if (typeof programarCalculoAuto === 'function') programarCalculoAuto();
+            if (typeof actualizarPanelAvisos === 'function') actualizarPanelAvisos();
         }
 
         // Condiciones de contorno de la red (cota/presión en extremos abiertos), indexadas por "elId:portId"
@@ -1260,7 +1288,8 @@
         function allowDrop(ev) {
             ev.preventDefault();
             const r = marcoA3.getBoundingClientRect(), cx = (ev.clientX - r.left) / zoomScale, cy = (ev.clientY - r.top) / zoomScale;
-            const t = puertoLibreCercano(cx, cy, null);
+            let t = puertoLibreCercano(cx, cy, null);
+            if (!t) { const m = tuberiaBajoPunto(cx, cy); if (m) t = { x: m.A.x + m.ux * m.s, y: m.A.y + m.uy * m.s }; }
             let c = document.getElementById('pista-snap');
             if (!t) { if (c) c.remove(); return; }
             if (!c) { c = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); c.setAttribute('id', 'pista-snap'); c.setAttribute('r', '7'); c.setAttribute('fill', 'rgba(245,158,11,.25)'); c.setAttribute('stroke', '#f59e0b'); c.setAttribute('stroke-width', '2'); c.setAttribute('pointer-events', 'none'); svgCanvas.appendChild(c); }
@@ -1279,6 +1308,14 @@
             const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
             const rectMarco = marcoA3.getBoundingClientRect();
             const cx = (ev.clientX - rectMarco.left) / zoomScale, cy = (ev.clientY - rectMarco.top) / zoomScale;
+            insertarComponente(data, cx, cy);
+        }
+        // Crea un componente de la librería en (cx, cy) de la hoja: se conecta al puerto libre más
+        // cercano, parte la tubería sobre la que cae (componentes en línea) o se imanta a la rejilla.
+        function insertarComponente(data, cx, cy) {
+            if (!proyectoDefinido()) { aviso('Antes de dibujar, define el proyecto (Archivo > Datos del proyecto).', 'error'); abrirDatosProyecto(null, { obligatorio: true }); return; }
+            if (traza) cancelarTrazado();
+            desenganchado = false;
             if (data.type === 'anotacion' && data.subtype === 'leyenda') { colocarLeyenda(); return; }
             if (data.type === 'anotacion' && data.subtype === 'materiales') { insertarListado(cx, cy); return; }
             document.getElementById("empty-state")?.remove();
@@ -1319,7 +1356,7 @@
             normalizarElemento(nuevoElemento);
             elementosRed.push(nuevoElemento);
             if (data.type === 'anotacion') { nuevoElemento.x = cx; nuevoElemento.y = screenAMundoY(cy); }
-            else if (!conectarAlSoltar(nuevoElemento, cx, cy)) aplicarSnapping(nuevoElemento);
+            else if (puertoLibreCercano(cx, cy, nuevoElemento.id) ? !conectarAlSoltar(nuevoElemento, cx, cy) : !intentarPartirTuberia(nuevoElemento, cx, cy)) aplicarSnapping(nuevoElemento);
             invalidarResultados();
             renderizarVectorial();
             if (!vecinosDe(nuevoElemento).length) limitarAMarco(nuevoElemento);
@@ -1625,7 +1662,9 @@
             normalizarElemento(el); el.codigo = null; asignarNumero(el);
             ['_conectadoEn', '_propuestaDN', '_herencia'].forEach(k => delete el[k]);
             document.getElementById('modal-nuevo').style.display = 'none';
+            const alConfirmar = nuevoPendiente.alConfirmar;
             nuevoPendiente = null;
+            if (alConfirmar) alConfirmar(el);
             invalidarResultados();
             renderizarVectorial();
             seleccionarElemento(el.id);
@@ -3071,7 +3110,7 @@
 
         function datosProyecto() {
             return {
-                version: "7.6-librerias",
+                version: "7.7-productividad",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -3097,7 +3136,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.6-librerias" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.7-productividad" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -3883,7 +3922,9 @@
             const A = D => Math.PI * D * D / 4;
             elementosRed.filter(e => e.estado === 'fallo').forEach(el => {
                 const r = ultimoResultado[el.id]; if (!r) return;
-                const alt = r.alternativas = [];
+                const alt = r.alternativas = [], acc = r.acciones = [];
+                // alternativa que se puede aplicar con un clic desde el panel de avisos
+                const altA = (texto, corto, cambios) => { alt.push(texto); acc.push({ texto, corto, cambios }); };
                 const ars = aristas.filter(a => a.el.id === el.id);
                 const a = ars.find(x => !x.rama) || ars[0];
                 const txt = r.motivos.join(' ');
@@ -3891,13 +3932,13 @@
                     const m = materialDe(el), Q = Math.abs(a.Qprev), vl = a.lado === 'asp' ? lim.asp : lim.imp;
                     if (/Vmax/.test(txt)) {
                         const c = m.tamanos.filter(t => t.e[el.serie] != null).map(t => ({ t, D: (t.od - 2 * t.e[el.serie]) / 1000 })).sort((x, y) => x.D - y.D).find(x => Q / A(x.D) <= vl);
-                        if (c) alt.push(`Tamaño: ${tamanoTubo(el.material, c.t.clave)} ${etiquetaTuberia(Object.assign({}, el, { dn: c.t.clave })).split(' ').slice(1).join(' ')} (Dint ${(c.D * 1000).toFixed(1)} mm) → V ${(Q / A(c.D)).toFixed(2)} m/s`);
+                        if (c) altA(`Tamaño: ${tamanoTubo(el.material, c.t.clave)} ${etiquetaTuberia(Object.assign({}, el, { dn: c.t.clave })).split(' ').slice(1).join(' ')} (Dint ${(c.D * 1000).toFixed(1)} mm) → V ${(Q / A(c.D)).toFixed(2)} m/s`, `Cambiar a ${tamanoTubo(el.material, c.t.clave)}`, [['dn', c.t.clave]]);
                         else alt.push('Ningún tamaño de esta serie cumple: revisa el caudal o usa varias líneas en paralelo.');
                     }
                     if (/PMA/.test(txt)) {
                         const t = m.tamanos.find(x => x.clave === el.dn);
                         const ok = m.series.filter(sr => t && t.e[sr] != null && sr !== el.serie).map(sr => ({ sr, p: pmaTuberia(Object.assign({}, el, { serie: sr, pmaManual: null }), fluido.T).pma })).filter(x => x.p != null && x.p >= r.pmax).sort((x, y) => x.p - y.p)[0];
-                        if (ok) alt.push(`Serie: ${/^[0-9]+S?$/.test(ok.sr) ? 'Sch ' + ok.sr : ok.sr} (PMA ${ok.p.toFixed(1)} bar ≥ ${r.pmax.toFixed(2)} bar)`);
+                        if (ok) altA(`Serie: ${/^[0-9]+S?$/.test(ok.sr) ? 'Sch ' + ok.sr : ok.sr} (PMA ${ok.p.toFixed(1)} bar ≥ ${r.pmax.toFixed(2)} bar)`, `Serie ${/^[0-9]+S?$/.test(ok.sr) ? 'Sch ' + ok.sr : ok.sr}`, [['serie', ok.sr]]);
                         else alt.push('Ninguna serie de este material alcanza la presión: cambia de material (p. ej. acero) o reduce la presión de servicio.');
                     }
                 }
@@ -3905,16 +3946,18 @@
                     if (r.fallaPN) {
                         const fam = /^PN/.test(el.pn) ? 'PN' : 'Clase';
                         const sig = PN_LISTA.filter(x => x.startsWith(fam)).find(x => (presionAdmisiblePN(x, fluido.T, r.pnInox) || 0) >= r.pmaxComp);
-                        alt.push(sig ? `Presión nominal: ${sig} (${presionAdmisiblePN(sig, fluido.T, r.pnInox).toFixed(1)} bar ≥ ${r.pmaxComp.toFixed(2)} bar)` : 'Ninguna presión nominal de la serie alcanza la presión de servicio.');
+                        if (sig) altA(`Presión nominal: ${sig} (${presionAdmisiblePN(sig, fluido.T, r.pnInox).toFixed(1)} bar ≥ ${r.pmaxComp.toFixed(2)} bar)`, `Cambiar a ${sig}`, [['pn', sig]]);
+                        else alt.push('Ninguna presión nominal de la serie alcanza la presión de servicio.');
                     }
                     const Q = Math.abs(a.Qprev), vl = a.lado === 'asp' ? lim.asp : lim.imp;
                     if (/Vmax/.test(txt) && el.subtype === 'reduccion') {
                         const Q2 = Math.abs(a.Qprev), dn = LISTA_DN.filter(d => dnNum(d) > dnNum(el.dnMenor) && dnNum(d) < dnNum(el.dn)).find(d => Q2 / A(dintReferencia(d) / 1000) <= vl);
-                        alt.push(dn ? `Reducción: ${etiquetaDN(el.dn)} × ${etiquetaDN(dn)} → V ${(Q2 / A(dintReferencia(dn) / 1000)).toFixed(2)} m/s (y tubería de salida del mismo tamaño)` : 'Suprime la reducción y mantén el tamaño mayor aguas abajo.');
+                        if (dn) altA(`Reducción: ${etiquetaDN(el.dn)} × ${etiquetaDN(dn)} → V ${(Q2 / A(dintReferencia(dn) / 1000)).toFixed(2)} m/s (y tubería de salida del mismo tamaño)`, `Reducción ${etiquetaDN(el.dn)} × ${etiquetaDN(dn)}`, [['dnMenor', dn]]);
+                        else alt.push('Suprime la reducción y mantén el tamaño mayor aguas abajo.');
                     }
                     if (/Vmax/.test(txt) && el.subtype !== 'reduccion') {
                         const dn = LISTA_DN.filter(d => dnNum(d) > dnNum(el.dn)).find(d => Q / A(dintReferencia(d) / 1000) <= vl);
-                        if (dn) alt.push(`Tamaño: ${etiquetaDN(dn)} → V ${(Q / A(dintReferencia(dn) / 1000)).toFixed(2)} m/s (con la tubería contigua del mismo tamaño)`);
+                        if (dn) altA(`Tamaño: ${etiquetaDN(dn)} → V ${(Q / A(dintReferencia(dn) / 1000)).toFixed(2)} m/s (con la tubería contigua del mismo tamaño)`, `Cambiar a ${etiquetaDN(dn)}`, [['dn', dn]]);
                     }
                     if (el.subtype === 'retencion' && /apertura total/.test(txt)) {
                         const V = a.V, subt = Object.entries(CAT.vmin).filter(([t, C]) => C * Math.sqrt(1 / fluido.rho) <= V).map(([t, C]) => `${t} (Vmin ${(C * Math.sqrt(1 / fluido.rho)).toFixed(2)} m/s)`);
@@ -4077,6 +4120,7 @@
             renderizarVectorial(); // colores: verde cumple, rojo no cumple, violeta ruta crítica
             ultimoCalculo = { resultado: r.resultado, condiciones: r.condiciones, huella: huellaRed() };
             mostrarResultados(r.resultado);
+            actualizarPanelAvisos();
         }
         // Cálculo completo sin interfaz: { resultado, condiciones } o { error }
         function calcularResultado(grafo, aristas) {
@@ -4155,12 +4199,13 @@
                     ultimoCalculo = { resultado: r.resultado, condiciones: r.condiciones, huella: huellaRed() };
                     const nf_ = elementosRed.filter(e => e.estado === 'fallo').length, lc = r.resultado.lineaCritica;
                     const pre = escenarioBombas === 'reserva' ? '<b>[Reserva en marcha]</b> ' : '';
-                    estadoCalculo(nf_ ? `${pre}<i class="fa-solid fa-circle-xmark mr-1"></i>${nf_} elemento(s) no cumplen · ver resultados`
+                    estadoCalculo(nf_ ? `${pre}<i class="fa-solid fa-circle-xmark mr-1"></i>${nf_} elemento(s) no cumplen · clic: avisos`
                         : `${pre}<i class="fa-solid fa-circle-check mr-1"></i>Red OK${lc ? ` · ruta crítica ${fmt(lc.hfTotal, 2)} m` : ''}${(r.resultado.avisosRed || []).length ? ` · ${r.resultado.avisosRed.length} aviso(s)` : ''}`, nf_ ? '#dc2626' : '#15803d');
                 }
             } catch (e) { console.error(e); estadoCalculo('<i class="fa-solid fa-circle-exclamation mr-1"></i>Cálculo automático: error', '#b45309'); }
             calculandoAuto = false;
             renderizarVectorial();
+            actualizarPanelAvisos();
             if (idSeleccionado && document.activeElement && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') seleccionarElemento(idSeleccionado);
         }
         function invalidarSinProgramar() { ultimoResultado = null; ultimoCalculo = null; elementosRed.forEach(e => { e.estado = null; e.esLineaCritica = false; }); }
@@ -4813,6 +4858,357 @@
             b.onclick = () => { b.style.display = 'none'; seleccionarElemento(el.id); abrirVentanaElemento(el.id, r.right, r.top); };
         }
         function ocultarBotonTabla() { clearTimeout(temporizadorBotonTabla); temporizadorBotonTabla = setTimeout(() => { const b = document.getElementById('btn-tabla'); if (b && !b.matches(':hover')) b.style.display = 'none'; }, 900); }
+
+        // ==================================================================================
+        // 1) TRAZADO DE TUBERÍAS (Insertar > Trazar tubería, tecla T)
+        // Clic en el punto inicial (o en un puerto libre), clic en cada cambio de dirección (tramos
+        // ortogonales) y doble clic, Intro o clic en un puerto libre para terminar. Cada tramo es una
+        // tubería y cada cambio de dirección un codo de 90°. Esc cancela; Retroceso quita el último punto.
+        // ==================================================================================
+        let traza = null;
+        const OFF_CODO = 20; // px del vértice del codo 90° a cada uno de sus puertos (símbolo de 50×50)
+        function iniciarTrazado() {
+            if (!proyectoDefinido()) { pantallaInicio(); return; }
+            cerrarMenus(); ocultarTooltip();
+            traza = { puntos: [], inicio: null, raton: null };
+            canvasContainer.style.cursor = 'crosshair';
+            aviso('Trazar tubería: clic en el inicio (o en un puerto libre), clic en cada cambio de dirección; doble clic, Intro o clic en un puerto libre para terminar · Esc cancela · Retroceso quita el último punto.');
+        }
+        function cancelarTrazado() { traza = null; canvasContainer.style.cursor = 'default'; document.getElementById('traza')?.remove(); }
+        const puntoHoja = e => { const r = marcoA3.getBoundingClientRect(); return { x: (e.clientX - r.left) / zoomScale, y: (e.clientY - r.top) / zoomScale }; };
+        // Punto de trazado: puerto libre cercano, o tramo ortogonal desde el punto anterior (con rejilla)
+        function puntoTraza(p) {
+            const port = puertoLibreCercano(p.x, p.y, null);
+            if (port && port.d < 14) return { x: port.x, y: port.y, puerto: port };
+            let q = { x: p.x, y: p.y };
+            if (opciones.rejilla) { const g = pasoRejillaPx(), fr = marcoInterior(); q = { x: fr.x0 + Math.round((q.x - fr.x0) / g) * g, y: fr.y1 - Math.round((fr.y1 - q.y) / g) * g }; }
+            const ult = traza.puntos[traza.puntos.length - 1];
+            if (ult) {
+                // primer tramo desde un puerto: en la dirección de ese puerto
+                if (traza.puntos.length === 1 && traza.inicio) { const d = (dirPuertoLocal(traza.inicio.el, traza.inicio.id) + (traza.inicio.el.rotation || 0)) % 180; if (d === 0) q.y = ult.y; else q.x = ult.x; }
+                else if (Math.abs(q.x - ult.x) >= Math.abs(q.y - ult.y)) q.y = ult.y; else q.x = ult.x;
+            }
+            return q;
+        }
+        function pintarTraza() {
+            document.getElementById('traza')?.remove();
+            if (!traza) return;
+            const pts = traza.puntos.slice(); if (traza.raton) pts.push(traza.raton);
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('id', 'traza'); g.setAttribute('pointer-events', 'none');
+            let h = pts.length > 1 ? `<polyline points="${pts.map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ')}" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-dasharray="6,3"/>` : '';
+            pts.forEach(p => { h += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.puerto ? 5 : 2.5}" fill="${p.puerto ? 'rgba(245,158,11,.3)' : '#f59e0b'}" stroke="#f59e0b"/>`; });
+            if (pts.length > 1) { const a = pts[pts.length - 2], b = pts[pts.length - 1], L = Math.hypot(b.x - a.x, b.y - a.y) * 30;
+                h += `<text x="${((a.x + b.x) / 2 + 6).toFixed(1)}" y="${((a.y + b.y) / 2 - 6).toFixed(1)}" font-family="sans-serif" font-size="8" font-weight="bold" fill="#b45309" paint-order="stroke" stroke="#fff" stroke-width="3">L ≈ ${Math.round(L / 10) * 10} mm</text>`; }
+            g.innerHTML = h; svgCanvas.appendChild(g);
+        }
+        canvasContainer.addEventListener('mousedown', e => {
+            if (!traza || e.button !== 0) return;
+            e.preventDefault(); e.stopPropagation();
+            const q = puntoTraza(puntoHoja(e)), ult = traza.puntos[traza.puntos.length - 1];
+            if (!ult) { traza.puntos.push(q); if (q.puerto) traza.inicio = { el: q.puerto.el, id: q.puerto.id }; pintarTraza(); return; }
+            if (Math.hypot(q.x - ult.x, q.y - ult.y) < 3) return;
+            // llegada a un puerto: si no está alineado se añade el codo necesario
+            if (q.puerto) {
+                const d = (dirPuertoLocal(q.puerto.el, q.puerto.id) + (q.puerto.el.rotation || 0)) % 180;
+                if (d === 0 && Math.abs(q.y - ult.y) > 0.5) traza.puntos.push({ x: ult.x, y: q.y });
+                else if (d !== 0 && Math.abs(q.x - ult.x) > 0.5) traza.puntos.push({ x: q.x, y: ult.y });
+                traza.puntos.push(q); finalizarTrazado(); return;
+            }
+            traza.puntos.push(q); pintarTraza();
+        }, true);
+        canvasContainer.addEventListener('mousemove', e => { if (!traza) return; traza.raton = traza.puntos.length ? puntoTraza(puntoHoja(e)) : null; pintarTraza(); });
+        canvasContainer.addEventListener('dblclick', e => { if (!traza) return; e.preventDefault(); e.stopPropagation(); finalizarTrazado(); }, true);
+        window.addEventListener('keydown', e => {
+            if (!traza) return;
+            if (e.key === 'Escape') { e.preventDefault(); cancelarTrazado(); aviso('Trazado cancelado.'); }
+            else if (e.key === 'Enter') { e.preventDefault(); finalizarTrazado(); }
+            else if (e.key === 'Backspace') { e.preventDefault(); traza.puntos.pop(); if (!traza.puntos.length) traza.inicio = null; pintarTraza(); }
+        }, true);
+        function colocarPorPuerto(el, pid, destino) { const p = obtenerPuertosConexion(el).find(q => q.id === pid); el.x += destino.x - p.x; el.y -= destino.y - p.y; }
+        function finalizarTrazado() {
+            if (!traza) return;
+            // quitar puntos repetidos y colineales
+            let P = traza.puntos.filter((p, i, a) => !i || Math.hypot(p.x - a[i - 1].x, p.y - a[i - 1].y) > 0.5);
+            P = P.filter((p, i, a) => i === 0 || i === a.length - 1 || !((Math.abs(a[i - 1].x - p.x) < 0.5 && Math.abs(p.x - a[i + 1].x) < 0.5) || (Math.abs(a[i - 1].y - p.y) < 0.5 && Math.abs(p.y - a[i + 1].y) < 0.5)));
+            const inicio = traza.inicio;
+            cancelarTrazado();
+            if (P.length < 2) { aviso('Trazado sin tramos: haz al menos dos clics.', 'error'); return; }
+            const dirs = P.slice(1).map((b, i) => { const a = P[i]; return Math.abs(b.x - a.x) > Math.abs(b.y - a.y) ? (b.x > a.x ? 0 : 180) : (b.y > a.y ? 90 : 270); });
+            const tramos = P.slice(1).map((b, i) => { const a = P[i]; let L = Math.hypot(b.x - a.x, b.y - a.y); if (i > 0) L -= OFF_CODO; if (i < P.length - 2) L -= OFF_CODO; return L; });
+            for (let i = 1; i < dirs.length; i++) if (dirs[i] === dirs[i - 1] || (dirs[i] + 180) % 360 === dirs[i - 1]) { aviso('El trazado vuelve sobre sí mismo: revisa los puntos.', 'error'); return; }
+            if (tramos.some(L => L < 6)) { aviso(`Hay tramos demasiado cortos para colocar los codos (mínimo ≈ ${Math.ceil((2 * OFF_CODO + 6) * 30 / 10) * 10} mm entre cambios de dirección).`, 'error'); return; }
+            guardarEstado();
+            document.getElementById('empty-state')?.remove();
+            if (!elementosRed.some(e => !esAnotacion(e))) { lineas = []; condicionesContorno = {}; }
+            // tipo de tubería: la del elemento de partida, la última usada o la primera de la librería
+            const refT = inicio ? (inicio.el.type === 'tuberia' ? inicio.el : tuberiaReferencia(inicio.el, inicio.el.linea)) : null;
+            const ult = refT || [...elementosRed].reverse().find(e => e.type === 'tuberia') || TUBERIAS_LIBRERIA[0];
+            const nuevaTub = (i) => {
+                const t = { id: 'sym_' + Date.now() + '_t' + i, type: 'tuberia', subtype: '', name: 'Tubería', x: 0, y: screenAMundoY(0), scale: 1, rotation: dirs[i], material: ult.material || MATERIAL_DEF, serie: ult.serie || '40', dn: ult.dn || 'DN 50', longitud: Math.max(10, Math.round(tramos[i] * 30)) };
+                if (ult.pn) t.pn = ult.pn; if (ult.gradoMaterial) t.gradoMaterial = ult.gradoMaterial;
+                normalizarElemento(t);
+                colocarPorPuerto(t, 'a', i === 0 ? P[0] : { x: P[i].x + OFF_CODO * Math.cos(dirs[i] * Math.PI / 180), y: P[i].y + OFF_CODO * Math.sin(dirs[i] * Math.PI / 180) });
+                return t;
+            };
+            const primera = nuevaTub(0);
+            elementosRed.push(primera);
+            invalidarResultados(); renderizarVectorial();
+            // la primera tubería pasa por la ventana de inserción (hereda, propone tamaño, línea...); al aceptar se crean el resto y los codos
+            prepararNuevoElemento(primera);
+            if (!nuevoPendiente) return;
+            nuevoPendiente.alConfirmar = t0 => {
+                const creados = [];
+                for (let i = 1; i < dirs.length; i++) {
+                    const dIn = dirs[i - 1], dOut = dirs[i], giro = ((dOut - dIn) % 360 + 360) % 360;
+                    const c = { id: 'sym_' + Date.now() + '_c' + i, type: 'accesorio', subtype: 'codo90', name: 'Codo 90°', x: 0, y: screenAMundoY(0), scale: 1, rotation: giro === 90 ? dOut : (dIn + 180) % 360, dn: dnEquivalente(t0) || 'DN 50', modoK: 'crane', linea: t0.linea, cota: +t0.cotaB || 0 };
+                    if (t0.pn) c.pn = t0.pn;
+                    normalizarElemento(c);
+                    // vértice del codo (15,15 en su cuadro) sobre el punto de cambio de dirección
+                    const v0 = rotarPunto({ x: 15, y: 15 }, { x: 25, y: 25 }, c.rotation * Math.PI / 180, c.x, mundoAScreenY(c.y));
+                    c.x += P[i].x - v0.x; c.y -= P[i].y - v0.y;
+                    elementosRed.push(c); asignarNumero(c); creados.push(c);
+                    const t = nuevaTub(i);
+                    Object.assign(t, { material: t0.material, serie: t0.serie, dn: t0.dn, linea: t0.linea, cotaA: +t0.cotaB || 0, cotaB: +t0.cotaB || 0 });
+                    ['pn', 'gradoMaterial', 'aislamiento', 'lambdaAisl'].forEach(k => { if (t0[k] != null) t[k] = t0[k]; else delete t[k]; });
+                    normalizarElemento(t); colocarPorPuerto(t, 'a', { x: P[i].x + OFF_CODO * Math.cos(dOut * Math.PI / 180), y: P[i].y + OFF_CODO * Math.sin(dOut * Math.PI / 180) });
+                    elementosRed.push(t); asignarNumero(t); creados.push(t);
+                }
+                invalidarResultados(); renderizarVectorial();
+                aviso(`Trazado: ${dirs.length} tubería(s) y ${dirs.length - 1} codo(s) en la línea ${t0.linea || ''}.`, 'ok');
+            };
+        }
+
+        // ==================================================================================
+        // 2) INSERTAR EN MITAD DE UNA TUBERÍA: un componente en línea (puertos a–b opuestos) soltado sobre
+        // una tubería la parte en dos y queda conectado entre ambas.
+        // ==================================================================================
+        function componenteEnLinea(el) {
+            if (el.type === 'tuberia' || esAnotacion(el) || sinFlujo(el) || el.type === 'instrumento' || esTerminal(el)) return false;
+            const ids = obtenerPuertosLocales(el).map(p => p.id);
+            return ids.includes('a') && ids.includes(el.type === 'bomba' ? 'descarga' : 'b') && (el.type === 'bomba' || (dirPuertoLocal(el, 'a') === 180 && dirPuertoLocal(el, 'b') === 0));
+        }
+        function tuberiaBajoPunto(cx, cy, largo = 30) {
+            let mejor = null;
+            elementosRed.forEach(t => {
+                if (t.type !== 'tuberia') return;
+                const pp = obtenerPuertosConexion(t), A = pp.find(p => p.id === 'a'), B = pp.find(p => p.id === 'b');
+                const len = Math.hypot(B.x - A.x, B.y - A.y); if (len < 1) return;
+                const ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, s = (cx - A.x) * ux + (cy - A.y) * uy, d = Math.abs((cx - A.x) * uy - (cy - A.y) * ux);
+                if (d < 10 && s > largo / 2 + 4 && s < len - largo / 2 - 4 && (!mejor || d < mejor.d)) mejor = { t, A, B, s, len, ux, uy, d };
+            });
+            return mejor;
+        }
+        function intentarPartirTuberia(el, cx, cy) {
+            if (!componenteEnLinea(el)) return false;
+            const loc = obtenerPuertosLocales(el), pa = loc.find(p => p.id === 'a' || p.id === 'succion'), pb = loc.find(p => p.id === 'b' || p.id === 'descarga');
+            const largo = Math.hypot(pb.x - pa.x, pb.y - pa.y) * (el.scale || 1);
+            const m = tuberiaBajoPunto(cx, cy, largo); if (!m) return false;
+            const { t, A, s, len, ux, uy } = m, l1 = s - largo / 2, l2 = len - s - largo / 2;
+            const t2 = JSON.parse(JSON.stringify(t));
+            t2.id = 'sym_' + Date.now() + '_p'; t2.num = null; t2.codigo = null; delete t2.inicioLinea; delete t2.etq; delete t2.estado;
+            const za = +t.cotaA || 0, zb = +t.cotaB || 0;
+            t.longitud = Math.max(10, Math.round(l1 * 30)); t.cotaB = +(za + (zb - za) * l1 / len).toFixed(3);
+            t2.longitud = Math.max(10, Math.round(l2 * 30)); t2.cotaA = +(za + (zb - za) * (s + largo / 2) / len).toFixed(3);
+            el.rotation = t.rotation || 0;
+            colocarPorPuerto(el, pa.id, { x: A.x + ux * l1, y: A.y + uy * l1 });
+            el.cota = t.cotaB;
+            normalizarElemento(t2); elementosRed.push(t2); asignarNumero(t2);
+            colocarPorPuerto(t2, 'a', obtenerPuertosConexion(el).find(p => p.id === pb.id));
+            // la tubería original queda antes que el componente en la lista (para heredar de ella)
+            const i = elementosRed.indexOf(el), j = elementosRed.indexOf(t); if (j > i) { elementosRed.splice(j, 1); elementosRed.splice(i, 0, t); }
+            aviso(`${tagDe(t)} partida en dos: ${t.longitud} mm + ${t2.longitud} mm.`);
+            return true;
+        }
+
+        // ==================================================================================
+        // 7) PANEL DE AVISOS DEL CÁLCULO y 8) CORRECCIÓN CON UN CLIC
+        // ==================================================================================
+        let panelAvisosAbierto = false;
+        function alternarPanelAvisos(forzar) { panelAvisosAbierto = forzar != null ? forzar : !panelAvisosAbierto; actualizarPanelAvisos(); }
+        function actualizarPanelAvisos() {
+            const p = document.getElementById('panel-avisos'); if (!p) return;
+            p.style.display = panelAvisosAbierto ? 'flex' : 'none';
+            if (!panelAvisosAbierto) return;
+            const c = document.getElementById('panel-avisos-cuerpo'), res = ultimoCalculo && ultimoCalculo.resultado;
+            if (!res) { c.innerHTML = `<p class="p-2 text-slate-400 italic">${elementosRed.some(e => !esAnotacion(e)) ? 'Red sin calcular o con cambios: se recalcula sola (cálculo automático) o con el botón Calcular.' : 'Sin red.'}</p>`; document.getElementById('panel-avisos-titulo').innerText = 'Avisos del cálculo'; return; }
+            const fallos = elementosRed.filter(e => e.estado === 'fallo');
+            const calc = new Set(res.aristas.map(a => a.el.id));
+            const sinCalc = elementosRed.filter(e => !esAnotacion(e) && !sinFlujo(e) && !calc.has(e.id) && !(esTerminal(e) && ultimoResultado && ultimoResultado[e.id]) && bombaEnMarcha(e));
+            const avisos = res.avisosRed || [];
+            const tags = elementosRed.filter(e => !esAnotacion(e)).map(e => ({ e, t: tagDe(e) })).sort((a, b) => b.t.length - a.t.length);
+            const enlazar = txt => { const m = tags.find(x => txt.includes(x.t)); return m ? `<a href="#" onclick="event.preventDefault(); irAElemento('${m.e.id}')" class="text-blue-700 hover:underline">${esc(txt)}</a>` : esc(txt); };
+            let h = '';
+            fallos.forEach(e => {
+                const r = ultimoResultado[e.id] || { motivos: [] };
+                h += `<div class="p-2 border-b border-slate-100"><div class="flex items-start gap-1.5"><i class="fa-solid fa-circle-xmark text-rose-600 mt-0.5"></i><div class="flex-1"><a href="#" onclick="event.preventDefault(); irAElemento('${e.id}')" class="font-bold text-rose-700 hover:underline">${esc(tagDe(e))}</a> <span class="text-slate-600">${esc(r.motivos.join('; '))}</span>` +
+                    ((r.acciones || []).length ? `<div class="flex flex-wrap gap-1 mt-1">${r.acciones.map((a, k) => `<button onclick="aplicarAccion('${e.id}', ${k})" class="px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[10px]" title="${esc(a.texto)}"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>${esc(a.corto || a.texto)}</button>`).join('')}</div>` : '') +
+                    ((r.alternativas || []).filter(t => !(r.acciones || []).some(a => a.texto === t)).map(t => `<div class="text-[10px] text-amber-700">→ ${esc(t)}</div>`).join('')) + '</div></div></div>';
+            });
+            sinCalc.forEach(e => { h += `<div class="p-2 border-b border-slate-100"><i class="fa-solid fa-link-slash text-amber-600 mr-1"></i><a href="#" onclick="event.preventDefault(); irAElemento('${e.id}')" class="font-bold text-amber-700 hover:underline">${esc(tagDe(e))}</a> no está conectado a la red (no se ha calculado).</div>`; });
+            avisos.forEach(t => { h += `<div class="p-2 border-b border-slate-100"><i class="fa-solid fa-triangle-exclamation text-amber-500 mr-1"></i>${enlazar(t)}</div>`; });
+            const n = fallos.length + sinCalc.length + avisos.length;
+            document.getElementById('panel-avisos-titulo').innerHTML = `Avisos del cálculo · <span class="${fallos.length ? 'text-rose-600' : 'text-emerald-700'}">${fallos.length} fallo(s)</span> · ${sinCalc.length + avisos.length} aviso(s)`;
+            c.innerHTML = n ? h : '<p class="p-2 text-emerald-700"><i class="fa-solid fa-circle-check mr-1"></i>Sin fallos ni avisos.</p>';
+        }
+        function aplicarAccion(id, k) {
+            const el = elementosRed.find(e => e.id === id), r = ultimoResultado && ultimoResultado[id], a = r && (r.acciones || [])[k];
+            if (!el || !a) return;
+            guardarEstado();
+            a.cambios.forEach(([campo, valor]) => {
+                const antes = el.dn;
+                aplicarCambio(el, campo, valor);
+                if (campo === 'dn' && el.type === 'tuberia') { const av = propagarDN([{ el, dnAntes: antes }]); av.forEach(t => aviso(t, 'error')); }
+            });
+            invalidarResultados(); renderizarVectorial();
+            if (idSeleccionado === id) seleccionarElemento(id);
+            aviso(`${tagDe(el)}: ${a.texto}`, 'ok');
+            if (!opciones.calculoAuto) aviso('Cálculo automático desactivado: pulsa Calcular para comprobar la corrección.');
+        }
+
+        // ==================================================================================
+        // 12) PALETA DE COMANDOS (Ctrl+K): menús, insertar componentes, ir a elementos y líneas
+        // ==================================================================================
+        let paleta_ = { lista: [], sel: 0 };
+        const sinAcentos = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+        function comandosPaleta() {
+            const out = [];
+            const recorrer = (items, ruta) => (items || []).forEach(it => {
+                if (it === 'sep' || !it.texto) return;
+                if (it.habilitado && !it.habilitado()) return;
+                const r = ruta ? ruta + ' › ' + it.texto : it.texto;
+                if (it.sub) recorrer(typeof it.sub === 'function' ? it.sub() : it.sub, r);
+                else if (it.accion && !/^(Ctrl|Origen del catálogo)/.test(it.texto)) out.push({ texto: r, icono: it.icono || 'fa-angle-right', grupo: 'Menú', accion: it.accion });
+            });
+            MENUS.forEach(m => recorrer(m.items, m.titulo));
+            out.push({ texto: 'Trazar tubería', icono: 'fa-pen-ruler', grupo: 'Dibujo', accion: () => iniciarTrazado() });
+            out.push({ texto: 'Tabla de propiedades', icono: 'fa-table-cells-large', grupo: 'Edición', accion: () => abrirTablaPropiedades() });
+            out.push({ texto: 'Panel de avisos del cálculo', icono: 'fa-triangle-exclamation', grupo: 'Cálculo', accion: () => alternarPanelAvisos(true) });
+            TUBERIAS_LIBRERIA.forEach(t => out.push({ texto: 'Insertar tubería · ' + t.texto, icono: 'fa-grip-lines', grupo: 'Insertar', accion: () => insertarEnCentro({ type: 'tuberia', material: t.material, serie: t.serie, dn: t.dn, longitud: '3000', name: 'Tubería' }) }));
+            out.push({ texto: 'Insertar · Bomba centrífuga', icono: 'fa-fan', grupo: 'Insertar', accion: () => insertarEnCentro({ type: 'bomba', name: 'Bomba centrífuga', caudal: '50', presion: '3.5', npsh: '2500' }) });
+            Object.entries(TIPOS).filter(([k, t]) => t.cat !== 'ninguna' && t.type !== 'anotacion').forEach(([k, t]) => {
+                if (k === 'reduccion') { ['false', 'true'].forEach(ex => out.push({ texto: `Insertar · Reducción ${ex === 'true' ? 'excéntrica' : 'concéntrica'} (${ex === 'true' ? 'RE' : 'RC'})`, icono: 'fa-shapes', grupo: 'Insertar', accion: () => insertarEnCentro({ type: 'accesorio', subtype: 'reduccion', excentrica: ex, name: 'Reducción' }) })); return; }
+                out.push({ texto: `Insertar · ${t.nombre} (${t.codigo})`, icono: iconoArbol({ type: t.type, subtype: k }), grupo: 'Insertar', accion: () => insertarEnCentro({ type: t.type, subtype: k, name: t.nombre }) });
+            });
+            lineasEnOrden().forEach(o => out.push({ texto: `Seleccionar línea · ${o.linea.id}${o.linea.nombre ? ' · ' + o.linea.nombre : ''}`, icono: 'fa-diagram-project', grupo: 'Línea', accion: () => seleccionarLinea(o.linea.id) }));
+            elementosRed.filter(e => !esAnotacion(e)).forEach(e => out.push({ texto: `Ir a · ${tagDe(e)} · ${nombreTipo(e)}`, icono: 'fa-location-crosshairs', grupo: 'Elemento', accion: () => irAElemento(e.id) }));
+            return out;
+        }
+        function abrirPaleta() {
+            cerrarMenus();
+            const p = document.getElementById('paleta'); p.style.display = 'flex';
+            const inp = document.getElementById('paleta-texto'); inp.value = ''; paleta_.todos = comandosPaleta(); filtrarPaleta(); setTimeout(() => inp.focus(), 10);
+        }
+        function cerrarPaleta() { document.getElementById('paleta').style.display = 'none'; }
+        function filtrarPaleta() {
+            const q = sinAcentos(document.getElementById('paleta-texto').value).split(/\s+/).filter(Boolean);
+            // orden: dibujo e inserción primero, luego menús (las librerías al final), líneas y elementos
+            const pri = c => ({ Dibujo: 0, Insertar: 1, Edición: 2, 'Cálculo': 2, 'Menú': /^Librerías/.test(c.texto) ? 4 : 3, 'Línea': 5, Elemento: 6 })[c.grupo] ?? 3;
+            paleta_.lista = paleta_.todos.filter(c => { const t = sinAcentos(c.texto + ' ' + c.grupo); return q.every(w => t.includes(w)); })
+                .map((c, i) => [c, i]).sort((x, y) => (q.length ? pri(x[0]) - pri(y[0]) : 0) || x[1] - y[1]).map(x => x[0]).slice(0, 60);
+            paleta_.sel = 0; pintarPaleta();
+        }
+        function pintarPaleta() {
+            document.getElementById('paleta-lista').innerHTML = paleta_.lista.map((c, i) => `<div onmousedown="event.preventDefault(); ejecutarPaleta(${i})" onmousemove="if (paleta_.sel !== ${i}) { paleta_.sel = ${i}; pintarPaleta(); }" class="px-3 py-1.5 flex items-center gap-2 cursor-pointer ${i === paleta_.sel ? 'bg-blue-600 text-white' : 'hover:bg-slate-50'}"><i class="fa-solid ${c.icono} w-4 text-center ${i === paleta_.sel ? '' : 'text-blue-600'}"></i><span class="flex-1">${esc(c.texto)}</span><span class="text-[10px] ${i === paleta_.sel ? 'text-blue-100' : 'text-slate-400'}">${c.grupo}</span></div>`).join('') || '<p class="px-3 py-2 text-slate-400 italic">Sin coincidencias</p>';
+            const s = document.querySelector('#paleta-lista > div:nth-child(' + (paleta_.sel + 1) + ')'); if (s) s.scrollIntoView({ block: 'nearest' });
+        }
+        function ejecutarPaleta(i) { const c = paleta_.lista[i]; cerrarPaleta(); if (c) setTimeout(() => c.accion(), 0); }
+        function tecladoPaleta(e) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); paleta_.sel = Math.min(paleta_.lista.length - 1, paleta_.sel + 1); pintarPaleta(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); paleta_.sel = Math.max(0, paleta_.sel - 1); pintarPaleta(); }
+            else if (e.key === 'Enter') { e.preventDefault(); ejecutarPaleta(paleta_.sel); }
+            else if (e.key === 'Escape') { e.preventDefault(); cerrarPaleta(); }
+        }
+        function insertarEnCentro(data) { const c = centroVista(); insertarComponente(data, c.x + 25, mundoAScreenY(c.y) + 25); }
+
+        // ==================================================================================
+        // 17) TABLA DE PROPIEDADES (edición en bloque, Edición > Tabla de propiedades)
+        // ==================================================================================
+        let masivo = { grupo: 'tuberia', linea: '', texto: '', marcados: new Set() };
+        const GRUPOS_MASIVO = [['tuberia', 'Tuberías'], ['valvula', 'Válvulas'], ['accesorio', 'Accesorios, uniones y bridas'], ['bomba', 'Bombas'], ['equipo', 'Equipos'], ['terminal', 'Tanques y consumos'], ['instrumento', 'Instrumentos']];
+        function columnasMasivo(g) {
+            const lin = () => lineas.map(l => [l.id, l.id]);
+            const pn = () => [['', '—'], ...PN_LISTA];
+            const C = {
+                tuberia: [['linea', 'Línea', 'sel', lin], ['material', 'Tipo / material', 'sel', () => Object.keys(CAT.materiales)], ['serie', 'Serie', 'sel', el => materialDe(el).series.filter(sr => materialDe(el).tamanos.some(t => t.e[sr] != null))], ['dn', 'Tamaño', 'sel', el => materialDe(el).tamanos.filter(t => t.e[el.serie] != null).map(t => [t.clave, tamanoTubo(el.material, t.clave)])], ['pn', 'Clase / PN', 'sel', pn], ['gradoMaterial', 'Material (grado)', 'mat'], ['longitud', 'L (mm)', 'num'], ['cotaA', 'Cota a (m)', 'num'], ['cotaB', 'Cota b (m)', 'num'], ['aislamiento', 'Aisl. (mm)', 'num']],
+                valvula: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['dn', 'DN', 'sel', () => LISTA_DN.map(d => [d, etiquetaDN(d)])], ['pn', 'PN / clase', 'sel', pn], ['craneTipo', 'Subtipo', 'sel', el => opcionesCrane(claveCrane(el)).map(o => o[0])], ['libItem', 'Modelo de librería', 'sel', el => [['', '—'], ...itemsLib(el.subtype).map(i => [i.id, i.nombre])]], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt'], ['cota', 'Cota (m)', 'num']],
+                accesorio: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['dn', 'DN', 'sel', () => LISTA_DN.map(d => [d, etiquetaDN(d)])], ['dnMenor', 'DN menor', 'sel', el => el.subtype === 'reduccion' ? LISTA_DN.filter(d => dnNum(d) < dnNum(el.dn)).map(d => [d, etiquetaDN(d)]) : null], ['pn', 'PN / clase', 'sel', pn], ['craneTipo', 'Tipo (Crane)', 'sel', el => { const o = opcionesCrane(claveCrane(el)); return o.length > 1 ? o.map(x => x[0]) : null; }], ['libItem', 'Modelo de librería', 'sel', el => [['', '—'], ...itemsLib(el.subtype).map(i => [i.id, i.nombre])]], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt'], ['cota', 'Cota (m)', 'num']],
+                bomba: [['linea', 'Línea', 'sel', lin], ['caudal', `Q (${lQ()})`, 'mag'], ['presion', `p (${lP()})`, 'mag'], ['h0', `p₀ (${lP()})`, 'mag'], ['npsh', 'NPSHr (m)', 'num'], ['eta', 'η', 'num'], ['cota', 'Cota (m)', 'num'], ['libItem', 'Modelo de librería', 'sel', () => [['', '—'], ...itemsLib('bomba').map(i => [i.id, i.nombre])]], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
+                equipo: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['qNom', `Q nom (${lQ()})`, 'mag'], ['dpNom', `Δp nom (${lP()})`, 'mag'], ['pn', 'PN / clase', 'sel', pn], ['volumen', 'V (l)', 'num'], ['cota', 'Cota (m)', 'num'], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
+                terminal: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['qCons', `Q cons. (${lQ()})`, 'mag', el => el.subtype === 'consumo'], ['pMin', `p mín (${lP()})`, 'mag', el => el.subtype === 'consumo'], ['cota', 'Cota (m)', 'num', el => el.subtype === 'consumo'], ['cotaFondo', 'Cota fondo (m)', 'num', el => esDeposito(el)], ['hLamina', 'Nivel (m)', 'num', el => esDeposito(el)], ['presionDep', `p lámina (${lP()})`, 'mag', el => esDeposito(el)], ['volumen', 'V (l)', 'num', el => esDeposito(el)], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
+                instrumento: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['dnInstr', 'Conexión', 'sel', () => [['', '—'], ...LISTA_DN.slice(0, 8).map(d => [d, etiquetaDN(d)])]], ['rango', 'Rango', 'txt'], ['cota', 'Cota (m)', 'num'], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']]
+            };
+            return C[g];
+        }
+        function elementosMasivo() {
+            const q = sinAcentos(masivo.texto);
+            return elementosRed.filter(e => e.type === masivo.grupo && (!masivo.linea || e.linea === masivo.linea) && (!q || sinAcentos(tagDe(e) + ' ' + nombreTipo(e) + ' ' + (e.materialComp || e.material || '')).includes(q)))
+                .sort((a, b) => String(a.linea || '').localeCompare(String(b.linea || '')) || tagDe(a).localeCompare(tagDe(b)));
+        }
+        function abrirTablaPropiedades(grupo) {
+            if (grupo) masivo.grupo = grupo;
+            document.getElementById('modal-masivo').style.display = 'flex';
+            pintarTablaPropiedades();
+        }
+        function cerrarTablaPropiedades() { document.getElementById('modal-masivo').style.display = 'none'; }
+        function celdaMasivo(el, [campo, , tipo, ops]) {
+            if (tipo === 'ro') return `<td class="px-1 whitespace-nowrap text-slate-600">${esc(nombreTipo(el))}</td>`;
+            if (typeof ops === 'function' && tipo !== 'sel' && ops(el) === false) return '<td class="px-1 text-slate-300">—</td>';
+            const on = v => `onchange="cambioMasivo('${el.id}', '${campo}', ${v})"`;
+            const val = el[campo];
+            if (tipo === 'sel') {
+                const lista = ops(el); if (!lista) return '<td class="px-1 text-slate-300">—</td>';
+                return `<td class="px-0.5"><select ${on('this.value')} class="border rounded p-0.5 text-[11px] max-w-[170px]">${lista.map(o => { const [v, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${String(v) === String(val == null ? '' : val) ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></td>`;
+            }
+            if (tipo === 'mat') return `<td class="px-0.5"><select onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) cambioMasivo('${el.id}', '${campo}', t); else this.value = ''; } else cambioMasivo('${el.id}', '${campo}', this.value)" class="border rounded p-0.5 text-[11px] max-w-[170px]">${opcionesMaterial(grupoMaterial(el), val || '')}</select></td>`;
+            if (tipo === 'mag') return `<td class="px-0.5"><input type="number" step="any" value="${esc(mostrarCampo(campo, val))}" ${on('this.value')} class="border rounded p-0.5 w-20 text-[11px]"></td>`;
+            if (tipo === 'num') return `<td class="px-0.5"><input type="number" step="any" value="${esc(val == null ? '' : val)}" ${on('this.value')} class="border rounded p-0.5 w-20 text-[11px]"></td>`;
+            return `<td class="px-0.5"><input type="text" value="${esc(val || '')}" ${on('this.value')} class="border rounded p-0.5 w-40 text-[11px]"></td>`;
+        }
+        function pintarTablaPropiedades() {
+            const cols = columnasMasivo(masivo.grupo), els = elementosMasivo();
+            masivo.marcados = new Set([...masivo.marcados].filter(id => els.some(e => e.id === id)));
+            const edit = cols.filter(c => c[2] !== 'ro');
+            document.getElementById('masivo-cuerpo').innerHTML = `
+                <div class="flex flex-wrap gap-2 items-center mb-2">
+                    <div class="flex border rounded overflow-hidden">${GRUPOS_MASIVO.map(([g, t]) => `<button onclick="masivo.grupo='${g}'; masivo.marcados.clear(); pintarTablaPropiedades()" class="px-2 py-1 ${g === masivo.grupo ? 'bg-blue-600 text-white' : 'hover:bg-slate-50'}">${t} <span class="opacity-70">${elementosRed.filter(e => e.type === g).length}</span></button>`).join('')}</div>
+                    <select onchange="masivo.linea = this.value; pintarTablaPropiedades()" class="border rounded p-1"><option value="">Todas las líneas</option>${lineas.map(l => `<option ${l.id === masivo.linea ? 'selected' : ''}>${l.id}</option>`).join('')}</select>
+                    <input value="${esc(masivo.texto)}" placeholder="Filtrar (etiqueta, tipo, material)" oninput="masivo.texto = this.value; clearTimeout(window.__tmF); window.__tmF = setTimeout(pintarTablaPropiedades, 250)" class="border rounded p-1 w-56">
+                </div>
+                <div class="flex flex-wrap gap-2 items-center mb-2 bg-slate-50 border rounded p-1.5"><b>Marcados: ${masivo.marcados.size}</b> · Asignar
+                    <select id="masivo-campo" class="border rounded p-1">${edit.map(c => `<option value="${c[0]}">${esc(c[1])}</option>`).join('')}</select>
+                    = <input id="masivo-valor" placeholder="valor (tal como aparece en la columna)" class="border rounded p-1 w-56">
+                    <button onclick="asignarMasivo()" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded" ${masivo.marcados.size ? '' : 'disabled'}>Aplicar a los marcados</button>
+                    <span class="text-[10px] text-slate-400">Consejo: cambia un elemento en la tabla y copia su valor a los demás con este botón.</span></div>
+                <div class="overflow-auto border rounded" style="max-height:60vh"><table class="text-[11px] w-full"><thead class="bg-slate-100 sticky top-0"><tr>
+                    <th class="px-1"><input type="checkbox" ${els.length && masivo.marcados.size === els.length ? 'checked' : ''} onchange="if (this.checked) elementosMasivo().forEach(e => masivo.marcados.add(e.id)); else masivo.marcados.clear(); pintarTablaPropiedades()"></th><th class="px-1 text-left">Etiqueta</th>${cols.map(c => `<th class="px-1 text-left whitespace-nowrap">${esc(c[1])}</th>`).join('')}</tr></thead>
+                    <tbody>${els.map(el => `<tr class="border-t border-slate-100 ${el.estado === 'fallo' ? 'bg-rose-50' : ''}"><td class="px-1"><input type="checkbox" ${masivo.marcados.has(el.id) ? 'checked' : ''} onchange="if (this.checked) masivo.marcados.add('${el.id}'); else masivo.marcados.delete('${el.id}'); pintarTablaPropiedades()"></td>
+                        <td class="px-1 whitespace-nowrap"><a href="#" onclick="event.preventDefault(); irAElemento('${el.id}')" class="text-blue-700 hover:underline font-bold">${esc(tagDe(el))}</a></td>${cols.map(c => celdaMasivo(el, c)).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length + 2}" class="p-2 text-slate-400 italic">Sin elementos de este tipo.</td></tr>`}</tbody></table></div>`;
+        }
+        function cambioMasivo(id, campo, valor, sinPintar) {
+            const el = elementosRed.find(e => e.id === id); if (!el) return false;
+            if (!sinPintar) guardarEstado();
+            const antes = el.dn;
+            let ok;
+            if (campo === 'linea') { if (!lineas.some(l => l.id === valor)) ok = false; else { el.linea = valor; asignarNumero(el); purgarLineasVacias(); ok = true; } }
+            else ok = aplicarCambio(el, campo, valor);
+            if (ok !== false && campo === 'dn' && el.type === 'tuberia') propagarDN([{ el, dnAntes: antes }]);
+            if (!sinPintar) { invalidarResultados(); renderizarVectorial(); pintarTablaPropiedades(); }
+            return ok !== false;
+        }
+        function asignarMasivo() {
+            const campo = document.getElementById('masivo-campo').value; let valor = document.getElementById('masivo-valor').value.trim();
+            const col = columnasMasivo(masivo.grupo).find(c => c[0] === campo);
+            guardarEstado(); let n = 0, no = 0;
+            [...masivo.marcados].forEach(id => {
+                const el = elementosRed.find(e => e.id === id); if (!el) return;
+                let v = valor;
+                if (col && col[2] === 'sel') { const lista = col[3](el) || []; const hit = lista.map(o => Array.isArray(o) ? o : [o, o]).find(([a, t]) => sinAcentos(a) === sinAcentos(valor) || sinAcentos(t) === sinAcentos(valor)); if (!hit) { no++; return; } v = hit[0]; }
+                if (cambioMasivo(id, campo, v, true)) n++; else no++;
+            });
+            invalidarResultados(); renderizarVectorial(); pintarTablaPropiedades();
+            aviso(`${col ? col[1] : campo}: ${n} elemento(s) cambiados${no ? ` · ${no} sin cambiar (valor no válido para ese elemento)` : ''}.`, no ? 'error' : 'ok');
+        }
+
 
         // ==================================================================================
         // TOOLTIP: al dejar el ratón quieto sobre un componente, toda su información
@@ -7309,6 +7705,8 @@
             ]},
             { titulo: 'Edición', items: [
                 { icono: 'fa-magnifying-glass', texto: 'Búsqueda/Reemplazo...', atajo: 'Ctrl+R', accion: () => abrirBuscarReemplazar() },
+                { icono: 'fa-terminal', texto: 'Paleta de comandos...', atajo: 'Ctrl+K', accion: () => abrirPaleta() },
+                { icono: 'fa-table-cells-large', texto: 'Tabla de propiedades...', accion: () => abrirTablaPropiedades() },
                 'sep',
                 { icono: 'fa-copy', texto: 'Copiar', atajo: 'Ctrl+C', accion: () => copiarSeleccion(), habilitado: () => haySeleccion() },
                 { icono: 'fa-scissors', texto: 'Cortar', atajo: 'Ctrl+X', accion: () => cortarSeleccion(), habilitado: () => haySeleccion() },
@@ -7340,6 +7738,7 @@
             ]},
             { titulo: 'Vista', items: [
                 { icono: 'fa-sitemap', texto: 'Árbol de estructura (mostrar/ocultar)', accion: () => alternarArbol() },
+                { icono: 'fa-triangle-exclamation', texto: 'Panel de avisos del cálculo (mostrar/ocultar)', accion: () => alternarPanelAvisos() },
                 { icono: 'fa-image', texto: 'Fondo DXF', sub: () => proyecto.fondo ? [
                     { icono: proyecto.fondo.visible ? 'fa-eye-slash' : 'fa-eye', texto: proyecto.fondo.visible ? 'Ocultar' : 'Mostrar', accion: () => { proyecto.fondo.visible = !proyecto.fondo.visible; renderizarVectorial(); marcarCambios(true); } },
                     { icono: 'fa-circle-half-stroke', texto: 'Opacidad', sub: [0.15, 0.25, 0.35, 0.5, 0.75].map(o => ({ icono: Math.abs((proyecto.fondo.opacidad || 0.35) - o) < 1e-3 ? 'fa-check' : 'fa-square', texto: Math.round(o * 100) + ' %', accion: () => { proyecto.fondo.opacidad = o; renderizarVectorial(); marcarCambios(true); } })) },
@@ -7354,6 +7753,8 @@
                     { icono: 'fa-floppy-disk', texto: 'Guardar selección como plantilla...', accion: () => guardarSeleccionComoPlantilla() },
                     ...(plantillasUsuario().length ? [{ icono: 'fa-trash-can', texto: 'Eliminar plantilla', sub: plantillasUsuario().map(p => ({ icono: 'fa-xmark', texto: p.nombre, accion: () => borrarPlantilla(p.nombre) })) }] : [])
                 ] },
+                'sep',
+                { icono: 'fa-pen-ruler', texto: 'Trazar tubería (tramos y codos)', atajo: 'T', accion: () => iniciarTrazado() },
                 'sep',
                 { icono: 'fa-note-sticky', texto: 'Nota de texto', accion: () => insertarAnotacion('nota') },
                 { icono: 'fa-list', texto: 'Leyenda de componentes', accion: () => insertarAnotacion('leyenda') },
@@ -7500,7 +7901,13 @@
             if (e.key === 'Escape') {
                 if (menuAbierto) accion = () => {};
                 else if (document.getElementById('modal-creditos').style.display === 'flex') accion = cerrarCreditos;
+                else if (document.getElementById('modal-masivo').style.display === 'flex') accion = cerrarTablaPropiedades;
+                else if (panelAvisosAbierto && !enCampo && !seleccion.size) accion = () => alternarPanelAvisos(false);
                 else if (!enCampo && seleccion.size && !modoZoomVentana) accion = limpiarSeleccion;
+            } else if (ctrl && !e.altKey && !e.shiftKey && k === 'k') {
+                accion = abrirPaleta;
+            } else if (!enCampo && !ctrl && !e.altKey && !e.shiftKey && k === 't' && !traza && !menuAbierto && !document.querySelector('[id^="modal-"][style*="flex"]') && document.getElementById('paleta').style.display !== 'flex') {
+                accion = iniciarTrazado;
             } else if (ctrl && !e.altKey && !e.shiftKey) {
                 if (k === 'n') accion = nuevoProyecto;
                 else if (k === 'o') accion = proyectoExistente;
