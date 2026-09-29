@@ -224,7 +224,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.3.2-sinbombas</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.5-capas-plantilla</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -330,9 +330,10 @@
 
         <!-- PANEL DERECHO: LIBRERÍA -->
         <aside id="panel-der" class="bg-white border-l border-slate-200 p-2.5 flex flex-col space-y-3 overflow-y-auto z-10" style="width: 220px; min-width: 160px; max-width: 400px;">
-            <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5 flex items-center">
-                <i class="fa-solid fa-shapes mr-1 text-blue-600"></i> Símbolos P&ID
-            </h2>
+            <div class="border-b border-slate-100 pb-1.5 flex items-center gap-2">
+                <button id="btn-calcular" onclick="calcularRed()" title="Calcular la red (Cálculo > Calcular red)" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm flex items-center"><i class="fa-solid fa-calculator mr-1"></i>Calcular</button>
+                <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center"><i class="fa-solid fa-shapes mr-1 text-blue-600"></i> Símbolos P&ID</h2>
+            </div>
 
             <!-- La librería se genera desde TIPOS (ver construirLibreria) -->
             <div id="libreria" class="space-y-3"></div>
@@ -1008,7 +1009,7 @@
             irAOrigenEnEsquina();
             renderizarVectorial();
             new ResizeObserver(() => aplicarZoom()).observe(canvasContainer);
-            setTimeout(abrirUltimoProyecto, 150);
+            setTimeout(pantallaInicio, 150);
         };
 
         function iniciarSelectorFluido() {
@@ -1783,10 +1784,10 @@
         // ==================================================================================
         // OPCIONES DE VISUALIZACIÓN Y COLORES
         // ==================================================================================
-        let opciones = { fondo: 'solidworks', norma: 'ISO', vmax: 3.0, margenNPSH: 0.5, arbol: true, uPresion: 'bar', uCaudal: 'm3h', calculoAuto: true,
+        let opciones = { fondo: 'papel', norma: 'ISO', vmax: 3.0, margenNPSH: 0.5, arbol: true, uPresion: 'bar', uCaudal: 'm3h', calculoAuto: true,
             formato: 'A3', rejillaVisible: true, rejillaMayor: 10, rejillaMenores: 2, rejilla: false };
         const FONDOS = {
-            solidworks: { nombre: 'Papel SolidWorks', hoja: '#e8e6dc', punto: '#c3c1b6', oscuro: false },
+            papel: { nombre: 'Papel', hoja: '#e8e6dc', punto: '#c3c1b6', oscuro: false },
             blanco:     { nombre: 'Blanco',      hoja: '#ffffff', punto: '#cbd5e1', oscuro: false },
             grisClaro:  { nombre: 'Gris claro',  hoja: '#e5e7eb', punto: '#c4c9d1', oscuro: false },
             grisOscuro: { nombre: 'Gris oscuro', hoja: '#374151', punto: '#4b5563', oscuro: true },
@@ -1794,13 +1795,13 @@
         };
         const NORMAS = { ISO: 'ISO 10628-2', ISA: 'ISA 5.1', CLIENTE: 'Empresa cliente' };
         function paleta() {
-            const f = FONDOS[opciones.fondo] || FONDOS.solidworks;
+            const f = FONDOS[opciones.fondo] || FONDOS.papel;
             return f.oscuro
                 ? { base: '#60a5fa', texto: '#e2e8f0', halo: f.hoja, relleno: f.hoja, ok: '#4ade80', fallo: '#f87171', critica: '#c084fc', flecha: '#4ade80', sel: '#fbbf24' }
                 : { base: '#2563eb', texto: '#1e3a8a', halo: f.hoja, relleno: f.hoja, ok: '#16a34a', fallo: '#dc2626', critica: '#7c3aed', flecha: '#16a34a', sel: '#f59e0b' };
         }
         function aplicarFondo() {
-            const f = FONDOS[opciones.fondo] || FONDOS.solidworks;
+            const f = FONDOS[opciones.fondo] || FONDOS.papel;
             marcoA3.style.backgroundColor = f.hoja;
             marcoA3.style.backgroundImage = 'none'; // la rejilla se dibuja en el SVG (capa de formato)
         }
@@ -2008,7 +2009,7 @@
             A1: { w: 841, h: 594, cols: 16, filas: 12 }, A0: { w: 1189, h: 841, cols: 24, filas: 18 } };
         const LETRAS_ZONA = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
         const formatoActual = () => FORMATOS[opciones.formato] || FORMATOS.A3;
-        const MARGEN_IZQ = 10, MARGEN = 10, BANDA = 6; // mm (estilo SolidWorks: marco a 10 mm, línea exterior de referencias a 4 mm del borde)
+        const MARGEN_IZQ = 10, MARGEN = 10, BANDA = 6; // mm (marco a 10 mm, línea exterior de referencias a 4 mm del borde)
         function marcoInterior() { return { x0: MARGEN_IZQ * PX_MM, y0: MARGEN * PX_MM, x1: ANCHO_A3 - MARGEN * PX_MM, y1: ALTO_A3 - MARGEN * PX_MM }; }
         function aplicarFormato() {
             const f = formatoActual();
@@ -2036,17 +2037,17 @@
             opciones.formato = fmt; aplicarFormato(); renderizarVectorial(); zoomTodo(); renderArbol();
             aviso(`Formato ${fmt} (${f.w} × ${f.h} mm).`);
         }
-        // Marco estilo hoja de dibujo SolidWorks 2026 (A3 facilitado por José): línea fina exterior de
+        // Marco de la hoja (modelo A3 facilitado por José): línea fina exterior de
         // referencias, marco grueso, divisiones de zona entre ambas, números arriba y abajo (de mayor a 1),
         // letras a izquierda y derecha (A abajo) y marcas de centrado que entran 5 mm en el marco.
         function dibujoFormato(P) {
-            const f = formatoActual(), m = v => v * PX_MM, F = FONDOS[opciones.fondo] || FONDOS.solidworks;
+            const f = formatoActual(), m = v => v * PX_MM, F = FONDOS[opciones.fondo] || FONDOS.papel;
             const col = F.oscuro ? '#cbd5e1' : '#1a1a1a', fr = marcoInterior();
             const b = { x0: fr.x0 - m(BANDA), y0: fr.y0 - m(BANDA), x1: fr.x1 + m(BANDA), y1: fr.y1 + m(BANDA) };
             const L = (x1, y1, x2, y2, w) => `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="${w}"/>`;
             const T = (x, y, t) => `<text x="${x.toFixed(1)}" y="${(y + m(1.3)).toFixed(1)}" font-family="'Century Gothic', 'Avenir', 'Segoe UI', sans-serif" font-size="${m(3.6).toFixed(1)}" fill="${col}" text-anchor="middle">${t}</text>`;
             let h = '';
-            // rejilla: líneas discontinuas finas (menores) y algo más marcadas (mayores), como en SolidWorks
+            // rejilla: líneas discontinuas finas (menores) y algo más marcadas (mayores)
             if (opciones.rejillaVisible !== false) {
                 const may = m(+opciones.rejillaMayor > 0 ? +opciones.rejillaMayor : 10), n = Math.max(1, Math.round(+opciones.rejillaMenores || 2)), men = may / n;
                 const cMen = F.oscuro ? "#3f4856" : "#bab8ac", cMay = F.oscuro ? '#5b6676' : '#a9a699';
@@ -2065,7 +2066,44 @@
             // marcas de centrado: de la línea exterior hasta 5 mm dentro del marco
             const cx = (fr.x0 + fr.x1) / 2, cy = (fr.y0 + fr.y1) / 2, e = m(5), w = m(0.5);
             h += L(cx, b.y0, cx, fr.y0 + e, w) + L(cx, fr.y1 - e, cx, b.y1, w) + L(b.x0, cy, fr.x0 + e, cy, w) + L(fr.x1 - e, cy, b.x1, cy, w);
+            if (opciones.cajetin !== false) h += dibujoCajetin(col, fr);
             return h;
+        }
+        // ---------- Cajetín (modelo facilitado por José): solo líneas y textos, sin fondo ----------
+        // Geometría en unidades del modelo (1830 × 553) escalada a 180 mm de ancho, en la esquina inferior
+        // derecha del marco. Los valores salen de Archivo > Datos del proyecto (apartado Cajetín).
+        const CAJETIN_ANCHO_MM = 180, CAJ_W = 1830, CAJ_H = 553;
+        function cajaCajetin() { const fr = marcoInterior(), k = CAJETIN_ANCHO_MM * PX_MM / CAJ_W; return { x0: fr.x1 - CAJ_W * k, y0: fr.y1 - CAJ_H * k, x1: fr.x1, y1: fr.y1, k }; }
+        function dibujoCajetin(col, fr) {
+            const c = cajaCajetin(), k = c.k, X = u => (c.x0 + u * k).toFixed(2), Y = u => (c.y0 + u * k).toFixed(2), p = proyecto || {};
+            const L = (x1, y1, x2, y2) => `<line x1="${X(x1)}" y1="${Y(y1)}" x2="${X(x2)}" y2="${Y(y2)}" stroke="${col}" stroke-width="${(0.35 * PX_MM).toFixed(2)}"/>`;
+            const fnt = `font-family="sans-serif" fill="${col}"`;
+            const E = (x, y, t, fs = 22) => `<text x="${X(x)}" y="${Y(y)}" font-size="${(fs * k).toFixed(2)}" ${fnt}>${esc(t)}</text>`;
+            const V = (x, y, t, fs = 34, extra = '') => t ? `<text x="${X(x)}" y="${Y(y)}" font-size="${(fs * k).toFixed(2)}" font-weight="bold" ${fnt} ${extra}>${esc(t)}</text>` : '';
+            let h = `<g id="cajetin">` + `<rect x="${X(0)}" y="${Y(0)}" width="${(CAJ_W * k).toFixed(2)}" height="${(CAJ_H * k).toFixed(2)}" fill="none" stroke="${col}" stroke-width="${(0.5 * PX_MM).toFixed(2)}"/>`;
+            // líneas
+            h += L(0, 238, CAJ_W, 238) + L(0, 400, CAJ_W, 400) + L(0, 476, CAJ_W, 476) + L(1145, 324, CAJ_W, 324);
+            h += L(1145, 0, 1145, CAJ_H) + L(1488, 238, 1488, CAJ_H);
+            h += L(162, 238, 162, 400) + L(468, 238, 468, 400) + L(811, 238, 811, 400) + L(344, 400, 344, 476) + L(687, 400, 687, 476);
+            // rótulos (español / inglés)
+            h += E(22, 38, 'Nombre:') + E(22, 62, 'Name:');
+            h += E(23, 277, 'Tamaño:') + E(23, 302, 'Size:') + E(193, 277, 'Nº de Proyecto:') + E(193, 302, 'BM code n.:') + E(489, 277, 'Plano nº:') + E(489, 302, 'Dwn nº:');
+            h += E(833, 277, 'Rev:') + E(833, 302, 'Rev:') + E(996, 277, 'Letra:') + E(1022, 302, 'Ltr:');
+            h += E(1163, 266, 'Dibujado por:') + E(1163, 290, 'Draw by:') + E(1505, 266, 'Fecha:') + E(1505, 290, 'Date:');
+            h += E(1163, 351, 'Revisado por:') + E(1163, 375, 'Checked by:') + E(1505, 351, 'Fecha:') + E(1505, 375, 'Date:');
+            h += E(22, 431, 'Escala:') + E(22, 455, 'Scale:') + E(350, 418, 'Grupo Nº:') + E(350, 438, 'Group Nr:') + E(727, 428, 'Hoja n.:') + E(727, 452, 'Sheet n.:') + E(934, 428, 'De:') + E(934, 452, 'Of:');
+            h += E(1165, 431, 'Aprobado por:') + E(1165, 455, 'Approved by:') + E(1505, 431, 'Fecha:') + E(1505, 455, 'Date:');
+            h += E(19, 504, 'N. de Código:') + E(19, 528, 'Ident. code n.:') + E(788, 509, 'Plano Cert. Nº:', 17) + E(798, 528, 'Dwn Cert. Nº:', 17);
+            // valores
+            const nombre = p.nombrePlano || [p.instalacion, p.descripcion].filter(Boolean).join(' · ');
+            const tr = (t, n) => t && t.length > n ? t.slice(0, n - 1) + '…' : t;
+            h += V(22, 130, tr(nombre, 58), 44) + (p.nombrePlano2 ? V(22, 185, tr(p.nombrePlano2, 60), 34) : (p.cliente ? V(22, 185, tr(p.cliente, 60), 30) : ''));
+            h += V(23, 370, opciones.formato || 'A3') + V(193, 370, tr(p.numero, 17)) + V(489, 370, tr(p.planoNumero, 19)) + V(833, 370, p.revision) + V(996, 370, p.letraRevision);
+            h += V(1300, 310, tr(p.autor, 14), 26) + V(1590, 310, p.fecha, 26) + V(1300, 388, tr(p.revisadoPor, 14), 26) + V(1590, 388, p.fechaRevisado, 26);
+            h += V(120, 460, p.escala || 'S/E', 30) + V(470, 460, p.grupoPlano, 30) + V(840, 452, p.hoja || '1', 30) + V(990, 452, p.hojas || '1', 30);
+            h += V(1320, 470, tr(p.aprobadoPor, 13), 26) + V(1590, 470, p.fechaAprobado, 26);
+            h += V(230, 530, tr(p.codigoPlano, 28), 30) + V(960, 530, tr(p.planoCert, 10), 26);
+            return h + '</g>';
         }
 
         // ==================================================================================
@@ -2885,9 +2923,31 @@
         }
 
         let nombreArchivoActual = '';
-        function nuevoProyecto() {
-            if (hayCambiosSinGuardar && !confirm("Hay cambios sin guardar que se perderán. ¿Iniciar un nuevo proyecto igualmente?")) return;
-            abrirDatosProyecto(null, { nuevo: true });
+        // ---------- Inicio: siempre se elige Nuevo proyecto o Proyecto existente (sin datos de partida) ----------
+        function leerUltimoGuardado() { try { return JSON.parse(localStorage.getItem(CLAVE_ULTIMO) || 'null') || JSON.parse(localStorage.getItem(CLAVE_AUTOGUARDADO) || 'null'); } catch (e) { return null; } }
+        function pantallaInicio() {
+            dialogo('<i class="fa-solid fa-network-wired text-blue-600 mr-1.5"></i>PIPING P&amp;ID',
+                '<p>Para trabajar hace falta un proyecto.</p><p class="text-slate-400">Nuevo proyecto: se introducen sus datos desde cero. Proyecto existente: se recupera un proyecto ya guardado.</p>',
+                [{ texto: 'Nuevo proyecto', valor: 'nuevo', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Proyecto existente', valor: 'existente', clase: 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' }])
+                .then(r => r === 'nuevo' ? nuevoProyecto(true) : proyectoExistente(true));
+        }
+        function nuevoProyecto(desdeInicio) {
+            if (desdeInicio !== true && hayCambiosSinGuardar && !confirm("Hay cambios sin guardar que se perderán. ¿Iniciar un nuevo proyecto igualmente?")) return;
+            abrirDatosProyecto(null, { nuevo: true, desdeInicio: desdeInicio === true });
+        }
+        async function proyectoExistente(desdeInicio) {
+            if (desdeInicio !== true && hayCambiosSinGuardar && !confirm("Hay cambios sin guardar que se perderán. ¿Abrir otro proyecto igualmente?")) return;
+            const u = leerUltimoGuardado(), ini = desdeInicio === true;
+            const botones = [];
+            if (u && u.contenido) botones.push({ texto: 'Abrir el último proyecto', valor: 'ultimo', clase: 'bg-blue-600 hover:bg-blue-700 text-white' });
+            botones.push({ texto: 'Abrir archivo (*.pid)...', valor: 'archivo', clase: u && u.contenido ? 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' : 'bg-blue-600 hover:bg-blue-700 text-white' });
+            botones.push({ texto: ini ? 'Volver' : 'Cancelar', valor: null });
+            const r = await dialogo('<i class="fa-solid fa-folder-open text-blue-600 mr-1.5"></i>Proyecto existente',
+                u && u.contenido ? `<p>Último proyecto de trabajo en este navegador:</p><p class="font-bold text-slate-700">${esc(u.numero || 'sin número')}${u.archivo ? ' · ' + esc(u.archivo) : ''}</p><p class="text-slate-400">${u.n || 0} elementos · ${new Date(u.fecha).toLocaleString('es-ES')}${u.guardado === false ? ' · con cambios sin guardar en archivo' : ''}</p>` : '<p>No hay ningún proyecto de trabajo guardado en este navegador: abre el archivo del proyecto.</p>',
+                botones);
+            if (r === 'ultimo') { abrirUltimoProyecto(); return; }
+            if (r === 'archivo') { abrirProyectoCarpeta(true, () => { if (ini && !proyectoDefinido()) pantallaInicio(); }); return; }
+            if (ini) pantallaInicio();
         }
 
         // Elementos sueltos (sin ninguna conexión) en una red con más elementos: no se puede guardar así
@@ -2975,7 +3035,7 @@
 
         function datosProyecto() {
             return {
-                version: "7.3.2-sinbombas",
+                version: "7.5-capas-plantilla",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -2999,7 +3059,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.3.2-sinbombas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.5-capas-plantilla" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -3018,65 +3078,98 @@
         // DXF reproduce exactamente lo que se ve (rotación, escala, textos). Y invertida (DXF: Y arriba).
         // DXF R12 es ASCII: los caracteres no ASCII (½, ·, ñ, °...) se escriben como \U+XXXX, que AutoCAD y LibreCAD interpretan
         const textoDXF = t => String(t).replace(/[\r\n]/g, ' ').replace(/[^\x20-\x7e]/g, c => '\\U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'));
+        // ---------- Capas normalizadas de salida (DXF R2000 / AC1015, con tipo y grosor de línea por capa) ----------
+        const CAPAS_DXF = [
+            { nombre: '0', color: [255, 255, 255], aci: 7, tipo: 'Continua', grosor: 0.20, uso: 'Capa por defecto' },
+            { nombre: 'Bord', color: [255, 255, 0], aci: 2, tipo: 'Continua', grosor: 0.70, uso: 'Bordes: marco, zonas de referencia y cajetín' },
+            { nombre: 'Dim', color: [255, 0, 255], aci: 6, tipo: 'Continua', grosor: 0.30, uso: 'Cotas (si se requieren)' },
+            { nombre: 'Hid', color: [255, 0, 0], aci: 1, tipo: 'Trazado', grosor: 0.20, uso: 'Líneas ocultas' },
+            { nombre: 'Hidden', color: [0, 0, 255], aci: 5, tipo: 'Trazado y punto', grosor: 0.25, uso: 'Ejes' },
+            { nombre: 'Marca', color: [255, 255, 255], aci: 7, tipo: 'Continua', grosor: 0.35, uso: 'Marcas de material (listado de componentes)' },
+            { nombre: 'Object', color: [255, 255, 255], aci: 7, tipo: 'Continua', grosor: 0.35, uso: 'Todos los objetos del esquema (salvo textos)' },
+            { nombre: 'Text', color: [0, 255, 0], aci: 3, tipo: 'Continua', grosor: 0.35, uso: 'Todos los textos' },
+            { nombre: 'Tratt', color: [0, 0, 255], aci: 5, tipo: 'Continua', grosor: 0.15, uso: 'Tramados / rayados' }
+        ];
+        // Plantilla R2000 generada con ezdxf (dxf/gen_plantilla.py): cabecera, tablas (capas y tipos de línea),
+        // bloques y objetos; aquí solo se añaden las entidades con identificadores a partir de "seed".
+        const PLANTILLA_DXF = {"cabecera": "  0\nSECTION\n  2\nHEADER\n  9\n$ACADVER\n  1\nAC1015\n  9\n$ACADMAINTVER\n 70\n6\n  9\n$DWGCODEPAGE\n  3\nANSI_1252\n  9\n$INSBASE\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$EXTMIN\n 10\n1e+20\n 20\n1e+20\n 30\n1e+20\n  9\n$EXTMAX\n 10\n-1e+20\n 20\n-1e+20\n 30\n-1e+20\n  9\n$LIMMIN\n 10\n0.0\n 20\n0.0\n  9\n$LIMMAX\n 10\n420.0\n 20\n297.0\n  9\n$ORTHOMODE\n 70\n0\n  9\n$REGENMODE\n 70\n1\n  9\n$FILLMODE\n 70\n1\n  9\n$QTEXTMODE\n 70\n0\n  9\n$MIRRTEXT\n 70\n1\n  9\n$LTSCALE\n 40\n1.0\n  9\n$ATTMODE\n 70\n1\n  9\n$TEXTSIZE\n 40\n2.5\n  9\n$TRACEWID\n 40\n1.0\n  9\n$TEXTSTYLE\n  7\nStandard\n  9\n$CLAYER\n  8\n0\n  9\n$CELTYPE\n  6\nByLayer\n  9\n$CECOLOR\n 62\n256\n  9\n$CELTSCALE\n 40\n1.0\n  9\n$DISPSILH\n 70\n0\n  9\n$DIMSCALE\n 40\n1.0\n  9\n$DIMASZ\n 40\n2.5\n  9\n$DIMEXO\n 40\n0.625\n  9\n$DIMDLI\n 40\n3.75\n  9\n$DIMRND\n 40\n0.0\n  9\n$DIMDLE\n 40\n0.0\n  9\n$DIMEXE\n 40\n1.25\n  9\n$DIMTP\n 40\n0.0\n  9\n$DIMTM\n 40\n0.0\n  9\n$DIMTXT\n 40\n2.5\n  9\n$DIMCEN\n 40\n2.5\n  9\n$DIMTSZ\n 40\n0.0\n  9\n$DIMTOL\n 70\n0\n  9\n$DIMLIM\n 70\n0\n  9\n$DIMTIH\n 70\n0\n  9\n$DIMTOH\n 70\n0\n  9\n$DIMSE1\n 70\n0\n  9\n$DIMSE2\n 70\n0\n  9\n$DIMTAD\n 70\n1\n  9\n$DIMZIN\n 70\n8\n  9\n$DIMBLK\n  1\n\n  9\n$DIMASO\n 70\n1\n  9\n$DIMSHO\n 70\n1\n  9\n$DIMPOST\n  1\n\n  9\n$DIMAPOST\n  1\n\n  9\n$DIMALT\n 70\n0\n  9\n$DIMALTD\n 70\n3\n  9\n$DIMALTF\n 40\n0.03937007874\n  9\n$DIMLFAC\n 40\n1.0\n  9\n$DIMTOFL\n 70\n1\n  9\n$DIMTVP\n 40\n0.0\n  9\n$DIMTIX\n 70\n0\n  9\n$DIMSOXD\n 70\n0\n  9\n$DIMSAH\n 70\n0\n  9\n$DIMBLK1\n  1\n\n  9\n$DIMBLK2\n  1\n\n  9\n$DIMSTYLE\n  2\nISO-25\n  9\n$DIMCLRD\n 70\n0\n  9\n$DIMCLRE\n 70\n0\n  9\n$DIMCLRT\n 70\n0\n  9\n$DIMTFAC\n 40\n1.0\n  9\n$DIMGAP\n 40\n0.625\n  9\n$DIMJUST\n 70\n0\n  9\n$DIMSD1\n 70\n0\n  9\n$DIMSD2\n 70\n0\n  9\n$DIMTOLJ\n 70\n0\n  9\n$DIMTZIN\n 70\n8\n  9\n$DIMALTZ\n 70\n0\n  9\n$DIMALTTZ\n 70\n0\n  9\n$DIMUPT\n 70\n0\n  9\n$DIMDEC\n 70\n2\n  9\n$DIMTDEC\n 70\n2\n  9\n$DIMALTU\n 70\n2\n  9\n$DIMALTTD\n 70\n3\n  9\n$DIMTXSTY\n  7\nStandard\n  9\n$DIMAUNIT\n 70\n0\n  9\n$DIMADEC\n 70\n0\n  9\n$DIMALTRND\n 40\n0.0\n  9\n$DIMAZIN\n 70\n0\n  9\n$DIMDSEP\n 70\n44\n  9\n$DIMATFIT\n 70\n3\n  9\n$DIMFRAC\n 70\n0\n  9\n$DIMLDRBLK\n  1\n\n  9\n$DIMLUNIT\n 70\n2\n  9\n$DIMLWD\n 70\n-2\n  9\n$DIMLWE\n 70\n-2\n  9\n$DIMTMOVE\n 70\n0\n  9\n$LUNITS\n 70\n2\n  9\n$LUPREC\n 70\n4\n  9\n$SKETCHINC\n 40\n1.0\n  9\n$FILLETRAD\n 40\n10.0\n  9\n$AUNITS\n 70\n0\n  9\n$AUPREC\n 70\n2\n  9\n$MENU\n  1\n.\n  9\n$ELEVATION\n 40\n0.0\n  9\n$PELEVATION\n 40\n0.0\n  9\n$THICKNESS\n 40\n0.0\n  9\n$LIMCHECK\n 70\n0\n  9\n$CHAMFERA\n 40\n0.0\n  9\n$CHAMFERB\n 40\n0.0\n  9\n$CHAMFERC\n 40\n0.0\n  9\n$CHAMFERD\n 40\n0.0\n  9\n$SKPOLY\n 70\n0\n  9\n$TDCREATE\n 40\n2461313.8663425925\n  9\n$TDUCREATE\n 40\n2458532.153996898\n  9\n$TDUPDATE\n 40\n2461313.8663425925\n  9\n$TDUUPDATE\n 40\n2458532.1544311\n  9\n$TDINDWG\n 40\n0.0\n  9\n$TDUSRTIMER\n 40\n0.0\n  9\n$USRTIMER\n 70\n1\n  9\n$ANGBASE\n 50\n0.0\n  9\n$ANGDIR\n 70\n0\n  9\n$PDMODE\n 70\n0\n  9\n$PDSIZE\n 40\n0.0\n  9\n$PLINEWID\n 40\n0.0\n  9\n$SPLFRAME\n 70\n0\n  9\n$SPLINETYPE\n 70\n6\n  9\n$SPLINESEGS\n 70\n8\n  9\n$HANDSEED\n  5\n3C\n  9\n$SURFTAB1\n 70\n6\n  9\n$SURFTAB2\n 70\n6\n  9\n$SURFTYPE\n 70\n6\n  9\n$SURFU\n 70\n6\n  9\n$SURFV\n 70\n6\n  9\n$UCSBASE\n  2\n\n  9\n$UCSNAME\n  2\n\n  9\n$UCSORG\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSXDIR\n 10\n1.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSYDIR\n 10\n0.0\n 20\n1.0\n 30\n0.0\n  9\n$UCSORTHOREF\n  2\n\n  9\n$UCSORTHOVIEW\n 70\n0\n  9\n$UCSORGTOP\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGBOTTOM\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGLEFT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGRIGHT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGFRONT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGBACK\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSBASE\n  2\n\n  9\n$PUCSNAME\n  2\n\n  9\n$PUCSORG\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSXDIR\n 10\n1.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSYDIR\n 10\n0.0\n 20\n1.0\n 30\n0.0\n  9\n$PUCSORTHOREF\n  2\n\n  9\n$PUCSORTHOVIEW\n 70\n0\n  9\n$PUCSORGTOP\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGBOTTOM\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGLEFT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGRIGHT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGFRONT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGBACK\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$USERI1\n 70\n0\n  9\n$USERI2\n 70\n0\n  9\n$USERI3\n 70\n0\n  9\n$USERI4\n 70\n0\n  9\n$USERI5\n 70\n0\n  9\n$USERR1\n 40\n0.0\n  9\n$USERR2\n 40\n0.0\n  9\n$USERR3\n 40\n0.0\n  9\n$USERR4\n 40\n0.0\n  9\n$USERR5\n 40\n0.0\n  9\n$WORLDVIEW\n 70\n1\n  9\n$SHADEDGE\n 70\n3\n  9\n$SHADEDIF\n 70\n70\n  9\n$TILEMODE\n 70\n1\n  9\n$MAXACTVP\n 70\n64\n  9\n$PINSBASE\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PLIMCHECK\n 70\n0\n  9\n$PEXTMIN\n 10\n1e+20\n 20\n1e+20\n 30\n1e+20\n  9\n$PEXTMAX\n 10\n-1e+20\n 20\n-1e+20\n 30\n-1e+20\n  9\n$PLIMMIN\n 10\n0.0\n 20\n0.0\n  9\n$PLIMMAX\n 10\n420.0\n 20\n297.0\n  9\n$UNITMODE\n 70\n0\n  9\n$VISRETAIN\n 70\n1\n  9\n$PLINEGEN\n 70\n0\n  9\n$PSLTSCALE\n 70\n1\n  9\n$TREEDEPTH\n 70\n3020\n  9\n$CMLSTYLE\n  2\nStandard\n  9\n$CMLJUST\n 70\n0\n  9\n$CMLSCALE\n 40\n20.0\n  9\n$PROXYGRAPHICS\n 70\n1\n  9\n$MEASUREMENT\n 70\n1\n  9\n$CELWEIGHT\n370\n-1\n  9\n$ENDCAPS\n280\n0\n  9\n$JOINSTYLE\n280\n0\n  9\n$LWDISPLAY\n290\n1\n  9\n$INSUNITS\n 70\n4\n  9\n$HYPERLINKBASE\n  1\n\n  9\n$STYLESHEET\n  1\n\n  9\n$XEDIT\n290\n1\n  9\n$CEPSNTYPE\n380\n0\n  9\n$PSTYLEMODE\n290\n1\n  9\n$FINGERPRINTGUID\n  2\n{304AD09B-9AFC-4C50-8284-0B4C688F2DEB}\n  9\n$VERSIONGUID\n  2\n{09C1D6A1-7EC8-4EE4-B6DF-2A3351E5E105}\n  9\n$EXTNAMES\n290\n1\n  9\n$PSVPSCALE\n 40\n0.0\n  9\n$OLESTARTUP\n290\n0\n  0\nENDSEC\n  0\nSECTION\n  2\nCLASSES\n  0\nCLASS\n  1\nACDBDICTIONARYWDFLT\n  2\nAcDbDictionaryWithDefault\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nSUN\n  2\nAcDbSun\n  3\nSCENEOE\n 90\n1153\n280\n0\n281\n0\n  0\nCLASS\n  1\nVISUALSTYLE\n  2\nAcDbVisualStyle\n  3\nObjectDBX Classes\n 90\n4095\n280\n0\n281\n0\n  0\nCLASS\n  1\nMATERIAL\n  2\nAcDbMaterial\n  3\nObjectDBX Classes\n 90\n1153\n280\n0\n281\n0\n  0\nCLASS\n  1\nSCALE\n  2\nAcDbScale\n  3\nObjectDBX Classes\n 90\n1153\n280\n0\n281\n0\n  0\nCLASS\n  1\nTABLESTYLE\n  2\nAcDbTableStyle\n  3\nObjectDBX Classes\n 90\n4095\n280\n0\n281\n0\n  0\nCLASS\n  1\nMLEADERSTYLE\n  2\nAcDbMLeaderStyle\n  3\nACDB_MLEADERSTYLE_CLASS\n 90\n4095\n280\n0\n281\n0\n  0\nCLASS\n  1\nDICTIONARYVAR\n  2\nAcDbDictionaryVar\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nCELLSTYLEMAP\n  2\nAcDbCellStyleMap\n  3\nObjectDBX Classes\n 90\n1152\n280\n0\n281\n0\n  0\nCLASS\n  1\nMENTALRAYRENDERSETTINGS\n  2\nAcDbMentalRayRenderSettings\n  3\nSCENEOE\n 90\n1024\n280\n0\n281\n0\n  0\nCLASS\n  1\nACDBDETAILVIEWSTYLE\n  2\nAcDbDetailViewStyle\n  3\nObjectDBX Classes\n 90\n1025\n280\n0\n281\n0\n  0\nCLASS\n  1\nACDBSECTIONVIEWSTYLE\n  2\nAcDbSectionViewStyle\n  3\nObjectDBX Classes\n 90\n1025\n280\n0\n281\n0\n  0\nCLASS\n  1\nRASTERVARIABLES\n  2\nAcDbRasterVariables\n  3\nISM\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nACDBPLACEHOLDER\n  2\nAcDbPlaceHolder\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nLAYOUT\n  2\nAcDbLayout\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nENDSEC\n  0\nSECTION\n  2\nTABLES\n  0\nTABLE\n  2\nVPORT\n  5\n8\n330\n0\n100\nAcDbSymbolTable\n 70\n1\n  0\nVPORT\n  5\n23\n330\n8\n100\nAcDbSymbolTableRecord\n100\nAcDbViewportTableRecord\n  2\n*Active\n 70\n0\n 10\n0.0\n 20\n0.0\n 11\n1.0\n 21\n1.0\n 12\n0.0\n 22\n0.0\n 13\n0.0\n 23\n0.0\n 14\n0.5\n 24\n0.5\n 15\n0.5\n 25\n0.5\n 16\n0.0\n 26\n0.0\n 36\n1.0\n 17\n0.0\n 27\n0.0\n 37\n0.0\n 40\n1000.0\n 41\n1.34\n 42\n50.0\n 43\n0.0\n 44\n0.0\n 50\n0.0\n 51\n0.0\n 71\n0\n 72\n1000\n 73\n1\n 74\n3\n 75\n0\n 76\n0\n 77\n0\n 78\n0\n281\n0\n 65\n0\n146\n0.0\n  0\nENDTAB\n  0\nTABLE\n  2\nLTYPE\n  5\n2\n330\n0\n100\nAcDbSymbolTable\n 70\n5\n  0\nLTYPE\n  5\n24\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nByBlock\n 70\n0\n  3\n\n 72\n65\n 73\n0\n 40\n0.0\n  0\nLTYPE\n  5\n25\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nByLayer\n 70\n0\n  3\n\n 72\n65\n 73\n0\n 40\n0.0\n  0\nLTYPE\n  5\n26\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nContinuous\n 70\n0\n  3\n\n 72\n65\n 73\n0\n 40\n0.0\n  0\nLTYPE\n  5\n2F\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado\n 70\n0\n  3\nTrazado ____ ____ ____\n 72\n65\n 73\n2\n 40\n15.0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n30\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado y punto\n 70\n0\n  3\nTrazado y punto ____ . ____ . ____\n 72\n65\n 73\n4\n 40\n30.5\n 49\n24.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.5\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nLAYER\n  5\n1\n330\n0\n100\nAcDbSymbolTable\n 70\n10\n  0\nLAYER\n  5\n27\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\n0\n 70\n0\n 62\n7\n  6\nContinuous\n370\n20\n390\n13\n  0\nLAYER\n  5\n28\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nDefpoints\n 70\n0\n 62\n7\n  6\nContinuous\n290\n0\n370\n-3\n390\n13\n  0\nLAYER\n  5\n31\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nBord\n 70\n0\n 62\n2\n  6\nContinuous\n370\n70\n390\n13\n  0\nLAYER\n  5\n32\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nDim\n 70\n0\n 62\n6\n  6\nContinuous\n370\n30\n390\n13\n  0\nLAYER\n  5\n33\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nHid\n 70\n0\n 62\n1\n  6\nTrazado\n370\n20\n390\n13\n  0\nLAYER\n  5\n34\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nHidden\n 70\n0\n 62\n5\n  6\nTrazado y punto\n370\n25\n390\n13\n  0\nLAYER\n  5\n35\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nMarca\n 70\n0\n 62\n7\n  6\nContinuous\n370\n35\n390\n13\n  0\nLAYER\n  5\n36\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nObject\n 70\n0\n 62\n7\n  6\nContinuous\n370\n35\n390\n13\n  0\nLAYER\n  5\n37\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nText\n 70\n0\n 62\n3\n  6\nContinuous\n370\n35\n390\n13\n  0\nLAYER\n  5\n38\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nTratt\n 70\n0\n 62\n5\n  6\nContinuous\n370\n15\n390\n13\n  0\nENDTAB\n  0\nTABLE\n  2\nSTYLE\n  5\n5\n330\n0\n100\nAcDbSymbolTable\n 70\n1\n  0\nSTYLE\n  5\n29\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nStandard\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\ntxt\n  4\n\n  0\nENDTAB\n  0\nTABLE\n  2\nVIEW\n  5\n7\n330\n0\n100\nAcDbSymbolTable\n 70\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nUCS\n  5\n6\n330\n0\n100\nAcDbSymbolTable\n 70\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nAPPID\n  5\n3\n330\n0\n100\nAcDbSymbolTable\n 70\n3\n  0\nAPPID\n  5\n2A\n330\n3\n100\nAcDbSymbolTableRecord\n100\nAcDbRegAppTableRecord\n  2\nACAD\n 70\n0\n  0\nAPPID\n  5\n39\n330\n3\n100\nAcDbSymbolTableRecord\n100\nAcDbRegAppTableRecord\n  2\nHATCHBACKGROUNDCOLOR\n 70\n0\n  0\nAPPID\n  5\n3A\n330\n3\n100\nAcDbSymbolTableRecord\n100\nAcDbRegAppTableRecord\n  2\nEZDXF\n 70\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nDIMSTYLE\n  5\n4\n330\n0\n100\nAcDbSymbolTable\n 70\n1\n100\nAcDbDimStyleTable\n  0\nDIMSTYLE\n105\n2B\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nStandard\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n2.5\n 42\n0.625\n 43\n3.75\n 44\n1.25\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n2.5\n141\n2.5\n142\n0.0\n143\n0.03937007874\n144\n1.0\n145\n0.0\n146\n1.0\n147\n0.625\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n8\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n44\n279\n0\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n0\n289\n3\n371\n-2\n372\n-2\n  0\nENDTAB\n  0\nTABLE\n  2\nBLOCK_RECORD\n  5\n9\n330\n0\n100\nAcDbSymbolTable\n 70\n2\n  0\nBLOCK_RECORD\n  5\n17\n330\n9\n100\nAcDbSymbolTableRecord\n100\nAcDbBlockTableRecord\n  2\n*Model_Space\n340\n1A\n  0\nBLOCK_RECORD\n  5\n1B\n330\n9\n100\nAcDbSymbolTableRecord\n100\nAcDbBlockTableRecord\n  2\n*Paper_Space\n340\n1E\n  0\nENDTAB\n  0\nENDSEC\n  0\nSECTION\n  2\nBLOCKS\n  0\nBLOCK\n  5\n18\n330\n17\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockBegin\n  2\n*Model_Space\n 70\n0\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  3\n*Model_Space\n  1\n\n  0\nENDBLK\n  5\n19\n330\n17\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockEnd\n  0\nBLOCK\n  5\n1C\n330\n1B\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockBegin\n  2\n*Paper_Space\n 70\n0\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  3\n*Paper_Space\n  1\n\n  0\nENDBLK\n  5\n1D\n330\n1B\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockEnd\n  0\nENDSEC\n  0\nSECTION\n  2\nENTITIES\n", "pie": "  0\nENDSEC\n  0\nSECTION\n  2\nOBJECTS\n  0\nDICTIONARY\n  5\nA\n330\n0\n100\nAcDbDictionary\n281\n1\n  3\nACAD_COLOR\n350\nB\n  3\nACAD_GROUP\n350\nC\n  3\nACAD_LAYOUT\n350\nD\n  3\nACAD_MATERIAL\n350\nE\n  3\nACAD_MLEADERSTYLE\n350\nF\n  3\nACAD_MLINESTYLE\n350\n10\n  3\nACAD_PLOTSETTINGS\n350\n11\n  3\nACAD_PLOTSTYLENAME\n350\n12\n  3\nACAD_SCALELIST\n350\n14\n  3\nACAD_TABLESTYLE\n350\n15\n  3\nACAD_VISUALSTYLE\n350\n16\n  3\nEZDXF_META\n350\n2D\n  0\nDICTIONARY\n  5\nB\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\nC\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\nD\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nModel\n350\n1A\n  3\nLayout1\n350\n1E\n  0\nDICTIONARY\n  5\nE\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nByBlock\n350\n1F\n  3\nByLayer\n350\n20\n  3\nGlobal\n350\n21\n  0\nDICTIONARY\n  5\nF\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nStandard\n350\n2C\n  0\nDICTIONARY\n  5\n10\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nStandard\n350\n22\n  0\nDICTIONARY\n  5\n11\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nACDBDICTIONARYWDFLT\n  5\n12\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nNormal\n350\n13\n100\nAcDbDictionaryWithDefault\n340\n13\n  0\nACDBPLACEHOLDER\n  5\n13\n330\n12\n  0\nDICTIONARY\n  5\n14\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\n15\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\n16\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nLAYOUT\n  5\n1A\n330\nD\n100\nAcDbPlotSettings\n  1\n\n  4\nA3\n  6\n\n 40\n7.5\n 41\n20.0\n 42\n7.5\n 43\n20.0\n 44\n420.0\n 45\n297.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n 49\n0.0\n140\n0.0\n141\n0.0\n142\n1.0\n143\n1.0\n 70\n1024\n 72\n1\n 73\n0\n 74\n5\n  7\n\n 75\n16\n 76\n0\n 77\n2\n 78\n300\n147\n1.0\n148\n0.0\n149\n0.0\n100\nAcDbLayout\n  1\nModel\n 70\n1\n 71\n0\n 10\n0.0\n 20\n0.0\n 11\n420.0\n 21\n297.0\n 12\n0.0\n 22\n0.0\n 32\n0.0\n 14\n1e+20\n 24\n1e+20\n 34\n1e+20\n 15\n-1e+20\n 25\n-1e+20\n 35\n-1e+20\n146\n0.0\n 13\n0.0\n 23\n0.0\n 33\n0.0\n 16\n1.0\n 26\n0.0\n 36\n0.0\n 17\n0.0\n 27\n1.0\n 37\n0.0\n 76\n1\n330\n17\n  0\nLAYOUT\n  5\n1E\n330\nD\n100\nAcDbPlotSettings\n  1\n\n  4\nA3\n  6\n\n 40\n7.5\n 41\n20.0\n 42\n7.5\n 43\n20.0\n 44\n420.0\n 45\n297.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n 49\n0.0\n140\n0.0\n141\n0.0\n142\n1.0\n143\n1.0\n 70\n0\n 72\n1\n 73\n0\n 74\n5\n  7\n\n 75\n16\n 76\n0\n 77\n2\n 78\n300\n147\n1.0\n148\n0.0\n149\n0.0\n100\nAcDbLayout\n  1\nLayout1\n 70\n1\n 71\n1\n 10\n0.0\n 20\n0.0\n 11\n420.0\n 21\n297.0\n 12\n0.0\n 22\n0.0\n 32\n0.0\n 14\n1e+20\n 24\n1e+20\n 34\n1e+20\n 15\n-1e+20\n 25\n-1e+20\n 35\n-1e+20\n146\n0.0\n 13\n0.0\n 23\n0.0\n 33\n0.0\n 16\n1.0\n 26\n0.0\n 36\n0.0\n 17\n0.0\n 27\n1.0\n 37\n0.0\n 76\n1\n330\n1B\n  0\nMATERIAL\n  5\n1F\n102\n{ACAD_REACTORS\n330\nE\n102\n}\n330\nE\n100\nAcDbMaterial\n  1\nByBlock\n  2\n\n 70\n0\n 40\n1.0\n 71\n1\n 41\n1.0\n 91\n-1023410177\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 44\n0.5\n 73\n0\n 45\n1.0\n 46\n1.0\n 77\n1\n  4\n\n 78\n1\n 79\n1\n170\n1\n 48\n1.0\n171\n1\n  6\n\n172\n1\n173\n1\n174\n1\n140\n1.0\n141\n1.0\n175\n1\n  7\n\n176\n1\n177\n1\n178\n1\n143\n1.0\n179\n1\n  8\n\n270\n1\n271\n1\n272\n1\n145\n1.0\n146\n1.0\n273\n1\n  9\n\n274\n1\n275\n1\n276\n1\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 94\n63\n  0\nMATERIAL\n  5\n20\n102\n{ACAD_REACTORS\n330\nE\n102\n}\n330\nE\n100\nAcDbMaterial\n  1\nByLayer\n  2\n\n 70\n0\n 40\n1.0\n 71\n1\n 41\n1.0\n 91\n-1023410177\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 44\n0.5\n 73\n0\n 45\n1.0\n 46\n1.0\n 77\n1\n  4\n\n 78\n1\n 79\n1\n170\n1\n 48\n1.0\n171\n1\n  6\n\n172\n1\n173\n1\n174\n1\n140\n1.0\n141\n1.0\n175\n1\n  7\n\n176\n1\n177\n1\n178\n1\n143\n1.0\n179\n1\n  8\n\n270\n1\n271\n1\n272\n1\n145\n1.0\n146\n1.0\n273\n1\n  9\n\n274\n1\n275\n1\n276\n1\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 94\n63\n  0\nMATERIAL\n  5\n21\n102\n{ACAD_REACTORS\n330\nE\n102\n}\n330\nE\n100\nAcDbMaterial\n  1\nGlobal\n  2\n\n 70\n0\n 40\n1.0\n 71\n1\n 41\n1.0\n 91\n-1023410177\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 44\n0.5\n 73\n0\n 45\n1.0\n 46\n1.0\n 77\n1\n  4\n\n 78\n1\n 79\n1\n170\n1\n 48\n1.0\n171\n1\n  6\n\n172\n1\n173\n1\n174\n1\n140\n1.0\n141\n1.0\n175\n1\n  7\n\n176\n1\n177\n1\n178\n1\n143\n1.0\n179\n1\n  8\n\n270\n1\n271\n1\n272\n1\n145\n1.0\n146\n1.0\n273\n1\n  9\n\n274\n1\n275\n1\n276\n1\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 94\n63\n  0\nMLINESTYLE\n  5\n22\n102\n{ACAD_REACTORS\n330\n10\n102\n}\n330\n10\n100\nAcDbMlineStyle\n  2\nStandard\n 70\n0\n  3\n\n 62\n256\n 51\n90.0\n 52\n90.0\n 71\n2\n 49\n0.5\n 62\n256\n  6\nBYLAYER\n 49\n-0.5\n 62\n256\n  6\nBYLAYER\n  0\nMLEADERSTYLE\n  5\n2C\n102\n{ACAD_REACTORS\n330\nF\n102\n}\n330\nF\n100\nAcDbMLeaderStyle\n179\n2\n170\n2\n171\n1\n172\n0\n 90\n2\n 40\n0.0\n 41\n0.0\n173\n1\n 91\n-1056964608\n 92\n-2\n290\n1\n 42\n2.0\n291\n1\n 43\n8.0\n  3\nStandard\n 44\n4.0\n300\n\n342\n29\n174\n1\n175\n1\n176\n0\n178\n1\n 93\n-1056964608\n 45\n4.0\n292\n0\n297\n0\n 46\n4.0\n 94\n-1056964608\n 47\n1.0\n 49\n1.0\n140\n1.0\n294\n1\n141\n0.0\n177\n0\n142\n1.0\n295\n0\n296\n0\n143\n3.75\n271\n0\n272\n9\n273\n9\n  0\nDICTIONARY\n  5\n2D\n330\nA\n100\nAcDbDictionary\n280\n1\n281\n1\n  3\nCREATED_BY_EZDXF\n350\n2E\n  3\nWRITTEN_BY_EZDXF\n350\n3B\n  0\nDICTIONARYVAR\n  5\n2E\n330\n2D\n100\nDictionaryVariables\n280\n0\n  1\n1.4.4 @ 2026-09-29T18:47:32.351455+00:00\n  0\nDICTIONARYVAR\n  5\n3B\n330\n2D\n100\nDictionaryVariables\n280\n0\n  1\n1.4.4 @ 2026-09-29T18:47:32.352967+00:00\n  0\nENDSEC\n  0\nEOF\n", "modelo": "17", "seed": "3C"};
         function exportarDXF() {
             renderizarVectorial();
             const FMT = formatoActual(), S = FMT.w / ANCHO_A3; // mm de papel por unidad de dibujo
-            const capaDe = el => el.type === 'tuberia' ? 'TUBERIAS' : el.type === 'valvula' ? 'VALVULAS' : (el.type === 'bomba' || el.type === 'equipo' || el.type === 'terminal') ? 'EQUIPOS' : el.type === 'instrumento' ? 'INSTRUMENTOS' : 'ACCESORIOS';
-            const CAPAS = { TUBERIAS: 5, VALVULAS: 1, ACCESORIOS: 3, EQUIPOS: 6, INSTRUMENTOS: 4, TEXTOS: 7, PUERTOS: 8, FORMATO: 7, ANOTACIONES: 2 };
             const out = [];
-            const w = (...kv) => { for (let i = 0; i < kv.length; i += 2) out.push(String(kv[i]), String(kv[i + 1])); };
+            let h = parseInt(PLANTILLA_DXF.seed, 16);
+            const MS = PLANTILLA_DXF.modelo;
+            const w = (...kv) => { for (let i = 0; i < kv.length; i += 2) out.push(String(kv[i]).padStart(3, ' '), String(kv[i + 1])); };
+            const ent = (tipo, capa, sub) => { w(0, tipo, 5, (h++).toString(16).toUpperCase(), 330, MS, 100, 'AcDbEntity', 8, capa, 100, sub); };
             const P = (m, x, y) => { const px = m.a * x + m.c * y + m.e, py = m.b * x + m.d * y + m.f; return [+(px * S).toFixed(3), +((ALTO_A3 - py) * S).toFixed(3)]; };
             const polilinea = (capa, pts, cerrada) => {
                 if (pts.length < 2) return;
-                w(0, 'POLYLINE', 8, capa, 66, 1, 70, cerrada ? 1 : 0);
-                pts.forEach(p => w(0, 'VERTEX', 8, capa, 10, p[0], 20, p[1]));
-                w(0, 'SEQEND', 8, capa);
+                ent('LWPOLYLINE', capa, 'AcDbPolyline'); w(90, pts.length, 70, cerrada ? 1 : 0, 43, 0);
+                pts.forEach(p => w(10, p[0], 20, p[1]));
             };
-            w(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 9, '$INSUNITS', 70, 4, 9, '$EXTMIN', 10, 0, 20, 0, 9, '$EXTMAX', 10, FMT.w, 20, FMT.h, 0, 'ENDSEC');
-            w(0, 'SECTION', 2, 'TABLES', 0, 'TABLE', 2, 'LAYER', 70, Object.keys(CAPAS).length);
-            Object.entries(CAPAS).forEach(([n, col]) => w(0, 'LAYER', 2, n, 70, 0, 62, col, 6, 'CONTINUOUS'));
-            w(0, 'ENDTAB', 0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES');
-            const recorrer = (g, capa) => {
+            // capaForma: capa de líneas y figuras; los textos van siempre a la capa Text
+            const recorrer = (g, capaForma) => {
                 g.querySelectorAll('*').forEach(n => {
                     if (n.classList.contains('connection-port') || n.closest('defs, pattern') || n.id === 'rejilla') return;
                     if (n.tagName.toLowerCase() === 'rect' && n.getAttribute('fill') === 'transparent') return;
                     const m = n.getCTM();
                     if (!m) return;
                     const tag = n.tagName.toLowerCase(), num = a => parseFloat(n.getAttribute(a)) || 0;
-                    if (tag === 'line') { const a = P(m, num('x1'), num('y1')), b = P(m, num('x2'), num('y2')); w(0, 'LINE', 8, capa, 10, a[0], 20, a[1], 11, b[0], 21, b[1]); }
+                    if (tag === 'line') { const a = P(m, num('x1'), num('y1')), b = P(m, num('x2'), num('y2')); ent('LINE', capaForma, 'AcDbLine'); w(10, a[0], 20, a[1], 30, 0, 11, b[0], 21, b[1], 31, 0); }
                     else if (tag === 'polygon' || tag === 'polyline') {
                         const pts = (n.getAttribute('points') || '').trim().split(/[\s,]+/).map(Number);
                         const lista = []; for (let i = 0; i + 1 < pts.length; i += 2) lista.push(P(m, pts[i], pts[i + 1]));
-                        polilinea(capa, lista, tag === 'polygon');
+                        polilinea(capaForma, lista, tag === 'polygon');
                     } else if (tag === 'rect') {
                         const x = num('x'), y = num('y'), W = num('width'), H = num('height');
-                        polilinea(capa, [P(m, x, y), P(m, x + W, y), P(m, x + W, y + H), P(m, x, y + H)], true);
+                        polilinea(capaForma, [P(m, x, y), P(m, x + W, y), P(m, x + W, y + H), P(m, x, y + H)], true);
                     } else if (tag === 'circle') {
                         const c = P(m, num('cx'), num('cy')), r = num('r') * Math.hypot(m.a, m.b) * S;
-                        w(0, 'CIRCLE', 8, capa, 10, c[0], 20, c[1], 40, +r.toFixed(3));
+                        ent('CIRCLE', capaForma, 'AcDbCircle'); w(10, c[0], 20, c[1], 30, 0, 40, +r.toFixed(3));
                     } else if (tag === 'ellipse' || tag === 'path') {
                         // curvas: se discretizan en 24 tramos
                         let lista = [];
                         if (tag === 'ellipse') { const cx = num('cx'), cy = num('cy'), rx = num('rx'), ry = num('ry'); for (let i = 0; i <= 24; i++) { const t = i / 24 * 2 * Math.PI; lista.push(P(m, cx + rx * Math.cos(t), cy + ry * Math.sin(t))); } }
                         else { const L = n.getTotalLength(); for (let i = 0; i <= 24; i++) { const q = n.getPointAtLength(L * i / 24); lista.push(P(m, q.x, q.y)); } }
-                        polilinea(capa, lista, /z\s*$/i.test(n.getAttribute('d') || ''));
+                        polilinea(capaForma, lista, /z\s*$/i.test(n.getAttribute('d') || ''));
                     } else if (tag === 'text') {
-                        const p = P(m, num('x'), num('y')), h = (parseFloat(n.getAttribute('font-size')) || 7) * Math.hypot(m.a, m.b) * S;
+                        const t = textoDXF(n.textContent); if (!t.trim()) return;
+                        const p = P(m, num('x'), num('y')), hh = (parseFloat(n.getAttribute('font-size')) || 7) * Math.hypot(m.a, m.b) * S;
                         const ang = Math.atan2(-m.b, m.a) * 180 / Math.PI;
                         const anc = n.getAttribute('text-anchor') === 'middle' ? 1 : n.getAttribute('text-anchor') === 'end' ? 2 : 0;
-                        w(0, 'TEXT', 8, capa === 'FORMATO' ? 'FORMATO' : 'TEXTOS', 10, p[0], 20, p[1], 40, +h.toFixed(3), 1, textoDXF(n.textContent), 50, +ang.toFixed(2), 72, anc, 11, p[0], 21, p[1]);
+                        ent('TEXT', 'Text', 'AcDbText'); w(10, p[0], 20, p[1], 30, 0, 40, +hh.toFixed(3), 1, t, 50, +ang.toFixed(2), 72, anc);
+                        if (anc) w(11, p[0], 21, p[1], 31, 0);
+                        w(100, 'AcDbText');
                     }
                 });
             };
-            const gFmt = svgCanvas.querySelector('#capa-formato'); if (gFmt) recorrer(gFmt, 'FORMATO');
+            const gFmt = svgCanvas.querySelector('#capa-formato'); if (gFmt) recorrer(gFmt, 'Bord');
             svgCanvas.querySelectorAll('g[data-id]').forEach(g => {
                 const el = elementosRed.find(e => e.id === g.getAttribute('data-id'));
                 if (!el) return;
-                recorrer(g, esAnotacion(el) ? 'ANOTACIONES' : capaDe(el));
+                recorrer(g, el.subtype === 'materiales' ? 'Marca' : 'Object');
             });
-            ['#lideres-notas', '#capa-etiquetas'].forEach(sel => { const g = svgCanvas.querySelector(sel); if (g) recorrer(g, 'TEXTOS'); });
-            w(0, 'ENDSEC', 0, 'EOF');
-            return out.join('\r\n') + '\r\n';
+            ['#lideres-notas', '#capa-etiquetas'].forEach(sel => { const g = svgCanvas.querySelector(sel); if (g) recorrer(g, 'Object'); });
+            let cab = PLANTILLA_DXF.cabecera
+                .replace(/(\$EXTMAX\r?\n\s*10\r?\n)[^\r\n]*(\r?\n\s*20\r?\n)[^\r\n]*/, `$1${FMT.w}$2${FMT.h}`)
+                .replace(/(\$EXTMIN\r?\n\s*10\r?\n)[^\r\n]*(\r?\n\s*20\r?\n)[^\r\n]*/, '$10$20')
+                .replace(/(\$LIMMAX\r?\n\s*10\r?\n)[^\r\n]*(\r?\n\s*20\r?\n)[^\r\n]*/, `$1${FMT.w}$2${FMT.h}`)
+                .replace(/(\$HANDSEED\r?\n\s*5\r?\n)[^\r\n]*/, `$1${h.toString(16).toUpperCase()}`);
+            return (cab + out.join('\n') + (out.length ? '\n' : '') + PLANTILLA_DXF.pie).replace(/\r?\n/g, '\r\n');
+        }
+        function abrirLineasCapas() {
+            const sw = c => `<span style="display:inline-block;width:14px;height:14px;border:1px solid #64748b;vertical-align:middle;background:rgb(${c.join(',')})"></span>`;
+            const muestra = t => t === 'Trazado' ? '<svg width="70" height="8"><line x1="0" y1="4" x2="70" y2="4" stroke="#334155" stroke-width="1.5" stroke-dasharray="10,4"/></svg>' : t === 'Trazado y punto' ? '<svg width="70" height="8"><line x1="0" y1="4" x2="70" y2="4" stroke="#334155" stroke-width="1.5" stroke-dasharray="14,3,1.5,3"/></svg>' : '<svg width="70" height="8"><line x1="0" y1="4" x2="70" y2="4" stroke="#334155" stroke-width="1.5"/></svg>';
+            const grosor = g => `<svg width="46" height="10"><line x1="0" y1="5" x2="46" y2="5" stroke="#334155" stroke-width="${Math.max(0.6, g * 5)}"/></svg>`;
+            document.getElementById('red-content').innerHTML = `
+                <p class="text-[11px] text-slate-500 mb-2">Capas del archivo DXF de salida (Archivo &gt; Guardar como &gt; Dibujo CAD). Cada capa lleva su color, tipo y grosor de línea; las entidades se dibujan «por capa».</p>
+                <table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500 border-b"><th class="py-1">Capa</th><th>Visible</th><th>Inutilizada</th><th>Bloqueada</th><th>Imprimible</th><th>Color</th><th>Tipo de línea</th><th>Grosor de línea</th><th>Transparencia</th><th>Uso en PIPING</th></tr></thead><tbody>
+                ${CAPAS_DXF.map(c => `<tr class="border-b border-slate-100"><td class="py-1 font-bold">${c.nombre}</td><td>Sí</td><td>No</td><td>No</td><td>Sí</td><td>${sw(c.color)} ${c.color.join(',')}${c.aci === 7 ? ' (blanco)' : ''}</td><td>${muestra(c.tipo)} ${c.tipo}</td><td>${grosor(c.grosor)} ${c.grosor.toFixed(2).replace('.', ',')} mm</td><td>0</td><td class="text-slate-500">${c.uso}</td></tr>`).join('')}
+                </tbody></table>
+                <p class="text-[10px] text-slate-400 mt-2">Formato DXF 2000 (AC1015), unidades en mm de papel. Para DWG: abre el DXF en AutoCAD (o con ODA File Converter) y guárdalo como DWG.</p>`;
+            document.getElementById('red-footer').innerHTML = '<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>';
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-layer-group text-blue-600 mr-1.5"></i> Líneas y capas';
+            document.getElementById('modal-red').style.display = 'flex';
         }
 
         function descargarArchivo(contenido, nombre, tipo) {
@@ -3089,13 +3182,15 @@
             URL.revokeObjectURL(url);
         }
 
-        async function abrirProyectoCarpeta() {
-            if (hayCambiosSinGuardar && !confirm("Hay cambios sin guardar que se perderán. ¿Abrir otro proyecto igualmente?")) return;
+        async function abrirProyectoCarpeta(sinConfirmar, alCancelar) {
+            if (sinConfirmar !== true && hayCambiosSinGuardar && !confirm("Hay cambios sin guardar que se perderán. ¿Abrir otro proyecto igualmente?")) return;
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.json,.pid,.dxf';
+            input.addEventListener('cancel', () => { if (typeof alCancelar === 'function') alCancelar(); });
             input.onchange = e => {
                 const file = e.target.files[0];
+                if (!file) { if (typeof alCancelar === 'function') alCancelar(); return; }
                 const reader = new FileReader();
                 reader.onload = event => {
                     try {
@@ -3123,6 +3218,7 @@
                         actualizarTituloProyecto();
                         if (res.opciones) opciones = Object.assign({}, opciones, res.opciones);
                         if (!FORMATOS[opciones.formato]) opciones.formato = 'A3';
+                        if (!FONDOS[opciones.fondo]) opciones.fondo = 'papel';
                         aplicarFormato();
                         // versiones anteriores: la Vmax única pasa a ser la de impulsión
                         if (!res.proyecto && res.opciones && +res.opciones.vmax > 0) proyecto.vImp = String(res.opciones.vmax);
@@ -3600,7 +3696,7 @@
             return JSON.stringify([els, lineas, condicionesContorno, document.getElementById('selector-fluido').value, document.getElementById('temp-fluido').value,
                 proyecto.caudalDiseno, proyecto.vAsp, proyecto.vImp, proyecto.tipoInstalacion, proyecto.tCierre, proyecto.tsMax, proyecto.grupoPED, proyecto.criterioPrueba, proyecto.salvaguardas, proyecto.esBuque, proyecto.tAmbiente, proyecto.tMontaje, proyecto.exterior, proyecto.horasAnuales, proyecto.precioEnergia, proyecto.etaMotor, opciones.margenNPSH, escenarioBombas]);
         }
-        function cerrarModalRed() { document.getElementById('modal-red').style.display = 'none'; }
+        function cerrarModalRed() { document.getElementById('modal-red').style.display = 'none'; const t = document.querySelector('#modal-red h3 span'); if (t) t.innerHTML = '<i class="fa-solid fa-diagram-project text-blue-600 mr-1.5"></i> Cálculo Hidráulico de la Red'; }
 
         function hfDeArista(a) {
             if (a.esBomba) return 0;
@@ -4459,7 +4555,7 @@
             caja.style.width = anchoArbol + 'px';
             if (!opciones.arbol) return;
             const vecinos = mapaVecinos();
-            const P = paleta(), F = FONDOS[opciones.fondo] || FONDOS.solidworks;
+            const P = paleta(), F = FONDOS[opciones.fondo] || FONDOS.papel;
             caja.style.setProperty('--arbol-linea', F.oscuro ? '#94a3b8' : '#64748b');
             caja.style.setProperty('--arbol-fondo', F.hoja);
             caja.style.setProperty('--arbol-texto', P.texto);
@@ -4495,6 +4591,7 @@
             const filaFmt = `<div class="fila">${mas('FORMATO', fPleg)}<span class="nodo" onclick="alternarNodoArbol('FORMATO')" title="Formato de la hoja"><i class="fa-solid fa-file" style="color:${P.base};font-size:10px"></i><span class="txt" style="font-weight:700">Formato</span><span class="txt" style="opacity:.8">${fAct} (${FORMATOS[fAct].w} × ${FORMATOS[fAct].h})</span></span>` +
                 (fPleg ? '' : `<div class="hijos">${Object.entries(FORMATOS).map(([k, f]) => `<div class="fila"><span class="nodo ${k === fAct ? 'sel' : ''}" onclick="cambiarFormato('${k}')" title="Cambiar a ${k}"><i class="fa-regular ${k === fAct ? 'fa-circle-dot' : 'fa-circle'}" style="font-size:9px"></i><span class="txt">${k} · ${f.w} × ${f.h} mm</span></span></div>`).join('')}
                     <div class="fila"><span class="nodo" onclick="alternarRejilla('rejillaVisible')" title="Mostrar u ocultar la rejilla"><i class="fa-solid fa-border-all" style="font-size:9px;color:${P.base}"></i><span class="txt">Rejilla: ${opciones.rejillaVisible !== false ? 'visible' : 'oculta'} · ${opciones.rejillaMayor || 10} mm / ${opciones.rejillaMenores || 2}</span></span></div>
+                    <div class="fila"><span class="nodo" onclick="alternarRejilla('cajetin')" title="Mostrar u ocultar el cajetín"><i class="fa-solid fa-table-cells" style="font-size:9px;color:${P.base}"></i><span class="txt">Cajetín: ${opciones.cajetin !== false ? 'visible' : 'oculto'}</span></span></div>
                     <div class="fila"><span class="nodo" onclick="alternarRejilla('rejilla')" title="Ajuste a rejilla"><i class="fa-solid fa-magnet" style="font-size:9px;color:${P.base}"></i><span class="txt">Ajuste a rejilla: ${opciones.rejilla ? 'sí' : 'no'}</span></span></div></div>`) + '</div>';
             const comps = elementosRed.filter(e => !esAnotacion(e));
             if (!elementosRed.length) { cuerpo.innerHTML = `<div class="fila" style="padding-left:16px"><div class="hijos" style="border-left:none;margin-left:0">${filaFmt}</div></div>`; return; }
@@ -4534,7 +4631,7 @@
             if (idSeleccionado) seleccionarElemento(idSeleccionado);
             if (ultimoCalculo && document.getElementById('modal-red').style.display === 'flex') mostrarResultados(ultimoCalculo.resultado);
         }
-        function alternarRejilla(clave) { opciones[clave] = clave === 'rejillaVisible' ? opciones.rejillaVisible === false : !opciones[clave]; marcarCambios(true); renderizarVectorial(); renderArbol(); }
+        function alternarRejilla(clave) { opciones[clave] = (clave === 'rejillaVisible' || clave === 'cajetin') ? opciones[clave] === false : !opciones[clave]; marcarCambios(true); renderizarVectorial(); renderArbol(); }
         function configurarRejilla() {
             const may = prompt('Separación de las líneas mayores de la rejilla (mm de papel):', opciones.rejillaMayor || 10);
             if (may == null) return;
@@ -4683,12 +4780,13 @@
             out.forEach(x => x.avisos.forEach(t => resultado.avisosRed.push(`Prueba de presión ${x.linea}: ${t}`)));
         }
         const PROYECTO_VACIO = () => ({
-            numero: '', revision: '0', fecha: new Date().toISOString().slice(0, 10), autor: '',
-            cliente: '', refCliente: '', descripcion: '', instalacion: '', direccion: '', ciudad: '', provincia: '', pais: 'España',
+            numero: '', revision: '', fecha: '', autor: '',
+            cliente: '', refCliente: '', descripcion: '', instalacion: '', direccion: '', ciudad: '', provincia: '', pais: '',
+            nombrePlano: '', nombrePlano2: '', planoNumero: '', letraRevision: '', grupoPlano: '', codigoPlano: '', planoCert: '', revisadoPor: '', fechaRevisado: '', aprobadoPor: '', fechaAprobado: '', escala: '', hoja: '', hojas: '',
             esBuque: false,
             buque: { astillero: '', construccion: '', nombre: '', armador: '', tipo: '', imo: '', bandera: '', clasificacion: '', esloraTotal: '', esloraPP: '', manga: '', puntal: '', calado: '', peMuerto: '' },
-            fluido: 'Agua', temperatura: '20',
-            tipoInstalacion: 'industrial', caudalDiseno: '', vAsp: '', vImp: '', tCierre: '', tsMax: '', grupoPED: 'auto', criterioPrueba: 'PED', tAmbiente: '', tMontaje: '', exterior: false, horasAnuales: '', precioEnergia: '', etaMotor: ''
+            fluido: '', temperatura: '',
+            tipoInstalacion: '', caudalDiseno: '', vAsp: '', vImp: '', tCierre: '', tsMax: '', grupoPED: 'auto', criterioPrueba: 'PED', tAmbiente: '', tMontaje: '', exterior: false, horasAnuales: '', precioEnergia: '', etaMotor: ''
         });
         let proyecto = PROYECTO_VACIO();
         const TIPOS_INSTALACION = { edificacion: 'Edificación (RITE/CTE)', industrial: 'Industrial / proceso', naval: 'Naval / buque' };
@@ -4714,9 +4812,15 @@
             return { asp: +proyecto.vAsp > 0 ? +proyecto.vAsp : rec[0], imp: +proyecto.vImp > 0 ? +proyecto.vImp : rec[1] };
         }
         const CAMPOS_PROYECTO = [
-            ['numero', 'Nº de proyecto *'], ['revision', 'Revisión'], ['fecha', 'Fecha', 'date'], ['autor', 'Autor / calculista'],
+            ['numero', 'Nº de proyecto *'], ['revision', 'Revisión (vacío = 0)'], ['fecha', 'Fecha (vacío = hoy)', 'date'], ['autor', 'Autor / calculista'],
             ['cliente', 'Cliente *'], ['refCliente', 'Referencia del cliente'], ['descripcion', 'Descripción del proyecto', 'textarea'],
             ['instalacion', 'Instalación *'], ['direccion', 'Dirección / emplazamiento'], ['ciudad', 'Ciudad'], ['provincia', 'Provincia'], ['pais', 'País']
+        ];
+        const CAMPOS_CAJETIN = [
+            ['nombrePlano', 'Nombre del plano (vacío = instalación · descripción)'], ['nombrePlano2', 'Nombre, 2ª línea (vacío = cliente)'], ['planoNumero', 'Plano nº'], ['letraRevision', 'Letra de revisión'],
+            ['escala', 'Escala (vacío = S/E)'], ['grupoPlano', 'Grupo nº'], ['hoja', 'Hoja nº (vacío = 1)'], ['hojas', 'De (vacío = 1)'],
+            ['codigoPlano', 'Nº de código'], ['planoCert', 'Plano Cert. nº'], ['revisadoPor', 'Revisado por'], ['fechaRevisado', 'Fecha de revisión', 'date'],
+            ['aprobadoPor', 'Aprobado por'], ['fechaAprobado', 'Fecha de aprobación', 'date']
         ];
         const CAMPOS_BUQUE = [
             ['astillero', 'Astillero *'], ['construccion', 'Nº de construcción *'], ['nombre', 'Nombre del buque *'], ['armador', 'Armador *'],
@@ -4734,6 +4838,7 @@
         function faltanObligatorios(p = proyecto) {
             const f = [];
             if (!p.numero) f.push('Nº de proyecto'); if (!p.cliente) f.push('Cliente'); if (!p.instalacion) f.push('Instalación');
+            if (!TIPOS_INSTALACION[p.tipoInstalacion]) f.push('Tipo de instalación');
             if (!p.fluido || !CAT.fluidos[p.fluido]) f.push('Fluido'); if (p.temperatura === '' || p.temperatura == null || isNaN(+p.temperatura)) f.push('Temperatura de servicio');
             if (p.tsMax === '' || p.tsMax == null || isNaN(+p.tsMax)) f.push('Temperatura máxima admisible TS');
             if (!(+p.caudalDiseno > 0)) f.push('Caudal de diseño'); if (!(+p.vImp > 0)) f.push('Velocidad máx. en impulsión'); if (!(+p.vAsp > 0)) f.push('Velocidad máx. en aspiración');
@@ -4746,32 +4851,35 @@
                 Object.entries(TIPOS_INSTALACION).map(([k, t]) => { const r = velocidadRecomendada(fl, k); return `<tr class="${k === tipo ? 'bg-blue-50 font-bold' : ''}"><td class="px-1">${t}</td><td class="text-center">${r[0]}</td><td class="text-center">${r[1]}</td></tr>`; }).join('') + '</tbody></table>';
         }
         function abrirDatosProyecto(despues, modo = {}) {
+            if (!(modo && modo.nuevo) && !proyecto.numero && !elementosRed.length) { pantallaInicio(); return; }
             alGuardarProyecto = despues || null;
             modoProyecto = modo || {};
             if (!proyectoDefinido() && !modoProyecto.nuevo) modoProyecto.obligatorio = true;
             const p = modoProyecto.nuevo ? PROYECTO_VACIO() : proyecto;
-            const fl = p.fluido || document.getElementById('selector-fluido').value || 'Agua';
-            const T = p.temperatura != null && p.temperatura !== '' ? p.temperatura : (modoProyecto.nuevo ? '' : document.getElementById('temp-fluido').value);
+            const fl = p.fluido || '';
+            const T = p.temperatura != null ? p.temperatura : '';
             const rec = velocidadRecomendada(fl, p.tipoInstalacion);
             const campoP = ([k, e, t]) => k === 'provincia' ? `<div><label id="dp-lbl-provincia" class="block text-slate-500 mb-0.5">${etiquetaProvincia(p.pais)}</label><input id="dp-p-provincia" value="${esc(p.provincia)}" class="w-full border rounded p-1.5"></div>`
                 : k === 'pais' ? `<div><label class="block text-slate-500 mb-0.5">País</label><input id="dp-p-pais" value="${esc(p.pais)}" oninput="document.getElementById('dp-lbl-provincia').innerText = etiquetaProvincia(this.value)" class="w-full border rounded p-1.5"></div>` : campoHTML(k, e, t, p[k], 'p');
             document.getElementById('modal-proyecto-body').innerHTML = `
-                ${modoProyecto.obligatorio || modoProyecto.nuevo ? `<div class="bg-blue-50 border border-blue-200 text-blue-800 rounded p-2 mb-3">${modoProyecto.nuevo ? 'Nuevo proyecto: al guardar estos datos se empieza un dibujo en blanco.' : 'Siempre se trabaja dentro de un proyecto: completa los datos obligatorios (*) para empezar.'} Los datos de diseño solo se pueden cambiar después desde <b>Archivo &gt; Datos del proyecto</b>.</div>` : ''}
+                ${modoProyecto.obligatorio || modoProyecto.nuevo ? `<div class="bg-blue-50 border border-blue-200 text-blue-800 rounded p-2 mb-3">${modoProyecto.nuevo ? 'Nuevo proyecto: introduce sus datos; al guardarlos se empieza un dibujo en blanco. Para recuperar uno ya guardado: Archivo &gt; Proyecto existente.' : 'Completa los datos obligatorios (*) del proyecto.'} Los datos de diseño solo se pueden cambiar después desde <b>Archivo &gt; Datos del proyecto</b>.</div>` : ''}
                 <p class="font-bold text-slate-600 mb-1">Proyecto e instalación</p>
                 <div class="grid grid-cols-2 gap-2 mb-3">${CAMPOS_PROYECTO.map(campoP).join('')}</div>
                 <label class="flex items-center gap-1.5 font-bold text-slate-600 mb-1"><input type="checkbox" id="dp-esBuque" ${p.esBuque ? 'checked' : ''} onchange="document.getElementById('dp-bloque-buque').style.display = this.checked ? '' : 'none'"> El cliente es un astillero (instalación en un buque)</label>
                 <div id="dp-bloque-buque" class="grid grid-cols-2 gap-2 mb-3 border border-slate-200 rounded p-2" style="${p.esBuque ? '' : 'display:none'}">${CAMPOS_BUQUE.map(([k, e, t]) => campoHTML(k, e, t, p.buque[k], 'b')).join('')}</div>
+                <p class="font-bold text-slate-600 mb-1">Cajetín del plano <span class="font-normal text-slate-400">(vacío = se toma de los datos del proyecto)</span></p>
+                <div class="grid grid-cols-2 gap-2 mb-3">${CAMPOS_CAJETIN.map(([k, e, t]) => campoHTML(k, e, t, p[k], 'p')).join('')}</div>
                 <p class="font-bold text-slate-600 mb-1">Datos de diseño</p>
                 <div class="grid grid-cols-2 gap-2">
-                    <div><label class="block text-slate-500 mb-0.5">Fluido *</label><select id="dp-fluido" class="w-full border rounded p-1.5" onchange="actualizarVRecomendada(true)">${Object.keys(CAT.fluidos).map(f => `<option ${f === fl ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
+                    <div><label class="block text-slate-500 mb-0.5">Fluido *</label><select id="dp-fluido" class="w-full border rounded p-1.5" onchange="actualizarVRecomendada(true)"><option value="" ${fl ? '' : 'selected'}>— elegir —</option>${Object.keys(CAT.fluidos).map(f => `<option ${f === fl ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
                     ${campoHTML('temperatura', 'Temperatura de servicio (°C) *', 'number', T, 'p')}
-                    <div><label class="block text-slate-500 mb-0.5">Tipo de instalación</label><select id="dp-tipoInstalacion" class="w-full border rounded p-1.5" onchange="actualizarVRecomendada(true)">${Object.entries(TIPOS_INSTALACION).map(([k, t]) => `<option value="${k}" ${p.tipoInstalacion === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+                    <div><label class="block text-slate-500 mb-0.5">Tipo de instalación *</label><select id="dp-tipoInstalacion" class="w-full border rounded p-1.5" onchange="actualizarVRecomendada(true)"><option value="" ${p.tipoInstalacion ? '' : 'selected'}>— elegir —</option>${Object.entries(TIPOS_INSTALACION).map(([k, t]) => `<option value="${k}" ${p.tipoInstalacion === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
                     ${campoHTML('tsMax', 'Temperatura máxima admisible TS (°C) *', 'number', p.tsMax, 'p')}
                     ${campoHTML('caudalDiseno', 'Caudal de diseño (m³/h) *', 'number', p.caudalDiseno, 'p')}
                     ${campoHTML('tCierre', 'Tiempo de cierre de válvulas (s) · golpe de ariete (vacío = instantáneo)', 'number', p.tCierre, 'p')}
-                    ${campoHTML('vImp', `Velocidad máx. en impulsión (m/s) * · recomendada <span id="rec-imp">${rec[1]}</span>`, 'number', p.vImp || rec[1], 'p')}
-                    ${campoHTML('vAsp', `Velocidad máx. en aspiración de bombas (m/s) * · recomendada <span id="rec-asp">${rec[0]}</span>`, 'number', p.vAsp || rec[0], 'p')}
-                    <div class="col-span-2" id="dp-tabla-v">${tablaVelocidades(fl, p.tipoInstalacion)}</div>
+                    ${campoHTML('vImp', `Velocidad máx. en impulsión (m/s) * · recomendada <span id="rec-imp">${rec[1]}</span>`, 'number', p.vImp, 'p')}
+                    ${campoHTML('vAsp', `Velocidad máx. en aspiración de bombas (m/s) * · recomendada <span id="rec-asp">${rec[0]}</span>`, 'number', p.vAsp, 'p')}
+                    <div class="col-span-2"><div id="dp-tabla-v">${tablaVelocidades(fl || '—', p.tipoInstalacion)}</div><button type="button" onclick="actualizarVRecomendada('forzar')" class="mt-1 px-2 py-1 border rounded hover:bg-slate-50 text-[11px]"><i class="fa-solid fa-wand-magic-sparkles mr-1 text-blue-600"></i>Usar las velocidades recomendadas</button></div>
                     <div><label class="block text-slate-500 mb-0.5">Grupo del fluido (PED art. 13)</label><select id="dp-grupoPED" class="w-full border rounded p-1.5">${[['auto', 'Automático según fluido y TS'], ['1', 'Grupo 1 (peligroso)'], ['2', 'Grupo 2']].map(([k, t]) => `<option value="${k}" ${p.grupoPED === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
                     <div><label class="block text-slate-500 mb-0.5">Criterio de presión de prueba</label><select id="dp-criterioPrueba" class="w-full border rounded p-1.5">${Object.entries(CRITERIOS_PRUEBA).map(([k, c]) => `<option value="${k}" ${p.criterioPrueba === k ? 'selected' : ''}>${c.nombre}</option>`).join('')}</select></div>
                     ${campoHTML('horasAnuales', 'Horas de funcionamiento al año · coste energético (vacío = 4000)', 'number', p.horasAnuales, 'p')}
@@ -4796,10 +4904,17 @@
             const fl = document.getElementById('dp-fluido').value, tipo = document.getElementById('dp-tipoInstalacion').value;
             const rec = velocidadRecomendada(fl, tipo);
             document.getElementById('rec-asp').innerText = rec[0]; document.getElementById('rec-imp').innerText = rec[1];
-            if (fijar) { document.getElementById('dp-p-vAsp').value = rec[0]; document.getElementById('dp-p-vImp').value = rec[1]; }
-            document.getElementById('dp-tabla-v').innerHTML = tablaVelocidades(fl, tipo);
+            // solo se rellenan si están vacías (o con el botón "Usar las velocidades recomendadas")
+            const a = document.getElementById('dp-p-vAsp'), i = document.getElementById('dp-p-vImp');
+            if (fijar === 'forzar' || (fijar && fl && tipo)) { if (fijar === 'forzar' || !a.value) a.value = rec[0]; if (fijar === 'forzar' || !i.value) i.value = rec[1]; }
+            document.getElementById('dp-tabla-v').innerHTML = tablaVelocidades(fl || '—', tipo);
         }
-        function cerrarDatosProyecto() { if (modoProyecto.obligatorio) return; document.getElementById('modal-proyecto').style.display = 'none'; alGuardarProyecto = null; modoProyecto = {}; }
+        function cerrarDatosProyecto() {
+            if (modoProyecto.obligatorio) return;
+            const volver = modoProyecto.desdeInicio || !proyectoDefinido();
+            document.getElementById('modal-proyecto').style.display = 'none'; alGuardarProyecto = null; modoProyecto = {};
+            if (volver && !proyectoDefinido()) pantallaInicio();
+        }
         function guardarDatosProyecto() {
             const v = id => (document.getElementById(id) || {}).value;
             const nuevo = !!modoProyecto.nuevo;
@@ -4808,6 +4923,9 @@
             const antes = claveCalculo();
             const copia = JSON.parse(JSON.stringify(destino));
             CAMPOS_PROYECTO.forEach(([k]) => { copia[k] = (v('dp-p-' + k) || '').trim(); });
+            CAMPOS_CAJETIN.forEach(([k]) => { copia[k] = (v('dp-p-' + k) || '').trim(); });
+            if (!copia.revision) copia.revision = '0';
+            if (!copia.fecha) copia.fecha = new Date().toISOString().slice(0, 10);
             copia.esBuque = document.getElementById('dp-esBuque').checked;
             CAMPOS_BUQUE.forEach(([k]) => { copia.buque[k] = (v('dp-b-' + k) || '').trim(); });
             copia.tipoInstalacion = v('dp-tipoInstalacion');
@@ -4924,6 +5042,130 @@
             return null;
         }
 
+        // ==================================================================================
+        // PLANTILLA DE WORD DEL INFORME (una por cliente, guardada en el navegador)
+        // La plantilla aporta página, cabecera, pie, estilos (los títulos y la leyenda se asignan por nombre de
+        // estilo: «heading 1», «caption»...) y, si quiere, una portada propia. Marcadores que se sustituyen en
+        // la plantilla (cuerpo, cabecera y pie): {{INFORME}} (donde se inserta el informe; si no está, se añade
+        // al final y se mantiene la portada del programa), {{PROYECTO}}, {{CLIENTE}}, {{REF_CLIENTE}},
+        // {{INSTALACION}}, {{DESCRIPCION}}, {{FECHA}}, {{REVISION}}, {{AUTOR}}, {{TITULO}}.
+        // ==================================================================================
+        const URL_JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        function cargarJSZip() {
+            if (window.JSZip) return Promise.resolve(window.JSZip);
+            return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = URL_JSZIP; s.onload = () => window.JSZip ? ok(window.JSZip) : ko(new Error('JSZip no se ha inicializado.')); s.onerror = () => ko(new Error('No se ha podido cargar JSZip (sin conexión).')); document.head.appendChild(s); });
+        }
+        const clavePlantilla = () => 'piping-plantilla:' + String(proyecto.cliente || '').trim().toLowerCase();
+        const b64aBuf = b => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; };
+        const bufAb64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode.apply(null, u.subarray(i, i + 32768)); return btoa(s); };
+        const textoXML = x => x.replace(/<[^>]+>/g, '');
+        function elegirArchivo(accept) {
+            return new Promise(ok => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => ok(i.files[0] || null); i.addEventListener('cancel', () => ok(null)); i.click(); });
+        }
+        async function elegirPlantillaInforme() {
+            let guardada = null; try { guardada = proyecto.cliente ? JSON.parse(localStorage.getItem(clavePlantilla()) || 'null') : null; } catch (e) { guardada = null; }
+            const cli = esc(proyecto.cliente || '');
+            const botones = [];
+            if (guardada) botones.push({ texto: `Sí: plantilla de ${proyecto.cliente}`, valor: 'guardada', clase: 'bg-blue-600 hover:bg-blue-700 text-white' });
+            botones.push({ texto: guardada ? 'Sí: otra plantilla...' : 'Sí: elegir plantilla (*.docx)...', valor: 'elegir', clase: guardada ? 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' : 'bg-blue-600 hover:bg-blue-700 text-white' });
+            botones.push({ texto: 'No: plantilla del programa', valor: 'no', clase: 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' });
+            botones.push({ texto: 'Cancelar', valor: null });
+            const r = await dialogo('<i class="fa-solid fa-file-word text-blue-600 mr-1.5"></i>¿Usar una plantilla de Word?',
+                `<p>Cliente: <b>${cli || '—'}</b>${guardada ? ` · plantilla guardada: <b>${esc(guardada.nombre)}</b> (${new Date(guardada.fecha).toLocaleDateString('es-ES')})` : ''}</p>
+                 <p class="text-slate-400">La plantilla aporta página, cabecera, pie y estilos. Marcadores: <code>{{INFORME}}</code> (lugar del informe; sin él se añade al final con la portada del programa), <code>{{PROYECTO}}</code>, <code>{{CLIENTE}}</code>, <code>{{REF_CLIENTE}}</code>, <code>{{INSTALACION}}</code>, <code>{{DESCRIPCION}}</code>, <code>{{FECHA}}</code>, <code>{{REVISION}}</code>, <code>{{AUTOR}}</code>, <code>{{TITULO}}</code>.</p>
+                 <p class="text-slate-400">La plantilla elegida se recuerda para este cliente.</p>`, botones);
+            if (r == null) return 'cancelar';
+            if (r === 'no') return null;
+            let nombre, buffer;
+            if (r === 'guardada') { nombre = guardada.nombre; buffer = b64aBuf(guardada.b64); }
+            else {
+                const f = await elegirArchivo('.docx,.dotx'); if (!f) return 'cancelar';
+                nombre = f.name; buffer = await f.arrayBuffer();
+                if (proyecto.cliente) { try { localStorage.setItem(clavePlantilla(), JSON.stringify({ nombre, fecha: new Date().toISOString(), b64: bufAb64(buffer) })); } catch (e) { aviso('La plantilla es demasiado grande para recordarla en el navegador; se usará solo esta vez.', 'error'); } }
+            }
+            try {
+                const Z = await cargarJSZip(), zip = await Z.loadAsync(buffer), d = zip.file('word/document.xml');
+                if (!d) throw new Error('no es un documento de Word (.docx)');
+                const conMarcador = /\{\{\s*INFORME\s*\}\}/.test(textoXML(await d.async('string')));
+                return { nombre, buffer, conMarcador };
+            } catch (e) { alert('No se puede usar la plantilla ' + nombre + ': ' + e.message); return 'cancelar'; }
+        }
+        // Sustituye {{MARCADOR}} aunque Word lo haya partido en varias ejecuciones de texto
+        function sustituirMarcadores(xml, valores) {
+            return xml.replace(/\{(?:<[^>]+>)*\{((?:[^{}<]|<[^>]+>)+?)\}(?:<[^>]+>)*\}/g, (m, dentro) => {
+                const clave = textoXML(dentro).trim().toUpperCase();
+                if (!(clave in valores)) return m;
+                const etiquetas = (m.match(/<[^>]+>/g) || []).join('');
+                return esc(valores[clave]).replace(/"/g, '&quot;') + etiquetas;
+            });
+        }
+        async function aplicarPlantillaDocx(blob, plantilla) {
+            const Z = await cargarJSZip();
+            const nuestro = await Z.loadAsync(await blob.arrayBuffer()), pl = await Z.loadAsync(plantilla.buffer.slice(0));
+            const leer = (z, f) => z.file(f) ? z.file(f).async('string') : Promise.resolve(null);
+            const docO = await leer(nuestro, 'word/document.xml'), relsO = await leer(nuestro, 'word/_rels/document.xml.rels') || '';
+            let docP = await leer(pl, 'word/document.xml'), relsP = await leer(pl, 'word/_rels/document.xml.rels') || '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+            const p = proyecto;
+            const valores = { PROYECTO: p.numero, CLIENTE: p.cliente, REF_CLIENTE: p.refCliente, INSTALACION: p.instalacion, DESCRIPCION: p.descripcion, FECHA: p.fecha, REVISION: p.revision, AUTOR: p.autor, TITULO: 'Informe de cálculo hidráulico' };
+            // 1) cuerpo del informe (sin la sección final)
+            let cuerpo = docO.slice(docO.indexOf('<w:body>') + 8, docO.lastIndexOf('<w:sectPr'));
+            // 2) relaciones que usa el cuerpo (imágenes, vínculos): se copian con identificadores nuevos
+            const rels = {}; (relsO.match(/<Relationship\b[^>]*\/>/g) || []).forEach(r => { const id = (r.match(/Id="([^"]+)"/) || [])[1]; if (id) rels[id] = r; });
+            const mapa = {}; let n = 0, nuevasRels = '';
+            for (const [, id] of cuerpo.matchAll(/r:(?:embed|id|link)="([^"]+)"/g)) {
+                if (mapa[id] || !rels[id]) continue;
+                const r = rels[id], nid = 'rIdPiping' + (++n), tgt = (r.match(/Target="([^"]+)"/) || [])[1] || '';
+                let r2 = r.replace(/Id="[^"]+"/, `Id="${nid}"`);
+                if (!/TargetMode="External"/.test(r)) {
+                    const src = 'word/' + tgt.replace(/^\/?word\//, ''), nombreF = 'media/piping_' + tgt.split('/').pop();
+                    const f = nuestro.file(src); if (f) pl.file('word/' + nombreF, await f.async('uint8array'));
+                    r2 = r2.replace(/Target="[^"]+"/, `Target="${nombreF}"`);
+                }
+                mapa[id] = nid; nuevasRels += r2;
+            }
+            cuerpo = cuerpo.replace(/r:(embed|id|link)="([^"]+)"/g, (m, a, id) => mapa[id] ? `r:${a}="${mapa[id]}"` : m);
+            cuerpo = cuerpo.replace(/(<wp:docPr\b[^>]*\bid=")(\d+)"/g, (m, a, id) => a + (10000 + +id) + '"'); // identificadores de dibujo únicos
+            relsP = relsP.replace('</Relationships>', nuevasRels + '</Relationships>');
+            // 3) estilos: los de la plantilla mandan (mismo nombre de estilo); los que falten se añaden
+            const stO = await leer(nuestro, 'word/styles.xml') || '', stPf = 'word/styles.xml';
+            let stP = await leer(pl, stPf);
+            if (stP) {
+                const lista = x => (x.match(/<w:style\b[\s\S]*?<\/w:style>/g) || []).map(t => ({ t, id: (t.match(/w:styleId="([^"]+)"/) || [])[1], nombre: ((t.match(/<w:name w:val="([^"]+)"/) || [])[1] || '').toLowerCase() }));
+                const deP = lista(stP), porNombre = {}, ids = new Set(deP.map(x => x.id)); deP.forEach(x => { porNombre[x.nombre] = x.id; });
+                const mapaEst = {}; let anadir = '';
+                lista(stO).forEach(x => { if (porNombre[x.nombre]) mapaEst[x.id] = porNombre[x.nombre]; else if (!ids.has(x.id)) anadir += x.t; });
+                stP = stP.replace('</w:styles>', anadir + '</w:styles>'); pl.file(stPf, stP);
+                cuerpo = cuerpo.replace(/(<w:(?:pStyle|rStyle|tblStyle) w:val=")([^"]+)"/g, (m, a, id) => a + (mapaEst[id] || id) + '"');
+            } else pl.file(stPf, stO);
+            // 4) espacios de nombres que usa el cuerpo y no declara la plantilla
+            const raizO = docO.match(/<w:document\b[^>]*>/)[0], raizP = docP.match(/<w:document\b[^>]*>/)[0];
+            let raizN = raizP;
+            (raizO.match(/xmlns:\w+="[^"]*"/g) || []).forEach(ns => { const pref = ns.split('=')[0]; if (!raizN.includes(pref + '=')) raizN = raizN.replace(/>$/, ' ' + ns + '>'); });
+            docP = docP.replace(raizP, raizN);
+            // 5) marcadores de la plantilla y colocación del informe
+            docP = sustituirMarcadores(docP, valores);
+            let insertado = false;
+            docP = docP.replace(/<w:p\b[\s\S]*?<\/w:p>/g, par => { if (!insertado && /\{\{\s*INFORME\s*\}\}/.test(textoXML(par))) { insertado = true; return cuerpo; } return par; });
+            if (!insertado) { const k = docP.lastIndexOf('<w:sectPr'); const salto = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'; docP = docP.slice(0, k) + salto + cuerpo + docP.slice(k); }
+            pl.file('word/document.xml', docP);
+            pl.file('word/_rels/document.xml.rels', relsP);
+            for (const f of Object.keys(pl.files).filter(f => /^word\/(header|footer)\d*\.xml$/.test(f))) pl.file(f, sustituirMarcadores(await pl.file(f).async('string'), valores));
+            // 6) tipos de contenido (imágenes) y actualización de campos (índices) al abrir
+            let ct = await leer(pl, '[Content_Types].xml');
+            ['png', 'jpeg', 'jpg'].forEach(ext => { if (!new RegExp(`Extension="${ext}"`, 'i').test(ct)) ct = ct.replace('</Types>', `<Default Extension="${ext}" ContentType="image/${ext === 'jpg' ? 'jpeg' : ext}"/></Types>`); });
+            ct = ct.replace(/application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.template\.main\+xml/, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'); // .dotx -> .docx
+            pl.file('[Content_Types].xml', ct);
+            let st = await leer(pl, 'word/settings.xml');
+            if (st && !/<w:updateFields\b/.test(st)) {
+                // el esquema fija el orden: updateFields va antes de hdrShapeDefaults, footnotePr, compat, rsids...
+                const sig = ['<w:hdrShapeDefaults', '<w:footnotePr', '<w:endnotePr', '<w:compat', '<w:docVars', '<w:rsids', '<m:mathPr', '<w:attachedSchema', '<w:themeFontLang', '<w:clrSchemeMapping', '<w:doNotIncludeSubdocsInStats', '<w:doNotAutoCompressPictures', '<w:forceUpgrade', '<w:captions', '<w:readModeInkLockDown', '<w:smartTagType', '<sl:schemaLibrary', '<w:shapeDefaults', '<w:doNotEmbedSmartTags', '<w:decimalSymbol', '<w:listSeparator']
+                    .map(t => st.indexOf(t)).filter(i => i >= 0);
+                const k = sig.length ? Math.min(...sig) : st.lastIndexOf('</w:settings>');
+                pl.file('word/settings.xml', st.slice(0, k) + '<w:updateFields w:val="true"/>' + st.slice(k));
+            }
+            return await pl.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        }
+
         async function generarInforme() {
             if (escenarioBombas !== 'normal') {
                 escenarioBombas = 'normal';
@@ -4944,10 +5186,14 @@
                 alert('No se puede generar el informe: hay elementos que NO cumplen (en rojo en el plano).\n\n' + lista + '\n\nCorrige la red, recalcula y vuelve a intentarlo.');
                 return;
             }
-            const nombre = `Informe_${String(proyecto.numero).replace(/[^\w.-]+/g, '_')}_rev${String(proyecto.revision || '0').replace(/[^\w.-]+/g, '_')}_${new Date().toISOString().slice(0, 10)}.docx`;
-            // El selector de destino se abre ANTES de generar (el navegador exige que venga del clic)
+            const limpio = t => String(t || '').trim().replace(/[\\/:*?"<>|\r\n]+/g, '_');
+            const nombre = `${limpio(proyecto.numero)}-${limpio(proyecto.instalacion)}-${new Date().toISOString().slice(0, 10)}-${limpio(proyecto.revision || '0')}.docx`; // NOMBREPROYECTO-INSTALACION-FECHA-REVISION
+            // Plantilla de Word (por cliente) o la del programa
+            const plantilla = await elegirPlantillaInforme();
+            if (plantilla === 'cancelar') return;
+            // El selector de destino se abre ANTES de generar (el navegador exige que venga de un clic reciente)
             let handle = null;
-            if (window.showSaveFilePicker) {
+            if (window.showSaveFilePicker && !(navigator.userActivation && !navigator.userActivation.isActive)) {
                 try {
                     handle = await window.showSaveFilePicker({ suggestedName: nombre, types: [{ description: 'Documento Word (*.docx)', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } }] });
                 } catch (err) { if (err.name === 'AbortError') return; handle = null; }
@@ -4956,9 +5202,10 @@
                 mostrarAvisoProgreso('Cargando la librería de Word…');
                 const D = await cargarDocx();
                 mostrarAvisoProgreso('Generando figuras y tablas…');
-                const doc = await construirInforme(D);
+                const doc = await construirInforme(D, plantilla ? { unaSeccion: true, sinPortada: plantilla.conMarcador } : {});
                 mostrarAvisoProgreso('Guardando el informe…');
-                const blob = await D.Packer.toBlob(doc);
+                let blob = await D.Packer.toBlob(doc);
+                if (plantilla) { mostrarAvisoProgreso('Aplicando la plantilla ' + plantilla.nombre + '…'); blob = await aplicarPlantillaDocx(blob, plantilla); }
                 if (handle) {
                     const w = await handle.createWritable(); await w.write(blob); await w.close();
                 } else {
@@ -4967,7 +5214,7 @@
                     setTimeout(() => URL.revokeObjectURL(url), 5000);
                 }
                 mostrarAvisoProgreso(null);
-                alert(`Informe generado: ${handle ? handle.name : nombre}\n\nAl abrirlo en Word acepta "actualizar campos" para rellenar los números de página de los índices (en LibreOffice: Herramientas > Actualizar > Actualizar todo).`);
+                alert(`Informe generado: ${handle ? handle.name : nombre}${plantilla ? '\nPlantilla: ' + plantilla.nombre : ''}\n\nAl abrirlo en Word acepta "actualizar campos" para rellenar los números de página de los índices (en LibreOffice: Herramientas > Actualizar > Actualizar todo).`);
             } catch (err) {
                 console.error(err); mostrarAvisoProgreso(null);
                 alert('No se ha podido generar el informe: ' + err.message);
@@ -5230,7 +5477,7 @@
         }
 
         // ---------- Documento ----------
-        async function construirInforme(D) {
+        async function construirInforme(D, opc = {}) {
             // dimensionado de las bombas (recalcula la red al terminar, con los mismos datos)
             let dimB = null;
             try { const x = calcularDimBomba(ultimoDimBomba && ultimoDimBomba.eta); if (!x.error) dimB = x; } catch (e) { console.error(e); }
@@ -5654,10 +5901,13 @@
                         { id: 'Caption', name: 'caption', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 17, italics: true, color: AZUL }, paragraph: { spacing: { before: 80, after: 80 } } }
                     ]
                 },
-                sections: [
-                    { properties: pagina, children: portada },
-                    { properties: pagina, headers: { default: cabecera }, footers: { default: pie }, children: [...indices, ...cuerpo] }
-                ]
+                sections: opc.unaSeccion
+                    // con plantilla: una sola sección (la página, cabecera y pie son los de la plantilla)
+                    ? [{ properties: pagina, children: [...(opc.sinPortada ? [] : [...portada, new D.Paragraph({ children: [new D.PageBreak()] })]), ...indices, ...cuerpo] }]
+                    : [
+                        { properties: pagina, children: portada },
+                        { properties: pagina, headers: { default: cabecera }, footers: { default: pie }, children: [...indices, ...cuerpo] }
+                    ]
             });
         }
 
@@ -6365,7 +6615,7 @@
         setInterval(() => { if (hayCambiosSinGuardar) guardarUltimo(); }, 30000);
         function abrirUltimoProyecto() {
             let u = null;
-            try { u = JSON.parse(localStorage.getItem(CLAVE_ULTIMO) || 'null') || JSON.parse(localStorage.getItem(CLAVE_AUTOGUARDADO) || 'null'); } catch (e) { u = null; }
+            u = leerUltimoGuardado();
             if (u && u.contenido) {
                 try {
                     const avisos = cargarProyectoDesdeTexto(u.contenido);
@@ -6378,6 +6628,7 @@
                     try { localStorage.removeItem(CLAVE_AUTOGUARDADO); } catch (e) { }
                 } catch (e) { console.error(e); aviso('No se ha podido abrir el último proyecto guardado en el navegador.', 'error'); }
             }
+            if (!proyecto.numero) { pantallaInicio(); return; }
             if (!proyectoDefinido()) abrirDatosProyecto(null, { obligatorio: true });
             else aplicarFluidoProyecto();
         }
@@ -6623,12 +6874,12 @@
 
         const MENUS = [
             { titulo: 'Archivo', items: [
-                { icono: 'fa-file', texto: 'Nuevo', atajo: 'Ctrl+N', accion: () => nuevoProyecto() },
-                { icono: 'fa-folder-open', texto: 'Abrir...', atajo: 'Ctrl+O', accion: () => abrirProyectoCarpeta() },
+                { icono: 'fa-file', texto: 'Nuevo proyecto...', atajo: 'Ctrl+N', accion: () => nuevoProyecto() },
+                { icono: 'fa-folder-open', texto: 'Proyecto existente...', atajo: 'Ctrl+O', accion: () => proyectoExistente() },
                 { icono: 'fa-floppy-disk', texto: 'Guardar', atajo: 'Ctrl+G', accion: () => guardarProyecto() },
                 { icono: 'fa-file-export', texto: 'Guardar como', sub: [
                     { icono: 'fa-file-code', texto: 'Proyecto P&ID (*.pid)', accion: () => guardarComoProyecto('pid') },
-                    { icono: 'fa-compass-drafting', texto: 'Dibujo CAD (*.dxf)', accion: () => guardarComoProyecto('dxf') },
+                    { icono: 'fa-compass-drafting', texto: 'Dibujo CAD (*.dxf, capas normalizadas)', accion: () => guardarComoProyecto('dxf') },
                     { icono: 'fa-file-lines', texto: 'Datos JSON (*.json)', accion: () => guardarComoProyecto('json') },
                     { icono: 'fa-file-code', texto: 'Datos XML (*.xml)', accion: () => guardarComoProyecto('xml') },
                     { icono: 'fa-bezier-curve', texto: 'Imagen vectorial (*.svg)', accion: () => guardarComoProyecto('svg') },
@@ -6716,9 +6967,10 @@
             { titulo: 'Opciones', items: [
                 { icono: 'fa-fill-drip', texto: 'Fondo del lienzo', sub: () => Object.entries(FONDOS).map(([k, f]) => ({ icono: opciones.fondo === k ? 'fa-check' : 'fa-square', texto: f.nombre, accion: () => cambiarFondo(k) })) },
                 { icono: 'fa-file', texto: 'Formato de la hoja', sub: () => Object.entries(FORMATOS).map(([k, f]) => ({ icono: (opciones.formato || 'A3') === k ? 'fa-check' : 'fa-square', texto: `${k} (${f.w} × ${f.h} mm)`, accion: () => cambiarFormato(k) })) },
-                { icono: 'fa-border-all', texto: 'Rejilla', sub: () => [
+                { icono: 'fa-border-all', texto: 'Rejilla y cajetín', sub: () => [
                     { icono: opciones.rejillaVisible !== false ? 'fa-check' : 'fa-square', texto: 'Mostrar rejilla', accion: () => alternarRejilla('rejillaVisible') },
                     { icono: opciones.rejilla ? 'fa-check' : 'fa-square', texto: 'Ajuste a rejilla (líneas menores)', accion: () => alternarRejilla('rejilla') },
+                    { icono: opciones.cajetin !== false ? 'fa-check' : 'fa-square', texto: 'Mostrar cajetín', accion: () => alternarRejilla('cajetin') },
                     { icono: 'fa-ruler', texto: `Espaciado... (${opciones.rejillaMayor || 10} mm / ${opciones.rejillaMenores || 2})`, accion: () => configurarRejilla() }] },
                 { icono: 'fa-scale-balanced', texto: 'Unidades', sub: () => [
                     ...Object.entries(UNIDADES.p).map(([k, u]) => ({ icono: (opciones.uPresion || 'bar') === k ? 'fa-check' : 'fa-square', texto: 'Presión: ' + u[1], accion: () => cambiarUnidad('uPresion', k) })),
@@ -6727,6 +6979,7 @@
                 ] },
                 { icono: 'fa-shapes', texto: 'Norma de símbolos', sub: () => Object.entries(NORMAS).map(([k, n]) => ({ icono: opciones.norma === k ? 'fa-check' : 'fa-square', texto: n, accion: () => cambiarNorma(k) })) },
                 'sep',
+                { icono: 'fa-layer-group', texto: 'Líneas y capas...', accion: () => abrirLineasCapas() },
                 { icono: 'fa-sliders', texto: 'Criterios de cálculo (margen NPSH)...', accion: () => abrirCriterios() },
                 { icono: 'fa-database', texto: 'Supabase', sub: () => [
                     { icono: 'fa-key', texto: claveSupabase() ? 'Conexión configurada (cambiar clave)...' : 'Configurar conexión (clave anon)...', accion: () => configurarSupabase() },
@@ -6839,7 +7092,7 @@
                 else if (!enCampo && seleccion.size && !modoZoomVentana) accion = limpiarSeleccion;
             } else if (ctrl && !e.altKey && !e.shiftKey) {
                 if (k === 'n') accion = nuevoProyecto;
-                else if (k === 'o') accion = abrirProyectoCarpeta;
+                else if (k === 'o') accion = proyectoExistente;
                 else if (k === 'g') accion = guardarProyecto;
                 else if (k === 'p') accion = imprimirPDF;
                 else if (k === 'r') accion = abrirBuscarReemplazar;
