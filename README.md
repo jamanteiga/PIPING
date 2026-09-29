@@ -1,68 +1,111 @@
-# PIPING 6.8: cotas, consumos, PMA, golpe de ariete, dimensionado, listados, selección múltiple y unidades
+# PIPING 7.2 · Interfaz, inserción, formatos y Supabase (2026-09-29)
 
-## Cotas
-- Las tuberías tienen cota en el extremo a y en el extremo b. Al insertar una tubería se piden las dos: la del extremo conectado se hereda y el desnivel no puede superar la longitud.
-- Los componentes heredan la cota del punto al que se conectan. Todas las cotas se pueden editar en el panel.
-- La cota de cada nodo es la media de las cotas de sus puertos. Si no coinciden, se genera un aviso.
-- Los extremos abiertos toman la cota del elemento; en la ventana de contorno solo se pide la presión.
-- Presión en cada nodo: p = (H − z)·ρ·g − p_atm.
+Entregado en `C:\Users\jaman\Documents\PROYECTOS\PIPING\index.html` (md5 46b0a118…). La copia anterior está en `index_antes_v72.html`.
 
-## Terminales y equipos (librería: "Consumos y depósitos" y "Equipos")
-- **CON · Punto de consumo:** caudal impuesto (sumidero en el nodo) y presión mínima. Se comprueba p ≥ p mín.
-- **DEP · Depósito:** altura fija H = cota de lámina + (p_atm + p)/(ρ·g).
-- **Equipos:** IC intercambiador, EF enfriador, ENF enfriadora, FC fan-coil y EQ genérico. Se definen con el Δp del fabricante a caudal nominal; en el cálculo, Δp = Δp nom·(Q/Q nom)², equivalente a un K referido a la tubería conectada.
-- **Equilibrado:** el consumo con menor exceso de presión es el más desfavorable y no lleva válvula.
-  - En el resto, Δp = exceso − exceso mínimo, y la válvula se dimensiona con Kv = Q·√[(ρ/1000)/Δp].
-  - El exceso del consumo más desfavorable queda como margen de la bomba y genera un aviso si pasa de 0,1 bar.
-- **Ruta crítica:** es el camino con mayor valor de hf acumulada + altura requerida en el extremo.
+## Proyecto obligatorio
+- Al arrancar se abre siempre el último proyecto de trabajo. Se guarda en el navegador en cada cambio.
+- Si no hay ningún proyecto, se piden los datos del proyecto y la ventana no se puede cerrar.
+- **Archivo > Nuevo** pide los datos antes de vaciar el lienzo.
+- Datos obligatorios:
+  - nº de proyecto, cliente e instalación;
+  - fluido (desplegable del catálogo) y temperatura de servicio;
+  - temperatura máxima admisible TS y caudal de diseño;
+  - velocidades máximas en impulsión y en aspiración.
+- La ventana muestra una tabla de velocidades recomendadas según el fluido y el tipo de instalación.
+- Si el país no es España, el campo pasa a llamarse «Provincia / Estado / Departamento».
+- En el panel izquierdo, el fluido, la temperatura, el caudal y las velocidades son de solo lectura. Solo se cambian en **Archivo > Datos del proyecto**.
 
-## PMA de tuberías (automática y editable)
-- **Acero al carbono:** ASTM A106 Gr. B, S = 137,9 MPa (hasta 204 °C).
-- **Acero inoxidable:** ASTM A312 TP316L, S = 115,1 MPa (hasta 150 °C).
-- **Fórmula para acero (ASME B31.3 ec. 3a):** P = 2·S·E·W·t/(D − 2·Y·t), con E = W = 1, Y = 0,4 y t = 0,875·e − c. Sobreespesor c por defecto: 1 mm en carbono y 0 en inoxidable.
-- **PVC-U:** PMA = PN × fT según EN ISO 1452-2 anexo A (≤25 °C: 1; ≤35 °C: 0,8; ≤45 °C: 0,63).
-- **PE:** PMA = PN × fT según EN 12201-1 anexo A (20 °C: 1; 30 °C: 0,87; 40 °C: 0,74).
-- **Otros materiales:** CPVC, PP-R, PVDF, PP-H, cobre, fundición y hormigón no tienen PMA automática; se introduce a mano y, si falta, se genera un aviso.
-- **Criterios:**
-  - p de servicio > PMA → fallo.
-  - p con la bomba contra válvula cerrada (Hs + H0) > PMA → aviso.
-  - p absoluta < pv en cualquier nodo → fallo (vaporización).
+## Librería (panel derecho)
+- Todo aparece plegado.
+- Funciona en acordeón: al desplegar una categoría se pliegan las demás.
+- Al seleccionar o insertar un elemento se despliega su categoría.
+- Las categorías van en orden alfabético.
+- Dentro de Accesorios hay tres grupos plegables en acordeón:
+  - Accesorios de tubería;
+  - Intercambiadores (buques);
+  - Tanques y depósitos.
 
-## Golpe de ariete (aviso)
-- Celeridad (Korteweg): a = √[(Kf/ρ)/(1 + Kf·D/(E·e))].
-- Tiempo crítico: Tc = 2L/a, con L = longitud de tuberías de la línea.
-- Cierre rápido (tc ≤ Tc): Joukowsky, Δp = ρ·a·V. Cierre lento: Michaud, Δp = 2ρLV/tc.
-- El tiempo de cierre se indica en los datos del proyecto; si se deja vacío, el cierre se considera instantáneo.
-- Si p + Δp > PMA se genera un aviso.
-- Valores orientativos de E (MPa): acero al carbono 207 000, inoxidable 193 000, PVC 3000, PE100 1100, PE80 900, CPVC 2900, PP-R 900, PVDF 1800, PP-H 1300, cobre 117 000, fundición 170 000, hormigón 30 000.
-- Kf de cada fluido: está en el catálogo (valores orientativos).
+## Inserción
+- **Conexión automática**: al acercar el componente a un puerto libre (a menos de 60 px) se conecta solo, orientado en el sentido del flujo. Mientras se arrastra, el puerto de destino se resalta.
+- **Herencia de propiedades** del elemento conectado:
+  - componentes: tamaño y PN/clase;
+  - tuberías: material, serie, clase y tamaño.
+- **Primer elemento**: se dimensiona para V ≤ V máx con el caudal de diseño.
+- **Ventana de datos particulares**, que siempre se abre al insertar:
+  - válvulas: subtipo, DN, PN, Cv, Kvs y apertura;
+  - codos y otros accesorios: tipo, DN y PN;
+  - reducciones: DN mayor y menor, concéntrica o excéntrica;
+  - PSV: presión de tarado;
+  - instrumentos: conexión y rango;
+  - bombas: Q, p, p a caudal cero, NPSHr, η, cota y servicio/reserva;
+  - equipos: Δp, PN y volumen;
+  - tanques: cota del fondo, altura de las conexiones b y c sobre el fondo, nivel de líquido, tipo y tamaño de conexión, y presión.
+- **Ramales**:
+  - cada salida de una te o de un cruce abre un ramal nuevo (te en P01 → R01 y R02; cruce → tres ramales);
+  - la numeración es la global en ese momento;
+  - en un injerto, el paso continúa la línea y la derivación es un ramal.
+- Si la hoja está vacía, la numeración y las líneas empiezan de nuevo (P01, VAG01-P01…).
+- La bomba tiene tubuladuras de aspiración (A) e impulsión (I).
 
-## Avisos de coherencia
-- DN de un componente distinto del de la tubería conectada. En plásticos se compara por el diámetro exterior equivalente.
-- Retención con el caudal en sentido contrario.
-- Bomba con caudal inverso.
+## Etiquetas
+- Sin longitud; la longitud aparece en el tooltip.
+- Van en una capa propia, con colocación automática sin solapes.
+- Siguen la orientación del componente y se leen en horizontal o, en vertical, desde la derecha (de abajo arriba).
+- Se reducen hasta el largo del componente.
+- Se pueden arrastrar cerca del componente; conservan el vínculo, con una línea de referencia si se alejan.
+- Doble clic en una etiqueta: horizontal, vertical, girar ±90° o posición automática.
+- Los textos interiores de los símbolos también se mantienen legibles.
 
-## Fluidos nuevos (generados con CoolProp)
-- Agua de mar con S = 35 g/kg (Sharqawy/MIT). pv = 0,979·pv del agua.
-- MEG y MPG al 20, 30 y 40 % en masa (Melinder, IIR 2010). La tabla empieza cerca del punto de congelación. pv por la ley de Raoult.
+## Ventanas y menús
+- **Doble clic en un elemento** abre una ventana flotante que no bloquea el lienzo y se arrastra por la cabecera. Permite:
+  - girar 90° horario o antihorario, o 180°;
+  - mover o desconectar;
+  - nota anclada y eliminar;
+  - cambiar de línea o ramal (incluidos un ramal nuevo o una principal nueva);
+  - editar todas las propiedades.
+- **Botón derecho en el lienzo**, en orden alfabético: Calcular red, Leyenda de componentes, Listado de componentes, Nota de texto (se ancla al componente más cercano), Redimensionar red, Seleccionar línea ▸, Zoom ▸ (Ajustar, Todo, Ventana).
+- **Botón derecho en un componente**: Girar ▸ 90°, 180° o 270°, en sentido horario o antihorario. Si el elemento está conectado por un único puerto, gira alrededor de ese puerto.
+- **Al guardar**, si hay elementos sueltos, un aviso permite ir a colocarlos, eliminarlos y guardar, o cancelar.
+- **NPSH remarcado**:
+  - NPSHd / NPSHr bajo la bomba, en verde o en rojo;
+  - recuadro en el panel de la bomba;
+  - resaltado en los resultados y en el tooltip.
+- **Ruta crítica**: siempre en violeta. Un fallo en la ruta crítica lleva además una marca roja «!».
+- **Leyenda de componentes** (sin referencia a la norma): una sola, por defecto en la esquina superior derecha.
+- **Listado de componentes**: tabla de materiales del plano, que se puede mover a cualquier sitio.
 
-## Herramientas
-- **Herramientas > Dimensionar tuberías:**
-  - elige el menor tamaño de la misma serie que cumple V ≤ Vmax del lado correspondiente, y recalcula iterativamente;
-  - los componentes contiguos de la línea siguen a su tubería y las reducciones se ajustan (con aviso si dejan de reducir);
-  - muestra la propuesta antes de aplicarla y se puede deshacer.
-- **Informe > Listados (*.xlsx):** hojas Líneas, Válvulas (incluye las válvulas de equilibrado propuestas), Materiales (metros por material/serie/DN y unidades de accesorios) y Equipos y consumos. Usa SheetJS desde jsDelivr.
+## Formatos y rejilla
+- Formatos A4, A3, A2, A1 y A0 apaisados, con marco ISO 5457: 20 mm a la izquierda y 10 mm en los demás lados.
+- Referencias fuera del marco:
+  - letras desde abajo, sin I ni O;
+  - números de mayor a 1, de izquierda a derecha.
+  - A4: 4 columnas × 6 filas (A–F); A3: 8 × 6 (A–F); A2: 12 × 8 (A–H); A1: 16 × 12 (A–M); A0: 24 × 18 (A–T).
+- Marcas de centrado en los cuatro lados.
+- No se permite cambiar a un formato en el que el dibujo no cabe; se indica el formato mínimo.
+- El árbol tiene un apartado «Formato» debajo de Anotaciones para cambiar el formato y la rejilla.
+- La rejilla sigue el estilo de las hojas de SolidWorks: líneas mayores y menores.
+  - Se configura en **Opciones > Rejilla** (mostrar, ajuste y espaciado; por defecto 10 mm y 4 divisiones).
+- La impresión y el DXF usan el formato activo. El DXF tiene capas FORMATO, TEXTOS y ANOTACIONES.
 
-## Uso
-- **Autoguardado:** copia de trabajo en el navegador 2 s después de cada cambio y cada 30 s. Al abrir la app ofrece recuperarla. Se borra al guardar el .pid, al abrir un archivo o al crear un proyecto nuevo.
-- **Selección múltiple:**
-  - Ctrl o Mayús + clic;
-  - arrastrar sobre una zona vacía para seleccionar por ventana;
-  - menú Seleccionar: Todo (Ctrl+A), Nada (Esc), por Línea y Girar;
-  - el grupo se mueve arrastrando y gira de forma rígida;
-  - copiar, cortar y pegar en grupo; Supr elimina.
-- **Opciones > Unidades:** presión en bar, kPa o m c.a. (1 m c.a. = 9806,65 Pa) y caudal en m³/h o l/s. Afecta al panel, a las ventanas de inserción, al contorno, a los resultados y al tooltip. El informe y los listados siguen en bar y m³/h.
+## Supabase (2.22)
+- Carpeta `supabase/`.
+- `01_esquema.sql` con las tablas por grupos:
+  - fluidos y propiedades, velocidades recomendadas;
+  - materiales, series, tamaños y espesores;
+  - Crane fT y K, reducciones B16.9, Vmin de retención;
+  - tipos de componente;
+  - fabricantes, válvulas de catálogo y Cv, PN EN 1092-1 y ASME B16.5, y tablas PN del fabricante;
+  - bombas y curvas, motores IEC;
+  - tanques, equipos e instrumentos de catálogo;
+  - límites PED, RITE y clases navales;
+  - proyectos, compartidos, revisiones y plantillas.
+- RLS: el catálogo es de lectura para todos y de escritura para ADMIN; los proyectos son del propietario o se comparten.
+- La vista `v_catalogo` devuelve el mismo JSON que catalogo.js.
+- `02_datos.sql` se genera con `gen_datos.js` desde catalogo.js.
+- Probado en PostgreSQL 16: la vista reproduce catalogo.js sin diferencias.
 
-## Pendiente
-- Curvas de bomba en PDF.
-- Cajetín del plano y logo de la empresa (más adelante).
+## Pendiente / decisiones del usuario
+- Cajetín (dwg, dgn o dxf) y foto del marco A3 tipo para copiar su estilo exacto.
+- Cargar el catálogo desde Supabase: falta la URL, la clave anon y la decisión de roles.
+- Enlace con la app PED propia del usuario: pendiente de sus datos.
+- Motor 3D (punto 3), más interactividad (punto 4) y código en servidor (punto 5): propuestos, sin implementar.
