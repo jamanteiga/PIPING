@@ -124,6 +124,11 @@
         .menu-item:disabled { opacity:.4; cursor:default; }
         .menu-item .ico { width:16px; text-align:center; margin-right:8px; font-size:11px; color:#2563eb; }
         .menu-item .atajo { margin-left:auto; padding-left:28px; color:#94a3b8; font-size:11px; }
+        .marca-menu { position:absolute; transform:translate(-50%,-50%); pointer-events:auto; display:flex; align-items:center; gap:6px; white-space:nowrap; padding:3px 10px 3px 12px; font-size:11px; color:#1e293b; background:linear-gradient(#ffffff,#e8edf3); border:1px solid #9aa7b8; border-radius:999px; box-shadow:0 1px 3px rgba(0,0,0,.18); cursor:pointer; }
+        .marca-menu i { color:#2563eb; font-size:11px; }
+        .marca-menu:hover:not(:disabled) { background:linear-gradient(#eff6ff,#dbeafe); border-color:#3b82f6; color:#1d4ed8; }
+        .marca-menu:disabled { opacity:.45; cursor:default; }
+        .lienzo-congelado #svg-canvas { cursor:not-allowed; filter:saturate(.55); }
         .menu-item .flecha { margin-left:auto; padding-left:28px; color:#94a3b8; font-size:9px; }
         .menu-sep { border-top:1px solid #e2e8f0; margin:4px 0; }
         .menu-vacio { padding:5px 12px 5px 32px; color:#94a3b8; font-style:italic; font-size:11px; }
@@ -255,7 +260,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.9.3-hojas-capas</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 8.0-atajos-congelar</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -383,6 +388,7 @@
 
     <script>
         let elementosRed = [];
+        let planoCongelado = false; // hoja congelada (botón derecho en el lienzo > Congelar plano)
         let hojas = [{ id: '00' }], hojaActual = 0; // hojas del proyecto (ver HOJAS DEL PROYECTO)
         let idSeleccionado = null;
         let anchoArbol = 270; // ancho del árbol de especificación (px)
@@ -411,6 +417,7 @@
 
         const instantanea = () => JSON.stringify({ e: elementosRed, l: lineas });
         function guardarEstado() {
+            comprobarCongelado(); // plano congelado: se corta cualquier modificación
             historialUndo.push(instantanea());
             if (historialUndo.length > MAX_HISTORIAL) historialUndo.shift();
             historialRedo = []; // cualquier acción nueva invalida lo que se pudiera rehacer
@@ -433,6 +440,7 @@
 
         function deshacer() {
             if (historialUndo.length === 0) return;
+            if (planoCongelado) { avisarCongelado(); return; }
             historialRedo.push(instantanea());
             restaurarEstado(historialUndo.pop());
             marcarCambios(true);
@@ -441,6 +449,7 @@
 
         function rehacer() {
             if (historialRedo.length === 0) return;
+            if (planoCongelado) { avisarCongelado(); return; }
             historialUndo.push(instantanea());
             restaurarEstado(historialRedo.pop());
             marcarCambios(true);
@@ -1107,25 +1116,12 @@
         }, { passive: false });
 
         window.addEventListener('keydown', function(e) {
-            const enCampo_ = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
-            if (e.key.toLowerCase() === 't' && !enCampo_ && !e.ctrlKey && !e.metaKey && !e.altKey && !(typeof traza !== 'undefined' && traza)) {
-                cerrarMenus(); zoomTodo();
-            } else if (e.key.toLowerCase() === 'f' && document.activeElement.tagName !== 'INPUT') {
-                ajustarVistaVentana();
-            } else if (e.key.toLowerCase() === 'w' && document.activeElement.tagName !== 'INPUT') {
-                modoZoomVentana = !modoZoomVentana;
-                canvasContainer.style.cursor = modoZoomVentana ? 'crosshair' : 'default';
+            if (false) {
             } else if (e.key === 'Escape' && modoZoomVentana) {
                 modoZoomVentana = false;
                 isSelectingZoom = false;
                 zoomBox.style.display = 'none';
                 canvasContainer.style.cursor = 'default';
-            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && document.activeElement.tagName !== 'INPUT') {
-                e.preventDefault();
-                if (e.shiftKey) rehacer(); else deshacer();
-            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && document.activeElement.tagName !== 'INPUT') {
-                e.preventDefault();
-                rehacer();
             }
         });
 
@@ -1252,6 +1248,7 @@
         function cerrarMenuContextual(e) {
             if (!contextMenu.contains(e.target)) {
                 contextMenu.style.display = 'none';
+                if (!(e.target.closest && e.target.closest('#marcas-menu'))) quitarMarcas();
             }
         }
 
@@ -2095,7 +2092,7 @@
         function usadosLeyenda() { return [...new Map(elementosRed.filter(e => !esAnotacion(e)).map(e => [e.type === 'tuberia' ? 'tub' : e.type === 'bomba' ? 'bomba' : e.subtype + (e.subtype === 'reduccion' && e.excentrica ? 'E' : ''), e])).values()]; }
         const nombreLeyenda = e => (e.type === 'tuberia' ? 'Tubería' : e.type === 'bomba' ? 'Bomba centrífuga' : e.subtype === 'codo90' ? 'Codo' : nombreTipo(e)).toUpperCase();
         function geomLeyenda() {
-            const us = usadosLeyenda(), fs = MM(TXT_MM), ft = MM(TIT_MM), hT = MM(8), hF = MM(7), xT = MM(12);
+            const us = usadosLeyenda(), fs = MM(TXT_MM), ft = MM(TIT_MM), hT = MM(8), hF = MM(9), xT = MM(14);
             ctxMedida.font = `bold ${ft}px sans-serif`; const wt = ctxMedida.measureText('LEYENDA DE COMPONENTES').width + MM(8);
             const wf = Math.max(0, ...us.map(e => { ctxMedida.font = `${fs}px sans-serif`; return ctxMedida.measureText(nombreLeyenda(e)).width; })) + xT + MM(3);
             const W = Math.max(MM(80), wt, wf);
@@ -2106,7 +2103,7 @@
             let h = `<rect x="0" y="0" width="${g.W.toFixed(2)}" height="${g.H.toFixed(2)}" fill="${P.relleno}" stroke="${c}" stroke-width="0.9"/>` +
                 `<text x="${(g.W / 2).toFixed(2)}" y="${(g.hT / 2 + ft * 0.36).toFixed(2)}" font-size="${ft.toFixed(2)}" font-weight="bold" text-anchor="middle" ${F}>LEYENDA DE COMPONENTES</text>` +
                 `<line x1="0" y1="${g.hT.toFixed(2)}" x2="${g.W.toFixed(2)}" y2="${g.hT.toFixed(2)}" stroke="${c}" stroke-width="0.7"/>`;
-            const esc_ = MM(7) / 50;
+            const esc_ = MM(7) * 1.25 / 50; // símbolos un 25 % mayores que en 7.9
             g.us.forEach((e, i) => {
                 const y0 = g.hT + i * g.hF, ym = y0 + g.hF / 2;
                 const sim = e.type === 'tuberia' ? `<line x1="${MM(1.5).toFixed(2)}" y1="${ym.toFixed(2)}" x2="${(g.xT - MM(1.5)).toFixed(2)}" y2="${ym.toFixed(2)}" stroke="${P.base}" stroke-width="2"/>`
@@ -2123,7 +2120,8 @@
         // (0,0 = enganchada); al cambiar de formato se recolocan solas. Solo se mueven con Mover / Desconectar.
         const esTablaHoja = el => el && el.type === 'anotacion' && (el.subtype === 'materiales' || el.subtype === 'leyenda');
         function enganchesTabla(el) {
-            if (el.subtype === 'materiales') { const g = geomListado(), cj = cajaCajetin(); return { W: g.W, H: g.H, ax: cj.x1, ay: cj.y0, px: g.W, py: g.H, dest: 'cajetín' }; }
+            // con el cajetín oculto el listado ocupa su posición (esquina inferior derecha del marco)
+            if (el.subtype === 'materiales') { const g = geomListado(), cj = cajaCajetin(); return { W: g.W, H: g.H, ax: cj.x1, ay: opciones.cajetin === false ? cj.y1 : cj.y0, px: g.W, py: g.H, dest: opciones.cajetin === false ? 'sitio del cajetín' : 'cajetín' }; }
             const g = geomLeyenda(), fr = marcoInterior(); return { W: g.W, H: g.H, ax: fr.x1, ay: fr.y0, px: g.W, py: 0, dest: 'marco (esquina superior derecha)' };
         }
         const RADIO_ENGANCHE = 15; // px
@@ -2452,7 +2450,7 @@
                     ocultarTooltip();
                     idMenuContextual = el.id;
                     if (!(seleccion.size > 1 && seleccion.has(el.id))) { seleccion.clear(); seleccionarElemento(el.id); }
-                    mostrarMenuContextual(e.clientX, e.clientY, itemsMenuElemento(el));
+                    mostrarMenuContextual(e.clientX, e.clientY, itemsMenuElemento(el), planoCongelado ? null : marcasElemento(el));
                 };
 
                 const c = isSelected ? P.sel : colorElemento(el, P);
@@ -2641,9 +2639,11 @@
             if (fijo) { const q = obtenerPuertosConexion(el).find(p => p.id === fijo.id); if (q) { el.x += fijo.x - q.x; el.y -= fijo.y - q.y; } }
         }
         // ---------- Menús contextuales (mismo aspecto que la barra de menús) ----------
-        function mostrarMenuContextual(x, y, items) {
+        function mostrarMenuContextual(x, y, items, marcas) {
             cerrarMenus();
             contextMenu.className = 'menu-desplegable';
+            // con órdenes alrededor del cursor (píldoras) la lista queda debajo de ellas
+            if (marcas && Object.values(marcas).some(Boolean)) { pintarMarcas(x, y, marcas); x -= 70; y += 80; }
             contextMenu.style.cssText = `display:block; position:fixed; left:${x}px; top:${y}px; z-index:3500;`;
             construirItems(items, contextMenu);
             const r = contextMenu.getBoundingClientRect();
@@ -2698,6 +2698,7 @@
         function itemsMenuLienzo(px, py) {
             const items = [
                 { icono: 'fa-calculator', texto: 'Calcular red', accion: () => calcularRed() },
+                planoCongelado ? { icono: 'fa-fire', texto: 'Descongelar plano', accion: () => congelarPlano(false) } : { icono: 'fa-snowflake', texto: 'Congelar plano', accion: () => congelarPlano(true) },
                 { icono: 'fa-list', texto: 'Leyenda de componentes', accion: () => colocarLeyenda() },
                 { icono: 'fa-table-list', texto: 'Listado de componentes', accion: () => insertarListado(px, py) },
                 { icono: 'fa-note-sticky', texto: 'Nota de texto', accion: () => insertarNotaEn(px, py) },
@@ -2714,7 +2715,7 @@
             if (e.target.closest && (e.target.closest('g[data-id]') || e.target.closest('#arbol-cuerpo .nodo'))) return;
             e.preventDefault(); ocultarTooltip();
             const rM = marcoA3.getBoundingClientRect();
-            mostrarMenuContextual(e.clientX, e.clientY, itemsMenuLienzo((e.clientX - rM.left) / zoomScale, (e.clientY - rM.top) / zoomScale));
+            mostrarMenuContextual(e.clientX, e.clientY, itemsMenuLienzo((e.clientX - rM.left) / zoomScale, (e.clientY - rM.top) / zoomScale), planoCongelado ? null : marcasLienzo());
         });
         // ---------- Notas, leyenda y listado de componentes ----------
         function nuevaAnotacion(sub, px, py) {
@@ -3290,7 +3291,7 @@
 
         function datosProyecto() {
             return {
-                version: "7.9.3-hojas-capas",
+                version: "8.0-atajos-congelar",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -3317,7 +3318,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.9.3-hojas-capas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="8.0-atajos-congelar" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -3475,7 +3476,7 @@
             capas.forEach(c => {
                 const h = handles[c.nombre] || nuevoHandle();
                 const aci = aciCercano(c.color) * (c.visible === false ? -1 : 1);
-                const flags = (c.inutilizada ? 1 : 0) | (c.bloqueada ? 4 : 0);
+                const flags = (c.inutilizada ? 1 : 0) | (c.bloqueada || planoCongelado ? 4 : 0);
                 const lw = Math.round((+c.grosor || 0) * 100);
                 out += `  0\nLAYER\n  5\n${h}\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\n${textoDXF(c.nombre)}\n 70\n${flags}\n 62\n${aci}\n  6\n${tipoLineaDXF(c.tipo)}\n${c.imprimible === false ? '290\n0\n' : ''}370\n${lw}\n390\n13\n`;
             });
@@ -3571,6 +3572,7 @@
         }
         // Carga un proyecto (.pid/.json) desde su texto; devuelve los avisos de migración
         function cargarProyectoDesdeTexto(texto) {
+                        planoCongelado = false; // el proyecto que se abre trae su propio estado por hoja
                         guardarEstado(); // permite deshacer la apertura y recuperar el proyecto anterior
                         const res = JSON.parse(texto);
                         if (Array.isArray(res.libreriaUsada) && res.libreriaUsada.length) {
@@ -5107,7 +5109,7 @@
                 { icono: 'fa-grip-lines', texto: 'Tuberías', sub: () => subtiposGrupo('tuberias').map(m => it('tuberias', m, m)) },
                 { icono: 'fa-circle-half-stroke', texto: 'Válvulas', sub: () => porGrupo('valvulas') },
                 'sep',
-                { icono: 'fa-shapes', texto: 'Mostrar accesorios en el panel', atajo: 'Alt+A', accion: () => mostrarLibreriaAccesorios() },
+                { icono: 'fa-shapes', texto: 'Mostrar accesorios en el panel', accion: () => mostrarLibreriaAccesorios() },
                 { icono: 'fa-file-export', texto: 'Exportar librería (*.json)', accion: () => exportarLibreria() },
                 { icono: 'fa-file-import', texto: 'Importar librería (*.json)...', accion: () => importarLibreria() }
             ];
@@ -5555,7 +5557,7 @@
         // ==================================================================================
         function sincronizarHoja() {
             const h = hojas[hojaActual] || (hojas[hojaActual] = { id: '00' });
-            Object.assign(h, { e: elementosRed, l: lineas, cc: condicionesContorno, formato: opciones.formato || 'A3' });
+            Object.assign(h, { e: elementosRed, l: lineas, cc: condicionesContorno, formato: opciones.formato || 'A3', congelado: planoCongelado });
         }
         function elementosOtrasHojas() { return hojas.filter((h, i) => i !== hojaActual).flatMap(h => h.e || []); }
         function lineasOtrasHojas() { return hojas.filter((h, i) => i !== hojaActual).flatMap(h => h.l || []); }
@@ -5565,6 +5567,7 @@
             if (typeof traza !== 'undefined' && traza) cancelarTrazado();
             hojaActual = i; const h = hojas[i];
             elementosRed = h.e || []; lineas = h.l || []; condicionesContorno = h.cc || {};
+            planoCongelado = !!h.congelado; pintarCongelado();
             if (h.formato && FORMATOS[h.formato]) opciones.formato = h.formato;
             historialUndo = []; historialRedo = []; actualizarBotonesHistorial();
             idSeleccionado = null; seleccion.clear(); ultimoResultado = null; ultimoCalculo = null;
@@ -5576,7 +5579,7 @@
             if (!proyectoDefinido()) { pantallaInicio(); return; }
             sincronizarHoja();
             const n = 1 + Math.max(-1, ...hojas.map(h => parseInt(h.id, 10) || 0));
-            hojas.push({ id: String(n).padStart(2, '0'), e: [], l: [], cc: {}, formato: opciones.formato || 'A3' });
+            hojas.push({ id: String(n).padStart(2, '0'), e: [], l: [], cc: {}, formato: opciones.formato || 'A3', congelado: false });
             marcarCambios(true); cargarHoja(hojas.length - 1);
             aviso(`Hoja ${codigoHoja()} añadida (${hojas.length} hojas).`, 'ok');
         }
@@ -5602,16 +5605,316 @@
         // .pid: la hoja activa va en "elementos/lineas" (compatibilidad); el resto en "hojas"
         function hojasParaGuardar() {
             sincronizarHoja();
-            return hojas.map((h, i) => i === hojaActual ? { id: h.id, activa: true, formato: h.formato } : { id: h.id, formato: h.formato, elementos: h.e || [], lineas: h.l || [], condicionesContorno: h.cc || {} });
+            return hojas.map((h, i) => i === hojaActual ? { id: h.id, activa: true, formato: h.formato, congelado: !!h.congelado } : { id: h.id, formato: h.formato, congelado: !!h.congelado, elementos: h.e || [], lineas: h.l || [], condicionesContorno: h.cc || {} });
         }
         function cargarHojasDe(res) {
             if (Array.isArray(res.hojas) && res.hojas.length) {
-                hojas = res.hojas.map(h => ({ id: h.id, formato: h.formato, e: (h.elementos || []).map(e => { normalizarElemento(e); return e; }), l: h.lineas || [], cc: h.condicionesContorno || {} }));
+                hojas = res.hojas.map(h => ({ id: h.id, formato: h.formato, congelado: !!h.congelado, e: (h.elementos || []).map(e => { normalizarElemento(e); return e; }), l: h.lineas || [], cc: h.condicionesContorno || {} }));
                 hojaActual = Math.max(0, res.hojas.findIndex(h => h.activa));
-            } else { hojas = [{ id: '00' }]; hojaActual = 0; }
-            sincronizarHoja(); pintarHojas();
+                planoCongelado = !!hojas[hojaActual].congelado;
+            } else { hojas = [{ id: '00' }]; hojaActual = 0; planoCongelado = false; }
+            sincronizarHoja(); pintarHojas(); pintarCongelado();
         }
         setTimeout(pintarHojas, 0);
+
+        // ==================================================================================
+        // CONGELAR PLANO (botón derecho en el lienzo > Congelar plano / Descongelar plano)
+        // Con el plano congelado no se puede modificar nada: toda modificación pasa por guardarEstado(),
+        // que la corta. Se guarda por hoja y en el DXF las capas salen bloqueadas.
+        // ==================================================================================
+
+        class ErrorPlanoCongelado extends Error { constructor() { super('Plano congelado'); this.name = 'PlanoCongelado'; } }
+        let avisoCongeladoT = 0;
+        function avisarCongelado() {
+            if (Date.now() - avisoCongeladoT > 1500) { avisoCongeladoT = Date.now(); aviso('Plano congelado: no se puede modificar. Botón derecho en el lienzo > Descongelar plano.', 'error'); }
+        }
+        function comprobarCongelado() { if (planoCongelado) { avisarCongelado(); throw new ErrorPlanoCongelado(); } }
+        const esErrorCongelado = x => x && (x instanceof ErrorPlanoCongelado || x.name === 'PlanoCongelado');
+        window.addEventListener('error', e => { if (esErrorCongelado(e.error)) { e.preventDefault(); refrescarTrasCongelado(); } });
+        window.addEventListener('unhandledrejection', e => { if (esErrorCongelado(e.reason)) { e.preventDefault(); refrescarTrasCongelado(); } });
+        function refrescarTrasCongelado() {
+            isDraggingSymbol = false; activeSymbolId = null; if (typeof arrastreEtq !== 'undefined') arrastreEtq = null;
+            setTimeout(() => { renderizarVectorial(); if (idSeleccionado) seleccionarElemento(idSeleccionado); }, 0);
+        }
+        function pintarCongelado() {
+            let b = document.getElementById('banda-congelado');
+            if (!planoCongelado) { if (b) b.remove(); canvasContainer.classList.remove('lienzo-congelado'); return; }
+            if (!b) { b = document.createElement('div'); b.id = 'banda-congelado'; b.className = 'absolute top-2 left-1/2 -translate-x-1/2 z-30 bg-sky-700 text-white text-[11px] font-bold px-3 py-1 rounded shadow cursor-pointer'; b.title = 'Clic para descongelar'; b.onclick = () => congelarPlano(false); canvasContainer.parentElement.appendChild(b); }
+            b.innerHTML = `<i class="fa-solid fa-snowflake mr-1.5"></i>PLANO CONGELADO · hoja ${esc(codigoHoja())} · clic para descongelar`;
+            canvasContainer.classList.add('lienzo-congelado');
+        }
+        function congelarPlano(si) {
+            if (typeof traza !== 'undefined' && traza) cancelarTrazado();
+            planoCongelado = !!si; if (hojas[hojaActual]) hojas[hojaActual].congelado = planoCongelado;
+            limpiarSeleccion(); cerrarMenus(); pintarCongelado(); marcarCambios(true);
+            aviso(si ? 'Plano congelado: no se puede modificar nada hasta descongelarlo.' : 'Plano descongelado: vuelve a ser editable.', 'ok');
+        }
+
+        // ==================================================================================
+        // ATAJOS DE TECLADO (CAD > Atajos de teclado… para verlos, cambiarlos y crear nuevos;
+        // Ayuda > Atajos de teclado para consultarlos). Cualquier orden de los menús admite atajo.
+        // ==================================================================================
+        const CLAVE_ATAJOS = 'piping-atajos';
+        let CONF_ATAJOS = (() => { try { return JSON.parse(localStorage.getItem(CLAVE_ATAJOS) || 'null') || {}; } catch (e) { return {}; } })();
+        if (!CONF_ATAJOS.teclas) CONF_ATAJOS.teclas = {};
+        function guardarConfAtajos() { try { localStorage.setItem(CLAVE_ATAJOS, JSON.stringify(CONF_ATAJOS)); } catch (e) { } }
+        const libreDeCampo = () => { const a = document.activeElement; return !(a && (['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName) || a.isContentEditable)); };
+        const sinVentanas = () => !document.querySelector('[id^="modal-"][style*="flex"]') && document.getElementById('paleta').style.display !== 'flex' && !menuAbierto && !(typeof traza !== 'undefined' && traza);
+        // órdenes con atajo de fábrica (id = ruta del menú cuando la orden está en un menú)
+        const ACCIONES_BASE = [
+            { id: 'Archivo › Nuevo proyecto...', teclas: ['Ctrl+N'], campo: true, accion: () => nuevoProyecto() },
+            { id: 'Archivo › Proyecto existente...', teclas: ['Ctrl+O'], campo: true, accion: () => proyectoExistente() },
+            { id: 'Archivo › Guardar', teclas: ['Ctrl+G'], campo: true, accion: () => guardarProyecto() },
+            { id: 'Archivo › Imprimir...', teclas: ['Ctrl+P'], campo: true, accion: () => imprimirPDF() },
+            { id: 'Edición › Búsqueda/Reemplazo...', teclas: ['Ctrl+R'], campo: true, accion: () => abrirBuscarReemplazar() },
+            { id: 'Edición › Paleta de comandos...', teclas: ['Ctrl+K'], campo: true, accion: () => abrirPaleta() },
+            { id: 'Edición › Copiar', teclas: ['Ctrl+C'], cuando: () => haySeleccion(), accion: () => copiarSeleccion() },
+            { id: 'Edición › Cortar', teclas: ['Ctrl+X'], cuando: () => haySeleccion(), accion: () => cortarSeleccion() },
+            { id: 'Edición › Pegar', teclas: ['Ctrl+V'], cuando: () => !!(portapapeles && portapapeles.length), accion: () => pegarPortapapeles() },
+            { id: 'Edición › Eliminar selección', teclas: ['Supr', 'B'], cuando: () => haySeleccion(), accion: () => eliminarSeleccion() },
+            { id: 'Edición › Deshacer', teclas: ['Ctrl+Z'], accion: () => deshacer() },
+            { id: 'Edición › Rehacer', teclas: ['Ctrl+Y', 'Ctrl+Mayús+Z'], accion: () => rehacer() },
+            { id: 'Seleccionar › Todo', teclas: ['Ctrl+A'], accion: () => seleccionarTodo() },
+            { id: 'Selección › Girar 45° horario', teclas: ['R'], cuando: () => haySeleccion(), accion: () => girar45(45) },
+            { id: 'Selección › Girar 45° antihorario', teclas: ['Mayús+R'], cuando: () => haySeleccion(), accion: () => girar45(-45) },
+            { id: 'Insertar › Trazar tubería (tramos y codos)', teclas: ['L'], accion: () => iniciarTrazado() },
+            { id: 'Hojas › Añadir hoja', teclas: ['Alt+A'], campo: true, accion: () => anadirHoja() },
+            { id: 'Zoom › Ajustar', teclas: ['F'], accion: () => ajustarVistaVentana() },
+            { id: 'Zoom › Todo', teclas: ['T'], accion: () => zoomTodo() },
+            { id: 'Zoom › Ventana', teclas: ['W'], accion: () => { modoZoomVentana = !modoZoomVentana; canvasContainer.style.cursor = modoZoomVentana ? 'crosshair' : 'default'; } }
+        ];
+        const BASE_POR_ID = Object.fromEntries(ACCIONES_BASE.map(a => [a.id, a]));
+        // Todas las órdenes: las de los menús (ruta completa) y las de teclado sin menú
+        function listaComandos() {
+            const out = [], vistos = new Set();
+            const recorrer = (items, ruta, cat) => (typeof items === 'function' ? items() : items || []).forEach(it => {
+                if (it === 'sep' || !it.texto) return;
+                const r = ruta ? ruta + ' › ' + it.texto : it.texto;
+                if (it.sub) { try { recorrer(it.sub, r, cat); } catch (e) { } }
+                else if (it.accion && !/^(Ctrl\/|Origen del catálogo)/.test(it.texto) && !vistos.has(r)) { vistos.add(r); out.push({ id: r, cat, texto: r.split(' › ').slice(1).join(' › '), icono: it.icono || 'fa-angle-right', item: it }); }
+            });
+            MENUS.forEach(m => recorrer(m.items, m.titulo, m.titulo));
+            ACCIONES_BASE.forEach(a => { if (!vistos.has(a.id)) { vistos.add(a.id); out.push({ id: a.id, cat: a.id.split(' › ')[0], texto: a.id.split(' › ').slice(1).join(' › '), icono: 'fa-keyboard' }); } });
+            return out;
+        }
+        const teclasDe = id => CONF_ATAJOS.teclas[id] || (BASE_POR_ID[id] ? BASE_POR_ID[id].teclas : []);
+        function atajoTexto(id, def) { const t = teclasDe(id); return t.length || CONF_ATAJOS.teclas[id] || BASE_POR_ID[id] ? t.join(' / ') : (def || ''); }
+        function ejecutarComando(id) {
+            if (!id) return false;
+            const b = BASE_POR_ID[id];
+            if (b) { if (b.cuando && !b.cuando()) return false; b.accion(); return true; }
+            const c = listaComandos().find(x => x.id === id);
+            if (!c || !c.item) return false;
+            if (c.item.habilitado && !c.item.habilitado()) return false;
+            c.item.accion(); return true;
+        }
+        function comboDe(e) {
+            if (['Control', 'Shift', 'Alt', 'Meta', 'AltGraph'].includes(e.key)) return null;
+            let k = e.key;
+            if (/^Key[A-Z]$/.test(e.code)) k = e.code.slice(3);
+            else if (/^Digit\d$/.test(e.code)) k = e.code.slice(5);
+            else if (k === ' ') k = 'Espacio'; else if (k === 'Delete') k = 'Supr'; else if (k === 'Escape') k = 'Esc';
+            else if (k === 'Enter') k = 'Intro'; else if (k === 'Backspace') k = 'Retroceso';
+            else if (k.length === 1) k = k.toUpperCase();
+            return [(e.ctrlKey || e.metaKey) && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Mayús', k].filter(Boolean).join('+');
+        }
+        const TECLAS_RESERVADAS = ['Esc', 'Intro', 'Retroceso', 'Tab', 'Mayús+Tab'];
+        function idDeCombo(c) {
+            for (const [id, t] of Object.entries(CONF_ATAJOS.teclas)) if (t.includes(c)) return id;
+            for (const a of ACCIONES_BASE) if (!CONF_ATAJOS.teclas[a.id] && a.teclas.includes(c)) return a.id;
+            return null;
+        }
+        let capturaAtajo = null; // id de la orden a la que se está asignando un atajo (editor)
+        window.addEventListener('keydown', e => {
+            if (capturaAtajo) { e.preventDefault(); e.stopImmediatePropagation(); capturarAtajo(e); return; }
+            const c = comboDe(e); if (!c || TECLAS_RESERVADAS.includes(c)) return;
+            const id = idDeCombo(c); if (!id) return;
+            const b = BASE_POR_ID[id], simple = !(e.ctrlKey || e.metaKey || e.altKey);
+            if (!(b && b.campo) && !libreDeCampo()) return;
+            if (simple && !sinVentanas()) return;
+            if (b && b.cuando && !b.cuando()) return;
+            e.preventDefault(); e.stopImmediatePropagation(); cerrarMenus();
+            ejecutarComando(id);
+        }, true);
+
+        // ---------- Editor: CAD > Atajos de teclado ----------
+        let vistaAtajos = { pestana: 'teclado', cat: '', texto: '' };
+        function abrirEditorAtajos(pestana) {
+            if (pestana) vistaAtajos.pestana = pestana;
+            cerrarMenus(); pintarEditorAtajos();
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-keyboard text-blue-600 mr-1.5"></i> Atajos de teclado y gestos del ratón';
+            document.querySelector('#modal-red > div').style.width = 'min(1100px, 96vw)';
+            document.getElementById('modal-red').style.display = 'flex';
+        }
+        const kbd = t => `<kbd class="inline-block bg-slate-100 border border-slate-300 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-700">${esc(t)}</kbd>`;
+        function pintarEditorAtajos() {
+            const V = vistaAtajos, pest = (k, t, i) => `<button onclick="vistaAtajos.pestana='${k}'; pintarEditorAtajos()" class="px-3 py-1.5 -mb-px border rounded-t text-xs ${V.pestana === k ? 'bg-white border-slate-300 border-b-white font-bold text-blue-700' : 'bg-slate-50 border-transparent text-slate-600 hover:text-blue-700'}"><i class="fa-solid ${i} mr-1"></i>${t}</button>`;
+            let h = `<div class="flex gap-1 border-b border-slate-300 mb-3">${pest('teclado', 'Teclado', 'fa-keyboard')}${pest('gestos', 'Gestos del ratón', 'fa-computer-mouse')}</div>`;
+            if (V.pestana === 'teclado') {
+                const cmds = listaComandos(), cats = [...new Set(cmds.map(c => c.cat))];
+                const q = sinAcentos(V.texto);
+                const lista = cmds.filter(c => (!V.cat || c.cat === V.cat) && (!q || sinAcentos(c.cat + ' ' + c.texto + ' ' + teclasDe(c.id).join(' ')).includes(q)));
+                h += `<div class="flex flex-wrap gap-2 items-center mb-2 text-[11px]"><label>Categoría <select onchange="vistaAtajos.cat = this.value; pintarEditorAtajos()" class="border rounded p-1 ml-1"><option value="">Todas las órdenes</option>${cats.map(c => `<option ${c === V.cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+                    <label>Buscar <input id="atajos-buscar" value="${esc(V.texto)}" oninput="vistaAtajos.texto = this.value; clearTimeout(window.__tA); window.__tA = setTimeout(() => { pintarEditorAtajos(); const i = document.getElementById('atajos-buscar'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250)" class="border rounded p-1 ml-1 w-64" placeholder="orden, menú o tecla"></label>
+                    <span class="flex-1"></span><span class="text-slate-400">${lista.length} órdenes · Esc, Intro, Retroceso y Tab están reservadas</span></div>
+                    <div class="border rounded overflow-auto" style="max-height:55vh"><table class="w-full text-[11px]"><thead class="bg-slate-100 sticky top-0"><tr class="text-left text-slate-600"><th class="px-2 py-1 w-28">Categoría</th><th class="px-2">Orden</th><th class="px-2 w-72">Atajo(s)</th><th class="px-2 w-24"></th></tr></thead><tbody>
+                    ${lista.map(c => { const t = teclasDe(c.id), cap = capturaAtajo === c.id, mod = !!CONF_ATAJOS.teclas[c.id];
+                        return `<tr class="border-t border-slate-100 ${cap ? 'bg-amber-50' : 'hover:bg-slate-50'}"><td class="px-2 py-1 text-slate-500">${esc(c.cat)}</td><td class="px-2"><i class="fa-solid ${c.icono} text-blue-600 w-4 mr-1"></i>${esc(c.texto)}</td>
+                        <td class="px-2">${cap ? '<span class="text-amber-700 font-bold">Pulsa la combinación de teclas… (Esc cancela)</span>' : t.map(k => `<span class="inline-flex items-center gap-0.5 mr-1">${kbd(k)}<button onclick="quitarAtajo('${esc(c.id).replace(/'/g, "\\'")}', '${k}')" title="Quitar" class="text-slate-400 hover:text-rose-600 px-0.5"><i class="fa-solid fa-xmark text-[9px]"></i></button></span>`).join('') + (mod ? '<span class="text-[9px] text-blue-600 ml-1">personalizado</span>' : '')}</td>
+                        <td class="px-2 text-right"><button onclick="empezarCapturaAtajo('${esc(c.id).replace(/'/g, "\\'")}')" class="px-2 py-0.5 border rounded hover:bg-blue-50 text-blue-700"><i class="fa-solid fa-plus mr-1"></i>Asignar</button></td></tr>`; }).join('')}
+                    </tbody></table></div>`;
+            } else {
+                const G = confGestos(), cmds = listaComandos(), dirs = G.n === 4 ? DIRS4 : DIRS8;
+                h += `<div class="grid gap-4 text-[11px]" style="grid-template-columns: 1fr 330px"><div>
+                    <label class="flex items-center gap-2 mb-2"><input type="checkbox" ${G.activo ? 'checked' : ''} onchange="confGestos().activo = this.checked; guardarConfAtajos(); pintarEditorAtajos()"> <b>Activar gestos del ratón</b></label>
+                    <p class="text-slate-500 mb-2">Mantén pulsado el botón derecho sobre el lienzo, desplaza el ratón hacia una dirección y suelta: se ejecuta la orden de esa dirección. Un clic derecho sin desplazar abre el menú contextual, que muestra las mismas órdenes alrededor del cursor.</p>
+                    <label class="block mb-3">Número de direcciones <select onchange="confGestos().n = +this.value; guardarConfAtajos(); pintarEditorAtajos()" class="border rounded p-1 ml-1"><option value="4" ${G.n === 4 ? 'selected' : ''}>4 direcciones</option><option value="8" ${G.n === 8 ? 'selected' : ''}>8 direcciones</option></select></label>
+                    <table class="w-full"><tbody>${['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'].filter(d => dirs.includes(d)).map(d => `<tr class="border-t border-slate-100"><td class="py-1 pr-2 w-32 font-bold text-slate-600">${NOMBRE_DIR[d]}</td><td><select onchange="confGestos().dir['${d}'] = this.value; guardarConfAtajos(); pintarEditorAtajos()" class="border rounded p-1 w-full"><option value="">— sin orden —</option>${cmds.map(c => `<option value="${esc(c.id)}" ${G.dir[d] === c.id ? 'selected' : ''}>${esc(c.cat + ' › ' + c.texto)}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div>
+                    <div><p class="font-bold text-slate-600 mb-1">Guía de gestos</p>${svgGuiaGestos(G, null, 300)}</div></div>`;
+            }
+            document.getElementById('red-content').innerHTML = h;
+            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs">
+                <button onclick="restaurarAtajos()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded">Restaurar valores predeterminados</button>
+                <button onclick="copiarListaAtajos()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded"><i class="fa-solid fa-copy mr-1"></i>Copiar lista</button>
+                <span class="flex-1"></span>
+                <button onclick="capturaAtajo = null; cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
+        }
+        function empezarCapturaAtajo(id) { capturaAtajo = id; document.activeElement && document.activeElement.blur(); pintarEditorAtajos(); }
+        function capturarAtajo(e) {
+            const c = comboDe(e); if (!c) return;
+            const id = capturaAtajo;
+            if (c === 'Esc') { capturaAtajo = null; pintarEditorAtajos(); return; }
+            if (TECLAS_RESERVADAS.includes(c)) { aviso(`${c} está reservada.`, 'error'); return; }
+            const otro = idDeCombo(c);
+            capturaAtajo = null;
+            if (otro === id) { pintarEditorAtajos(); return; }
+            if (otro && !confirm(`${c} ya está asignado a «${otro}». ¿Asignarlo a «${id}» y quitarlo de la otra orden?`)) { pintarEditorAtajos(); return; }
+            if (otro) CONF_ATAJOS.teclas[otro] = teclasDe(otro).filter(x => x !== c);
+            CONF_ATAJOS.teclas[id] = [...teclasDe(id), c];
+            guardarConfAtajos(); pintarEditorAtajos(); aviso(`${c} → ${id}`, 'ok');
+        }
+        function quitarAtajo(id, k) { CONF_ATAJOS.teclas[id] = teclasDe(id).filter(x => x !== k); guardarConfAtajos(); pintarEditorAtajos(); }
+        function restaurarAtajos() { if (!confirm('¿Volver a los atajos de teclado y gestos de fábrica?')) return; CONF_ATAJOS = { teclas: {} }; guardarConfAtajos(); pintarEditorAtajos(); }
+        function textoListaAtajos() {
+            return listaComandos().filter(c => teclasDe(c.id).length).map(c => `${c.cat}\t${c.texto}\t${teclasDe(c.id).join(' / ')}`).join('\n');
+        }
+        function copiarListaAtajos() { const t = 'Categoría\tOrden\tAtajo(s)\n' + textoListaAtajos(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => aviso('Lista de atajos copiada al portapapeles.', 'ok'), () => aviso('No se ha podido copiar.', 'error')); }
+
+        // ---------- Ayuda > Atajos de teclado (consulta; se completa sola con los atajos nuevos) ----------
+        function mostrarAtajosAyuda() {
+            cerrarMenus();
+            const cmds = listaComandos().filter(c => teclasDe(c.id).length), cats = [...new Set(cmds.map(c => c.cat))];
+            const fijos = [['Esc', 'Cancelar (trazado, zoom ventana, paleta) o quitar la selección'], ['Intro / doble clic', 'Terminar el trazado de tubería'], ['Retroceso', 'Quitar el último punto del trazado'], ['Ctrl / Mayús + clic', 'Añadir o quitar de la selección'], ['Arrastrar en vacío', 'Selección por ventana'], ['Rueda del ratón', 'Zoom en el punto del cursor'], ['Doble clic en un componente', 'Ventana de propiedades'], ['Botón derecho', 'Menú contextual con órdenes alrededor del cursor']];
+            const G = confGestos();
+            document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">Atajos activos (se pueden cambiar en CAD &gt; Atajos de teclado…). La lista se amplía sola con cada orden nueva que tenga atajo.</p>
+                <div class="grid grid-cols-2 gap-4 text-[11px]"><div>${cats.map(cat => `<p class="font-bold text-slate-600 uppercase mt-2 mb-1">${esc(cat)}</p><table class="w-full">${cmds.filter(c => c.cat === cat).map(c => `<tr class="border-t border-slate-100"><td class="py-0.5 pr-2">${esc(c.texto)}</td><td class="text-right whitespace-nowrap">${teclasDe(c.id).map(kbd).join(' ')}</td></tr>`).join('')}</table>`).join('')}</div>
+                <div><p class="font-bold text-slate-600 uppercase mt-2 mb-1">Ratón y teclas fijas</p><table class="w-full">${fijos.map(([k, t]) => `<tr class="border-t border-slate-100"><td class="py-0.5 pr-2 whitespace-nowrap">${kbd(k)}</td><td>${esc(t)}</td></tr>`).join('')}</table>
+                <p class="font-bold text-slate-600 uppercase mt-3 mb-1">Gestos del ratón ${G.activo ? '' : '(desactivados)'}</p>${svgGuiaGestos(G, null, 240)}</div></div>`;
+            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><button onclick="abrirEditorAtajos()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded"><i class="fa-solid fa-pen mr-1"></i>Cambiar atajos...</button><span class="flex-1"></span><button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-keyboard text-blue-600 mr-1.5"></i> Atajos de teclado';
+            document.querySelector('#modal-red > div').style.width = 'min(1000px, 96vw)';
+            document.getElementById('modal-red').style.display = 'flex';
+        }
+
+        // ==================================================================================
+        // GESTOS DEL RATÓN: botón derecho pulsado + desplazamiento en una dirección = orden asignada
+        // ==================================================================================
+        const DIRS8 = ['E', 'SE', 'S', 'SO', 'O', 'NO', 'N', 'NE'], DIRS4 = ['E', 'S', 'O', 'N'];
+        const NOMBRE_DIR = { N: 'Arriba', NE: 'Arriba derecha', E: 'Derecha', SE: 'Abajo derecha', S: 'Abajo', SO: 'Abajo izquierda', O: 'Izquierda', NO: 'Arriba izquierda' };
+        const ANG_DIR = { E: 0, SE: 45, S: 90, SO: 135, O: 180, NO: 225, N: 270, NE: 315 };
+        const GESTOS_FABRICA = { N: 'Edición › Paleta de comandos...', NE: 'Insertar › Trazar tubería (tramos y codos)', E: 'Zoom › Todo', SE: 'Zoom › Ajustar', S: 'Cálculo › Calcular red...', SO: 'Edición › Rehacer', O: 'Edición › Deshacer', NO: 'Edición › Tabla de propiedades...' };
+        function confGestos() {
+            if (!CONF_ATAJOS.gestos) CONF_ATAJOS.gestos = { activo: true, n: 8, dir: Object.assign({}, GESTOS_FABRICA) };
+            const g = CONF_ATAJOS.gestos; if (g.n !== 4) g.n = 8; if (!g.dir) g.dir = Object.assign({}, GESTOS_FABRICA);
+            return g;
+        }
+        const comandoPorId = id => id && listaComandos().find(c => c.id === id);
+        const textoCorto = id => { const c = comandoPorId(id); if (!c) return ''; const t = c.texto.split(' › ').pop().replace(/\.\.\.$/, '').replace(/ \(.*\)$/, ''); return c.cat === 'Zoom' ? 'Zoom ' + t.toLowerCase() : t; };
+        // guía propia: círculo con sectores y el nombre de la orden de cada dirección
+        function svgGuiaGestos(G, activa, ancho) {
+            const dirs = G.n === 4 ? DIRS4 : DIRS8, R = 62, r = 20, W = ancho || 300, H = Math.round(W * 0.72), cx = W / 2, cy = H / 2, paso = 360 / dirs.length;
+            const pt = (a, rr) => [cx + rr * Math.cos(a * Math.PI / 180), cy + rr * Math.sin(a * Math.PI / 180)];
+            let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="font-family:sans-serif">`;
+            dirs.forEach(d => {
+                const a = ANG_DIR[d], a0 = a - paso / 2, a1 = a + paso / 2, [x0, y0] = pt(a0, R), [x1, y1] = pt(a1, R), [x2, y2] = pt(a1, r), [x3, y3] = pt(a0, r);
+                s += `<path d="M ${x0} ${y0} A ${R} ${R} 0 0 1 ${x1} ${y1} L ${x2} ${y2} A ${r} ${r} 0 0 0 ${x3} ${y3} Z" fill="${d === activa ? '#2563eb' : '#eef2f7'}" stroke="#94a3b8" stroke-width="0.8"/>`;
+                const [lx, ly] = pt(a, R + 10), anc = Math.abs(Math.cos(a * Math.PI / 180)) < 0.3 ? 'middle' : Math.cos(a * Math.PI / 180) > 0 ? 'start' : 'end';
+                const t = textoCorto(G.dir[d]) || '—';
+                s += `<text x="${lx}" y="${ly + 3}" font-size="9.5" text-anchor="${anc}" fill="${d === activa ? '#1d4ed8' : '#334155'}" font-weight="${d === activa ? 'bold' : 'normal'}">${esc(t.length > 26 ? t.slice(0, 25) + '…' : t)}</text>`;
+            });
+            s += `<circle cx="${cx}" cy="${cy}" r="${r - 4}" fill="#fff" stroke="#94a3b8"/><path d="M ${cx - 4} ${cy - 7} h 8 v 10 a 4 4 0 0 1 -8 0 z" fill="none" stroke="#475569" stroke-width="1.2"/><line x1="${cx}" y1="${cy - 7}" x2="${cx}" y2="${cy - 2}" stroke="#475569" stroke-width="1"/>`;
+            return s + '</svg>';
+        }
+        let gesto = null, suprimirCtx = false;
+        const dirDe = (dx, dy, n) => { const a = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, dirs = n === 4 ? DIRS4 : DIRS8, paso = 360 / dirs.length; return dirs[Math.round(a / paso) % dirs.length]; };
+        canvasContainer.addEventListener('mousedown', e => { if (e.button === 2 && confGestos().activo) { gesto = { x0: e.clientX, y0: e.clientY, dir: null, ctx: null }; } }, true);
+        window.addEventListener('mousemove', e => {
+            if (!gesto) return;
+            const dx = e.clientX - gesto.x0, dy = e.clientY - gesto.y0, G = confGestos();
+            gesto.dir = Math.hypot(dx, dy) > 30 ? dirDe(dx, dy, G.n) : null;
+            let g = document.getElementById('guia-gestos');
+            if (gesto.dir || g) {
+                if (!g) { g = document.createElement('div'); g.id = 'guia-gestos'; g.style.cssText = 'position:fixed; z-index:3600; pointer-events:none; background:rgba(255,255,255,.93); border:1px solid #cbd5e1; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.15)'; document.body.appendChild(g); }
+                g.innerHTML = svgGuiaGestos(G, gesto.dir, 300); g.style.left = (gesto.x0 - 150) + 'px'; g.style.top = (gesto.y0 - 108) + 'px';
+            }
+        }, true);
+        window.addEventListener('mouseup', e => {
+            if (!gesto || e.button !== 2) return;
+            const g = gesto; gesto = null; document.getElementById('guia-gestos')?.remove();
+            if (g.dir) {
+                if (!g.ctx) { suprimirCtx = true; setTimeout(() => { suprimirCtx = false; }, 600); }
+                const id = confGestos().dir[g.dir];
+                if (id) { cerrarMenus(); setTimeout(() => { if (!ejecutarComando(id)) aviso('Esa orden no está disponible ahora.'); }, 0); }
+            } else if (g.ctx) {
+                const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: g.ctx.x, clientY: g.ctx.y, button: 2 }); ev.__piping = true; g.ctx.target.dispatchEvent(ev);
+            }
+        }, true);
+        canvasContainer.addEventListener('contextmenu', e => {
+            if (e.__piping) return;
+            if (gesto) { e.preventDefault(); e.stopImmediatePropagation(); gesto.ctx = { target: e.target, x: e.clientX, y: e.clientY }; return; } // (macOS / Linux: el menú llega al pulsar)
+            if (suprimirCtx) { e.preventDefault(); e.stopImmediatePropagation(); suprimirCtx = false; }
+        }, true);
+
+        // ==================================================================================
+        // MENÚ CONTEXTUAL CON ÓRDENES ALREDEDOR DEL CURSOR (píldoras) + lista debajo
+        // ==================================================================================
+        const POS_MARCA = { N: [0, -76], NE: [88, -48], E: [104, -6], SE: [88, 36], S: [0, 60], SO: [-88, 36], O: [-104, -6], NO: [-88, -48] };
+        let accionesMarcas = {};
+        function pintarMarcas(x, y, marcas) {
+            quitarMarcas();
+            const cont = document.createElement('div'); cont.id = 'marcas-menu'; cont.style.cssText = 'position:fixed; left:0; top:0; z-index:3490; pointer-events:none';
+            accionesMarcas = {};
+            Object.entries(marcas).forEach(([d, m]) => {
+                if (!m || !POS_MARCA[d]) return;
+                accionesMarcas[d] = m.accion;
+                const [ox, oy] = POS_MARCA[d], b = document.createElement('button');
+                b.type = 'button'; b.className = 'marca-menu'; b.disabled = m.habilitado === false;
+                b.innerHTML = `<span>${esc(m.texto)}</span><i class="fa-solid ${m.icono || 'fa-angle-right'}"></i>`;
+                b.style.left = (x + ox) + 'px'; b.style.top = (y + oy) + 'px';
+                b.onclick = ev => { ev.stopPropagation(); cerrarMenus(); try { m.accion(); } catch (err) { if (!esErrorCongelado(err)) throw err; refrescarTrasCongelado(); } };
+                cont.appendChild(b);
+            });
+            document.body.appendChild(cont);
+        }
+        function quitarMarcas() { document.getElementById('marcas-menu')?.remove(); }
+        function marcasLienzo() {
+            const G = confGestos(), dirs = G.n === 4 ? DIRS4 : DIRS8, out = {};
+            dirs.forEach(d => { const id = G.dir[d], c = comandoPorId(id); if (c) out[d] = { texto: textoCorto(id), icono: c.icono === 'fa-keyboard' ? 'fa-angle-right' : c.icono, accion: () => ejecutarComando(id) }; });
+            return out;
+        }
+        function marcasElemento(el) {
+            const giro = inc => () => { seleccion.clear(); idSeleccionado = el.id; girar45(inc); };
+            return {
+                N: { texto: 'Editar', icono: 'fa-pen-to-square', accion: () => abrirVentanaElemento(el.id) },
+                NE: { texto: 'Girar 45° horario', icono: 'fa-rotate-right', accion: giro(45) },
+                E: { texto: 'Mover', icono: 'fa-arrows-up-down-left-right', accion: () => { el._suelto = true; aviso('Liberado del imantado: arrástralo a su nueva posición.'); } },
+                SE: { texto: 'Copiar', icono: 'fa-copy', accion: () => { seleccion.clear(); seleccionarElemento(el.id); copiarSeleccion(); } },
+                S: { texto: 'Eliminar', icono: 'fa-trash-can', accion: () => eliminarElemento(el.id) },
+                SO: esAnotacion(el) ? null : { texto: 'Nota anclada', icono: 'fa-note-sticky', accion: () => insertarNotaAnclada(el) },
+                O: { texto: 'Girar 45° antihorario', icono: 'fa-rotate-left', accion: giro(-45) },
+                NO: { texto: 'Tabla de propiedades', icono: 'fa-table-cells-large', accion: () => abrirTablaPropiedades(GRUPOS_MASIVO.some(g => g[0] === el.type) ? el.type : undefined) }
+            };
+        }
 
         // ==================================================================================
         // TOOLTIP: al dejar el ratón quieto sobre un componente, toda su información
@@ -5699,7 +6002,7 @@
         // ÁRBOL DE ESTRUCTURA: línea principal (raíz) -> componentes en orden de flujo -> ramales que
         // salen de cada te/cruce/injerto -> subramales. Nodos plegables; clic = seleccionar y centrar.
         // ==================================================================================
-        const arbolPlegados = new Set();
+        const arbolPlegados = new Set(['FORMATO', 'ANOT']); // ramas Formato y Anotaciones plegadas por defecto
         let temporizadorArbol = null;
         function programarArbol() { clearTimeout(temporizadorArbol); temporizadorArbol = setTimeout(renderArbol, 60); }
         function plegarArbol() { alternarNodoArbol('RAIZ'); }
@@ -5810,7 +6113,7 @@
                 const sueltos = elementosRed.filter(e => (!e.linea || !lineaPorId(e.linea)) && !esAnotacion(e));
                 const anot = elementosRed.filter(esAnotacion);
                 if (sueltos.length) h += `<div class="fila"><span class="nodo"><i class="fa-solid fa-triangle-exclamation" style="color:#d97706;font-size:10px"></i><span class="txt" style="color:#d97706">Sin línea asignada</span></span><div class="hijos">${sueltos.map(filaEl).join('')}</div></div>`;
-                if (anot.length) h += `<div class="fila"><span class="nodo"><i class="fa-solid fa-note-sticky" style="color:${P.base};font-size:10px"></i><span class="txt">Anotaciones</span></span><div class="hijos">${anot.map(filaEl).join('')}</div></div>`;
+                if (anot.length) { const aP = arbolPlegados.has('ANOT'); h += `<div class="fila">${mas('ANOT', aP)}<span class="nodo" onclick="alternarNodoArbol('ANOT')"><i class="fa-solid fa-note-sticky" style="color:${P.base};font-size:10px"></i><span class="txt">Anotaciones</span><span class="txt" style="opacity:.7">(${anot.length})</span></span>${aP ? '' : `<div class="hijos">${anot.map(filaEl).join('')}</div>`}</div>`; }
                 h += filaFmt;
                 h += '</div>';
             }
@@ -6150,6 +6453,7 @@
             if (+copia.tsMax < +copia.temperatura) { alert('La temperatura máxima admisible TS no puede ser menor que la de servicio.'); return; }
             document.getElementById('modal-proyecto').style.display = 'none';
             if (nuevo) {
+                planoCongelado = false; pintarCongelado();
                 guardarEstado();
                 elementosRed = []; lineas = []; condicionesContorno = {}; idSeleccionado = null; seleccion.clear();
                 hojas = [{ id: '00' }]; hojaActual = 0; sincronizarHoja(); pintarHojas();
@@ -8188,6 +8492,7 @@
                     'sep',
                     ...Object.entries(UNIDADES.q).map(([k, u]) => ({ icono: (opciones.uCaudal || 'm3h') === k ? 'fa-check' : 'fa-square', texto: 'Caudal: ' + u[1], accion: () => cambiarUnidad('uCaudal', k) }))
                 ] },
+                { icono: 'fa-keyboard', texto: 'Atajos de teclado...', accion: () => abrirEditorAtajos() },
                 { icono: 'fa-shapes', texto: 'Norma de símbolos', sub: () => Object.entries(NORMAS).map(([k, n]) => ({ icono: opciones.norma === k ? 'fa-check' : 'fa-square', texto: n, accion: () => cambiarNorma(k) })) }
             ]},
             { titulo: 'Tabla', items: [
@@ -8220,6 +8525,7 @@
                 { icono: 'fa-vector-square', texto: 'Ventana', atajo: 'W', accion: () => activarZoomVentana() }
             ]},
             { titulo: 'Ayuda', items: [
+                { icono: 'fa-keyboard', texto: 'Atajos de teclado', accion: () => mostrarAtajosAyuda() },
                 { icono: 'fa-right-left', texto: 'Equivalencias ASME / norma europea...', accion: () => mostrarEquivalencias() },
                 { icono: 'fa-circle-info', texto: 'Créditos...', accion: () => mostrarCreditos() }
             ]}
@@ -8228,7 +8534,7 @@
         const barraMenus = document.getElementById('barra-menus');
         let menuAbierto = null;
 
-        function construirItems(items, contenedor) {
+        function construirItems(items, contenedor, ruta) {
             contenedor.innerHTML = '';
             if (!items.length) {
                 contenedor.innerHTML = '<div class="menu-vacio">Próximamente</div>';
@@ -8245,14 +8551,14 @@
                 btn.type = 'button';
                 btn.className = 'menu-item';
                 btn.innerHTML = `<i class="fa-solid ${it.icono || ''} ico"></i><span>${it.texto}</span>` +
-                    (it.sub ? '<i class="fa-solid fa-chevron-right flecha"></i>' : (it.atajo ? `<span class="atajo">${it.atajo}</span>` : ''));
+                    (it.sub ? '<i class="fa-solid fa-chevron-right flecha"></i>' : (() => { const at = ruta ? atajoTexto(ruta + ' › ' + it.texto, it.atajo) : it.atajo; return at ? `<span class="atajo">${esc(at)}</span>` : ''; })());
                 if (it.habilitado && !it.habilitado()) btn.disabled = true;
                 if (it.sub) {
                     const envoltorio = document.createElement('div');
                     envoltorio.className = 'menu-sub';
                     const subMenu = document.createElement('div');
                     subMenu.className = 'menu-desplegable';
-                    construirItems(typeof it.sub === 'function' ? it.sub() : it.sub, subMenu);
+                    construirItems(typeof it.sub === 'function' ? it.sub() : it.sub, subMenu, ruta ? ruta + ' › ' + it.texto : null);
                     envoltorio.appendChild(btn);
                     envoltorio.appendChild(subMenu);
                     contenedor.appendChild(envoltorio);
@@ -8269,13 +8575,14 @@
 
         function abrirMenu(nodo, def) {
             cerrarMenus();
-            construirItems(def.items, nodo.querySelector('.menu-desplegable')); // refresca activado/desactivado
+            construirItems(def.items, nodo.querySelector('.menu-desplegable'), def.titulo); // refresca activado/desactivado
             nodo.classList.add('abierto');
             menuAbierto = nodo;
         }
 
         function cerrarMenus() {
             if (typeof contextMenu !== 'undefined' && contextMenu) contextMenu.style.display = 'none';
+            if (typeof quitarMarcas === 'function') quitarMarcas();
             if (menuAbierto) menuAbierto.classList.remove('abierto');
             menuAbierto = null;
         }
@@ -8320,29 +8627,8 @@
                 else if (document.getElementById('modal-masivo').style.display === 'flex') accion = cerrarTablaPropiedades;
                 else if (panelAvisosAbierto && !enCampo && !seleccion.size) accion = () => alternarPanelAvisos(false);
                 else if (!enCampo && seleccion.size && !modoZoomVentana) accion = limpiarSeleccion;
-            } else if (!enCampo && !ctrl && !e.altKey && !e.shiftKey && k === 'b' && haySeleccion() && !menuAbierto && !(typeof traza !== 'undefined' && traza) && !document.querySelector('[id^="modal-"][style*="flex"]')) {
-                accion = eliminarSeleccion;
-            } else if (!enCampo && !ctrl && !e.altKey && k === 'r' && haySeleccion() && !menuAbierto && !(typeof traza !== 'undefined' && traza) && !document.querySelector('[id^="modal-"][style*="flex"]')) {
-                accion = () => girar45(e.shiftKey ? -45 : 45);
-            } else if (ctrl && !e.altKey && !e.shiftKey && k === 'k') {
-                accion = abrirPaleta;
-            } else if (!enCampo && !ctrl && !e.altKey && !e.shiftKey && k === 'l' && !traza && !menuAbierto && !document.querySelector('[id^="modal-"][style*="flex"]') && document.getElementById('paleta').style.display !== 'flex') {
-                accion = iniciarTrazado;
-            } else if (ctrl && !e.altKey && !e.shiftKey) {
-                if (k === 'n') accion = nuevoProyecto;
-                else if (k === 'o') accion = proyectoExistente;
-                else if (k === 'g') accion = guardarProyecto;
-                else if (k === 'p') accion = imprimirPDF;
-                else if (k === 'r') accion = abrirBuscarReemplazar;
-                else if (!enCampo && k === 'c' && haySeleccion()) accion = copiarSeleccion;
-                else if (!enCampo && k === 'x' && haySeleccion()) accion = cortarSeleccion;
-                else if (!enCampo && k === 'v' && portapapeles && portapapeles.length) accion = pegarPortapapeles;
-                else if (!enCampo && k === 'a') accion = seleccionarTodo;
-            } else if (!enCampo && !ctrl && (e.key === 'Delete' || e.key === 'Supr') && haySeleccion() && !menuAbierto) {
-                accion = eliminarSeleccion;
-            } else if (e.altKey && !ctrl && !e.shiftKey && k === 'a') {
-                accion = mostrarLibreriaAccesorios;
             }
+            // el resto de atajos: registro de atajos (CAD > Atajos de teclado)
 
             if (accion) {
                 e.preventDefault();
