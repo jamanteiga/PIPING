@@ -255,7 +255,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.8-tablas-bridas</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.8.1-tablas-bridas</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -2948,7 +2948,10 @@
                 if (Math.abs(zb - za) > L + 1e-6) { alert(`El desnivel (${Math.abs(zb - za).toFixed(2)} m) no puede superar la longitud (${L} m).`); return false; }
             }
             if ((campo === 'qNom' && !(v > 0)) || ((campo === 'dpNom' || campo === 'qCons') && v < 0)) return false;
+            // tubería que cambia de largo en el dibujo: lo que cuelga de su extremo se desplaza con él (sin huecos)
+            const arrastre = obj.type === 'tuberia' && (campo === 'longitud' || campo === 'scale') && elementosRed.includes(obj) && +obj[campo] !== v ? prepararArrastreTuberia(obj) : null;
             obj[campo] = v;
+            if (arrastre) arrastrarTrasTuberia(obj, arrastre);
             if (campo === 'modoK' && v === 'manual') {
                 const kk = esNodo(obj) ? kTee(Object.assign({}, obj, { modoK: 'crane' })) : null;
                 if (kk) { obj.kRun = +kk.run.toFixed(3); obj.kBranch = +kk.der.toFixed(3); }
@@ -2959,6 +2962,33 @@
             return true;
         }
 
+        // Al acortar o alargar una tubería, su extremo a queda fijo y todo lo conectado aguas abajo de b
+        // (recorriendo la red sin volver a pasar por la tubería) se traslada lo mismo que b. Si b no tiene
+        // nada conectado y a sí, se mueve la propia tubería (queda fijo b). En una malla cerrada no se
+        // puede trasladar como sólido rígido: se avisa.
+        function grupoDesde(inicio, excluir) {
+            const vistos = new Set([excluir.id]), grupo = [], cola = [...inicio];
+            cola.forEach(e => vistos.add(e.id));
+            while (cola.length) { const x = cola.shift(); grupo.push(x); vecinosDe(x).forEach(v => { if (!vistos.has(v.otro.id)) { vistos.add(v.otro.id); cola.push(v.otro); } }); }
+            return grupo;
+        }
+        function prepararArrastreTuberia(t) {
+            const vec = vecinosDe(t), enA = vec.filter(v => v.puertoEl === 'a').map(v => v.otro), enB = vec.filter(v => v.puertoEl === 'b').map(v => v.otro);
+            const pp = obtenerPuertosConexion(t), A = pp.find(p => p.id === 'a'), B = pp.find(p => p.id === 'b');
+            if (!enB.length) return { modo: 'fijoA', A, B };
+            if (!enA.length) return { modo: 'fijoB', A, B }; // extremo a libre: se mueve la tubería y la red no
+            const grupo = grupoDesde(enB, t);
+            if (enA.some(e => grupo.includes(e))) return { modo: 'malla', A, B };
+            return { modo: 'arrastre', grupo, A, B };
+        }
+        function arrastrarTrasTuberia(t, q) {
+            const pp = obtenerPuertosConexion(t), B2 = pp.find(p => p.id === 'b');
+            const dx = B2.x - q.B.x, dy = B2.y - q.B.y;
+            if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
+            if (q.modo === 'fijoB') { t.x -= dx; t.y += dy; }
+            else if (q.modo === 'arrastre') { q.grupo.forEach(e => { if (!esTablaHoja(e)) { e.x += dx; e.y -= dy; } }); }
+            else if (q.modo === 'malla') aviso(`${tagDe(t)} forma parte de una malla cerrada: los componentes no se pueden trasladar sin romper otra conexión. Reajusta el dibujo a mano.`, 'error');
+        }
         function cambiarCampoPanel(id, campo, valor) {
             const el = elementosRed.find(item => item.id === id);
             if (!el) return;
@@ -3223,7 +3253,7 @@
 
         function datosProyecto() {
             return {
-                version: "7.8-tablas-bridas",
+                version: "7.8.1-tablas-bridas",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -3249,7 +3279,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.8-tablas-bridas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.8.1-tablas-bridas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
