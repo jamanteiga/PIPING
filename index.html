@@ -255,7 +255,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.8.2-tablas-bridas</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.9-hojas-capas</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -342,19 +342,21 @@
                 <div id="arbol-asa" title="Arrastra para cambiar el ancho del árbol" style="position:absolute; top:0; right:-3px; width:6px; height:100%; cursor:ew-resize; pointer-events:auto;"></div>
             </div>
             </div>
+            <!-- HOJAS DEL PROYECTO -->
+            <div id="barra-hojas" class="h-7 shrink-0 bg-slate-200 border-t border-slate-300 flex items-end gap-0.5 px-2 z-20"></div>
             <!-- TOOLTIP DE COMPONENTE -->
             <div id="tooltip-comp" style="display:none; position:fixed; z-index:3000; pointer-events:none; max-width:320px;" class="bg-slate-800 text-slate-100 text-[11px] rounded shadow-lg px-2.5 py-1.5 leading-snug"></div>
             <!-- ICONO DE ORIENTACIÓN DE EJES (fijo a la esquina de la ventana, no representa el origen real) -->
             <!-- ESTADO DEL CÁLCULO AUTOMÁTICO (clic: ver resultados) -->
-            <div id="estado-calculo" onclick="alternarPanelAvisos()" title="Cálculo automático · clic para ver el panel de avisos (fallos, correcciones con un clic)" class="absolute bottom-2 right-3 z-20 text-[11px] bg-white/90 border border-slate-300 rounded px-2 py-0.5 shadow-sm cursor-pointer" style="display:none"></div>
+            <div id="estado-calculo" onclick="alternarPanelAvisos()" title="Cálculo automático · clic para ver el panel de avisos (fallos, correcciones con un clic)" class="absolute bottom-9 right-3 z-20 text-[11px] bg-white/90 border border-slate-300 rounded px-2 py-0.5 shadow-sm cursor-pointer" style="display:none"></div>
             <!-- PANEL DE AVISOS DEL CÁLCULO (clic en el estado del cálculo o Vista > Panel de avisos) -->
-            <div id="panel-avisos" style="display:none; max-height:45%;" class="absolute bottom-9 right-3 z-30 w-[380px] flex-col bg-white border border-slate-300 rounded shadow-lg text-[11px]">
+            <div id="panel-avisos" style="display:none; max-height:45%;" class="absolute bottom-16 right-3 z-30 w-[380px] flex-col bg-white border border-slate-300 rounded shadow-lg text-[11px]">
                 <div class="flex items-center gap-2 px-2 py-1.5 bg-slate-100 border-b border-slate-200 rounded-t"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i><span id="panel-avisos-titulo" class="flex-1 font-bold text-slate-700">Avisos del cálculo</span>
                     <a href="#" onclick="event.preventDefault(); verResultadosAuto()" class="text-blue-700 hover:underline text-[10px]">Ver resultados completos</a>
                     <button onclick="alternarPanelAvisos(false)" class="text-slate-500 hover:text-slate-800 px-1" title="Cerrar"><i class="fa-solid fa-xmark"></i></button></div>
                 <div id="panel-avisos-cuerpo" class="overflow-y-auto flex-1"></div>
             </div>
-            <svg id="axis-gizmo" class="absolute bottom-3 left-3 z-20" width="56" height="56" viewBox="0 0 56 56">
+            <svg id="axis-gizmo" class="absolute bottom-10 left-3 z-20" width="56" height="56" viewBox="0 0 56 56">
                 <line x1="8" y1="48" x2="42" y2="48" stroke="#dc2626" stroke-width="2.5"/>
                 <polygon points="44,48 37,44.5 37,51.5" fill="#dc2626"/>
                 <text x="46" y="51" font-family="sans-serif" font-size="10" font-weight="bold" fill="#dc2626">X</text>
@@ -381,6 +383,7 @@
 
     <script>
         let elementosRed = [];
+        let hojas = [{ id: '00' }], hojaActual = 0; // hojas del proyecto (ver HOJAS DEL PROYECTO)
         let idSeleccionado = null;
         let anchoArbol = 270; // ancho del árbol de especificación (px)
         let idMenuContextual = null;
@@ -940,7 +943,7 @@
             if (!t) return 'X';
             return typeof t.codigo === 'function' ? t.codigo(el) : t.codigo;
         }
-        function asignarNumero(el, lista = elementosRed) {
+        function asignarNumero(el, lista = elementosRed.concat(elementosOtrasHojas())) {
             const c = codigoDe(el);
             if (el.codigo === c && el.num) return;
             el.codigo = c;
@@ -973,16 +976,16 @@
         const lineaPorId = id => lineas.find(l => l.id === id);
         function siguienteLinea(tipo, padre) {
             if (tipo === 'principal') {
-                const n = 1 + Math.max(0, ...lineas.filter(l => l.tipo === 'principal').map(l => parseInt(l.id.slice(1), 10) || 0));
+                const n = 1 + Math.max(0, ...todasLineas().filter(l => l.tipo === 'principal').map(l => parseInt(l.id.slice(1), 10) || 0));
                 return 'P' + String(n).padStart(2, '0');
             }
             const lp = lineaPorId(padre);
             if (lp && lp.tipo === 'ramal') {
                 const pref = lp.id + '.';
-                const n = 1 + Math.max(0, ...lineas.filter(l => l.id.startsWith(pref) && !l.id.slice(pref.length).includes('.')).map(l => parseInt(l.id.slice(pref.length), 10) || 0));
+                const n = 1 + Math.max(0, ...todasLineas().filter(l => l.id.startsWith(pref) && !l.id.slice(pref.length).includes('.')).map(l => parseInt(l.id.slice(pref.length), 10) || 0));
                 return pref + String(n).padStart(2, '0');
             }
-            const n = 1 + Math.max(0, ...lineas.filter(l => l.tipo === 'ramal' && !l.id.includes('.')).map(l => parseInt(l.id.slice(1), 10) || 0));
+            const n = 1 + Math.max(0, ...todasLineas().filter(l => l.tipo === 'ramal' && !l.id.includes('.')).map(l => parseInt(l.id.slice(1), 10) || 0));
             return 'R' + String(n).padStart(2, '0');
         }
         // Cota (m) del puerto de un elemento
@@ -2050,8 +2053,11 @@
         const MM = v => v * PX_MM;
         const TXT_MM = 3, TIT_MM = 4;
         const recortarA = (t, fs, w, neg) => { t = String(t || ''); ctxMedida.font = `${neg ? 'bold ' : ''}${fs}px sans-serif`; if (ctxMedida.measureText(t).width <= w) return t; while (t.length > 1 && ctxMedida.measureText(t + '…').width > w) t = t.slice(0, -1); return t + '…'; };
-        const COLS_LISTADO = [['ITEM', 13], ['CANTIDAD', 22], ['DESCRIPCIÓN', 95], ['TAMAÑO', 25], ['PN / CLASE', 25]]; // mm (180 mm = ancho del cajetín)
+        // columnas en mm para un cajetín de 180 mm; se escalan al ancho real del cajetín (190 mm en A4)
+        const COLS_LISTADO_180 = [['ITEM', 11], ['CANTIDAD', 19], ['DESCRIPCIÓN', 66], ['MATERIAL', 40], ['TAMAÑO', 21], ['PN / CLASE', 23]];
+        let COLS_LISTADO = COLS_LISTADO_180;
         function geomListado() {
+            const k = anchoCajetinMm() / 180; COLS_LISTADO = COLS_LISTADO_180.map(([n, w]) => [n, w * k]);
             const filas = filasListadoPlano(), W = MM(COLS_LISTADO.reduce((s, c) => s + c[1], 0)), hT = MM(8), hC = MM(6), hF = MM(6);
             return { filas, W, hT, hC, hF, H: hT + hC + Math.max(1, filas.length) * hF };
         }
@@ -2067,8 +2073,8 @@
             COLS_LISTADO.forEach(([n], k) => { const [x0, w] = xs[k]; h += tx(x0 + w / 2, yC, n, 'font-weight="bold" text-anchor="middle"') + (k ? `<line x1="${x0.toFixed(2)}" y1="${g.hT.toFixed(2)}" x2="${x0.toFixed(2)}" y2="${g.H.toFixed(2)}" stroke="${c}" stroke-width="0.45"/>` : ''); });
             g.filas.forEach((f, i) => {
                 const y0 = g.hT + g.hC + i * g.hF, y = y0 + g.hF / 2 + fs * 0.36;
-                const vals = [String(i + 1), f.ud === 'm' ? fmt(f.n, 1) + ' M' : String(f.n), f.desc, f.tam, f.pn].map(v => String(v || '').toUpperCase());
-                vals.forEach((v, k) => { const [x0, w] = xs[k]; const cen = k !== 2; h += tx(cen ? x0 + w / 2 : x0 + MM(1.5), y, recortarA(v, fs, w - MM(3)), cen ? 'text-anchor="middle"' : ''); });
+                const vals = [String(i + 1), f.ud === 'm' ? fmt(f.n, 1) + ' M' : String(f.n), f.desc, f.mat, f.tam, f.pn].map(v => String(v || '').toUpperCase());
+                vals.forEach((v, k) => { const [x0, w] = xs[k]; const cen = k !== 2 && k !== 3; h += tx(cen ? x0 + w / 2 : x0 + MM(1.5), y, recortarA(v, fs, w - MM(3)), cen ? 'text-anchor="middle"' : ''); });
                 if (i) h += Lh(y0, 0.3);
             });
             if (!g.filas.length) h += tx(MM(1.5), g.hT + g.hC + g.hF / 2 + fs * 0.36, 'SIN COMPONENTES', 'font-style="italic"');
@@ -2213,6 +2219,8 @@
         // Geometría en unidades del modelo (1830 × 553) escalada a 180 mm de ancho, en la esquina inferior
         // derecha del marco. Los valores salen de Archivo > Datos del proyecto (apartado Cajetín).
         const CAJETIN_ANCHO_MM = 180, CAJ_W = 1830, CAJ_H = 553;
+        // en A4 (vertical) el cajetín ocupa todo el ancho útil de la hoja (entre márgenes del marco)
+        const anchoCajetinMm = () => (opciones.formato === 'A4' ? formatoActual().w - MARGEN_IZQ - MARGEN : CAJETIN_ANCHO_MM);
         // fecha del cajetín en formato dd/mm/aaaa (admite aaaa-mm-dd y d/m/aa)
         function fechaDMA(f) {
             f = String(f || '').trim(); if (!f) return '';
@@ -2220,7 +2228,7 @@
             m = f.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/); if (m) return `${m[1].padStart(2, '0')}/${m[2].padStart(2, '0')}/${m[3].length === 2 ? '20' + m[3] : m[3]}`;
             return f;
         }
-        function cajaCajetin() { const fr = marcoInterior(), k = CAJETIN_ANCHO_MM * PX_MM / CAJ_W; return { x0: fr.x1 - CAJ_W * k, y0: fr.y1 - CAJ_H * k, x1: fr.x1, y1: fr.y1, k }; }
+        function cajaCajetin() { const fr = marcoInterior(), k = anchoCajetinMm() * PX_MM / CAJ_W; return { x0: fr.x1 - CAJ_W * k, y0: fr.y1 - CAJ_H * k, x1: fr.x1, y1: fr.y1, k }; }
         function dibujoCajetin(col, fr) {
             const c = cajaCajetin(), k = c.k, X = u => (c.x0 + u * k).toFixed(2), Y = u => (c.y0 + u * k).toFixed(2), p = proyecto || {};
             const L = (x1, y1, x2, y2) => `<line x1="${X(x1)}" y1="${Y(y1)}" x2="${X(x2)}" y2="${Y(y2)}" stroke="${col}" stroke-width="${(0.35 * PX_MM).toFixed(2)}"/>`;
@@ -2257,7 +2265,7 @@
             yN += fsS * 0.25; LS.forEach(t => { h += V(22, yN + fsS * 0.2, t, fsS); yN += fsS * 1.2; });
             h += V(23, 370, opciones.formato || 'A3') + V(193, 370, tr(p.numero, 17)) + V(489, 370, tr(p.planoNumero, 19)) + V(833, 370, p.revision) + V(996, 370, p.letraRevision);
             h += V(1300, 310, tr(p.autor, 14), 26) + V(1590, 310, fechaDMA(p.fecha), 26) + V(1300, 388, tr(p.revisadoPor, 14), 26) + V(1590, 388, fechaDMA(p.fechaRevisado), 26);
-            h += V(120, 460, p.escala || 'S/E', 30) + V(470, 460, p.grupoPlano, 30) + V(840, 452, p.hoja || '1', 30) + V(990, 452, p.hojas || '1', 30);
+            h += V(120, 460, p.escala || 'S/E', 30) + V(470, 460, p.grupoPlano, 30) + V(840, 452, codigoHoja(), 30) + V(990, 452, String(hojas.length), 30);
             h += V(1320, 470, tr(p.aprobadoPor, 13), 26) + V(1590, 470, fechaDMA(p.fechaAprobado), 26);
             h += V(230, 530, tr(p.codigoPlano, 28), 30) + V(960, 530, tr(p.planoCert, 10), 26);
             return h + '</g>';
@@ -2726,8 +2734,8 @@
             const m = new Map();
             elementosRed.filter(e => !esAnotacion(e)).forEach(e => {
                 let k, fila;
-                if (e.type === 'tuberia') { k = ['T', e.material, e.serie, e.dn, e.gradoMaterial || ''].join('|'); fila = { desc: `Tubería ${e.material} ${/^[0-9]+S?$/.test(e.serie) ? 'Sch ' + e.serie : e.serie}${e.gradoMaterial ? ' · ' + e.gradoMaterial : ''}`, tam: tamanoTubo(e.material, e.dn), pn: e.pn || '', ud: 'm', n: 0 }; }
-                else { const tam = e.subtype === 'reduccion' ? `${pulgadas(npsDeDN(e.dn))}" × ${pulgadas(npsDeDN(e.dnMenor))}"` : (e.dn && /^DN/.test(e.dn) ? pulgadas(npsDeDN(e.dn)) + '"' : ''); k = [e.type, e.subtype, tam, e.pn || '', e.craneTipo || '', e.materialComp || ''].join('|'); fila = { desc: nombreTipo(e) + (e.materialComp ? ' · ' + e.materialComp : ''), tam, pn: e.pn || '', ud: 'ud', n: 0 }; }
+                if (e.type === 'tuberia') { k = ['T', e.material, e.serie, e.dn, e.gradoMaterial || ''].join('|'); fila = { desc: `Tubería ${e.material} ${/^[0-9]+S?$/.test(e.serie) ? 'Sch ' + e.serie : e.serie}`, mat: e.gradoMaterial || e.material || '', tam: tamanoTubo(e.material, e.dn), pn: e.pn || '', ud: 'm', n: 0 }; }
+                else { const tam = e.subtype === 'reduccion' ? `${pulgadas(npsDeDN(e.dn))}" × ${pulgadas(npsDeDN(e.dnMenor))}"` : (e.dn && /^DN/.test(e.dn) ? pulgadas(npsDeDN(e.dn)) + '"' : ''); k = [e.type, e.subtype, tam, e.pn || '', e.craneTipo || '', e.materialComp || ''].join('|'); fila = { desc: nombreTipo(e), mat: e.materialComp || '', tam, pn: e.pn || '', ud: 'ud', n: 0 }; }
                 if (!m.has(k)) m.set(k, Object.assign(fila, { tags: [] }));
                 const f = m.get(k); f.n += e.type === 'tuberia' ? e.longitud / 1000 : 1; f.tags.push(tagDe(e));
             });
@@ -3253,14 +3261,15 @@
 
         function datosProyecto() {
             return {
-                version: "7.8.2-tablas-bridas",
+                version: "7.9-hojas-capas",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
                 opciones: opciones,
                 elementos: elementosRed,
+                hojas: hojasParaGuardar(), hojaActual,
                 // modelos y tuberías de la librería del usuario que usa el dibujo (para abrirlo en otro equipo)
-                libreriaUsada: (typeof LIB !== 'undefined' ? LIB.items : []).filter(i => elementosRed.some(e => e.libItem === i.id || (i.grupo === 'tuberias' && e.material === i.nombre))),
+                libreriaUsada: (typeof LIB !== 'undefined' ? LIB.items : []).filter(i => elementosRed.concat(elementosOtrasHojas()).some(e => e.libItem === i.id || (i.grupo === 'tuberias' && e.material === i.nombre))),
                 condicionesContorno: condicionesContorno,
                 fluido: document.getElementById('selector-fluido')?.value,
                 temperatura: parseFloat(document.getElementById('temp-fluido')?.value)
@@ -3279,7 +3288,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.8.2-tablas-bridas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.9-hojas-capas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -3370,27 +3379,125 @@
                 recorrer(g, el.subtype === 'materiales' ? 'Marca' : el.subtype === 'tabla' ? 'Text' : 'Object');
             });
             ['#lideres-notas', '#capa-etiquetas'].forEach(sel => { const g = svgCanvas.querySelector(sel); if (g) recorrer(g, 'Object'); });
-            let cab = PLANTILLA_DXF.cabecera
+            let cab = tablaCapasDXF(PLANTILLA_DXF.cabecera, () => (h++).toString(16).toUpperCase())
                 .replace(/(\$EXTMAX\r?\n\s*10\r?\n)[^\r\n]*(\r?\n\s*20\r?\n)[^\r\n]*/, `$1${FMT.w}$2${FMT.h}`)
                 .replace(/(\$EXTMIN\r?\n\s*10\r?\n)[^\r\n]*(\r?\n\s*20\r?\n)[^\r\n]*/, '$10$20')
                 .replace(/(\$LIMMAX\r?\n\s*10\r?\n)[^\r\n]*(\r?\n\s*20\r?\n)[^\r\n]*/, `$1${FMT.w}$2${FMT.h}`)
                 .replace(/(\$HANDSEED\r?\n\s*5\r?\n)[^\r\n]*/, `$1${h.toString(16).toUpperCase()}`);
             return (cab + out.join('\n') + (out.length ? '\n' : '') + PLANTILLA_DXF.pie).replace(/\r?\n/g, '\r\n');
         }
+        // ==================================================================================
+        // CAPAS EDITABLES (CAD > Capas...): color del sistema, tipo y grosor de línea, visible, inutilizada,
+        // bloqueada, imprimible y transparencia. Se guardan con el proyecto (opciones.capas) y se pueden
+        // dejar como predeterminadas del diseñador (este navegador). No se admiten los colores reservados
+        // del cálculo (verde = correcto, rojo = no cumple, violeta = ruta crítica).
+        // ==================================================================================
+        const ACI_RGB = [[0,0,0],[255,0,0],[255,255,0],[0,255,0],[0,255,255],[0,0,255],[255,0,255],[255,255,255],[128,128,128],[192,192,192],[255,0,0],[255,127,127],[165,0,0],[165,82,82],[127,0,0],[127,63,63],[76,0,0],[76,38,38],[38,0,0],[38,19,19],[255,63,0],[255,159,127],[165,41,0],[165,103,82],[127,31,0],[127,79,63],[76,19,0],[76,47,38],[38,9,0],[38,23,19],[255,127,0],[255,191,127],[165,82,0],[165,124,82],[127,63,0],[127,95,63],[76,38,0],[76,57,38],[38,19,0],[38,28,19],[255,191,0],[255,223,127],[165,124,0],[165,145,82],[127,95,0],[127,111,63],[76,57,0],[76,66,38],[38,28,0],[38,33,19],[255,255,0],[255,255,127],[165,165,0],[165,165,82],[127,127,0],[127,127,63],[76,76,0],[76,76,38],[38,38,0],[38,38,19],[191,255,0],[223,255,127],[124,165,0],[145,165,82],[95,127,0],[111,127,63],[57,76,0],[66,76,38],[28,38,0],[33,38,19],[127,255,0],[191,255,127],[82,165,0],[124,165,82],[63,127,0],[95,127,63],[38,76,0],[57,76,38],[19,38,0],[28,38,19],[63,255,0],[159,255,127],[41,165,0],[103,165,82],[31,127,0],[79,127,63],[19,76,0],[47,76,38],[9,38,0],[23,38,19],[0,255,0],[127,255,127],[0,165,0],[82,165,82],[0,127,0],[63,127,63],[0,76,0],[38,76,38],[0,38,0],[19,38,19],[0,255,63],[127,255,159],[0,165,41],[82,165,103],[0,127,31],[63,127,79],[0,76,19],[38,76,47],[0,38,9],[19,88,23],[0,255,127],[127,255,191],[0,165,82],[82,165,124],[0,127,63],[63,127,95],[0,76,38],[38,76,57],[0,38,19],[19,88,28],[0,255,191],[127,255,223],[0,165,124],[82,165,145],[0,127,95],[63,127,111],[0,76,57],[38,76,66],[0,38,28],[19,88,88],[0,255,255],[127,255,255],[0,165,165],[82,165,165],[0,127,127],[63,127,127],[0,76,76],[38,76,76],[0,38,38],[19,88,88],[0,191,255],[127,223,255],[0,124,165],[82,145,165],[0,95,127],[63,111,127],[0,57,76],[38,66,126],[0,28,38],[19,88,88],[0,127,255],[127,191,255],[0,82,165],[82,124,165],[0,63,127],[63,95,127],[0,38,76],[38,57,126],[0,19,38],[19,28,88],[0,63,255],[127,159,255],[0,41,165],[82,103,165],[0,31,127],[63,79,127],[0,19,76],[38,47,126],[0,9,38],[19,23,88],[0,0,255],[127,127,255],[0,0,165],[82,82,165],[0,0,127],[63,63,127],[0,0,76],[38,38,126],[0,0,38],[19,19,88],[63,0,255],[159,127,255],[41,0,165],[103,82,165],[31,0,127],[79,63,127],[19,0,76],[47,38,126],[9,0,38],[23,19,88],[127,0,255],[191,127,255],[82,0,165],[124,82,165],[63,0,127],[95,63,127],[38,0,76],[57,38,126],[19,0,38],[28,19,88],[191,0,255],[223,127,255],[124,0,165],[145,82,165],[95,0,127],[111,63,127],[57,0,76],[66,38,76],[28,0,38],[88,19,88],[255,0,255],[255,127,255],[165,0,165],[165,82,165],[127,0,127],[127,63,127],[76,0,76],[76,38,76],[38,0,38],[88,19,88],[255,0,191],[255,127,223],[165,0,124],[165,82,145],[127,0,95],[127,63,111],[76,0,57],[76,38,66],[38,0,28],[88,19,88],[255,0,127],[255,127,191],[165,0,82],[165,82,124],[127,0,63],[127,63,95],[76,0,38],[76,38,57],[38,0,19],[88,19,28],[255,0,63],[255,127,159],[165,0,41],[165,82,103],[127,0,31],[127,63,79],[76,0,19],[76,38,47],[38,0,9],[88,19,23],[0,0,0],[101,101,101],[102,102,102],[153,153,153],[204,204,204],[255,255,255]];
+        const GROSORES_DXF = [0, 0.05, 0.09, 0.13, 0.15, 0.18, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.53, 0.60, 0.70, 0.80, 0.90, 1.00, 1.06, 1.20, 1.40, 1.58, 2.00, 2.11];
+        const TIPOS_LINEA_DXF = { 'Continua': 'Continuous', 'Trazado': 'Trazado', 'Trazado y punto': 'Trazado y punto' };
+        const CAPAS_BASE = CAPAS_DXF.map(c => c.nombre);
+        const CLAVE_CAPAS = 'piping-capas';
+        const capaPorDefecto = c => ({ nombre: c.nombre, color: c.color.slice(), tipo: c.tipo, grosor: c.grosor, uso: c.uso, visible: true, inutilizada: false, bloqueada: false, imprimible: true, transparencia: 0 });
+        function capasPredeterminadas() {
+            try { const g = JSON.parse(localStorage.getItem(CLAVE_CAPAS) || 'null'); if (Array.isArray(g) && g.length) return g; } catch (e) {}
+            return CAPAS_DXF.map(capaPorDefecto);
+        }
+        function capasActuales() {
+            if (!Array.isArray(opciones.capas) || !opciones.capas.length) opciones.capas = JSON.parse(JSON.stringify(capasPredeterminadas()));
+            // las capas que usa PIPING siempre existen
+            CAPAS_DXF.forEach(c => { if (!opciones.capas.some(x => x.nombre === c.nombre)) opciones.capas.push(capaPorDefecto(c)); });
+            return opciones.capas;
+        }
+        const hexRGB = c => '#' + c.map(v => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
+        const rgbHex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+        function hsv([r, g, b]) {
+            r /= 255; g /= 255; b /= 255; const M = Math.max(r, g, b), m = Math.min(r, g, b), d = M - m;
+            let h = 0; if (d) h = M === r ? ((g - b) / d) % 6 : M === g ? (b - r) / d + 2 : (r - g) / d + 4;
+            return { h: (h * 60 + 360) % 360, s: M ? d / M : 0, v: M };
+        }
+        // colores del cálculo en el lienzo (claro y oscuro)
+        const COLORES_RESERVADOS = [['verde (componente o línea correctos)', '#16a34a'], ['verde (componente o línea correctos)', '#4ade80'], ['rojo (hay que modificar el componente o la línea)', '#dc2626'], ['rojo (hay que modificar el componente o la línea)', '#f87171'], ['violeta (ruta crítica)', '#7c3aed'], ['violeta (ruta crítica)', '#c084fc']];
+        function colorReservado(c) {
+            const a = hsv(c);
+            if (a.s < 0.4 || a.v < 0.35) return null; // grises, blancos, negros: libres
+            for (const [n, h] of COLORES_RESERVADOS) { const b = hsv(rgbHex(h)); const dh = Math.min(Math.abs(a.h - b.h), 360 - Math.abs(a.h - b.h)); if (dh < 18) return n; }
+            return null;
+        }
+        function aciCercano(c) {
+            let mejor = 7, dm = 1e9;
+            for (let i = 1; i < 256; i++) { const q = ACI_RGB[i], d = (q[0] - c[0]) ** 2 + (q[1] - c[1]) ** 2 + (q[2] - c[2]) ** 2; if (d < dm) { dm = d; mejor = i; } }
+            return mejor;
+        }
+        // Tabla LAYER del DXF con las capas actuales (se conservan los identificadores de la plantilla)
+        function tablaCapasDXF(cab, nuevoHandle) {
+            const i = cab.indexOf('  0\nTABLE\n  2\nLAYER\n'); if (i < 0) return cab;
+            const j = cab.indexOf('  0\nENDTAB\n', i), tabla = cab.slice(i, j);
+            const k = tabla.indexOf('  0\nLAYER\n', 10), cabTabla = tabla.slice(0, k);
+            const handles = {}, recs = tabla.slice(k).split(/(?=  0\nLAYER\n)/);
+            let defpoints = '';
+            recs.forEach(r => { const m = r.match(/\n  5\n([0-9A-Fa-f]+)\n[\s\S]*?\n  2\n([^\n]*)\n/); if (m) { handles[m[2]] = m[1]; if (m[2] === 'Defpoints') defpoints = r; } });
+            const capas = capasActuales();
+            let out = '';
+            capas.forEach(c => {
+                const h = handles[c.nombre] || nuevoHandle();
+                const aci = aciCercano(c.color) * (c.visible === false ? -1 : 1);
+                const flags = (c.inutilizada ? 1 : 0) | (c.bloqueada ? 4 : 0);
+                const lw = Math.round((+c.grosor || 0) * 100);
+                out += `  0\nLAYER\n  5\n${h}\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\n${textoDXF(c.nombre)}\n 70\n${flags}\n 62\n${aci}\n  6\n${TIPOS_LINEA_DXF[c.tipo] || 'Continuous'}\n${c.imprimible === false ? '290\n0\n' : ''}370\n${lw}\n390\n13\n`;
+            });
+            const cabT = cabTabla.replace(/( 70\n)\d+\n$/, '$1' + (capas.length + 1) + '\n');
+            return cab.slice(0, i) + cabT + out + defpoints + cab.slice(j);
+        }
         function abrirLineasCapas() {
-            const sw = c => `<span style="display:inline-block;width:14px;height:14px;border:1px solid #64748b;vertical-align:middle;background:rgb(${c.join(',')})"></span>`;
-            const muestra = t => t === 'Trazado' ? '<svg width="70" height="8"><line x1="0" y1="4" x2="70" y2="4" stroke="#334155" stroke-width="1.5" stroke-dasharray="10,4"/></svg>' : t === 'Trazado y punto' ? '<svg width="70" height="8"><line x1="0" y1="4" x2="70" y2="4" stroke="#334155" stroke-width="1.5" stroke-dasharray="14,3,1.5,3"/></svg>' : '<svg width="70" height="8"><line x1="0" y1="4" x2="70" y2="4" stroke="#334155" stroke-width="1.5"/></svg>';
-            const grosor = g => `<svg width="46" height="10"><line x1="0" y1="5" x2="46" y2="5" stroke="#334155" stroke-width="${Math.max(0.6, g * 5)}"/></svg>`;
+            const capas = capasActuales();
+            const muestra = t => t === 'Trazado' ? '<svg width="60" height="8"><line x1="0" y1="4" x2="60" y2="4" stroke="#334155" stroke-width="1.5" stroke-dasharray="10,4"/></svg>' : t === 'Trazado y punto' ? '<svg width="60" height="8"><line x1="0" y1="4" x2="60" y2="4" stroke="#334155" stroke-width="1.5" stroke-dasharray="14,3,2,3"/></svg>' : '<svg width="60" height="8"><line x1="0" y1="4" x2="60" y2="4" stroke="#334155" stroke-width="1.5"/></svg>';
+            const chk = (i, k, v) => `<td class="text-center"><input type="checkbox" ${v ? 'checked' : ''} onchange="cambiarCapa(${i}, '${k}', this.checked)"></td>`;
             document.getElementById('red-content').innerHTML = `
-                <p class="text-[11px] text-slate-500 mb-2">Capas del archivo DXF de salida (Archivo &gt; Guardar como &gt; Dibujo CAD). Cada capa lleva su color, tipo y grosor de línea; las entidades se dibujan «por capa».</p>
-                <table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500 border-b"><th class="py-1">Capa</th><th>Visible</th><th>Inutilizada</th><th>Bloqueada</th><th>Imprimible</th><th>Color</th><th>Tipo de línea</th><th>Grosor de línea</th><th>Transparencia</th><th>Uso en PIPING</th></tr></thead><tbody>
-                ${CAPAS_DXF.map(c => `<tr class="border-b border-slate-100"><td class="py-1 font-bold">${c.nombre}</td><td>Sí</td><td>No</td><td>No</td><td>Sí</td><td>${sw(c.color)} ${c.color.join(',')}${c.aci === 7 ? ' (blanco)' : ''}</td><td>${muestra(c.tipo)} ${c.tipo}</td><td>${grosor(c.grosor)} ${c.grosor.toFixed(2).replace('.', ',')} mm</td><td>0</td><td class="text-slate-500">${c.uso}</td></tr>`).join('')}
-                </tbody></table>
-                <p class="text-[10px] text-slate-400 mt-2">Formato DXF 2000 (AC1015), unidades en mm de papel. Para DWG: abre el DXF en AutoCAD (o con ODA File Converter) y guárdalo como DWG.</p>`;
-            document.getElementById('red-footer').innerHTML = '<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>';
+                <p class="text-[11px] text-slate-500 mb-2">Capas del archivo DXF de salida (Archivo &gt; Guardar como &gt; Dibujo CAD). Los cambios se guardan con el proyecto. El color se elige con el selector de color del sistema; no se admiten los colores reservados del cálculo (verde = correcto, rojo = no cumple, violeta = ruta crítica).</p>
+                <div class="overflow-x-auto"><table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500 border-b"><th class="py-1">Capa</th><th class="text-center">Visible</th><th class="text-center">Inutilizada</th><th class="text-center">Bloqueada</th><th class="text-center">Imprimible</th><th>Color</th><th>Tipo de línea</th><th>Grosor de línea</th><th>Transparencia (%)</th><th>Uso en PIPING</th><th></th></tr></thead><tbody>
+                ${capas.map((c, i) => { const base = CAPAS_BASE.includes(c.nombre); return `<tr class="border-b border-slate-100">
+                    <td class="py-1 font-bold">${base ? esc(c.nombre) : `<input value="${esc(c.nombre)}" onchange="cambiarCapa(${i}, 'nombre', this.value)" class="border rounded p-0.5 w-20">`}</td>
+                    ${chk(i, 'visible', c.visible !== false)}${chk(i, 'inutilizada', !!c.inutilizada)}${chk(i, 'bloqueada', !!c.bloqueada)}${chk(i, 'imprimible', c.imprimible !== false)}
+                    <td class="whitespace-nowrap"><input type="color" value="${hexRGB(c.color)}" onchange="cambiarCapa(${i}, 'color', this.value)" class="w-7 h-5 align-middle border rounded cursor-pointer" title="Elegir color del sistema"> ${c.color.join(',')}</td>
+                    <td class="whitespace-nowrap">${muestra(c.tipo)}<select onchange="cambiarCapa(${i}, 'tipo', this.value)" class="border rounded p-0.5 ml-1">${Object.keys(TIPOS_LINEA_DXF).map(t => `<option ${t === c.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+                    <td><select onchange="cambiarCapa(${i}, 'grosor', this.value)" class="border rounded p-0.5">${GROSORES_DXF.map(g => `<option value="${g}" ${Math.abs(g - c.grosor) < 1e-6 ? 'selected' : ''}>${g.toFixed(2).replace('.', ',')} mm</option>`).join('')}</select></td>
+                    <td><input type="number" min="0" max="90" step="5" value="${+c.transparencia || 0}" onchange="cambiarCapa(${i}, 'transparencia', this.value)" class="border rounded p-0.5 w-14"></td>
+                    <td><input value="${esc(c.uso || '')}" onchange="cambiarCapa(${i}, 'uso', this.value)" class="border rounded p-0.5 w-56"></td>
+                    <td>${base ? '' : `<button onclick="borrarCapa(${i})" title="Eliminar capa" class="text-rose-600 px-1"><i class="fa-solid fa-trash-can"></i></button>`}</td></tr>`; }).join('')}
+                </tbody></table></div>
+                <p class="text-[10px] text-slate-400 mt-2">Formato DXF 2000 (AC1015), unidades en mm de papel: el color se exporta como el color AutoCAD (ACI) más próximo y la transparencia se guarda en el proyecto (DXF 2000 no la admite). Las capas 0, Bord, Dim, Hid, Hidden, Marca, Object, Text y Tratt las usa PIPING y no se pueden borrar ni renombrar. Para DWG: abre el DXF en AutoCAD (o con ODA File Converter) y guárdalo como DWG.</p>`;
+            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs">
+                <button onclick="anadirCapa()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded"><i class="fa-solid fa-plus mr-1"></i>Nueva capa</button>
+                <button onclick="capasComoPredeterminadas()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded" title="Las usarán los proyectos nuevos en este navegador">Guardar como predeterminadas</button>
+                <button onclick="restablecerCapas()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded">Valores de fábrica</button>
+                <span class="flex-1"></span>
+                <button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
             document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-layer-group text-blue-600 mr-1.5"></i> Líneas y capas';
             document.getElementById('modal-red').style.display = 'flex';
         }
+        function cambiarCapa(i, k, v) {
+            const c = capasActuales()[i]; if (!c) return;
+            if (k === 'color') {
+                const rgb = rgbHex(v), r = colorReservado(rgb);
+                if (r) { aviso(`Color no admitido: se confunde con el ${r} del cálculo. Elige otro.`, 'error'); abrirLineasCapas(); return; }
+                c.color = rgb;
+            } else if (k === 'nombre') {
+                const n = String(v).trim();
+                if (!n || /[<>\/":;?*|=,]/.test(n) || capasActuales().some((x, j) => j !== i && x.nombre.toLowerCase() === n.toLowerCase())) { aviso('Nombre de capa no válido o repetido.', 'error'); abrirLineasCapas(); return; }
+                c.nombre = n;
+            } else if (k === 'grosor') c.grosor = +v;
+            else if (k === 'transparencia') c.transparencia = Math.max(0, Math.min(90, +v || 0));
+            else c[k] = v;
+            marcarCambios(true); abrirLineasCapas();
+        }
+        function anadirCapa() {
+            const capas = capasActuales(); let n = 1; while (capas.some(c => c.nombre === 'Capa' + n)) n++;
+            capas.push({ nombre: 'Capa' + n, color: [255, 255, 255], tipo: 'Continua', grosor: 0.25, uso: '', visible: true, inutilizada: false, bloqueada: false, imprimible: true, transparencia: 0 });
+            marcarCambios(true); abrirLineasCapas();
+        }
+        function borrarCapa(i) { const c = capasActuales()[i]; if (!c || CAPAS_BASE.includes(c.nombre)) return; if (!confirm(`¿Eliminar la capa ${c.nombre}?`)) return; opciones.capas.splice(i, 1); marcarCambios(true); abrirLineasCapas(); }
+        function capasComoPredeterminadas() { try { localStorage.setItem(CLAVE_CAPAS, JSON.stringify(capasActuales())); aviso('Capas guardadas como predeterminadas para los proyectos nuevos.', 'ok'); } catch (e) { aviso('No se han podido guardar en este navegador.', 'error'); } }
+        function restablecerCapas() { if (!confirm('¿Volver a los valores de fábrica de las capas en este proyecto?')) return; opciones.capas = CAPAS_DXF.map(capaPorDefecto); marcarCambios(true); abrirLineasCapas(); }
 
         function descargarArchivo(contenido, nombre, tipo) {
             const blob = new Blob([contenido], { type: tipo });
@@ -3454,6 +3561,7 @@
                         }
                         elementosRed.forEach(e => { if (!e.num) { e.codigo = null; asignarNumero(e); } });
                         condicionesContorno = res.condicionesContorno || {};
+                        cargarHojasDe(res);
                         const avisosApertura = [];
                         if (res.fluido) {
                             const sel = document.getElementById('selector-fluido');
@@ -4264,6 +4372,13 @@
             ultimoCalculo = { resultado: r.resultado, condiciones: r.condiciones, huella: huellaRed() };
             mostrarResultados(r.resultado);
             actualizarPanelAvisos();
+            // cálculo correcto: el diseñador decide si genera ya el informe
+            if (!elementosRed.some(e => e.estado === 'fallo')) setTimeout(async () => {
+                const q = await dialogo('<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i>Cálculo correcto',
+                    '<p>Todos los componentes y líneas cumplen los criterios de cálculo.</p><p>¿Quieres generar ahora el informe (*.docx)?</p>',
+                    [{ texto: 'Sí, generar el informe', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'No', valor: null }]);
+                if (q === 'si') { cerrarModalRed(); generarInforme(); }
+            }, 60);
         }
         // Cálculo completo sin interfaz: { resultado, condiciones } o { error }
         function calcularResultado(grafo, aristas) {
@@ -5354,6 +5469,71 @@
 
 
         // ==================================================================================
+        // HOJAS DEL PROYECTO (pestañas abajo a la izquierda: 00, 01, 02… y "Añadir hoja")
+        // La hoja activa vive en elementosRed / lineas / condicionesContorno / opciones.formato; las demás
+        // se guardan en hojas[i]. La numeración de componentes y de líneas nuevas es única en el proyecto.
+        // ==================================================================================
+        function sincronizarHoja() {
+            const h = hojas[hojaActual] || (hojas[hojaActual] = { id: '00' });
+            Object.assign(h, { e: elementosRed, l: lineas, cc: condicionesContorno, formato: opciones.formato || 'A3' });
+        }
+        function elementosOtrasHojas() { return hojas.filter((h, i) => i !== hojaActual).flatMap(h => h.e || []); }
+        function lineasOtrasHojas() { return hojas.filter((h, i) => i !== hojaActual).flatMap(h => h.l || []); }
+        const todasLineas = () => lineas.concat(lineasOtrasHojas());
+        const codigoHoja = () => (hojas[hojaActual] || {}).id || '00';
+        function cargarHoja(i) {
+            if (typeof traza !== 'undefined' && traza) cancelarTrazado();
+            hojaActual = i; const h = hojas[i];
+            elementosRed = h.e || []; lineas = h.l || []; condicionesContorno = h.cc || {};
+            if (h.formato && FORMATOS[h.formato]) opciones.formato = h.formato;
+            historialUndo = []; historialRedo = []; actualizarBotonesHistorial();
+            idSeleccionado = null; seleccion.clear(); ultimoResultado = null; ultimoCalculo = null;
+            invalidarResultados(); aplicarFormato(); renderizarVectorial(); renderArbol(); zoomTodo(); pintarHojas();
+            const panel = document.getElementById('panel-propiedades'); if (panel) panel.innerHTML = '<p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>';
+        }
+        function cambiarHoja(i) { if (i === hojaActual || !hojas[i]) return; sincronizarHoja(); cargarHoja(i); }
+        function anadirHoja() {
+            if (!proyectoDefinido()) { pantallaInicio(); return; }
+            sincronizarHoja();
+            const n = 1 + Math.max(-1, ...hojas.map(h => parseInt(h.id, 10) || 0));
+            hojas.push({ id: String(n).padStart(2, '0'), e: [], l: [], cc: {}, formato: opciones.formato || 'A3' });
+            marcarCambios(true); cargarHoja(hojas.length - 1);
+            aviso(`Hoja ${codigoHoja()} añadida (${hojas.length} hojas).`, 'ok');
+        }
+        async function eliminarHoja(i) {
+            if (hojas.length < 2) { aviso('El proyecto tiene una sola hoja: no se puede eliminar.', 'error'); return; }
+            sincronizarHoja();
+            const h = hojas[i], n = (h.e || []).length;
+            const r = await dialogo('<i class="fa-solid fa-trash-can text-rose-600 mr-1.5"></i>Eliminar hoja', `<p>¿Eliminar la hoja <b>${esc(h.id)}</b>${n ? ` y sus <b>${n}</b> elementos` : ''}? No se puede deshacer.</p>`,
+                [{ texto: 'Eliminar', valor: 'si', clase: 'bg-rose-600 hover:bg-rose-700 text-white' }, { texto: 'Cancelar', valor: null }]);
+            if (r !== 'si') return;
+            const activa = hojas[hojaActual];
+            hojas.splice(i, 1); marcarCambios(true);
+            if (i === hojaActual) cargarHoja(Math.min(i, hojas.length - 1));
+            else { hojaActual = hojas.indexOf(activa); renderizarVectorial(); pintarHojas(); }
+            aviso(`Hoja ${h.id} eliminada (${hojas.length} hoja${hojas.length > 1 ? 's' : ''}).`);
+        }
+        function pintarHojas() {
+            const b = document.getElementById('barra-hojas'); if (!b) return;
+            b.innerHTML = hojas.map((h, i) => `<button onclick="cambiarHoja(${i})" oncontextmenu="event.preventDefault(); mostrarMenuContextual(event.clientX, event.clientY, [{ icono: 'fa-trash-can', texto: 'Eliminar hoja ${h.id}', accion: () => eliminarHoja(${i}) }])" title="Hoja ${h.id} · botón derecho: eliminar"
+                class="px-3 h-6 -mb-px border border-slate-300 rounded-t text-[11px] font-bold ${i === hojaActual ? 'bg-white text-blue-700 border-b-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-50'}">${esc(h.id)}</button>`).join('') +
+                `<button onclick="anadirHoja()" title="Añadir hoja" class="ml-1 px-2 h-6 text-[11px] text-slate-600 hover:text-blue-700 hover:bg-white rounded"><i class="fa-solid fa-file-circle-plus mr-1"></i>Añadir hoja</button>`;
+        }
+        // .pid: la hoja activa va en "elementos/lineas" (compatibilidad); el resto en "hojas"
+        function hojasParaGuardar() {
+            sincronizarHoja();
+            return hojas.map((h, i) => i === hojaActual ? { id: h.id, activa: true, formato: h.formato } : { id: h.id, formato: h.formato, elementos: h.e || [], lineas: h.l || [], condicionesContorno: h.cc || {} });
+        }
+        function cargarHojasDe(res) {
+            if (Array.isArray(res.hojas) && res.hojas.length) {
+                hojas = res.hojas.map(h => ({ id: h.id, formato: h.formato, e: (h.elementos || []).map(e => { normalizarElemento(e); return e; }), l: h.lineas || [], cc: h.condicionesContorno || {} }));
+                hojaActual = Math.max(0, res.hojas.findIndex(h => h.activa));
+            } else { hojas = [{ id: '00' }]; hojaActual = 0; }
+            sincronizarHoja(); pintarHojas();
+        }
+        setTimeout(pintarHojas, 0);
+
+        // ==================================================================================
         // TOOLTIP: al dejar el ratón quieto sobre un componente, toda su información
         // ==================================================================================
         let temporizadorTooltip = null;
@@ -5544,7 +5724,7 @@
                     <div class="fila"><span class="nodo" onclick="alternarRejilla('rejilla')" title="Ajuste a rejilla"><i class="fa-solid fa-magnet" style="font-size:9px;color:${P.base}"></i><span class="txt">Ajuste a rejilla: ${opciones.rejilla ? 'sí' : 'no'}</span></span></div></div>`) + '</div>';
             const comps = elementosRed.filter(e => !esAnotacion(e));
             if (!elementosRed.length) { cuerpo.innerHTML = `<div class="fila" style="padding-left:16px"><div class="hijos" style="border-left:none;margin-left:0">${filaFmt}</div></div>`; return; }
-            let h = `<div class="fila" style="padding-left:16px">${mas('RAIZ', raizPlegada)}<span class="nodo" onclick="alternarNodoArbol('RAIZ')"><i class="fa-solid fa-sitemap" style="color:${P.base};font-size:10px"></i><span class="txt" style="font-weight:700">Red${proyecto.numero ? ' · ' + esc(proyecto.numero) : ''}</span></span>`;
+            let h = `<div class="fila" style="padding-left:16px">${mas('RAIZ', raizPlegada)}<span class="nodo" onclick="alternarNodoArbol('RAIZ')"><i class="fa-solid fa-sitemap" style="color:${P.base};font-size:10px"></i><span class="txt" style="font-weight:700">Red${proyecto.numero ? ' · ' + esc(proyecto.numero) : ''}${hojas.length > 1 ? ' · hoja ' + esc(codigoHoja()) : ''}</span></span>`;
             if (!raizPlegada) {
                 h += '<div class="hijos">' + (comps.length ? lineas.filter(l => l.tipo === 'principal').map(pintarLinea).join('') : '');
                 const sueltos = elementosRed.filter(e => (!e.linea || !lineaPorId(e.linea)) && !esAnotacion(e));
@@ -5892,6 +6072,7 @@
             if (nuevo) {
                 guardarEstado();
                 elementosRed = []; lineas = []; condicionesContorno = {}; idSeleccionado = null; seleccion.clear();
+                hojas = [{ id: '00' }]; hojaActual = 0; sincronizarHoja(); pintarHojas();
                 currentFileHandle = null; nombreArchivoActual = ''; ultimoResultado = null; ultimoCalculo = null;
                 proyecto = copia; cerrarModal();
             } else Object.assign(proyecto, copia);
@@ -7594,6 +7775,15 @@
         // ==================================================================================
         let portapapeles = null; // lista de elementos copiados
         let contadorPegado = 0;
+        // R: gira la selección 45° en sentido horario; Mayús+R, 45° en sentido antihorario
+        function girar45(inc) {
+            const ids = idsSeleccion().filter(id => !esTablaHoja(elementosRed.find(e => e.id === id)));
+            if (!ids.length) return;
+            if (ids.length > 1) { girarSeleccion(inc); renderizarVectorial(); return; }
+            const el = elementosRed.find(e => e.id === ids[0]); if (!el) return;
+            guardarEstado(); if (!esAnotacion(el)) invalidarResultados();
+            girarElemento(el, inc); renderizarVectorial(); seleccionarElemento(el.id);
+        }
         const idsSeleccion = () => seleccion.size ? [...seleccion] : (idSeleccionado ? [idSeleccionado] : []);
         const haySeleccion = () => idsSeleccion().length > 0;
 
@@ -8049,6 +8239,8 @@
                 else if (document.getElementById('modal-masivo').style.display === 'flex') accion = cerrarTablaPropiedades;
                 else if (panelAvisosAbierto && !enCampo && !seleccion.size) accion = () => alternarPanelAvisos(false);
                 else if (!enCampo && seleccion.size && !modoZoomVentana) accion = limpiarSeleccion;
+            } else if (!enCampo && !ctrl && !e.altKey && k === 'r' && haySeleccion() && !menuAbierto && !(typeof traza !== 'undefined' && traza) && !document.querySelector('[id^="modal-"][style*="flex"]')) {
+                accion = () => girar45(e.shiftKey ? -45 : 45);
             } else if (ctrl && !e.altKey && !e.shiftKey && k === 'k') {
                 accion = abrirPaleta;
             } else if (!enCampo && !ctrl && !e.altKey && !e.shiftKey && k === 'l' && !traza && !menuAbierto && !document.querySelector('[id^="modal-"][style*="flex"]') && document.getElementById('paleta').style.display !== 'flex') {
