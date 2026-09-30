@@ -146,7 +146,7 @@
 
     <!-- LIBRERÍA DE COMPONENTES (Librerías > ...) -->
     <div id="modal-libreria" style="display:none;" class="fixed inset-0 bg-black/40 z-[2150] justify-center items-center">
-        <div class="bg-white rounded-lg shadow-xl w-[900px] max-w-[96vw] max-h-[90vh] overflow-y-auto p-5 border border-slate-200 text-xs">
+        <div class="bg-white rounded-lg shadow-xl w-[1150px] max-w-[96vw] max-h-[92vh] overflow-y-auto p-5 border border-slate-200 text-xs">
             <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between"><span id="lib-titulo"></span><button onclick="cerrarLibreria()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button></h3>
             <div id="lib-cuerpo"></div>
             <div class="mt-3 flex justify-end"><button onclick="cerrarLibreria()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cerrar</button></div>
@@ -255,7 +255,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.9.1-hojas-capas</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.9.2-hojas-capas</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -778,6 +778,12 @@
         //   reduccion -> Crane fórmulas 1–4 con θ de B16.9
         //   sinflujo  -> sin caudal (instrumentos, PSV, alivio): no generan arista ni piden contorno
         // ==================================================================================
+        // denominaciones de material de tubería de versiones anteriores → lista actual
+        const GRADOS_ANTIGUOS = { 'SA-106 Gr. B': 'SA-106 Gr.B', 'SA-53 Gr. B (ERW)': 'SA-53 Gr.B', 'SA-53 Gr. B': 'SA-53 Gr.B', 'SA-333 Gr. 6 (baja temperatura)': 'SA-333 Gr.6', 'SA-333 Gr. 6': 'SA-333 Gr.6',
+            'P235GH (EN 10216-2)': 'P235GH', 'P265GH (EN 10216-2)': 'P265GH', 'P235TR2 (EN 10217-1)': 'P235TR2',
+            'SA-312 TP304': 'SA-312 Gr.Tp304', 'SA-312 TP304L': 'SA-312 Gr.Tp304L', 'SA-312 TP316': 'SA-312 Gr.Tp316', 'SA-312 TP316L': 'SA-312 Gr.Tp316L', 'SA-312 TP321': 'SA-312 Gr.Tp321', 'SA-358 TP316L (soldado)': 'SA-358',
+            '1.4301 X5CrNi18-10 (EN 10216-5)': 'X5CrNi18-10/1.4301', '1.4401 X5CrNiMo17-12-2 (EN 10216-5)': 'X5CrNiMo17-12-2/1.4401', '1.4404 X2CrNiMo17-12-2 (EN 10216-5)': 'X2CrNiMo17-12-2/1.4404', '1.4541 X6CrNiTi18-10 (EN 10216-5)': 'X6CrNiTi18-10/1.4541' };
+        const GRADO_NUEVO = g => GRADOS_ANTIGUOS[g] || g;
         const PA = { x: 10, y: 25, id: 'a' }, PB = { x: 40, y: 25, id: 'b' };
         // brida simple: el puerto a (cara de la brida) queda un poco a la izquierda del centro de la brida
         const PBR = { x: 25.5, y: 25, id: 'a' };
@@ -862,9 +868,9 @@
         };
         // Subtipos de versiones anteriores
         const MIGRA_SUBTIPO = { codo: 'codo90', union: 'bridaunion' };
-        const CATEGORIAS = [['tuberias', 'Tuberías'], ['accesorios', 'Accesorios'], ['uniones', 'Uniones y bridas'], ['valvulas', 'Válvulas'], ['instrumentos', 'Instrumentos'], ['bombas', 'Bombas'], ['equipos', 'Equipos'], ['terminales', 'Consumos'], ['anotaciones', 'Anotaciones']];
+        const CATEGORIAS = [['tuberias', 'Tuberías'], ['accesorios', 'Accesorios'], ['valvulas', 'Válvulas'], ['instrumentos', 'Instrumentos'], ['bombas', 'Bombas'], ['equipos', 'Equipos'], ['terminales', 'Consumos'], ['anotaciones', 'Anotaciones']];
         // Grupos que se muestran dentro de la categoría Accesorios de la librería
-        const SUBGRUPOS_ACCESORIOS = [['tanques', 'Tanques y depósitos'], ['intercambiadores', 'Intercambiadores (buques)']];
+        const SUBGRUPOS_ACCESORIOS = [['tanques', 'Tanques y depósitos'], ['intercambiadores', 'Intercambiadores (buques)'], ['uniones', 'Uniones y bridas']];
 
         // Tablas de Crane adicionales (se añaden al catálogo). Un valor numérico es el múltiplo n de
         // fT; un objeto {K} es un K fijo (no depende del DN).
@@ -1734,6 +1740,7 @@
 
         // Rellena valores por defecto que puedan faltar (elementos creados con versiones anteriores)
         function normalizarElemento(el) {
+            if (el.gradoMaterial) el.gradoMaterial = GRADO_NUEVO(el.gradoMaterial);
             el.esLineaCritica = false; // se recalcula en el próximo "Calcular Red"
             el.estado = null;
             if ((el.type === 'valvula' || el.type === 'accesorio' || el.type === 'equipo') && !PN_LISTA.includes(el.pn)) el.pn = 'PN 16';
@@ -2054,7 +2061,7 @@
         const TXT_MM = 3, TIT_MM = 4;
         const recortarA = (t, fs, w, neg) => { t = String(t || ''); ctxMedida.font = `${neg ? 'bold ' : ''}${fs}px sans-serif`; if (ctxMedida.measureText(t).width <= w) return t; while (t.length > 1 && ctxMedida.measureText(t + '…').width > w) t = t.slice(0, -1); return t + '…'; };
         // columnas en mm para un cajetín de 180 mm; se escalan al ancho real del cajetín (190 mm en A4)
-        const COLS_LISTADO_180 = [['ITEM', 11], ['CANTIDAD', 19], ['DESCRIPCIÓN', 66], ['MATERIAL', 40], ['TAMAÑO', 21], ['PN / CLASE', 23]];
+        const COLS_LISTADO_180 = [['ITEM', 11], ['CANTIDAD', 19], ['DESCRIPCIÓN', 66], ['TAMAÑO', 21], ['PN / CLASE', 23], ['MATERIAL', 40]];
         let COLS_LISTADO = COLS_LISTADO_180;
         function geomListado() {
             const k = anchoCajetinMm() / 180; COLS_LISTADO = COLS_LISTADO_180.map(([n, w]) => [n, w * k]);
@@ -2073,8 +2080,8 @@
             COLS_LISTADO.forEach(([n], k) => { const [x0, w] = xs[k]; h += tx(x0 + w / 2, yC, n, 'font-weight="bold" text-anchor="middle"') + (k ? `<line x1="${x0.toFixed(2)}" y1="${g.hT.toFixed(2)}" x2="${x0.toFixed(2)}" y2="${g.H.toFixed(2)}" stroke="${c}" stroke-width="0.45"/>` : ''); });
             g.filas.forEach((f, i) => {
                 const y0 = g.hT + g.hC + i * g.hF, y = y0 + g.hF / 2 + fs * 0.36;
-                const vals = [String(i + 1), f.ud === 'm' ? fmt(f.n, 1) + ' M' : String(f.n), f.desc, f.mat, f.tam, f.pn].map(v => String(v || '').toUpperCase());
-                vals.forEach((v, k) => { const [x0, w] = xs[k]; const cen = k !== 2 && k !== 3; h += tx(cen ? x0 + w / 2 : x0 + MM(1.5), y, recortarA(v, fs, w - MM(3)), cen ? 'text-anchor="middle"' : ''); });
+                const vals = [String(i + 1), f.ud === 'm' ? fmt(f.n, 1) + ' M' : String(f.n), f.desc, f.tam, f.pn, f.mat].map(v => String(v || '').toUpperCase());
+                vals.forEach((v, k) => { const [x0, w] = xs[k]; const cen = k !== 2 && k !== 5; h += tx(cen ? x0 + w / 2 : x0 + MM(1.5), y, recortarA(v, fs, w - MM(3)), cen ? 'text-anchor="middle"' : ''); });
                 if (i) h += Lh(y0, 0.3);
             });
             if (!g.filas.length) h += tx(MM(1.5), g.hT + g.hC + g.hF / 2 + fs * 0.36, 'SIN COMPONENTES', 'font-style="italic"');
@@ -2640,6 +2647,14 @@
             if (r.right > window.innerWidth - 4) contextMenu.style.left = Math.max(4, window.innerWidth - r.width - 4) + 'px';
             if (r.bottom > window.innerHeight - 4) contextMenu.style.top = Math.max(4, window.innerHeight - r.height - 4) + 'px';
         }
+        // Capa del DXF de un elemento: la elegida por el usuario (botón derecho > Capa) o la de su tipo
+        const capaPorTipo = el => el.subtype === 'materiales' ? 'Marca' : el.subtype === 'tabla' ? 'Text' : 'Object';
+        const capaDe = el => (el.capa && capasActuales().some(c => c.nombre === el.capa)) ? el.capa : capaPorTipo(el);
+        function itemCapa(el, enGrupo) {
+            const objetivo = () => enGrupo ? elementosRed.filter(e => seleccion.has(e.id)) : [el];
+            return { icono: 'fa-layer-group', texto: `Capa (${capaDe(el)})`, sub: () => capasActuales().map(c => ({ icono: capaDe(el) === c.nombre ? 'fa-check' : 'fa-square', texto: c.nombre + (c.nombre === capaPorTipo(el) ? ' (por defecto)' : '') + (c.uso ? ' · ' + c.uso : ''),
+                accion: () => { guardarEstado(); objetivo().forEach(e => { if (c.nombre === capaPorTipo(e)) delete e.capa; else e.capa = c.nombre; }); renderizarVectorial(); aviso(`${enGrupo ? objetivo().length + ' elementos' : tagDe(el)} en la capa ${c.nombre}.`, 'ok'); } })) };
+        }
         function itemsMenuElemento(el) {
             const enGrupo = seleccion.size > 1 && seleccion.has(el.id);
             const giro = inc => () => {
@@ -2651,6 +2666,7 @@
                 return [
                     { icono: 'fa-pen-to-square', texto: 'Editar...', accion: () => abrirVentanaElemento(el.id) },
                     { icono: 'fa-arrows-up-down-left-right', texto: 'Mover / Desconectar', accion: () => { el._suelto = true; aviso(`Tabla liberada: arrástrala. Cerca de su punto de enganche (${q.dest}) se imanta.`); } },
+                    itemCapa(el, false),
                     ...(eng ? [] : [{ icono: 'fa-magnet', texto: `Enganchar al ${q.dest}`, accion: () => { guardarEstado(); el.offHoja = { dx: 0, dy: 0 }; renderizarVectorial(); marcarCambios(true); } }]),
                     'sep',
                     { icono: 'fa-trash-can', texto: 'Eliminar', accion: () => eliminarElemento(el.id) }
@@ -2670,6 +2686,7 @@
                     { icono: 'fa-note-sticky', texto: 'Nota de texto anclada al componente', accion: () => insertarNotaAnclada(el) }]),
                 { icono: 'fa-expand', texto: 'Escalar...', accion: () => { const v = prompt('Factor de escala:', el.scale || 1.0); if (v && +v > 0) { guardarEstado(); el.scale = +v; renderizarVectorial(); seleccionarElemento(el.id); } } },
                 { icono: 'fa-arrows-up-down-left-right', texto: 'Mover / Desconectar', accion: () => { el._suelto = true; aviso('Componente liberado del imantado: arrástralo a su nueva posición.'); } },
+                itemCapa(el, enGrupo),
                 'sep',
                 { icono: 'fa-trash-can', texto: 'Eliminar', accion: () => { if (enGrupo) eliminarSeleccion(); else eliminarElemento(el.id); } }
             ];
@@ -3270,7 +3287,7 @@
 
         function datosProyecto() {
             return {
-                version: "7.9.1-hojas-capas",
+                version: "7.9.2-hojas-capas",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -3297,7 +3314,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.9.1-hojas-capas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.9.2-hojas-capas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -3385,7 +3402,7 @@
             svgCanvas.querySelectorAll('g[data-id]').forEach(g => {
                 const el = elementosRed.find(e => e.id === g.getAttribute('data-id'));
                 if (!el) return;
-                recorrer(g, el.subtype === 'materiales' ? 'Marca' : el.subtype === 'tabla' ? 'Text' : 'Object');
+                recorrer(g, capaDe(el));
             });
             ['#lideres-notas', '#capa-etiquetas'].forEach(sel => { const g = svgCanvas.querySelector(sel); if (g) recorrer(g, 'Object'); });
             let cab = tablaCapasDXF(PLANTILLA_DXF.cabecera, () => (h++).toString(16).toUpperCase())
@@ -3499,7 +3516,8 @@
             } else if (k === 'nombre') {
                 const n = String(v).trim();
                 if (!n || /[<>\/":;?*|=,]/.test(n) || capasActuales().some((x, j) => j !== i && x.nombre.toLowerCase() === n.toLowerCase())) { aviso('Nombre de capa no válido o repetido.', 'error'); abrirLineasCapas(); return; }
-                c.nombre = n;
+                const antes = c.nombre; c.nombre = n;
+                elementosRed.concat(elementosOtrasHojas()).forEach(e => { if (e.capa === antes) e.capa = n; });
             } else if (k === 'grosor') c.grosor = +v;
             else if (k === 'transparencia') c.transparencia = Math.max(0, Math.min(90, +v || 0));
             else c[k] = v;
@@ -4756,7 +4774,7 @@
             if (el.type === 'tuberia') return ['tuberias', null];
             if (el.type === 'bomba') return ['bombas', null];
             const c = (TIPOS[el.subtype] || {}).cat;
-            if (c === 'tanques' || c === 'intercambiadores' || c === 'accesorios') return ['accesorios', c];
+            if (c === 'tanques' || c === 'intercambiadores' || c === 'accesorios' || c === 'uniones') return ['accesorios', c];
             return [c, null];
         }
         function expandirCategoriaDe(el) {
@@ -4776,8 +4794,9 @@
         // material se añaden al catálogo de materiales y aparecen en Tuberías del panel derecho.
         // ==================================================================================
         const MATERIALES = {
-            tuboAC: { ASME: ['SA-106 Gr. B', 'SA-106 Gr. C', 'SA-53 Gr. B (ERW)', 'SA-333 Gr. 6 (baja temperatura)', 'API 5L Gr. B'], EN: ['P235GH (EN 10216-2)', 'P265GH (EN 10216-2)', 'P235TR1 (EN 10216-1)', 'P235TR2 (EN 10217-1)', 'L245 (EN ISO 3183)', 'S235JRH (EN 10219)', 'P355N (EN 10216-3)'] },
-            tuboInox: { ASME: ['SA-312 TP304', 'SA-312 TP304L', 'SA-312 TP316', 'SA-312 TP316L', 'SA-312 TP321', 'SA-358 TP316L (soldado)'], EN: ['1.4301 X5CrNi18-10 (EN 10216-5)', '1.4307 X2CrNi18-9 (EN 10216-5)', '1.4401 X5CrNiMo17-12-2 (EN 10216-5)', '1.4404 X2CrNiMo17-12-2 (EN 10216-5)', '1.4541 X6CrNiTi18-10 (EN 10216-5)', '1.4404 soldado (EN 10217-7)'] },
+            // tuberías de acero al carbono e inoxidable (lista de José; equivalencias en Ayuda > Equivalencias)
+            tuboAC: { ASME: ['SA-53 Gr.B', 'SA-106 Gr.B', 'SA-333 Gr.6', 'SA-671', 'SA-672'], EN: ['P235TR2', 'P265TR2', 'P235GH', 'P265GH', 'P355GH', 'P275NL1', 'P275NL2', 'P355NL1', 'P355NL2'] },
+            tuboInox: { ASME: ['SA-312 Gr.Tp304', 'SA-312 Gr.Tp304L', 'SA-312 Gr.Tp316', 'SA-312 Gr.Tp316L', 'SA-312 Gr.Tp321', 'SA-312 Gr.Tp321H', 'SA-312 Gr.Tp347', 'SA-312 Gr.Tp347H', 'SA-358'], EN: ['X5CrNi18-10/1.4301', 'X2CrNi19-11/1.4306', 'X5CrNiMo17-12-2/1.4401', 'X2CrNiMo17-12-2/1.4404', 'X6CrNiTi18-10/1.4541', 'X6CrNiNb18-10/1.4550'] },
             plastico: { ASME: [], EN: ['PE100 (EN 12201-2)', 'PE80 (EN 12201-2)', 'PVC-U (EN ISO 1452-2)', 'PVC-C (EN ISO 15877)', 'PP-R (EN ISO 15874)', 'PP-H (EN ISO 15494)', 'PVDF (EN ISO 10931)'] },
             brida: { ASME: ['SA-105', 'SA-350 LF2 Cl. 1', 'SA-181 Cl. 70', 'SA-182 F304', 'SA-182 F304L', 'SA-182 F316', 'SA-182 F316L'], EN: ['P245GH (EN 10222-2)', 'P250GH (EN 10222-2)', 'P280GH (EN 10222-2)', 'S235JR (EN 10025-2)', 'P355NH (EN 10222-4)', '1.4307 (EN 10222-5)', '1.4404 (EN 10222-5)', 'PP / PVC (bridas plásticas)'] },
             accesorio: { ASME: ['SA-234 WPB', 'SA-234 WPC', 'SA-420 WPL6', 'SA-403 WP304L', 'SA-403 WP316L', 'SA-105 (forjado, B16.11)', 'SA-182 F316L (forjado, B16.11)'], EN: ['P235GH (EN 10253-2)', 'P265GH (EN 10253-2)', 'P235TR2 (EN 10253-1)', '1.4307 (EN 10253-4)', '1.4404 (EN 10253-4)', 'EN-GJS-400-15 (EN 1563)'] },
@@ -4788,7 +4807,13 @@
             instrumento: { ASME: ['SA-182 F316L / 316L', 'Latón'], EN: ['1.4404 (AISI 316L)', 'CW617N latón (EN 12165)', 'Plástico técnico (PA / PP)'] }
         };
         // Tensión admisible orientativa por grado (MPa, hasta ~38 °C): ASME B31.3 tabla A-1; EN 13480-3 f = min(ReH/1,5; Rm/2,4)
-        const S_GRADO = { 'SA-106 Gr. B': 137.9, 'SA-106 Gr. C': 160.6, 'SA-53 Gr. B (ERW)': 117.2, 'SA-333 Gr. 6 (baja temperatura)': 137.9, 'API 5L Gr. B': 137.9,
+        const S_GRADO = {
+            // lista 7.9.2 (ASME B31.3 tabla A-1 a temperatura ambiente; EN 13480-3: f = min(ReH/1,5; Rm/2,4) con ReH/Rm mínimos de la norma)
+            'SA-53 Gr.B': 137.9, 'SA-106 Gr.B': 137.9, 'SA-333 Gr.6': 137.9, 'P235TR2': 150, 'P265TR2': 170.8, 'P235GH': 150, 'P265GH': 170.8, 'P355GH': 212.5, 'P275NL1': 162.5, 'P275NL2': 162.5, 'P355NL1': 204.2, 'P355NL2': 204.2,
+            'SA-312 Gr.Tp304': 137.9, 'SA-312 Gr.Tp304L': 115.1, 'SA-312 Gr.Tp316': 137.9, 'SA-312 Gr.Tp316L': 115.1, 'SA-312 Gr.Tp321': 137.9, 'SA-312 Gr.Tp321H': 137.9, 'SA-312 Gr.Tp347': 137.9, 'SA-312 Gr.Tp347H': 137.9,
+            'X5CrNi18-10/1.4301': 166.7, 'X2CrNi19-11/1.4306': 150, 'X5CrNiMo17-12-2/1.4401': 170, 'X2CrNiMo17-12-2/1.4404': 173.3, 'X6CrNiTi18-10/1.4541': 166.7, 'X6CrNiNb18-10/1.4550': 170,
+            // denominaciones de versiones anteriores (proyectos ya guardados)
+            'SA-106 Gr. B': 137.9, 'SA-106 Gr. C': 160.6, 'SA-53 Gr. B (ERW)': 117.2, 'SA-333 Gr. 6 (baja temperatura)': 137.9, 'API 5L Gr. B': 137.9,
             'P235GH (EN 10216-2)': 150, 'P265GH (EN 10216-2)': 170.8, 'P235TR1 (EN 10216-1)': 150, 'P235TR2 (EN 10217-1)': 150, 'L245 (EN ISO 3183)': 163.3, 'S235JRH (EN 10219)': 150, 'P355N (EN 10216-3)': 204,
             'SA-312 TP304': 137.9, 'SA-312 TP304L': 115.1, 'SA-312 TP316': 137.9, 'SA-312 TP316L': 115.1, 'SA-312 TP321': 137.9, 'SA-358 TP316L (soldado)': 97.8,
             '1.4301 X5CrNi18-10 (EN 10216-5)': 166.7, '1.4307 X2CrNi18-9 (EN 10216-5)': 150, '1.4401 X5CrNiMo17-12-2 (EN 10216-5)': 170, '1.4404 X2CrNiMo17-12-2 (EN 10216-5)': 173.3, '1.4541 X6CrNiTi18-10 (EN 10216-5)': 166.7, '1.4404 soldado (EN 10217-7)': 147.3 };
@@ -4855,7 +4880,7 @@
             if (TIPOS[subtipo] && TIPOS[subtipo].type === 'valvula') base = VALVULAS_BASE.filter(v => v.tipo === subtipo).map(v => ({ id: 'cat:' + v.nombre, subtipo, origen: 'catálogo', nombre: v.nombre, fabricante: v.nombre.split(' · ')[0], url: '', notas: [v.fuente, v.nota].filter(Boolean).join(' · '), props: { cv: cvTexto(v.cv) } }));
             if (GRUPOS_LIB.tuberias.subtipos.includes(subtipo) || (CAT.materiales[subtipo] && MATERIALES_BASE.has(subtipo))) {
                 const m = CAT.materiales[subtipo], sa = S_ADM[subtipo] || {};
-                base = [{ id: 'mat:' + subtipo, subtipo, origen: 'catálogo', nombre: subtipo, material: sa.mat ? sa.mat.replace(/^ASTM A/, 'SA-').replace('Gr. B', 'Gr. B') : '', norma: m ? m.norma : '', props: { base: subtipo, codigo: CODIGO_MATERIAL[subtipo] || '', rug: m ? m.rug : '', sAdm: sa.S || '', c: sa.c != null ? sa.c : '', Tmax: sa.Tmax || '' } }];
+                base = [{ id: 'mat:' + subtipo, subtipo, origen: 'catálogo', nombre: subtipo, material: sa.mat ? GRADO_NUEVO(sa.mat.replace(/^ASTM A/, 'SA-').replace(/Gr\. /g, 'Gr.')) : '', norma: m ? m.norma : '', props: { base: subtipo, codigo: CODIGO_MATERIAL[subtipo] || '', rug: m ? m.rug : '', sAdm: sa.S || '', c: sa.c != null ? sa.c : '', Tmax: sa.Tmax || '' } }];
                 // tuberías del usuario creadas sobre esta tabla de tamaños
                 LIB.items.filter(i => i.grupo === 'tuberias' && i.props && i.props.base === subtipo && i.subtipo !== subtipo).forEach(i => base.push(i));
             }
@@ -4987,7 +5012,7 @@
             let izq = subs.length > 1 ? `<select onchange="libVista.subtipo = this.value; libVista.id = null; libVista.borrador = null; pintarLibreria()" class="w-full border rounded p-1.5 mb-2">${subs.map(s => `<option value="${esc(s)}" ${s === V.subtipo ? 'selected' : ''}>${esc(nombreSubtipo(s))}</option>`).join('')}</select>` : `<p class="font-bold text-slate-600 mb-2">${esc(nombreSubtipo(V.subtipo))}</p>`;
             izq += `<div class="border rounded divide-y overflow-y-auto" style="max-height:52vh">${lista.map(i => `<button type="button" onclick="seleccionarItemLib('${esc(i.id)}')" class="block w-full text-left px-2 py-1 hover:bg-blue-50 ${i.id === V.id ? 'bg-amber-50' : ''}"><b>${esc(i.nombre)}</b><br><span class="text-[10px] text-slate-400">${esc([i.fabricante, i.material, i.pn].filter(Boolean).join(' · ') || (i.origen === 'catálogo' ? 'catálogo del programa' : 'usuario'))}</span></button>`).join('') || '<p class="p-2 text-slate-400 italic">Sin elementos: pulsa «Nuevo».</p>'}</div>`;
             izq += `<div class="flex flex-wrap gap-1 mt-2"><button onclick="nuevoItemLib()" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded"><i class="fa-solid fa-plus mr-1"></i>Nuevo</button><button onclick="if (libVista.borrador) nuevoItemLib(leerFormLib())" class="px-2 py-1 border rounded hover:bg-slate-50" ${b ? '' : 'disabled'}><i class="fa-solid fa-copy mr-1"></i>Copiar</button><button onclick="eliminarItemLib()" class="px-2 py-1 border rounded hover:bg-rose-50 text-rose-600" ${b ? '' : 'disabled'}><i class="fa-solid fa-trash-can mr-1"></i>Eliminar</button>${LIB.ocultos.length ? `<button onclick="restaurarOcultosLib()" class="px-2 py-1 border rounded hover:bg-slate-50 text-[10px]">Recuperar eliminados (${LIB.ocultos.length})</button>` : ''}</div>`;
-            let der = '<p class="text-slate-400 italic mt-6">Selecciona un elemento de la lista, o pulsa «Nuevo» (o «Copiar» para partir de uno existente).</p>';
+            let der = '<p class="text-slate-400 italic mt-1 mb-2">Selecciona un elemento de la lista o de la tabla, o pulsa «Nuevo» (o «Copiar» para partir de uno existente).</p>';
             if (b) {
                 const f = (k, et, v, extra = '') => `<label class="block"><span class="text-slate-500">${et}</span><input data-lib="${k}" value="${esc(v == null ? '' : v)}" class="w-full border rounded p-1 mt-0.5" ${extra}></label>`;
                 const sel = (k, et, ops, v) => `<label class="block"><span class="text-slate-500">${et}</span><select data-lib="${k}" class="w-full border rounded p-1 mt-0.5">${ops.map(o => { const [a, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(a)}" ${String(a) === String(v || '') ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>`;
@@ -5014,7 +5039,15 @@
                     <div class="col-span-2 flex justify-end"><button onclick="guardarItemLib()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium"><i class="fa-solid fa-floppy-disk mr-1"></i>Guardar</button></div>
                 </div>`;
             }
-            document.getElementById('lib-cuerpo').innerHTML = `<div class="grid gap-4" style="grid-template-columns: 250px 1fr"><div>${izq}</div><div>${der}</div></div>`;
+            // elementos existentes de este tipo, en la misma ventana (con cuántos hay en el proyecto)
+            const todos = elementosRed.concat(elementosOtrasHojas());
+            const usos = i => todos.filter(e => e.libItem === i.id || (V.grupo === 'tuberias' && e.type === 'tuberia' && e.material === i.nombre)).length;
+            const tabla = `<div class="mt-3"><p class="font-bold text-slate-600 mb-1">Elementos existentes · ${esc(nombreSubtipo(V.subtipo))} (${lista.length})</p>
+                <div class="border rounded overflow-auto" style="max-height:${b ? 26 : 56}vh"><table class="w-full text-[11px]"><thead class="bg-slate-100 sticky top-0"><tr class="text-left text-slate-500">
+                <th class="px-1 py-1">Nombre / modelo</th><th class="px-1">Origen</th><th class="px-1">Fabricante</th><th class="px-1">Referencia</th><th class="px-1">Material</th><th class="px-1">Norma</th>${V.grupo === 'tuberias' ? '' : '<th class="px-1">PN / clase</th>'}<th class="px-1 text-center">En el proyecto</th><th class="px-1">URL</th></tr></thead><tbody>
+                ${lista.map(i => { const n = usos(i); return `<tr onclick="seleccionarItemLib('${esc(i.id)}')" class="border-t border-slate-100 cursor-pointer ${i.id === V.id ? 'bg-amber-50' : 'hover:bg-blue-50'}"><td class="px-1 py-0.5 font-bold">${esc(i.nombre)}</td><td class="px-1 text-slate-500">${esc(i.origen === 'catálogo' ? 'catálogo' : 'usuario')}</td><td class="px-1">${esc(i.fabricante || '')}</td><td class="px-1">${esc(i.referencia || '')}</td><td class="px-1">${esc(i.material || '')}</td><td class="px-1">${esc(i.norma || '')}</td>${V.grupo === 'tuberias' ? '' : `<td class="px-1">${esc(i.pn || '')}</td>`}<td class="px-1 text-center ${n ? 'font-bold text-emerald-700' : 'text-slate-300'}">${n}</td><td class="px-1">${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-blue-600"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="9" class="p-2 text-slate-400 italic">Sin elementos de este tipo.</td></tr>'}
+                </tbody></table></div></div>`;
+            document.getElementById('lib-cuerpo').innerHTML = `<div class="grid gap-4" style="grid-template-columns: 250px 1fr"><div>${izq}</div><div>${der}${tabla}</div></div>`;
         }
         function exportarLibreria() { descargarArchivo(JSON.stringify({ tipo: 'piping-libreria', version: 1, fecha: new Date().toISOString(), ...LIB }, null, 2), `libreria_PIPING_${new Date().toISOString().slice(0, 10)}.json`, 'application/json'); }
         async function importarLibreria() {
@@ -5027,6 +5060,34 @@
             } catch (e) { alert('No se ha podido importar: ' + e.message); }
         }
         // submenús de Librerías
+        // ---------- Ayuda > Equivalencias: materiales ASME ↔ norma europea (tabla facilitada por José) ----------
+        const EQUIVALENCIAS = [
+            ['Material para tuberías de acero al carbono', [
+                ['SA-53 Gr.B', [['EN 10216-1', ['P235TR2', 'P265TR2']], ['EN 10217-1', ['P235GH']]]],
+                ['SA-106 Gr.B', [['EN 10216-2', ['P235GH', 'P265GH', 'P355GH']]]],
+                ['SA-333 Gr.6', [['EN 10216-4', ['P275NL1', 'P355NL']]]],
+                ['SA-671', [['EN 10217-6', ['P275NL1', 'P275NL2', 'P355NL1', 'P355NL2']]]],
+                ['SA-672', [['EN 10217-5', ['P235GH', 'P265GH', 'P295GH', 'P355GH']]]]]],
+            ['Material para tuberías de acero inoxidable', [
+                ['SA-312 Gr.Tp304', [['EN 10216-5', ['X5CrNi18-10/1.4301']]]],
+                ['SA-312 Gr.Tp304L', [['EN 10216-5', ['X2CrNi19-11/1.4306']]]],
+                ['SA-312 Gr.Tp316', [['EN 10216-5', ['X5CrNiMo17-12-2/1.4401']]]],
+                ['SA-312 Gr.Tp316L', [['EN 10216-5', ['X2CrNiMo17-12-2/1.4404']]]],
+                ['SA-312 Gr.Tp321', [['EN 10216-5', ['X6CrNiTi18-10/1.4541']]]],
+                ['SA-312 Gr.Tp321H', [['EN 10216-5', ['X6CrNiTi18-10/1.4541']]]],
+                ['SA-312 Gr.Tp347', [['EN 10216-5', ['X6CrNiNb18-10/1.4550']]]],
+                ['SA-312 Gr.Tp347H', [['EN 10216-5', ['X6CrNiNb18-10/1.4550']]]],
+                ['SA-358', [['EN 10217-7', ['X5CrNi18-10', 'X2CrNiMo17-12-2']]]]]]
+        ];
+        function mostrarEquivalencias() {
+            cerrarMenus();
+            const filas = g => g.map(([asme, ens]) => ens.map(([norma, grados], k) => `<tr class="border-t border-slate-100 align-top">${k === 0 ? `<td rowspan="${ens.length}" class="py-1 pr-3 font-bold text-slate-700 whitespace-nowrap">${esc(asme)}</td>` : ''}<td class="py-1 pr-3 whitespace-nowrap text-blue-700">${esc(norma)}</td><td class="py-1">${grados.map(esc).join('<br>')}</td></tr>`).join('')).join('');
+            document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">Equivalencias orientativas entre materiales ASME y norma europea. Comprueba siempre la especificación del proyecto y los requisitos de cada norma (composición, ensayos, temperatura de diseño).</p>` +
+                EQUIVALENCIAS.map(([tit, g]) => `<h4 class="font-bold text-slate-600 uppercase text-[11px] mt-3 mb-1">${esc(tit)}</h4><table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500"><th class="py-1">ASME</th><th>Norma europea</th><th>Designación</th></tr></thead><tbody>${filas(g)}</tbody></table>`).join('');
+            document.getElementById('red-footer').innerHTML = '<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>';
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-right-left text-blue-600 mr-1.5"></i> Equivalencias ASME / norma europea';
+            document.getElementById('modal-red').style.display = 'flex';
+        }
         function menuLibreria() {
             const it = (g, st, t) => ({ icono: 'fa-circle', texto: t || nombreSubtipo(st), accion: () => abrirLibreria(g, st) });
             const porGrupo = g => subtiposGrupo(g).map(st => it(g, st));
@@ -5034,12 +5095,12 @@
                 { icono: 'fa-shapes', texto: 'Accesorios', sub: () => [
                     { icono: 'fa-grip-lines', texto: 'Accesorios de tubería...', accion: () => abrirLibreria('accesorios') },
                     { icono: 'fa-fire-flame-simple', texto: 'Intercambiadores...', accion: () => abrirLibreria('intercambiadores') },
-                    { icono: 'fa-database', texto: 'Tanques y depósitos...', accion: () => abrirLibreria('tanques') }] },
+                    { icono: 'fa-database', texto: 'Tanques y depósitos...', accion: () => abrirLibreria('tanques') },
+                    { icono: 'fa-ring', texto: 'Uniones y bridas', sub: () => porGrupo('uniones') }] },
                 { icono: 'fa-fan', texto: 'Bombas...', accion: () => abrirLibreria('bombas', 'bomba') },
                 { icono: 'fa-industry', texto: 'Equipos', sub: () => porGrupo('equipos') },
                 { icono: 'fa-gauge', texto: 'Instrumentos', sub: () => porGrupo('instrumentos') },
                 { icono: 'fa-grip-lines', texto: 'Tuberías', sub: () => subtiposGrupo('tuberias').map(m => it('tuberias', m, m)) },
-                { icono: 'fa-ring', texto: 'Uniones y bridas', sub: () => porGrupo('uniones') },
                 { icono: 'fa-circle-half-stroke', texto: 'Válvulas', sub: () => porGrupo('valvulas') },
                 'sep',
                 { icono: 'fa-shapes', texto: 'Mostrar accesorios en el panel', atajo: 'Alt+A', accion: () => mostrarLibreriaAccesorios() },
@@ -8155,6 +8216,7 @@
                 { icono: 'fa-vector-square', texto: 'Ventana', atajo: 'W', accion: () => activarZoomVentana() }
             ]},
             { titulo: 'Ayuda', items: [
+                { icono: 'fa-right-left', texto: 'Equivalencias ASME / norma europea...', accion: () => mostrarEquivalencias() },
                 { icono: 'fa-circle-info', texto: 'Créditos...', accion: () => mostrarCreditos() }
             ]}
         ];
