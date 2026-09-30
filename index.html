@@ -255,7 +255,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.9.2-hojas-capas</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.9.3-hojas-capas</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -891,15 +891,17 @@
         // EN 1092-1: PN a ≤ 50 °C, reducción lineal hasta 0,9·PN a 100 °C y 0,8·PN a 150 °C.
         // ASME B16.5: grupo 1.1 (acero al carbono A105/WCB) y 2.2 (inox 316), a 38/50/100/150/200 °C.
         const TIPOS_CONEXION = ['Brida', 'Roscada', 'Soldada a tope', 'Soldada con manguito (socket)', 'Manguito / racor'];
-        const PN_LISTA = ['PN 6', 'PN 10', 'PN 16', 'PN 25', 'PN 40', 'PN 63', 'PN 100', 'Clase 150', 'Clase 300', 'Clase 600', 'Clase 900'];
+        const PN_LISTA = ['PN 6', 'PN 10', 'PN 16', 'PN 25', 'PN 40', 'PN 63', 'PN 100', '150#', '300#', '600#', '900#'];
+        // clases ASME: "150#" (antes "Clase 150")
+        const PN_NUEVO = pn => typeof pn === 'string' ? pn.replace(/^\s*Clase\s*(\d+)\s*$/i, '$1#') : pn;
         const B165 = { T: [38, 50, 100, 150, 200],
             '1.1': { 150: [19.6, 19.2, 17.7, 15.8, 13.8], 300: [51.1, 50.1, 46.6, 45.1, 43.8], 600: [102.1, 100.2, 93.2, 90.2, 87.6], 900: [153.2, 150.4, 139.8, 135.2, 131.4] },
             '2.2': { 150: [19.0, 18.4, 16.2, 14.8, 13.7], 300: [49.6, 48.1, 42.2, 38.5, 35.7], 600: [99.3, 96.2, 84.4, 77.0, 71.3], 900: [148.9, 144.3, 126.6, 115.5, 107.0] } };
         function presionAdmisiblePN(pn, T, inox) {
-            const m = String(pn || '').match(/^(PN|Clase)\s*(\d+)/);
-            if (!m) return null;
-            const v = +m[2];
-            if (m[1] === 'PN') return v * (T <= 50 ? 1 : T <= 100 ? 1 - 0.1 * (T - 50) / 50 : T <= 150 ? 0.9 - 0.1 * (T - 100) / 50 : 0.8);
+            const t = PN_NUEVO(String(pn || '')), mp = t.match(/^PN\s*(\d+)/), mc = t.match(/^(\d+)\s*#$/);
+            if (!mp && !mc) return null;
+            const v = +(mp || mc)[1];
+            if (mp) return v * (T <= 50 ? 1 : T <= 100 ? 1 - 0.1 * (T - 50) / 50 : T <= 150 ? 0.9 - 0.1 * (T - 100) / 50 : 0.8);
             const tab = B165[inox ? '2.2' : '1.1'][v]; if (!tab) return null;
             const Ts = B165.T; if (T <= Ts[0]) return tab[0];
             for (let i = 1; i < Ts.length; i++) if (T <= Ts[i]) return tab[i - 1] + (tab[i] - tab[i - 1]) * (T - Ts[i - 1]) / (Ts[i] - Ts[i - 1]);
@@ -1740,6 +1742,7 @@
 
         // Rellena valores por defecto que puedan faltar (elementos creados con versiones anteriores)
         function normalizarElemento(el) {
+            if (el.pn) el.pn = PN_NUEVO(el.pn);
             if (el.gradoMaterial) el.gradoMaterial = GRADO_NUEVO(el.gradoMaterial);
             el.esLineaCritica = false; // se recalcula en el próximo "Calcular Red"
             el.estado = null;
@@ -3287,7 +3290,7 @@
 
         function datosProyecto() {
             return {
-                version: "7.9.2-hojas-capas",
+                version: "7.9.3-hojas-capas",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -3314,7 +3317,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.9.2-hojas-capas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.9.3-hojas-capas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -4228,8 +4231,8 @@
                 }
                 if ((el.type === 'valvula' || el.type === 'accesorio' || el.type === 'equipo') && a) {
                     if (r.fallaPN) {
-                        const fam = /^PN/.test(el.pn) ? 'PN' : 'Clase';
-                        const sig = PN_LISTA.filter(x => x.startsWith(fam)).find(x => (presionAdmisiblePN(x, fluido.T, r.pnInox) || 0) >= r.pmaxComp);
+                        const esPN = /^PN/.test(el.pn);
+                        const sig = PN_LISTA.filter(x => esPN ? x.startsWith('PN') : x.endsWith('#')).find(x => (presionAdmisiblePN(x, fluido.T, r.pnInox) || 0) >= r.pmaxComp);
                         if (sig) altA(`Presión nominal: ${sig} (${presionAdmisiblePN(sig, fluido.T, r.pnInox).toFixed(1)} bar ≥ ${r.pmaxComp.toFixed(2)} bar)`, `Cambiar a ${sig}`, [['pn', sig]]);
                         else alt.push('Ninguna presión nominal de la serie alcanza la presión de servicio.');
                     }
@@ -4795,8 +4798,8 @@
         // ==================================================================================
         const MATERIALES = {
             // tuberías de acero al carbono e inoxidable (lista de José; equivalencias en Ayuda > Equivalencias)
-            tuboAC: { ASME: ['SA-53 Gr.B', 'SA-106 Gr.B', 'SA-333 Gr.6', 'SA-671', 'SA-672'], EN: ['P235TR2', 'P265TR2', 'P235GH', 'P265GH', 'P355GH', 'P275NL1', 'P275NL2', 'P355NL1', 'P355NL2'] },
-            tuboInox: { ASME: ['SA-312 Gr.Tp304', 'SA-312 Gr.Tp304L', 'SA-312 Gr.Tp316', 'SA-312 Gr.Tp316L', 'SA-312 Gr.Tp321', 'SA-312 Gr.Tp321H', 'SA-312 Gr.Tp347', 'SA-312 Gr.Tp347H', 'SA-358'], EN: ['X5CrNi18-10/1.4301', 'X2CrNi19-11/1.4306', 'X5CrNiMo17-12-2/1.4401', 'X2CrNiMo17-12-2/1.4404', 'X6CrNiTi18-10/1.4541', 'X6CrNiNb18-10/1.4550'] },
+            tuboAC: { ASME: ['SA-53 Gr.B', 'SA-106 Gr.B', 'SA-333 Gr.6', 'SA-671', 'SA-672'], EN: ['P235TR1', 'P235TR2', 'P265TR1', 'P265TR2', 'P235GH', 'P265GH', 'P295GH', 'P275NL1', 'P275NL2', 'P355NL1', 'P355NL2'] },
+            tuboInox: { ASME: ['SA-312 Gr.Tp304', 'SA-312 Gr.Tp304L', 'SA-312 Gr.Tp316', 'SA-312 Gr.Tp316L', 'SA-312 Gr.Tp321', 'SA-312 Gr.Tp321H', 'SA-312 Gr.Tp347', 'SA-312 Gr.Tp347H', 'SA-358'], EN: ['X5CrNi18-10/1.4301', 'X2CrNi19-11/1.4306', 'X5CrNiMo17-12-2/1.4401', 'X2CrNiMo17-12-2/1.4404', 'X6CrNiTi18-10/1.4541', 'X7CrNiTi18-10/1.4940', 'X6CrNiNb18-10/1.4550', 'X7CrNiNb18-10/1.4912'] },
             plastico: { ASME: [], EN: ['PE100 (EN 12201-2)', 'PE80 (EN 12201-2)', 'PVC-U (EN ISO 1452-2)', 'PVC-C (EN ISO 15877)', 'PP-R (EN ISO 15874)', 'PP-H (EN ISO 15494)', 'PVDF (EN ISO 10931)'] },
             brida: { ASME: ['SA-105', 'SA-350 LF2 Cl. 1', 'SA-181 Cl. 70', 'SA-182 F304', 'SA-182 F304L', 'SA-182 F316', 'SA-182 F316L'], EN: ['P245GH (EN 10222-2)', 'P250GH (EN 10222-2)', 'P280GH (EN 10222-2)', 'S235JR (EN 10025-2)', 'P355NH (EN 10222-4)', '1.4307 (EN 10222-5)', '1.4404 (EN 10222-5)', 'PP / PVC (bridas plásticas)'] },
             accesorio: { ASME: ['SA-234 WPB', 'SA-234 WPC', 'SA-420 WPL6', 'SA-403 WP304L', 'SA-403 WP316L', 'SA-105 (forjado, B16.11)', 'SA-182 F316L (forjado, B16.11)'], EN: ['P235GH (EN 10253-2)', 'P265GH (EN 10253-2)', 'P235TR2 (EN 10253-1)', '1.4307 (EN 10253-4)', '1.4404 (EN 10253-4)', 'EN-GJS-400-15 (EN 1563)'] },
@@ -4809,7 +4812,7 @@
         // Tensión admisible orientativa por grado (MPa, hasta ~38 °C): ASME B31.3 tabla A-1; EN 13480-3 f = min(ReH/1,5; Rm/2,4)
         const S_GRADO = {
             // lista 7.9.2 (ASME B31.3 tabla A-1 a temperatura ambiente; EN 13480-3: f = min(ReH/1,5; Rm/2,4) con ReH/Rm mínimos de la norma)
-            'SA-53 Gr.B': 137.9, 'SA-106 Gr.B': 137.9, 'SA-333 Gr.6': 137.9, 'P235TR2': 150, 'P265TR2': 170.8, 'P235GH': 150, 'P265GH': 170.8, 'P355GH': 212.5, 'P275NL1': 162.5, 'P275NL2': 162.5, 'P355NL1': 204.2, 'P355NL2': 204.2,
+            'SA-53 Gr.B': 137.9, 'SA-106 Gr.B': 137.9, 'SA-333 Gr.6': 137.9, 'P235TR1': 150, 'P235TR2': 150, 'P265TR1': 170.8, 'P265TR2': 170.8, 'P295GH': 191.7, 'X7CrNiTi18-10/1.4940': 166.7, 'X7CrNiNb18-10/1.4912': 170, 'P235GH': 150, 'P265GH': 170.8, 'P355GH': 212.5, 'P275NL1': 162.5, 'P275NL2': 162.5, 'P355NL1': 204.2, 'P355NL2': 204.2,
             'SA-312 Gr.Tp304': 137.9, 'SA-312 Gr.Tp304L': 115.1, 'SA-312 Gr.Tp316': 137.9, 'SA-312 Gr.Tp316L': 115.1, 'SA-312 Gr.Tp321': 137.9, 'SA-312 Gr.Tp321H': 137.9, 'SA-312 Gr.Tp347': 137.9, 'SA-312 Gr.Tp347H': 137.9,
             'X5CrNi18-10/1.4301': 166.7, 'X2CrNi19-11/1.4306': 150, 'X5CrNiMo17-12-2/1.4401': 170, 'X2CrNiMo17-12-2/1.4404': 173.3, 'X6CrNiTi18-10/1.4541': 166.7, 'X6CrNiNb18-10/1.4550': 170,
             // denominaciones de versiones anteriores (proyectos ya guardados)
@@ -4867,6 +4870,7 @@
         };
         let LIB = { items: [], ocultos: [] };
         try { const x = JSON.parse(localStorage.getItem('piping-libreria') || 'null'); if (x && Array.isArray(x.items)) LIB = { items: x.items, ocultos: x.ocultos || [] }; } catch (e) { }
+        LIB.items.forEach(i => { if (i.pn) i.pn = PN_NUEVO(i.pn); });
         const guardarLib = () => { try { localStorage.setItem('piping-libreria', JSON.stringify(LIB)); } catch (e) { aviso('No se ha podido guardar la librería en el navegador.', 'error'); } };
         const VALVULAS_BASE = CAT ? CAT.valvulas.slice() : [];
         const TUBERIAS_BASE = TUBERIAS_LIBRERIA.slice();
@@ -5063,26 +5067,26 @@
         // ---------- Ayuda > Equivalencias: materiales ASME ↔ norma europea (tabla facilitada por José) ----------
         const EQUIVALENCIAS = [
             ['Material para tuberías de acero al carbono', [
-                ['SA-53 Gr.B', [['EN 10216-1', ['P235TR2', 'P265TR2']], ['EN 10217-1', ['P235GH']]]],
-                ['SA-106 Gr.B', [['EN 10216-2', ['P235GH', 'P265GH', 'P355GH']]]],
-                ['SA-333 Gr.6', [['EN 10216-4', ['P275NL1', 'P355NL']]]],
+                ['SA-53 Gr.B', [['EN 10216-1', ['P235TR2', 'P265TR2']], ['EN 10217-1', ['P235TR1', 'P235TR2', 'P265TR1', 'P265TR2']], ['EN 10217-2', ['P235GH']]]],
+                ['SA-106 Gr.B', [['EN 10216-2', ['P235GH', 'P265GH']]]],
+                ['SA-333 Gr.6', [['EN 10216-4', ['P275NL1', 'P355NL1', 'P355NL2']]]],
                 ['SA-671', [['EN 10217-6', ['P275NL1', 'P275NL2', 'P355NL1', 'P355NL2']]]],
-                ['SA-672', [['EN 10217-5', ['P235GH', 'P265GH', 'P295GH', 'P355GH']]]]]],
+                ['SA-672', [['EN 10217-5', ['P235GH', 'P265GH', 'P295GH']]]]]],
             ['Material para tuberías de acero inoxidable', [
                 ['SA-312 Gr.Tp304', [['EN 10216-5', ['X5CrNi18-10/1.4301']]]],
                 ['SA-312 Gr.Tp304L', [['EN 10216-5', ['X2CrNi19-11/1.4306']]]],
                 ['SA-312 Gr.Tp316', [['EN 10216-5', ['X5CrNiMo17-12-2/1.4401']]]],
                 ['SA-312 Gr.Tp316L', [['EN 10216-5', ['X2CrNiMo17-12-2/1.4404']]]],
                 ['SA-312 Gr.Tp321', [['EN 10216-5', ['X6CrNiTi18-10/1.4541']]]],
-                ['SA-312 Gr.Tp321H', [['EN 10216-5', ['X6CrNiTi18-10/1.4541']]]],
+                ['SA-312 Gr.Tp321H', [['EN 10216-5', ['X7CrNiTi18-10/1.4940']]]],
                 ['SA-312 Gr.Tp347', [['EN 10216-5', ['X6CrNiNb18-10/1.4550']]]],
-                ['SA-312 Gr.Tp347H', [['EN 10216-5', ['X6CrNiNb18-10/1.4550']]]],
+                ['SA-312 Gr.Tp347H', [['EN 10216-5', ['X7CrNiNb18-10/1.4912']]]],
                 ['SA-358', [['EN 10217-7', ['X5CrNi18-10', 'X2CrNiMo17-12-2']]]]]]
         ];
         function mostrarEquivalencias() {
             cerrarMenus();
             const filas = g => g.map(([asme, ens]) => ens.map(([norma, grados], k) => `<tr class="border-t border-slate-100 align-top">${k === 0 ? `<td rowspan="${ens.length}" class="py-1 pr-3 font-bold text-slate-700 whitespace-nowrap">${esc(asme)}</td>` : ''}<td class="py-1 pr-3 whitespace-nowrap text-blue-700">${esc(norma)}</td><td class="py-1">${grados.map(esc).join('<br>')}</td></tr>`).join('')).join('');
-            document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">Equivalencias orientativas entre materiales ASME y norma europea. Comprueba siempre la especificación del proyecto y los requisitos de cada norma (composición, ensayos, temperatura de diseño).</p>` +
+            document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">Equivalencias orientativas entre materiales ASME y norma europea. Comprueba siempre la especificación del proyecto y los requisitos de cada norma (composición, ensayos, temperatura de diseño). P355GH no figura: es un acero de chapa (EN 10028-2), no de tubo.</p>` +
                 EQUIVALENCIAS.map(([tit, g]) => `<h4 class="font-bold text-slate-600 uppercase text-[11px] mt-3 mb-1">${esc(tit)}</h4><table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500"><th class="py-1">ASME</th><th>Norma europea</th><th>Designación</th></tr></thead><tbody>${filas(g)}</tbody></table>`).join('');
             document.getElementById('red-footer').innerHTML = '<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>';
             document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-right-left text-blue-600 mr-1.5"></i> Equivalencias ASME / norma europea';
