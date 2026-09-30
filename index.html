@@ -255,7 +255,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.8.1-tablas-bridas</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 7.8.2-tablas-bridas</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -3253,7 +3253,7 @@
 
         function datosProyecto() {
             return {
-                version: "7.8.1-tablas-bridas",
+                version: "7.8.2-tablas-bridas",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -3279,7 +3279,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.8.1-tablas-bridas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="7.8.2-tablas-bridas" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -7903,7 +7903,7 @@
                 { icono: 'fa-list', texto: 'Leyenda de componentes', accion: () => insertarAnotacion('leyenda') },
                 { icono: 'fa-table-list', texto: 'Listado de componentes', accion: () => insertarAnotacion('materiales') }
             ]},
-            { titulo: 'Cad', items: [
+            { titulo: 'CAD', items: [
                 { icono: 'fa-layer-group', texto: 'Capas...', accion: () => abrirLineasCapas() },
                 { icono: 'fa-table-cells', texto: 'Cajetín', sub: () => [
                     { icono: opciones.cajetin !== false ? 'fa-check' : 'fa-square', texto: 'Mostrar cajetín', accion: () => alternarRejilla('cajetin') },
@@ -8009,6 +8009,8 @@
             menuAbierto = null;
         }
 
+        // Menús por orden alfabético (Ayuda siempre al final)
+        MENUS.sort((a, b) => (a.titulo === 'Ayuda') - (b.titulo === 'Ayuda') || a.titulo.localeCompare(b.titulo, 'es', { sensitivity: 'base' }));
         MENUS.forEach(def => {
             const nodo = document.createElement('div');
             nodo.className = 'menu-top';
