@@ -1355,6 +1355,7 @@
 
         // Rellena valores por defecto que puedan faltar (elementos creados con versiones anteriores)
         function normalizarElemento(el) {
+            if (el.materialComp && typeof MATCOMP_ANTIGUOS === 'object' && MATCOMP_ANTIGUOS[el.materialComp]) el.materialComp = MATCOMP_ANTIGUOS[el.materialComp];
             if (el.pn) el.pn = PN_NUEVO(el.pn);
             if (el.subtype === 'continuacion' && typeof prepararContinuacion === 'function') prepararContinuacion(el);
             if (el.gradoMaterial) el.gradoMaterial = GRADO_NUEVO(el.gradoMaterial);
@@ -1842,8 +1843,10 @@
             for (let j = 0; j <= f.filas; j++) { const y = fr.y1 - j * dy; if (j > 0 && j < f.filas) h += L(b.x0, y, fr.x0, y, m(0.35)) + L(fr.x1, y, b.x1, y, m(0.35)); if (j < f.filas) { const t = LETRAS_ZONA[j] || '?', yc = y - dy / 2; h += T((b.x0 + fr.x0) / 2, yc, t) + T((b.x1 + fr.x1) / 2, yc, t); } }
             // marcas de centrado: de la línea exterior hasta 5 mm dentro del marco
             const cx = (fr.x0 + fr.x1) / 2, cy = (fr.y0 + fr.y1) / 2, e = m(5), w = m(0.5);
-            h += L(cx, b.y0, cx, fr.y0 + e, w) + L(cx, fr.y1 - e, cx, b.y1, w) + L(b.x0, cy, fr.x0 + e, cy, w) + L(fr.x1 - e, cy, b.x1, cy, w);
-            if (opciones.cajetin !== false) h += dibujoCajetin(col, fr);
+            // la marca inferior no entra en el marco si cae sobre el aviso de propiedad (junto al cajetín)
+            const av = opciones.cajetin !== false && typeof cajaAvisoPropiedad === 'function' ? cajaAvisoPropiedad() : null, tapa = av && cx > av.x0 - e && cx < av.x0 + av.w + e && av.y0 + av.h > fr.y1 - e - 1;
+            h += L(cx, b.y0, cx, fr.y0 + e, w) + L(cx, tapa ? fr.y1 : fr.y1 - e, cx, b.y1, w) + L(b.x0, cy, fr.x0 + e, cy, w) + L(fr.x1 - e, cy, b.x1, cy, w);
+            if (opciones.cajetin !== false) h += dibujoCajetin(col, fr) + dibujoAvisoPropiedad(fr);
             return h;
         }
         // ---------- Cajetín (modelo facilitado por José): solo líneas y textos, sin fondo ----------
@@ -1860,6 +1863,31 @@
             return f;
         }
         function cajaCajetin() { const fr = marcoInterior(), k = anchoCajetinMm() * PX_MM / CAJ_W; return { x0: fr.x1 - CAJ_W * k, y0: fr.y1 - CAJ_H * k, x1: fr.x1, y1: fr.y1, k }; }
+        // ---------- Aviso de propiedad junto al cajetín: texto de 1,5 mm en la capa Tratt ----------
+        // A3/A2…: recuadro a la izquierda del cajetín, apoyado en su borde inferior. A4: encima del cajetín, a la izquierda.
+        const AVISO_PROPIEDAD = 'Esta aplicación está licenciada bajo Safe Creative, toda la información contenida en el mismo, no puede ser reproducida, revelada, transmitida o hecha pública de cualquier otra forma sin la autorización escrita del propietario, cualquier persona en posesión de este documento reconoce su obligación de tratarlo confidencialmente.';
+        const AVISO_ANCHO_MM = 58, AVISO_TXT_MM = 1.5;
+        function cajaAvisoPropiedad() {
+            const c = cajaCajetin(), fs = MM(AVISO_TXT_MM), pad = MM(1.5), w = MM(AVISO_ANCHO_MM);
+            ctxMedida.font = `${fs}px sans-serif`;
+            const lineas = []; let ln = '';
+            String(tradDoc(AVISO_PROPIEDAD)).split(/\s+/).forEach(p => { const pr = ln ? ln + ' ' + p : p; if (ctxMedida.measureText(pr).width <= w - 2 * pad || !ln) ln = pr; else { lineas.push(ln); ln = p; } });
+            if (ln) lineas.push(ln);
+            const h = lineas.length * fs * 1.3 + 2 * pad - fs * 0.3;
+            const a4 = opciones.formato === 'A4';
+            return { x0: a4 ? c.x0 : c.x0 - w, y0: a4 ? c.y0 - h : c.y1 - h, w, h, fs, pad, lineas, a4 };
+        }
+        function dibujoAvisoPropiedad(fr) {
+            const capa = capasActuales().find(x => x.nombre === 'Tratt');
+            if (!capa || capa.visible === false || capa.inutilizada) return '';
+            const b = cajaAvisoPropiedad(), col = hexRGB(capa.color), op = capa.transparencia ? ` opacity="${(1 - capa.transparencia / 100).toFixed(2)}"` : '';
+            const sw = (0.35 * PX_MM).toFixed(2), x1 = b.x0 + b.w, y1 = b.y0 + b.h;
+            const L = (xa, ya, xb, yb) => `<line x1="${xa.toFixed(2)}" y1="${ya.toFixed(2)}" x2="${xb.toFixed(2)}" y2="${yb.toFixed(2)}" stroke="${col}" stroke-width="${sw}"/>`;
+            // lados libres del recuadro (el que toca el cajetín ya es su borde)
+            let h = `<g id="aviso-propiedad" data-capa="Tratt"${op}>` + L(b.x0, b.y0, x1, b.y0) + (b.a4 ? L(b.x0, b.y0, b.x0, y1) + L(x1, b.y0, x1, y1) : L(b.x0, b.y0, b.x0, y1) + L(b.x0, y1, x1, y1));
+            b.lineas.forEach((t, i) => { h += `<text x="${(b.x0 + b.pad).toFixed(2)}" y="${(b.y0 + b.pad + b.fs * (0.75 + i * 1.3)).toFixed(2)}" font-family="sans-serif" font-size="${b.fs.toFixed(2)}" fill="${col}">${esc(t)}</text>`; });
+            return h + '</g>';
+        }
         function dibujoCajetin(col, fr) {
             const c = cajaCajetin(), k = c.k, X = u => (c.x0 + u * k).toFixed(2), Y = u => (c.y0 + u * k).toFixed(2), p = proyecto || {};
             const L = (x1, y1, x2, y2) => `<line x1="${X(x1)}" y1="${Y(y1)}" x2="${X(x2)}" y2="${Y(y2)}" stroke="${col}" stroke-width="${(0.35 * PX_MM).toFixed(2)}"/>`;
@@ -2926,7 +2954,7 @@
 
         function datosProyecto() {
             return {
-                version: "8.4-web",
+                version: "8.5.1-acceso",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -2953,7 +2981,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="8.4-web" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="8.5.1-acceso" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -3002,8 +3030,9 @@
                 pts.forEach(p => w(10, p[0], 20, p[1]));
             };
             // capaForma: capa de líneas y figuras; los textos van siempre a la capa Text
-            const recorrer = (g, capaForma) => {
+            const recorrer = (g, capaForma, propia) => {
                 g.querySelectorAll('*').forEach(n => {
+                    if (!propia && n.closest('[data-capa]')) return; // grupos con capa propia: se recorren aparte
                     if (n.classList.contains('connection-port') || n.classList.contains('punto-enganche') || n.closest('defs, pattern, .no-imprimir') || n.id === 'rejilla') return;
                     if (n.tagName.toLowerCase() === 'rect' && n.getAttribute('fill') === 'transparent') return;
                     const m = n.getCTM();
@@ -3031,13 +3060,14 @@
                         const p = P(m, num('x'), num('y')), hh = (parseFloat(n.getAttribute('font-size')) || 7) * Math.hypot(m.a, m.b) * S;
                         const ang = Math.atan2(-m.b, m.a) * 180 / Math.PI;
                         const anc = n.getAttribute('text-anchor') === 'middle' ? 1 : n.getAttribute('text-anchor') === 'end' ? 2 : 0;
-                        ent('TEXT', 'Text', 'AcDbText'); w(10, p[0], 20, p[1], 30, 0, 40, +hh.toFixed(3), 1, t, 50, +ang.toFixed(2), 72, anc);
+                        ent('TEXT', propia ? capaForma : 'Text', 'AcDbText'); w(10, p[0], 20, p[1], 30, 0, 40, +hh.toFixed(3), 1, t, 50, +ang.toFixed(2), 72, anc);
                         if (anc) w(11, p[0], 21, p[1], 31, 0);
                         w(100, 'AcDbText');
                     }
                 });
             };
             const gFmt = svgCanvas.querySelector('#capa-formato'); if (gFmt) recorrer(gFmt, 'Bord');
+            svgCanvas.querySelectorAll('#capa-formato [data-capa]').forEach(g => recorrer(g, g.getAttribute('data-capa'), true));
             svgCanvas.querySelectorAll('g[data-id]').forEach(g => {
                 const el = elementosRed.find(e => e.id === g.getAttribute('data-id'));
                 if (!el) return;
@@ -4443,8 +4473,12 @@
             tuboAC: { ASME: ['SA-53 Gr.B', 'SA-106 Gr.B', 'SA-333 Gr.6', 'SA-671', 'SA-672'], EN: ['P235TR1', 'P235TR2', 'P265TR1', 'P265TR2', 'P235GH', 'P265GH', 'P295GH', 'P275NL1', 'P275NL2', 'P355NL1', 'P355NL2'] },
             tuboInox: { ASME: ['SA-312 Gr.Tp304', 'SA-312 Gr.Tp304L', 'SA-312 Gr.Tp316', 'SA-312 Gr.Tp316L', 'SA-312 Gr.Tp321', 'SA-312 Gr.Tp321H', 'SA-312 Gr.Tp347', 'SA-312 Gr.Tp347H', 'SA-358'], EN: ['X5CrNi18-10/1.4301', 'X2CrNi19-11/1.4306', 'X5CrNiMo17-12-2/1.4401', 'X2CrNiMo17-12-2/1.4404', 'X6CrNiTi18-10/1.4541', 'X7CrNiTi18-10/1.4940', 'X6CrNiNb18-10/1.4550', 'X7CrNiNb18-10/1.4912'] },
             plastico: { ASME: [], EN: ['PE100 (EN 12201-2)', 'PE80 (EN 12201-2)', 'PVC-U (EN ISO 1452-2)', 'PVC-C (EN ISO 15877)', 'PP-R (EN ISO 15874)', 'PP-H (EN ISO 15494)', 'PVDF (EN ISO 10931)'] },
-            brida: { ASME: ['SA-105', 'SA-350 LF2 Cl. 1', 'SA-181 Cl. 70', 'SA-182 F304', 'SA-182 F304L', 'SA-182 F316', 'SA-182 F316L'], EN: ['P245GH (EN 10222-2)', 'P250GH (EN 10222-2)', 'P280GH (EN 10222-2)', 'S235JR (EN 10025-2)', 'P355NH (EN 10222-4)', '1.4307 (EN 10222-5)', '1.4404 (EN 10222-5)', 'PP / PVC (bridas plásticas)'] },
-            accesorio: { ASME: ['SA-234 WPB', 'SA-234 WPC', 'SA-420 WPL6', 'SA-403 WP304L', 'SA-403 WP316L', 'SA-105 (forjado, B16.11)', 'SA-182 F316L (forjado, B16.11)'], EN: ['P235GH (EN 10253-2)', 'P265GH (EN 10253-2)', 'P235TR2 (EN 10253-1)', '1.4307 (EN 10253-4)', '1.4404 (EN 10253-4)', 'EN-GJS-400-15 (EN 1563)'] },
+            // bridas y forjados (tablas de José 01/10/2026; equivalencias en Ayuda > Equivalencias)
+            brida: { ASME: ['SA-105N', 'SA-350 Gr.LF2', 'SA-181 Cl.60', 'SA-181 Cl.70', 'SA-216 Gr.WCB', 'SA-182 Gr.F304', 'SA-182 Gr.F304L', 'SA-182 Gr.F316', 'SA-182 Gr.F316L', 'SA-182 Gr.F321', 'SA-182 Gr.F321H', 'SA-182 Gr.F347', 'SA-182 Gr.F347H', 'SA-351 Gr.CF8', 'SA-351 Gr.CF8M'],
+                EN: ['P245GH (EN 10222-2)', 'P250GH (EN 10222-2)', 'P280GH (EN 10222-2)', 'P305GH (EN 10222-2)', 'P275NL1/1.0488 (EN 10222-3)', 'P355NL1/1.0566 (EN 10222-3)', 'P275NL2/1.1104 (EN 1092-1)', 'P355NL2/1.1106 (EN 1092-1)', 'GP240GH/1.0619 (EN 10213)', 'X5CrNi18-10/1.4301 (EN 10222-5)', 'X2CrNi19-11/1.4306 (EN 10222-5)', 'X5CrNiMo17-12-2/1.4401 (EN 10222-5)', 'X2CrNiMo17-12-2/1.4404 (EN 10222-5)', 'X6CrNiTi18-10/1.4541 (EN 10222-5)', 'X6CrNiNb18-10/1.4550 (EN 10222-5)', 'GX5CrNi19-10/1.4308 (EN 10213)', 'GX5CrNiMo19-11-2/1.4408 (EN 10213)', 'S235JR (EN 10025-2)', 'PP / PVC (bridas plásticas)'] },
+            // codos, tes, cruces, reducciones y demás accesorios para soldar a tope
+            accesorio: { ASME: ['SA-234 Gr.WPB', 'SA-234 Gr.WPC', 'SA-420 Gr.WPL6', 'SA-403 Gr.WP304', 'SA-403 Gr.WP304L', 'SA-403 Gr.WP316', 'SA-403 Gr.WP316L', 'SA-403 Gr.WP321', 'SA-403 Gr.WP321H', 'SA-403 Gr.WP347', 'SA-403 Gr.WP347H', 'SA-105 (forjado, B16.11)', 'SA-182 F316L (forjado, B16.11)'],
+                EN: ['P235GH/1.0345 (EN 10253-2)', 'P265GH/1.0425 (EN 10253-2)', 'P355NH/1.0565 (EN 10253-2)', 'P275NL1/1.0488 (EN 10253-2)', 'P355NL1/1.0566 (EN 10253-2)', 'P275NL2/1.1104 (EN 10253-2)', 'P355NL2/1.1106 (EN 10253-2)', 'X5CrNi18-10/1.4301 (EN 10253-3/-4)', 'X2CrNi19-11/1.4306 (EN 10253-3/-4)', 'X5CrNiMo17-12-2/1.4401 (EN 10253-3/-4)', 'X2CrNiMo17-12-2/1.4404 (EN 10253-3/-4)', 'X6CrNiTi18-10/1.4541 (EN 10253-3/-4)', 'X6CrNiNb18-10/1.4550 (EN 10253-3/-4)', 'P235TR2 (EN 10253-1)', 'EN-GJS-400-15 (EN 1563)'] },
             valvula: { ASME: ['SA-216 WCB', 'SA-352 LCB', 'SA-351 CF8', 'SA-351 CF8M', 'SA-351 CF3M', 'SA-105 (forjado)', 'SA-182 F316 (forjado)', 'B62 bronce', 'SA-395 fundición dúctil'], EN: ['1.0619 GP240GH (EN 10213)', '1.6220 G20Mn5 (EN 10213)', '1.4408 GX5CrNiMo19-11-2 (EN 10213)', 'EN-GJS-400-15 (EN 1563)', 'EN-GJL-250 (EN 1561)', 'CC491K bronce (EN 1982)', 'CW617N latón (EN 12165)'] },
             bomba: { ASME: ['SA-216 WCB', 'SA-351 CF8M', 'SA-48 Cl. 30 (fundición gris)'], EN: ['EN-GJL-250 (EN 1561)', 'EN-GJS-400-15 (EN 1563)', '1.4408 GX5CrNiMo19-11-2 (EN 10213)', 'CC491K bronce (EN 1982)', '1.4470 dúplex (EN 10213)'] },
             equipo: { ASME: ['SA-516 Gr. 70', 'SA-240 TP316L', 'SB-265 Gr. 1 (titanio)', 'SB-111 C70600 (Cu-Ni 90/10)'], EN: ['P265GH (EN 10028-2)', 'P355NL1 (EN 10028-3)', '1.4404 (EN 10028-7)', 'Titanio Gr. 1', 'CuNi10Fe1Mn (EN 12449)'] },
@@ -4462,6 +4496,11 @@
             'P235GH (EN 10216-2)': 150, 'P265GH (EN 10216-2)': 170.8, 'P235TR1 (EN 10216-1)': 150, 'P235TR2 (EN 10217-1)': 150, 'L245 (EN ISO 3183)': 163.3, 'S235JRH (EN 10219)': 150, 'P355N (EN 10216-3)': 204,
             'SA-312 TP304': 137.9, 'SA-312 TP304L': 115.1, 'SA-312 TP316': 137.9, 'SA-312 TP316L': 115.1, 'SA-312 TP321': 137.9, 'SA-358 TP316L (soldado)': 97.8,
             '1.4301 X5CrNi18-10 (EN 10216-5)': 166.7, '1.4307 X2CrNi18-9 (EN 10216-5)': 150, '1.4401 X5CrNiMo17-12-2 (EN 10216-5)': 170, '1.4404 X2CrNiMo17-12-2 (EN 10216-5)': 173.3, '1.4541 X6CrNiTi18-10 (EN 10216-5)': 166.7, '1.4404 soldado (EN 10217-7)': 147.3 };
+        var MATCOMP_ANTIGUOS = { 'SA-105': 'SA-105N', 'SA-350 LF2 Cl. 1': 'SA-350 Gr.LF2', 'SA-182 F304': 'SA-182 Gr.F304', 'SA-182 F304L': 'SA-182 Gr.F304L', 'SA-182 F316': 'SA-182 Gr.F316', 'SA-182 F316L': 'SA-182 Gr.F316L',
+            'SA-181 Gr.II': 'SA-181 Cl.70', 'P275NL1 (EN 10222-3)': 'P275NL1/1.0488 (EN 10222-3)', 'P355NL (EN 10222-3)': 'P355NL1/1.0566 (EN 10222-3)', 'P355GH/1.0473 (EN 10253-2)': 'P355NH/1.0565 (EN 10253-2)', 'P275NL1 (EN 10253-2)': 'P275NL1/1.0488 (EN 10253-2)', 'P355NL (EN 10253-2)': 'P355NL1/1.0566 (EN 10253-2)',
+            '1.4307 (EN 10222-5)': 'X2CrNi19-11/1.4306 (EN 10222-5)', '1.4404 (EN 10222-5)': 'X2CrNiMo17-12-2/1.4404 (EN 10222-5)',
+            'SA-234 WPB': 'SA-234 Gr.WPB', 'SA-234 WPC': 'SA-234 Gr.WPC', 'SA-420 WPL6': 'SA-420 Gr.WPL6', 'SA-403 WP304L': 'SA-403 Gr.WP304L', 'SA-403 WP316L': 'SA-403 Gr.WP316L',
+            'P235GH (EN 10253-2)': 'P235GH/1.0345 (EN 10253-2)', 'P265GH (EN 10253-2)': 'P265GH/1.0425 (EN 10253-2)', '1.4307 (EN 10253-4)': 'X2CrNi19-11/1.4306 (EN 10253-3/-4)', '1.4404 (EN 10253-4)': 'X2CrNiMo17-12-2/1.4404 (EN 10253-3/-4)' };
         const matBase = m => (CAT && CAT.materiales[m] && CAT.materiales[m].base) || m;
         function familiaMaterialTubo(m) { const b = matBase(m); return b === 'Acero al carbono' ? 'tuboAC' : b === 'Acero inoxidable' ? 'tuboInox' : 'plastico'; }
         function grupoMaterial(el) {
@@ -4513,7 +4552,7 @@
         let LIB = { items: [], ocultos: [] };
         try { const x = JSON.parse(localStorage.getItem('piping-libreria') || 'null'); if (x && Array.isArray(x.items)) LIB = { items: x.items, ocultos: x.ocultos || [] }; } catch (e) { }
         LIB.items.forEach(i => { if (i.pn) i.pn = PN_NUEVO(i.pn); });
-        const guardarLib = () => { try { localStorage.setItem('piping-libreria', JSON.stringify(LIB)); } catch (e) { aviso('No se ha podido guardar la librería en el navegador.', 'error'); } };
+        const guardarLib = () => { if (typeof puedeGuardar === 'function' && !puedeGuardar('la librería')) return; try { localStorage.setItem('piping-libreria', JSON.stringify(LIB)); } catch (e) { aviso('No se ha podido guardar la librería en el navegador.', 'error'); } };
         const VALVULAS_BASE = CAT ? CAT.valvulas.slice() : [];
         const TUBERIAS_BASE = TUBERIAS_LIBRERIA.slice();
         const MATERIALES_BASE = CAT ? new Set(Object.keys(CAT.materiales)) : new Set();
@@ -4723,12 +4762,32 @@
                 ['SA-312 Gr.Tp321H', [['EN 10216-5', ['X7CrNiTi18-10/1.4940']]]],
                 ['SA-312 Gr.Tp347', [['EN 10216-5', ['X6CrNiNb18-10/1.4550']]]],
                 ['SA-312 Gr.Tp347H', [['EN 10216-5', ['X7CrNiNb18-10/1.4912']]]],
-                ['SA-358', [['EN 10217-7', ['X5CrNi18-10', 'X2CrNiMo17-12-2']]]]]]
+                ['SA-358', [['EN 10217-7', ['X5CrNi18-10', 'X2CrNiMo17-12-2']]]]]],
+            ['Material para bridas y forjados de acero al carbono', [
+                ['SA-105N (forjado al carbono, normalizado)', [['EN 10222-2', ['P250GH', 'P280GH', 'P305GH']], ['EN 1092-1', ['P250GH / 1.0460', 'P265GH / 1.0425 (normalizado)']]]],
+                ['SA-350 Gr.LF2 (baja temperatura, normalizado)', [['EN 10222-3', ['P275NL1 / 1.0488', 'P355NL1 / 1.0566']], ['EN 1092-1', ['P275NL2 / 1.1104', 'P355NL2 / 1.1106 (con ensayo de impacto)']]]],
+                ['SA-181 Cl.60 / Cl.70 (uso general / menor exigencia)', [['EN 10222-2', ['P245GH']], ['EN 1092-1', ['P245GH']]]],
+                ['SA-216 Gr.WCB (fundición)', [['EN 10213', ['GP240GH / 1.0619']]]]]],
+            ['Material para bridas y forjados de acero inoxidable', [
+                ['SA-182 Gr.F304 / F304L', [['EN 10222-5', ['X5CrNi18-10 / 1.4301', 'X2CrNi19-11 / 1.4306']], ['EN 1092-1', ['—']]]],
+                ['SA-182 Gr.F316 / F316L', [['EN 10222-5', ['X5CrNiMo17-12-2 / 1.4401', 'X2CrNiMo17-12-2 / 1.4404']], ['EN 1092-1', ['—']]]],
+                ['SA-182 Gr.F321 / F321H', [['EN 10222-5', ['X6CrNiTi18-10 / 1.4541']], ['EN 1092-1', ['—']]]],
+                ['SA-182 Gr.F347 / F347H', [['EN 10222-5', ['X6CrNiNb18-10 / 1.4550']], ['EN 1092-1', ['—']]]],
+                ['SA-351 Gr.CF8 / CF8M (fundición para válvulas / bridas)', [['EN 10213', ['GX5CrNi19-10 / 1.4308', 'GX5CrNiMo19-11-2 / 1.4408']]]]]],
+            ['Material para codos, tes, cruces y reducciones de acero al carbono (accesorios para soldar)', [
+                ['SA-234 Gr.WPB (uso general / temperatura moderada)', [['EN 10253-2', ['P235GH / 1.0345', 'P265GH / 1.0425']]]],
+                ['SA-420 Gr.WPL6 (servicio a baja temperatura)', [['EN 10253-2', ['P275NL1 / 1.0488', 'P355NL1 / 1.0566', 'P275NL2 / 1.1104', 'P355NL2 / 1.1106 (con ensayo de impacto)']]]],
+                ['SA-234 Gr.WPC (mayor resistencia mecánica)', [['EN 10253-2', ['P355NH / 1.0565']]]]]],
+            ['Material para codos, tes, cruces y reducciones de acero inoxidable (accesorios para soldar)', [
+                ['SA-403 Gr.WP304 / WP304L', [['EN 10253-3 / EN 10253-4', ['X5CrNi18-10 / 1.4301', 'X2CrNi19-11 / 1.4306']]]],
+                ['SA-403 Gr.WP316 / WP316L', [['EN 10253-3 / EN 10253-4', ['X5CrNiMo17-12-2 / 1.4401', 'X2CrNiMo17-12-2 / 1.4404']]]],
+                ['SA-403 Gr.WP321 / WP321H', [['EN 10253-3 / EN 10253-4', ['X6CrNiTi18-10 / 1.4541']]]],
+                ['SA-403 Gr.WP347 / WP347H', [['EN 10253-3 / EN 10253-4', ['X6CrNiNb18-10 / 1.4550']]]]]]
         ];
         function mostrarEquivalencias() {
             cerrarMenus();
             const filas = g => g.map(([asme, ens]) => ens.map(([norma, grados], k) => `<tr class="border-t border-slate-100 align-top">${k === 0 ? `<td rowspan="${ens.length}" class="py-1 pr-3 font-bold text-slate-700 whitespace-nowrap">${esc(asme)}</td>` : ''}<td class="py-1 pr-3 whitespace-nowrap text-blue-700">${esc(norma)}</td><td class="py-1">${grados.map(esc).join('<br>')}</td></tr>`).join('')).join('');
-            document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">Equivalencias orientativas entre materiales ASME y norma europea. Comprueba siempre la especificación del proyecto y los requisitos de cada norma (composición, ensayos, temperatura de diseño). P355GH no figura: es un acero de chapa (EN 10028-2), no de tubo.</p>` +
+            document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">Equivalencias orientativas entre materiales ASME y norma europea. Comprueba siempre la especificación del proyecto y los requisitos de cada norma (composición, ensayos, temperatura de diseño). P355GH no figura: es un acero de chapa (EN 10028-2), no de tubo ni de accesorio; para SA-234 Gr.WPC se toma P355NH (EN 10253-2). Las tes, cruces y reducciones tienen las mismas equivalencias que los codos.</p>` +
                 EQUIVALENCIAS.map(([tit, g]) => `<h4 class="font-bold text-slate-600 uppercase text-[11px] mt-3 mb-1">${esc(tit)}</h4><table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500"><th class="py-1">ASME</th><th>Norma europea</th><th>Designación</th></tr></thead><tbody>${filas(g)}</tbody></table>`).join('');
             document.getElementById('red-footer').innerHTML = '<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>';
             document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-right-left text-blue-600 mr-1.5"></i> Equivalencias ASME / norma europea';
@@ -7333,14 +7392,15 @@
             const capaConf = Object.fromEntries(capasActuales().map(c => [c.nombre, c]));
             const add = (capa, s) => { if (!capas.has(capa)) capas.set(capa, []); capas.get(capa).push(s); };
             const gs = (ca, CA) => { const k = `${nPDF(ca)}_${nPDF(CA)}`; est[k] = { ca, CA }; return '/G' + k.replace(/\./g, 'p') + ' gs\n'; };
-            const recorrer = (n, capaForma, alfa) => {
+            const recorrer = (n, capaForma, alfa, capaTexto = 'Text') => {
                 if (n.nodeType !== 1) return;
+                if (n.hasAttribute && n.hasAttribute('data-capa')) { capaForma = capaTexto = n.getAttribute('data-capa'); }
                 const tag = n.tagName.toLowerCase();
                 if (['defs', 'pattern', 'marker', 'clippath', 'mask', 'title', 'style', 'script', 'foreignobject'].includes(tag)) return;
                 if (n.classList.contains('connection-port') || n.classList.contains('punto-enganche') || n.classList.contains('no-imprimir') || n.id === 'rejilla' || n.id === 'guias-arrastre') return;
                 const cs = getComputedStyle(n); if (cs.display === 'none') return;
                 const a = alfa * (parseFloat(cs.opacity) || (cs.opacity === '0' ? 0 : 1)); if (a <= 0.001) return;
-                if (tag === 'g' || tag === 'svg' || tag === 'a') { [...n.children].forEach(c => recorrer(c, capaForma, a)); return; }
+                if (tag === 'g' || tag === 'svg' || tag === 'a') { [...n.children].forEach(c => recorrer(c, capaForma, a, capaTexto)); return; }
                 if (cs.visibility === 'hidden') return;
                 if (tag === 'rect' && n.getAttribute('fill') === 'transparent') return;
                 const m = n.getCTM(); if (!m) return;
@@ -7352,7 +7412,7 @@
                     const fs = parseFloat(cs.fontSize) || 7, neg = (parseInt(cs.fontWeight, 10) || 400) >= 600, ital = cs.fontStyle === 'italic';
                     const xs = (n.getAttribute('x') || '0').split(/[\s,]+/).map(Number), ys = (n.getAttribute('y') || '0').split(/[\s,]+/).map(Number);
                     const anc = cs.textAnchor === 'middle' ? 0.5 : cs.textAnchor === 'end' ? 1 : 0, x = (xs[0] || 0) - anc * anchoHelv(t, neg) * fs, y = ys[0] || 0, p = T(x, y);
-                    add('Text', `q\n${f.a * a < 0.999 ? gs(f.a * a, 1) : ''}${f.rgb} rg\nBT /${neg ? 'F2' : ital ? 'F3' : 'F1'} ${nPDF(fs)} Tf ${nPDF(K * m.a)} ${nPDF(-K * m.b)} ${nPDF(-K * m.c)} ${nPDF(K * m.d)} ${nPDF(p[0])} ${nPDF(p[1])} Tm (${escPDF(t)}) Tj ET\nQ\n`);
+                    add(capaTexto, `q\n${f.a * a < 0.999 ? gs(f.a * a, 1) : ''}${f.rgb} rg\nBT /${neg ? 'F2' : ital ? 'F3' : 'F1'} ${nPDF(fs)} Tf ${nPDF(K * m.a)} ${nPDF(-K * m.b)} ${nPDF(-K * m.c)} ${nPDF(K * m.d)} ${nPDF(p[0])} ${nPDF(p[1])} Tm (${escPDF(t)}) Tj ET\nQ\n`);
                     return;
                 }
                 if (tag === 'image') {
@@ -7549,7 +7609,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.4';
+        const VERSION_WEB = '8.5.1';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -10225,6 +10285,101 @@
             ]}
         ];
 
+        // ==================================================================================
+        // ACCESO: invitado (ver y probar la interfaz, sin guardar ni exportar nada) o administrador
+        // (Administración > Iniciar sesión). En el código solo está el resumen SHA-256 con sal
+        // (20 000 iteraciones) de usuario y contraseña, nunca la contraseña.
+        // Es una protección en el navegador: el código de una web estática es público y se puede
+        // saltar con las herramientas del navegador. Para una protección real: usuarios de Supabase.
+        // ==================================================================================
+        const ACCESO_SAL = 'pP1ng#5559d5af6c0aa9e0', ACCESO_HASH_BASE = 'f9938863e8e2545986ec6265f81ed1bc07591a191898034d6418a49a6028547a', ACCESO_ITER = 20000;
+        function sha256hex(txt) {
+            const K = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+            const b = new TextEncoder().encode(txt), l = b.length, n = ((l + 9 + 63) >> 6) << 6, m = new Uint8Array(n); m.set(b); m[l] = 0x80;
+            const dv = new DataView(m.buffer); dv.setUint32(n - 4, l * 8); dv.setUint32(n - 8, Math.floor(l / 0x20000000));
+            let H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]; const W = new Uint32Array(64);
+            const r = (x, k) => (x >>> k) | (x << (32 - k));
+            for (let o = 0; o < n; o += 64) {
+                for (let i = 0; i < 16; i++) W[i] = dv.getUint32(o + i * 4);
+                for (let i = 16; i < 64; i++) { const s0 = r(W[i - 15], 7) ^ r(W[i - 15], 18) ^ (W[i - 15] >>> 3), s1 = r(W[i - 2], 17) ^ r(W[i - 2], 19) ^ (W[i - 2] >>> 10); W[i] = (W[i - 16] + s0 + W[i - 7] + s1) | 0; }
+                let [a, bb, c, d, e, f, g, h] = H;
+                for (let i = 0; i < 64; i++) { const t1 = (h + (r(e, 6) ^ r(e, 11) ^ r(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + W[i]) | 0, t2 = ((r(a, 2) ^ r(a, 13) ^ r(a, 22)) + ((a & bb) ^ (a & c) ^ (bb & c))) | 0; h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = bb; bb = a; a = (t1 + t2) | 0; }
+                H = [H[0] + a, H[1] + bb, H[2] + c, H[3] + d, H[4] + e, H[5] + f, H[6] + g, H[7] + h].map(x => x | 0);
+            }
+            return H.map(x => (x >>> 0).toString(16).padStart(8, '0')).join('');
+        }
+        function resumenAcceso(usuario, clave) { let h = sha256hex(`${ACCESO_SAL}|${String(usuario).trim().toLowerCase()}|${clave}`); for (let i = 0; i < ACCESO_ITER; i++) h = sha256hex(h + ACCESO_SAL); return h; }
+        const hashAcceso = () => { try { return localStorage.getItem('piping-admin-hash') || ACCESO_HASH_BASE; } catch (e) { return ACCESO_HASH_BASE; } };
+        const testigoSesion = () => sha256hex(hashAcceso() + 'sesion');
+        function esAdministrador() { try { return (sessionStorage.getItem('piping-sesion') || localStorage.getItem('piping-sesion')) === testigoSesion(); } catch (e) { return false; } }
+        function puedeGuardar(que) {
+            if (esAdministrador()) return true;
+            aviso(`Modo invitado: no se puede guardar ni exportar${que ? ' ' + que : ''}. Archivo > Administración > Iniciar sesión.`, 'error');
+            return false;
+        }
+        function pintarInsignia() {
+            let s = document.getElementById('insignia-sesion');
+            if (!s) { const c = document.querySelector('header > div'); if (!c) return; s = document.createElement('span'); s.id = 'insignia-sesion'; s.style.cursor = 'pointer'; s.onclick = () => esAdministrador() ? null : iniciarSesionAdmin(); c.appendChild(s); }
+            const adm = esAdministrador();
+            s.className = `text-[10px] font-bold px-2 py-0.5 rounded-full ${adm ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`;
+            s.innerHTML = adm ? '<i class="fa-solid fa-user-shield mr-1"></i>Administrador' : '<i class="fa-solid fa-user mr-1"></i>Invitado (solo consulta)';
+            s.title = adm ? 'Sesión de administrador (Archivo > Administración > Cerrar sesión)' : 'Sin acreditación: no se puede guardar. Clic o Archivo > Administración > Iniciar sesión';
+        }
+        async function iniciarSesionAdmin() {
+            cerrarMenus();
+            const r = await dialogo('<i class="fa-solid fa-user-shield text-blue-600 mr-1.5"></i>Administración · iniciar sesión', `<div class="space-y-2"><label class="block">Usuario <input id="acc-u" autocomplete="username" class="border rounded p-1 w-full"></label><label class="block">Contraseña <input id="acc-c" type="password" autocomplete="current-password" class="border rounded p-1 w-full"></label><label class="flex items-center gap-1 text-[11px]"><input id="acc-r" type="checkbox"> Recordar en este equipo</label></div>`,
+                [{ texto: 'Entrar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Seguir como invitado', valor: null }]);
+            if (r !== 'si') return false;
+            const u = document.getElementById('acc-u').value, c = document.getElementById('acc-c').value, rec = document.getElementById('acc-r').checked;
+            await new Promise(ok => setTimeout(ok, 30));
+            if (resumenAcceso(u, c) !== hashAcceso()) { aviso('Usuario o contraseña incorrectos.', 'error'); return false; }
+            try { sessionStorage.setItem('piping-sesion', testigoSesion()); if (rec) localStorage.setItem('piping-sesion', testigoSesion()); } catch (e) { }
+            pintarInsignia(); aviso('Sesión de administrador iniciada: guardado y exportación activados.', 'ok');
+            return true;
+        }
+        function cerrarSesionAdmin() { cerrarMenus(); try { sessionStorage.removeItem('piping-sesion'); localStorage.removeItem('piping-sesion'); } catch (e) { } pintarInsignia(); aviso('Sesión cerrada: modo invitado (solo consulta).'); }
+        async function cambiarClaveAdmin() {
+            cerrarMenus(); if (!esAdministrador()) { aviso('Inicia sesión como administrador.', 'error'); return; }
+            const r = await dialogo('<i class="fa-solid fa-key text-blue-600 mr-1.5"></i>Cambiar contraseña', `<div class="space-y-2"><label class="block">Contraseña actual <input id="acc-a" type="password" class="border rounded p-1 w-full"></label><label class="block">Nueva contraseña (mín. 10 caracteres) <input id="acc-n" type="password" class="border rounded p-1 w-full"></label><label class="block">Repetir <input id="acc-n2" type="password" class="border rounded p-1 w-full"></label><p class="text-[10px] text-slate-400">Se guarda solo en este navegador. En otros equipos sigue valiendo la contraseña de la aplicación.</p></div>`,
+                [{ texto: 'Cambiar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
+            if (r !== 'si') return;
+            const a = document.getElementById('acc-a').value, n1 = document.getElementById('acc-n').value, n2 = document.getElementById('acc-n2').value;
+            if (resumenAcceso('admin', a) !== hashAcceso()) { aviso('La contraseña actual no es correcta.', 'error'); return; }
+            if (n1.length < 10 || n1 !== n2) { aviso('La nueva contraseña debe tener al menos 10 caracteres y coincidir en las dos casillas.', 'error'); return; }
+            try { localStorage.setItem('piping-admin-hash', resumenAcceso('admin', n1)); sessionStorage.setItem('piping-sesion', testigoSesion()); if (localStorage.getItem('piping-sesion')) localStorage.setItem('piping-sesion', testigoSesion()); } catch (e) { }
+            pintarInsignia(); aviso('Contraseña cambiada en este navegador.', 'ok');
+        }
+        // guardar, exportar, imprimir, informe y copias: solo el administrador
+        [['guardarProyecto', 'el proyecto'], ['guardarComoProyecto', 'el proyecto'], ['generarInforme', 'el informe'], ['generarListados', 'los listados'], ['abrirImpresion', '(imprimir)'], ['imprimirHojas', '(imprimir)'],
+         ['exportarPDFCapas', 'el PDF'], ['exportarComparacionEscenarios', 'la comparación'], ['nubeGuardar', 'en la nube'], ['nubeSubirLibreria', 'la librería'], ['guardarPlantillasUsuario', 'la plantilla'],
+         ['guardarSeleccionComoPlantilla', 'la plantilla'], ['capasComoPredeterminadas', 'las capas'], ['descargarPlantillaExcel', 'la plantilla Excel'], ['descargarPlantillaLineasEquipos', 'la plantilla Excel'], ['registrarRevision', 'la revisión']].forEach(([n, que]) => {
+            const f = window[n]; if (typeof f !== 'function') return;
+            window[n] = function () { if (!puedeGuardar(que)) return; return f.apply(this, arguments); };
+        });
+        // copias en el navegador (último proyecto y copias de seguridad): sin rastro en modo invitado
+        { const _gu = guardarUltimo; guardarUltimo = function () { if (esAdministrador()) return _gu.apply(this, arguments); }; }
+        { const _hc = hacerCopiaSeguridad; hacerCopiaSeguridad = function () { if (esAdministrador()) return _hc.apply(this, arguments); }; }
+        // el invitado no tiene nada que guardar: sin aviso del navegador al cerrar
+        window.addEventListener('beforeunload', e => { if (!esAdministrador()) e.stopImmediatePropagation(); }, true);
+        // Ctrl+G / Ctrl+S, Ctrl+P y similares pasan por las funciones anteriores
+        function submenuAdministracion() { const adm = esAdministrador(); return [
+            adm ? { icono: 'fa-user-shield', texto: 'Sesión: administrador', accion: () => {} } : { icono: 'fa-right-to-bracket', texto: 'Iniciar sesión (administrador)...', accion: () => iniciarSesionAdmin() },
+            ...(adm ? [{ icono: 'fa-key', texto: 'Cambiar contraseña...', accion: () => cambiarClaveAdmin() }, 'sep', { icono: 'fa-right-from-bracket', texto: 'Cerrar sesión', accion: () => cerrarSesionAdmin() }] : [{ icono: 'fa-circle-info', texto: 'Modo invitado: se puede ver y probar todo, pero no guardar ni exportar', accion: () => {} }])
+        ]; }
+        { const archivo = MENUS.find(m => m.titulo === 'Archivo'), k = archivo.items.findIndex(x => x && x.texto === 'Nube (equipo)'); archivo.items.splice(k + 1, 0, { icono: 'fa-user-shield', texto: 'Administración', sub: () => submenuAdministracion() }); }
+        // al entrar: aviso destacado del modo invitado (si no hay sesión de administrador)
+        async function pantallaAcceso() {
+            const r = await dialogo('<i class="fa-solid fa-user-lock text-amber-600 mr-1.5"></i>Acceso a PIPING',
+                `<div class="border-2 border-amber-400 bg-amber-50 rounded-lg p-3 text-center"><p class="text-base font-bold text-amber-700"><i class="fa-solid fa-user mr-1.5"></i>Vas a entrar en MODO INVITADO</p>
+                <p class="mt-1 text-amber-800">Puedes ver y probar toda la aplicación, pero <b>no se guarda ni se exporta nada</b> (proyectos, DXF, PDF, informes, listados, impresión, nube).</p></div>
+                <p class="mt-2 text-slate-500 text-[11px]">Para trabajar con guardado: Archivo > Administración > Iniciar sesión (administrador).</p>`,
+                [{ texto: 'Entrar como invitado', valor: 'invitado', clase: 'bg-amber-500 hover:bg-amber-600 text-white' }, { texto: 'Iniciar sesión (administrador)...', valor: 'admin', clase: 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' }]);
+            if (r === 'admin') await iniciarSesionAdmin();
+            pintarInsignia();
+            if (!esAdministrador()) aviso('Modo invitado: solo consulta. Archivo > Administración > Iniciar sesión para guardar.');
+        }
+        { const _pi = pantallaInicio; let primera = true; pantallaInicio = async function () { if (primera) { primera = false; if (!esAdministrador()) await pantallaAcceso(); } return _pi.apply(this, arguments); }; }
+        setTimeout(pintarInsignia, 0);
         const barraMenus = document.getElementById('barra-menus');
         let menuAbierto = null;
 
@@ -10282,7 +10437,7 @@
         }
 
         // Menús por orden alfabético (Ayuda siempre al final)
-        MENUS.sort((a, b) => (a.titulo === 'Ayuda') - (b.titulo === 'Ayuda') || a.titulo.localeCompare(b.titulo, 'es', { sensitivity: 'base' }));
+        { const fin = t => t === 'Ayuda' ? 1 : 0; MENUS.sort((a, b) => fin(a.titulo) - fin(b.titulo) || a.titulo.localeCompare(b.titulo, 'es', { sensitivity: 'base' })); } // Ayuda y Administración al final
         MENUS.forEach(def => {
             const nodo = document.createElement('div');
             nodo.className = 'menu-top';
