@@ -1,36 +1,34 @@
-# Versión 8.0-atajos-congelar
+# PIPING v8.4-web (01/10/2026) — index.html aligerado para GitHub Pages
 
-## Listado y cajetín
-- Cajetín oculto (CAD > Cajetín > Mostrar cajetín): el listado de componentes ocupa su sitio (esquina inferior derecha del marco). Al volver a mostrarlo, el listado vuelve encima del cajetín. Automático (el punto de enganche depende de opciones.cajetin).
+Repositorio: https://github.com/jamanteiga/PIPING · Pages: https://jamanteiga.github.io/PIPING/
+Misma funcionalidad que la 8.3.1; solo cambia la estructura. Copia del monolito 8.3.1: `index_antes_v84.html`.
 
-## Árbol de estructura
-- Ramas "Formato" y "Anotaciones" plegadas por defecto (Anotaciones ahora es plegable y muestra el número).
+## Estructura
 
-## Leyenda de componentes
-- Símbolos un 25 % mayores (8,75 mm), renglón de 9 mm.
+| Fichero | Tamaño | gzip | Contenido |
+|---|---|---|---|
+| `index.html` | 22 KB | 6 KB | HTML y cargador |
+| `css/piping.css` | 27 KB | 6 KB | estilos propios + Tailwind compilado (sustituye a cdn.tailwindcss.com) |
+| `js/piping.js` | 973 KB | 269 KB | toda la aplicación (script clásico, no módulo ES) |
+| `i18n/en.js`, `pt.js`, `ko.js` | ~108 KB c/u | ~35 KB | diccionarios; se cargan solo si se usan |
+| `catalogo.js` | 57 KB | 11 KB | sin cambios |
 
-## Hojas
-- Alt+A añade una hoja (antes: mostrar accesorios en el panel, que queda solo en el menú Librerías).
+Antes: `index.html` de 1 326 KB (381 KB gzip) más el Tailwind del CDN generando estilos en cada carga.
 
-## Congelar plano
-- Botón derecho en el lienzo > Congelar plano / Descongelar plano. Con el plano congelado no se puede modificar nada (insertar, mover, girar, borrar, editar propiedades, correcciones, deshacer/rehacer): el bloqueo está en guardarEstado(), por el que pasa toda modificación.
-- Banda azul "PLANO CONGELADO · hoja xx · clic para descongelar"; lienzo con cursor de prohibido.
-- Estado por hoja, guardado en el .pid. En el DXF todas las capas salen bloqueadas.
+## Decisiones
 
-## Atajos de teclado
-- Registro único de atajos (ACCIONES_BASE + cualquier orden de los menús, por su ruta "Menú › … › Orden").
-- CAD > Atajos de teclado…: pestaña Teclado (categoría, buscar, Asignar = pulsar la combinación, quitar, conflicto con aviso y reasignación, Restaurar valores predeterminados, Copiar lista) y pestaña Gestos del ratón.
-- Ayuda > Atajos de teclado: consulta (se completa sola con los atajos nuevos) + teclas fijas y ratón + guía de gestos.
-- Los menús muestran el atajo vigente (también los personalizados).
-- Reservadas: Esc, Intro, Retroceso, Tab. Configuración en este navegador (localStorage piping-atajos).
-- De fábrica: Ctrl+N, Ctrl+O, Ctrl+G, Ctrl+P, Ctrl+R, Ctrl+K, Ctrl+C/X/V, Supr y B (eliminar), Ctrl+Z, Ctrl+Y y Ctrl+Mayús+Z, Ctrl+A, R / Mayús+R (45°), L (trazar tubería), Alt+A (añadir hoja), F (ajustar), T (zoom todo), W (zoom ventana).
+- Scripts clásicos con rutas relativas: funciona igual con doble clic (file://) y en GitHub Pages.
+- Rutas con `?v=8.4`: al publicar una versión nueva se cambia el número para que el navegador no use la caché antigua.
+- Idiomas bajo demanda: el de la interfaz se carga antes de arrancar (según `localStorage piping-idioma`); el del informe/cajetín se carga al dibujar, al cambiarlo o al generar el informe (`asegurarIdioma`).
+- Orden del CSS: estilos propios antes que Tailwind (como con el CDN, que inyectaba Tailwind al final de `<head>`).
+- Con file:// los errores de un script externo llegan como «Script error.» sin el objeto de error: el manejador del plano congelado / solo lectura lo reconoce también así.
+- A partir de esta versión se edita la estructura dividida (`js/piping.js`, etc.), no un monolito.
 
-## Gestos del ratón (diseño propio)
-- Botón derecho pulsado + desplazamiento (> 30 px) en una dirección y soltar = orden asignada; aparece una guía circular con sectores y nombres. 4 u 8 direcciones.
-- De fábrica: arriba Paleta de comandos, arriba-derecha Trazar tubería, derecha Zoom todo, abajo-derecha Zoom ajustar, abajo Calcular red, abajo-izquierda Rehacer, izquierda Deshacer, arriba-izquierda Tabla de propiedades.
-- Un clic derecho sin desplazar abre el menú contextual normal.
+## Publicar en GitHub
 
-## Menú contextual con órdenes alrededor del cursor
-- Al hacer clic derecho aparecen "píldoras" alrededor del cursor y la lista habitual debajo.
-- En el lienzo: las órdenes de los gestos (misma posición que su dirección).
-- Sobre un componente: Editar, Girar 45° horario, Mover, Copiar, Eliminar, Nota anclada, Girar 45° antihorario, Tabla de propiedades.
+1. Repositorio > Add file > Upload files: arrastrar `index.html` y las carpetas `css`, `js`, `i18n` (y `catalogo.js` si cambia).
+2. Settings > Pages > Build and deployment > Deploy from a branch > `main` / `(root)` > Save.
+
+## Pruebas
+
+Regresión test10–test23 sobre la versión dividida, por file:// y por http: mismos resultados que la 8.3.1. Arranque en coreano: carga solo `i18n/ko.js`.
