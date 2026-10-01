@@ -2954,7 +2954,7 @@
 
         function datosProyecto() {
             return {
-                version: "8.5.1-acceso",
+                version: "8.6-usuarios",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -2981,7 +2981,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="8.5.1-acceso" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="8.6-usuarios" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -4552,7 +4552,7 @@
         let LIB = { items: [], ocultos: [] };
         try { const x = JSON.parse(localStorage.getItem('piping-libreria') || 'null'); if (x && Array.isArray(x.items)) LIB = { items: x.items, ocultos: x.ocultos || [] }; } catch (e) { }
         LIB.items.forEach(i => { if (i.pn) i.pn = PN_NUEVO(i.pn); });
-        const guardarLib = () => { if (typeof puedeGuardar === 'function' && !puedeGuardar('la librería')) return; try { localStorage.setItem('piping-libreria', JSON.stringify(LIB)); } catch (e) { aviso('No se ha podido guardar la librería en el navegador.', 'error'); } };
+        const guardarLib = () => { if (typeof puedeGuardar === 'function' && !puedeGuardar('cambiar la librería', 'compartido')) return; try { localStorage.setItem('piping-libreria', JSON.stringify(LIB)); } catch (e) { aviso('No se ha podido guardar la librería en el navegador.', 'error'); } };
         const VALVULAS_BASE = CAT ? CAT.valvulas.slice() : [];
         const TUBERIAS_BASE = TUBERIAS_LIBRERIA.slice();
         const MATERIALES_BASE = CAT ? new Set(Object.keys(CAT.materiales)) : new Set();
@@ -6756,7 +6756,7 @@
         // 37) COMENTARIOS DE REVISIÓN (redlines): chincheta con autor, fecha, texto y estado;
         // no se imprimen ni se exportan al DXF
         // ==================================================================================
-        const autorComentarios = () => { try { return localStorage.getItem('piping-autor-comentarios') || proyecto.autor || ''; } catch (e) { return proyecto.autor || ''; } };
+        const autorComentarios = () => { const ses = typeof sesionActual === 'function' && sesionActual(); if (ses && ses.origen === 'supabase') return nombreSesion(ses); try { return localStorage.getItem('piping-autor-comentarios') || proyecto.autor || ''; } catch (e) { return proyecto.autor || ''; } };
         function insertarComentario(px, py) {
             cerrarMenus();
             const texto = prompt('Comentario de revisión:', ''); if (!texto) return;
@@ -7609,7 +7609,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.5.1';
+        const VERSION_WEB = '8.6';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -10311,74 +10311,200 @@
         function resumenAcceso(usuario, clave) { let h = sha256hex(`${ACCESO_SAL}|${String(usuario).trim().toLowerCase()}|${clave}`); for (let i = 0; i < ACCESO_ITER; i++) h = sha256hex(h + ACCESO_SAL); return h; }
         const hashAcceso = () => { try { return localStorage.getItem('piping-admin-hash') || ACCESO_HASH_BASE; } catch (e) { return ACCESO_HASH_BASE; } };
         const testigoSesion = () => sha256hex(hashAcceso() + 'sesion');
-        function esAdministrador() { try { return (sessionStorage.getItem('piping-sesion') || localStorage.getItem('piping-sesion')) === testigoSesion(); } catch (e) { return false; } }
-        function puedeGuardar(que) {
-            if (esAdministrador()) return true;
-            aviso(`Modo invitado: no se puede guardar ni exportar${que ? ' ' + que : ''}. Archivo > Administración > Iniciar sesión.`, 'error');
+        // ---------- sesión y roles ----------
+        // Usuarios en Supabase (supabase/05_usuarios.sql): Archivo > Administración > Usuarios. Sin conexión
+        // con Supabase solo funciona el administrador local (contraseña de la aplicación).
+        const ROLES = { admin: 'Administrador', supervisor: 'Supervisor', jefe: 'Jefe de proyecto', usuario: 'Usuario' };
+        const PERMISOS = {
+            guardar: ['admin', 'supervisor', 'jefe', 'usuario'],   // guardar, exportar, imprimir, informes, nube
+            revision: ['admin', 'supervisor', 'jefe'],             // registrar revisión (emitir)
+            congelar: ['admin', 'supervisor', 'jefe'],
+            descongelar: ['admin', 'supervisor'],
+            compartido: ['admin', 'supervisor'],                   // librería, capas predeterminadas, librería del equipo
+            comentarios: ['admin', 'supervisor'],                  // resolver / reabrir comentarios de revisión
+            usuarios: ['admin']
+        };
+        const DESCRIPCION_ROLES = {
+            admin: 'Todo, y la gestión de usuarios.',
+            supervisor: 'Todo menos usuarios: revisa y aprueba, resuelve comentarios, congela y descongela, librería y capas compartidas.',
+            jefe: 'Guarda, exporta, informes y listados, registra revisiones (emite) y congela planos.',
+            usuario: 'Dibuja, calcula, guarda y exporta. No registra revisiones, no descongela ni cambia la librería o las capas compartidas.'
+        };
+        function sesionActual() {
+            let v = null; try { v = sessionStorage.getItem('piping-sesion') || localStorage.getItem('piping-sesion'); } catch (e) { }
+            if (!v) return null;
+            if (v === testigoSesion()) return { usuario: 'admin', nombre: 'Administrador', apellidos: '', rol: 'admin', origen: 'local' };
+            try { const s = JSON.parse(v); if (s && s.token && ROLES[s.rol] && (!s.expira || s.expira > Date.now())) return s; } catch (e) { }
+            return null;
+        }
+        function rolActual() { return (sesionActual() || {}).rol || null; }
+        function tienePermiso(p) { const r = rolActual(); return !!r && (PERMISOS[p] || []).includes(r); }
+        function esAdministrador() { return rolActual() === 'admin'; }
+        function nombreSesion(s) { return s ? ((s.nombre || '') + ' ' + (s.apellidos || '')).trim() || s.usuario : ''; }
+        function guardarSesion(s, recordar) {
+            try { const v = typeof s === 'string' ? s : JSON.stringify(s); sessionStorage.setItem('piping-sesion', v); if (recordar) localStorage.setItem('piping-sesion', v); else localStorage.removeItem('piping-sesion'); } catch (e) { }
+        }
+        function borrarSesion() { try { sessionStorage.removeItem('piping-sesion'); localStorage.removeItem('piping-sesion'); } catch (e) { } }
+        function puedeGuardar(que, permiso = 'guardar') {
+            if (tienePermiso(permiso)) return true;
+            const s = sesionActual();
+            aviso(s ? `Tu rol (${tradDoc(ROLES[s.rol])}) no permite ${que || 'esta acción'}.` : `Modo invitado: no se puede guardar ni exportar${que ? ' ' + que : ''}. Archivo > Administración > Iniciar sesión.`, 'error');
             return false;
+        }
+        // llamadas a las funciones de usuarios de Supabase con la clave anon
+        async function rpcUsuarios(f, args) {
+            const k = claveSupabase(); if (!k) throw new Error('Sin conexión con Supabase (Opciones > Supabase > Configurar conexión).');
+            let r; try { r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${f}`, { method: 'POST', headers: { apikey: k, Authorization: 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify(args || {}) }); }
+            catch (e) { const x = new Error('No se puede conectar con Supabase.'); x.red = true; throw x; }
+            const t = await r.text(); let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) { d = t; }
+            if (!r.ok) { const x = new Error((d && (d.message || d.hint)) || ('HTTP ' + r.status)); if (r.status === 404) x.sinFuncion = true; throw x; }
+            return d;
         }
         function pintarInsignia() {
             let s = document.getElementById('insignia-sesion');
-            if (!s) { const c = document.querySelector('header > div'); if (!c) return; s = document.createElement('span'); s.id = 'insignia-sesion'; s.style.cursor = 'pointer'; s.onclick = () => esAdministrador() ? null : iniciarSesionAdmin(); c.appendChild(s); }
-            const adm = esAdministrador();
-            s.className = `text-[10px] font-bold px-2 py-0.5 rounded-full ${adm ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`;
-            s.innerHTML = adm ? '<i class="fa-solid fa-user-shield mr-1"></i>Administrador' : '<i class="fa-solid fa-user mr-1"></i>Invitado (solo consulta)';
-            s.title = adm ? 'Sesión de administrador (Archivo > Administración > Cerrar sesión)' : 'Sin acreditación: no se puede guardar. Clic o Archivo > Administración > Iniciar sesión';
+            if (!s) { const c = document.querySelector('header > div'); if (!c) return; s = document.createElement('span'); s.id = 'insignia-sesion'; s.style.cursor = 'pointer'; s.onclick = () => sesionActual() ? null : iniciarSesionAdmin(); c.appendChild(s); }
+            const ses = sesionActual();
+            s.className = `text-[10px] font-bold px-2 py-0.5 rounded-full ${!ses ? 'bg-amber-100 text-amber-700' : ses.rol === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`;
+            s.setAttribute('data-no-trad', '');
+            s.innerHTML = ses ? `<i class="fa-solid ${ses.rol === 'admin' ? 'fa-user-shield' : 'fa-user-check'} mr-1"></i>${esc(nombreSesion(ses))} · ${esc(trad(ROLES[ses.rol]))}` : `<i class="fa-solid fa-user mr-1"></i>${esc(trad('Invitado (solo consulta)'))}`;
+            s.title = ses ? trad('Sesión iniciada (Archivo > Administración > Cerrar sesión)') : trad('Sin acreditación: no se puede guardar. Clic o Archivo > Administración > Iniciar sesión');
         }
         async function iniciarSesionAdmin() {
             cerrarMenus();
-            const r = await dialogo('<i class="fa-solid fa-user-shield text-blue-600 mr-1.5"></i>Administración · iniciar sesión', `<div class="space-y-2"><label class="block">Usuario <input id="acc-u" autocomplete="username" class="border rounded p-1 w-full"></label><label class="block">Contraseña <input id="acc-c" type="password" autocomplete="current-password" class="border rounded p-1 w-full"></label><label class="flex items-center gap-1 text-[11px]"><input id="acc-r" type="checkbox"> Recordar en este equipo</label></div>`,
+            const sinClave = !claveSupabase();
+            const r = await dialogo('<i class="fa-solid fa-user-shield text-blue-600 mr-1.5"></i>Iniciar sesión', `<div class="space-y-2"><label class="block">Usuario <input id="acc-u" autocomplete="username" class="border rounded p-1 w-full"></label><label class="block">Contraseña <input id="acc-c" type="password" autocomplete="current-password" class="border rounded p-1 w-full"></label><label class="flex items-center gap-1 text-[11px]"><input id="acc-r" type="checkbox"> Recordar en este equipo</label>
+                ${sinClave ? '<label class="block text-[11px] text-slate-500">Clave anon de Supabase (solo la primera vez en este equipo; sin ella solo entra el administrador local) <input id="acc-k" class="border rounded p-1 w-full font-mono text-[10px]"></label>' : ''}</div>`,
                 [{ texto: 'Entrar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Seguir como invitado', valor: null }]);
             if (r !== 'si') return false;
-            const u = document.getElementById('acc-u').value, c = document.getElementById('acc-c').value, rec = document.getElementById('acc-r').checked;
+            const u = document.getElementById('acc-u').value.trim(), c = document.getElementById('acc-c').value, rec = document.getElementById('acc-r').checked, k = (document.getElementById('acc-k') || {}).value;
+            if (k && k.trim()) { try { localStorage.setItem('piping-supabase-clave', k.trim()); } catch (e) { } }
             await new Promise(ok => setTimeout(ok, 30));
-            if (resumenAcceso(u, c) !== hashAcceso()) { aviso('Usuario o contraseña incorrectos.', 'error'); return false; }
-            try { sessionStorage.setItem('piping-sesion', testigoSesion()); if (rec) localStorage.setItem('piping-sesion', testigoSesion()); } catch (e) { }
-            pintarInsignia(); aviso('Sesión de administrador iniciada: guardado y exportación activados.', 'ok');
-            return true;
+            const localOk = u.toLowerCase() === 'admin' && resumenAcceso(u, c) === hashAcceso();
+            const entrarLocal = motivo => { guardarSesion(testigoSesion(), rec); pintarInsignia(); aviso(`Sesión de administrador local iniciada${motivo ? ' (' + motivo + ')' : ''}.`, 'ok'); return true; };
+            const entrarNube = (d, msg) => { const s = Object.assign({}, d.usuario, { token: d.token, origen: 'supabase', expira: Date.now() + (rec ? 30 * 864e5 : 12 * 36e5) }); guardarSesion(s, rec); pintarInsignia(); aviso(msg || `Sesión iniciada: ${nombreSesion(s)} · ${trad(ROLES[s.rol])}.`, 'ok'); return s; };
+            if (!claveSupabase()) { if (localOk) return entrarLocal('sin conexión con Supabase'); aviso('Usuario o contraseña incorrectos.', 'error'); return false; }
+            try {
+                const d = await rpcUsuarios('piping_login', { p_usuario: u, p_clave: c, p_recordar: rec });
+                if (d && d.ok) { const s = entrarNube(d); if (s.debe_cambiar) await cambiarClaveAdmin(true); return true; }
+                // primer arranque: la tabla de usuarios está vacía y entra el administrador de la aplicación
+                if (localOk && await rpcUsuarios('piping_usuarios_vacio')) { const d2 = await rpcUsuarios('piping_inicializar', { p_usuario: 'admin', p_nombre: 'Administrador', p_clave: c }); if (d2 && d2.ok) { entrarNube(d2, 'Usuario administrador creado en Supabase y sesión iniciada. Archivo > Administración > Usuarios para dar de alta al resto.'); return true; } }
+                aviso((d && d.error) || 'Usuario o contraseña incorrectos.', 'error'); return false;
+            } catch (e) {
+                if (localOk) return entrarLocal(e.sinFuncion ? 'falta ejecutar supabase/05_usuarios.sql' : 'sin conexión con Supabase');
+                aviso('No se ha podido iniciar sesión: ' + e.message, 'error'); return false;
+            }
         }
-        function cerrarSesionAdmin() { cerrarMenus(); try { sessionStorage.removeItem('piping-sesion'); localStorage.removeItem('piping-sesion'); } catch (e) { } pintarInsignia(); aviso('Sesión cerrada: modo invitado (solo consulta).'); }
-        async function cambiarClaveAdmin() {
-            cerrarMenus(); if (!esAdministrador()) { aviso('Inicia sesión como administrador.', 'error'); return; }
-            const r = await dialogo('<i class="fa-solid fa-key text-blue-600 mr-1.5"></i>Cambiar contraseña', `<div class="space-y-2"><label class="block">Contraseña actual <input id="acc-a" type="password" class="border rounded p-1 w-full"></label><label class="block">Nueva contraseña (mín. 10 caracteres) <input id="acc-n" type="password" class="border rounded p-1 w-full"></label><label class="block">Repetir <input id="acc-n2" type="password" class="border rounded p-1 w-full"></label><p class="text-[10px] text-slate-400">Se guarda solo en este navegador. En otros equipos sigue valiendo la contraseña de la aplicación.</p></div>`,
-                [{ texto: 'Cambiar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
+        async function cerrarSesionAdmin() {
+            cerrarMenus(); const s = sesionActual();
+            if (s && s.origen === 'supabase') { try { await rpcUsuarios('piping_logout', { p_token: s.token }); } catch (e) { } }
+            borrarSesion(); pintarInsignia(); aviso('Sesión cerrada: modo invitado (solo consulta).');
+        }
+        async function cambiarClaveAdmin(obligatorio) {
+            cerrarMenus(); const s = sesionActual(); if (!s) { aviso('Inicia sesión primero.', 'error'); return; }
+            const min = s.origen === 'supabase' ? 8 : 10;
+            const r = await dialogo('<i class="fa-solid fa-key text-blue-600 mr-1.5"></i>Cambiar contraseña', `${obligatorio ? '<p class="mb-2 text-amber-700 font-medium">Tienes la contraseña por defecto: cámbiala para continuar.</p>' : ''}<div class="space-y-2"><label class="block">Contraseña actual <input id="acc-a" type="password" class="border rounded p-1 w-full"></label><label class="block">Nueva contraseña (mín. ${min} caracteres) <input id="acc-n" type="password" class="border rounded p-1 w-full"></label><label class="block">Repetir <input id="acc-n2" type="password" class="border rounded p-1 w-full"></label>${s.origen === 'local' ? '<p class="text-[10px] text-slate-400">Administrador local: se guarda solo en este navegador.</p>' : ''}</div>`,
+                [{ texto: 'Cambiar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: obligatorio ? 'Más tarde' : 'Cancelar', valor: null }]);
             if (r !== 'si') return;
             const a = document.getElementById('acc-a').value, n1 = document.getElementById('acc-n').value, n2 = document.getElementById('acc-n2').value;
+            if (n1.length < min || n1 !== n2) { aviso(`La nueva contraseña debe tener al menos ${min} caracteres y coincidir en las dos casillas.`, 'error'); return cambiarClaveAdmin(obligatorio); }
+            if (s.origen === 'supabase') {
+                try { await rpcUsuarios('piping_cambiar_clave', { p_token: s.token, p_actual: a, p_nueva: n1 }); s.debe_cambiar = false; let rec = false; try { rec = !!localStorage.getItem('piping-sesion'); } catch (e) { } guardarSesion(s, rec); aviso('Contraseña cambiada.', 'ok'); }
+                catch (e) { aviso(e.message, 'error'); }
+                return;
+            }
             if (resumenAcceso('admin', a) !== hashAcceso()) { aviso('La contraseña actual no es correcta.', 'error'); return; }
-            if (n1.length < 10 || n1 !== n2) { aviso('La nueva contraseña debe tener al menos 10 caracteres y coincidir en las dos casillas.', 'error'); return; }
-            try { localStorage.setItem('piping-admin-hash', resumenAcceso('admin', n1)); sessionStorage.setItem('piping-sesion', testigoSesion()); if (localStorage.getItem('piping-sesion')) localStorage.setItem('piping-sesion', testigoSesion()); } catch (e) { }
+            try { const rec = !!localStorage.getItem('piping-sesion'); localStorage.setItem('piping-admin-hash', resumenAcceso('admin', n1)); guardarSesion(testigoSesion(), rec); } catch (e) { }
             pintarInsignia(); aviso('Contraseña cambiada en este navegador.', 'ok');
         }
-        // guardar, exportar, imprimir, informe y copias: solo el administrador
+        // ---------- Archivo > Administración > Usuarios ----------
+        let listaUsuarios = [];
+        const selRol = (id, v) => `<select id="${id}" class="border rounded p-0.5">${Object.entries(ROLES).map(([k, n]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
+        async function abrirUsuarios() {
+            cerrarMenus();
+            const s = sesionActual();
+            if (!tienePermiso('usuarios')) { aviso('Solo un administrador puede gestionar usuarios.', 'error'); return; }
+            if (s.origen !== 'supabase') { aviso(claveSupabase() ? 'Los usuarios se guardan en Supabase: cierra la sesión y vuelve a entrar como admin (si no lo has hecho, ejecuta supabase/05_usuarios.sql).' : 'Los usuarios se guardan en Supabase: configura la conexión (Opciones > Supabase > Configurar conexión) y vuelve a iniciar sesión.', 'error'); return; }
+            try { listaUsuarios = await rpcUsuarios('piping_usuarios_listar', { p_token: s.token }) || []; } catch (e) { aviso('Usuarios: ' + e.message, 'error'); return; }
+            const fila = u => `<tr class="border-t border-slate-100 ${u.activo ? '' : 'text-slate-400'}"><td class="py-1 pr-1"><input id="un-${u.id}" value="${esc(u.nombre)}" class="border rounded p-0.5 w-28"></td><td class="pr-1"><input id="ua-${u.id}" value="${esc(u.apellidos || '')}" class="border rounded p-0.5 w-36"></td><td class="pr-2 font-mono">${esc(u.usuario)}</td><td>${selRol('ur-' + u.id, u.rol)}</td>
+                <td class="text-center"><input id="uv-${u.id}" type="checkbox" ${u.activo ? 'checked' : ''}></td><td class="text-center">${u.debe_cambiar ? '<span class="text-amber-700">pendiente</span>' : '<span class="text-emerald-700">propia</span>'}</td><td class="whitespace-nowrap">${u.ultimo_acceso ? fechaHora(u.ultimo_acceso) : '—'}</td>
+                <td class="text-right whitespace-nowrap"><button onclick="usuarioGuardar('${u.id}')" class="px-2 border rounded text-blue-700">Guardar</button> <button onclick="usuarioResetear('${u.id}')" class="px-2 border rounded">Resetear contraseña</button> ${u.id === s.id ? '' : `<button onclick="usuarioBorrar('${u.id}')" class="px-2 border rounded text-rose-700"><i class="fa-solid fa-trash-can"></i></button>`}</td></tr>`;
+            document.getElementById('red-content').innerHTML = `<div class="border rounded p-2 mb-3 bg-slate-50 text-[11px]"><p class="font-bold text-slate-600 mb-1">Nuevo usuario</p>
+                <div class="flex flex-wrap gap-2 items-end"><label>Nombre<br><input id="nu-nombre" class="border rounded p-1 w-28"></label><label>Apellidos<br><input id="nu-apellidos" class="border rounded p-1 w-40"></label><label>Usuario<br><input id="nu-usuario" placeholder="p. ej. pperez" class="border rounded p-1 w-28 font-mono"></label>
+                <label>Contraseña por defecto<br><input id="nu-clave" class="border rounded p-1 w-32 font-mono" value="${esc(claveAleatoria())}"></label><label>Rol<br>${selRol('nu-rol', 'usuario')}</label><button onclick="usuarioCrear()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded"><i class="fa-solid fa-user-plus mr-1"></i>Crear</button></div>
+                <p class="text-slate-400 mt-1">El usuario tendrá que cambiar la contraseña por defecto la primera vez que entre (Archivo > Administración > Cambiar mi contraseña).</p></div>
+                <div class="overflow-auto" style="max-height:48vh"><table class="w-full text-[11px]"><thead class="sticky top-0 bg-white"><tr class="text-left text-slate-500"><th class="py-1">Nombre</th><th>Apellidos</th><th>Usuario</th><th>Rol</th><th>Activo</th><th>Contraseña</th><th>Último acceso</th><th></th></tr></thead><tbody>${listaUsuarios.map(fila).join('')}</tbody></table></div>
+                <table class="w-full text-[10px] text-slate-500 mt-3">${Object.entries(ROLES).map(([k, n]) => `<tr><td class="pr-2 font-bold whitespace-nowrap align-top">${esc(n)}</td><td>${esc(DESCRIPCION_ROLES[k])}</td></tr>`).join('')}</table>`;
+            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><span class="text-slate-400 self-center">${listaUsuarios.length} usuario(s) · Supabase</span><span class="flex-1"></span><button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-users text-blue-600 mr-1.5"></i> Usuarios';
+            document.querySelector('#modal-red > div').style.width = 'min(1200px, 97vw)';
+            document.getElementById('modal-red').style.display = 'flex';
+        }
+        function claveAleatoria() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'; const v = new Uint32Array(10); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(v) : v.forEach((x, i) => v[i] = Math.random() * 1e9); return [...v].map(x => a[x % a.length]).join(''); }
+        const valorCampo = id => (document.getElementById(id) || {}).value || '';
+        async function usuarioCrear() {
+            const s = sesionActual(), u = valorCampo('nu-usuario').trim().toLowerCase(), nombre = valorCampo('nu-nombre').trim(), clave = valorCampo('nu-clave');
+            if (!/^[a-z0-9._-]{3,40}$/.test(u)) { aviso('Nombre de usuario: de 3 a 40 caracteres, minúsculas, números, punto, guion o guion bajo.', 'error'); return; }
+            if (!nombre) { aviso('Indica el nombre.', 'error'); return; }
+            if (clave.length < 8) { aviso('La contraseña por defecto debe tener al menos 8 caracteres.', 'error'); return; }
+            try { await rpcUsuarios('piping_usuario_crear', { p_token: s.token, p_usuario: u, p_nombre: nombre, p_apellidos: valorCampo('nu-apellidos').trim(), p_rol: valorCampo('nu-rol'), p_clave: clave }); aviso(`Usuario ${u} creado. Contraseña por defecto: ${clave} (tendrá que cambiarla al entrar).`, 'ok'); abrirUsuarios(); }
+            catch (e) { aviso('Usuarios: ' + e.message, 'error'); }
+        }
+        async function usuarioGuardar(id) {
+            const s = sesionActual();
+            try { await rpcUsuarios('piping_usuario_actualizar', { p_token: s.token, p_id: id, p_nombre: valorCampo('un-' + id).trim(), p_apellidos: valorCampo('ua-' + id).trim(), p_rol: valorCampo('ur-' + id), p_activo: !!(document.getElementById('uv-' + id) || {}).checked }); aviso('Usuario actualizado.', 'ok'); abrirUsuarios(); }
+            catch (e) { aviso('Usuarios: ' + e.message, 'error'); }
+        }
+        async function usuarioResetear(id) {
+            const s = sesionActual(), u = listaUsuarios.find(x => x.id === id); if (!u) return;
+            const sug = claveAleatoria();
+            const r = await dialogo('<i class="fa-solid fa-key text-blue-600 mr-1.5"></i>Resetear contraseña', `<p>Nueva contraseña por defecto para <b>${esc(u.usuario)}</b> (${esc(nombreSesion(u))}). Tendrá que cambiarla al entrar.</p><input id="ur-clave" class="border rounded p-1 w-full font-mono mt-2" value="${esc(sug)}">`,
+                [{ texto: 'Resetear', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
+            if (r !== 'si') return;
+            const c = valorCampo('ur-clave'); if (c.length < 8) { aviso('Al menos 8 caracteres.', 'error'); return; }
+            try { await rpcUsuarios('piping_usuario_resetear', { p_token: s.token, p_id: id, p_clave: c }); aviso(`Contraseña de ${u.usuario} reseteada: ${c}`, 'ok'); abrirUsuarios(); }
+            catch (e) { aviso('Usuarios: ' + e.message, 'error'); }
+        }
+        async function usuarioBorrar(id) {
+            const s = sesionActual(), u = listaUsuarios.find(x => x.id === id); if (!u) return;
+            if (!confirm(`¿Eliminar el usuario ${u.usuario} (${nombreSesion(u)})? Si solo quieres impedir el acceso, desmarca «Activo».`)) return;
+            try { await rpcUsuarios('piping_usuario_borrar', { p_token: s.token, p_id: id }); aviso('Usuario eliminado.', 'ok'); abrirUsuarios(); }
+            catch (e) { aviso('Usuarios: ' + e.message, 'error'); }
+        }
+        // ---------- qué puede hacer cada rol ----------
         [['guardarProyecto', 'el proyecto'], ['guardarComoProyecto', 'el proyecto'], ['generarInforme', 'el informe'], ['generarListados', 'los listados'], ['abrirImpresion', '(imprimir)'], ['imprimirHojas', '(imprimir)'],
-         ['exportarPDFCapas', 'el PDF'], ['exportarComparacionEscenarios', 'la comparación'], ['nubeGuardar', 'en la nube'], ['nubeSubirLibreria', 'la librería'], ['guardarPlantillasUsuario', 'la plantilla'],
-         ['guardarSeleccionComoPlantilla', 'la plantilla'], ['capasComoPredeterminadas', 'las capas'], ['descargarPlantillaExcel', 'la plantilla Excel'], ['descargarPlantillaLineasEquipos', 'la plantilla Excel'], ['registrarRevision', 'la revisión']].forEach(([n, que]) => {
+         ['exportarPDFCapas', 'el PDF'], ['exportarComparacionEscenarios', 'la comparación'], ['nubeGuardar', 'en la nube'], ['guardarPlantillasUsuario', 'la plantilla'],
+         ['guardarSeleccionComoPlantilla', 'la plantilla'], ['descargarPlantillaExcel', 'la plantilla Excel'], ['descargarPlantillaLineasEquipos', 'la plantilla Excel'],
+         ['registrarRevision', 'registrar revisiones', 'revision'], ['nubeSubirLibreria', 'compartir la librería', 'compartido'], ['capasComoPredeterminadas', 'cambiar las capas predeterminadas', 'compartido'],
+         ['estadoComentario', 'resolver comentarios de revisión', 'comentarios']].forEach(([n, que, permiso]) => {
             const f = window[n]; if (typeof f !== 'function') return;
-            window[n] = function () { if (!puedeGuardar(que)) return; return f.apply(this, arguments); };
+            window[n] = function () { if (!puedeGuardar(que, permiso)) return; return f.apply(this, arguments); };
         });
+        { const _cp = congelarPlano; congelarPlano = function (si) { if (!puedeGuardar(si ? 'congelar el plano' : 'descongelar el plano', si ? 'congelar' : 'descongelar')) return; return _cp.apply(this, arguments); }; }
         // copias en el navegador (último proyecto y copias de seguridad): sin rastro en modo invitado
-        { const _gu = guardarUltimo; guardarUltimo = function () { if (esAdministrador()) return _gu.apply(this, arguments); }; }
-        { const _hc = hacerCopiaSeguridad; hacerCopiaSeguridad = function () { if (esAdministrador()) return _hc.apply(this, arguments); }; }
+        { const _gu = guardarUltimo; guardarUltimo = function () { if (tienePermiso('guardar')) return _gu.apply(this, arguments); }; }
+        { const _hc = hacerCopiaSeguridad; hacerCopiaSeguridad = function () { if (tienePermiso('guardar')) return _hc.apply(this, arguments); }; }
         // el invitado no tiene nada que guardar: sin aviso del navegador al cerrar
-        window.addEventListener('beforeunload', e => { if (!esAdministrador()) e.stopImmediatePropagation(); }, true);
+        window.addEventListener('beforeunload', e => { if (!sesionActual()) e.stopImmediatePropagation(); }, true);
         // Ctrl+G / Ctrl+S, Ctrl+P y similares pasan por las funciones anteriores
-        function submenuAdministracion() { const adm = esAdministrador(); return [
-            adm ? { icono: 'fa-user-shield', texto: 'Sesión: administrador', accion: () => {} } : { icono: 'fa-right-to-bracket', texto: 'Iniciar sesión (administrador)...', accion: () => iniciarSesionAdmin() },
-            ...(adm ? [{ icono: 'fa-key', texto: 'Cambiar contraseña...', accion: () => cambiarClaveAdmin() }, 'sep', { icono: 'fa-right-from-bracket', texto: 'Cerrar sesión', accion: () => cerrarSesionAdmin() }] : [{ icono: 'fa-circle-info', texto: 'Modo invitado: se puede ver y probar todo, pero no guardar ni exportar', accion: () => {} }])
-        ]; }
+        function submenuAdministracion() { const s = sesionActual(); return s ? [
+            { icono: s.rol === 'admin' ? 'fa-user-shield' : 'fa-user-check', texto: `Sesión: ${nombreSesion(s)} · ${trad(ROLES[s.rol])}`, accion: () => {} },
+            { icono: 'fa-key', texto: 'Cambiar mi contraseña...', accion: () => cambiarClaveAdmin() },
+            ...(s.rol === 'admin' ? [{ icono: 'fa-users', texto: 'Usuarios...', accion: () => abrirUsuarios() }] : []),
+            'sep', { icono: 'fa-right-from-bracket', texto: 'Cerrar sesión', accion: () => cerrarSesionAdmin() }
+        ] : [{ icono: 'fa-right-to-bracket', texto: 'Iniciar sesión...', accion: () => iniciarSesionAdmin() }, { icono: 'fa-circle-info', texto: 'Modo invitado: se puede ver y probar todo, pero no guardar ni exportar', accion: () => {} }]; }
         { const archivo = MENUS.find(m => m.titulo === 'Archivo'), k = archivo.items.findIndex(x => x && x.texto === 'Nube (equipo)'); archivo.items.splice(k + 1, 0, { icono: 'fa-user-shield', texto: 'Administración', sub: () => submenuAdministracion() }); }
-        // al entrar: aviso destacado del modo invitado (si no hay sesión de administrador)
+        // al entrar: aviso destacado del modo invitado (si no hay sesión)
         async function pantallaAcceso() {
             const r = await dialogo('<i class="fa-solid fa-user-lock text-amber-600 mr-1.5"></i>Acceso a PIPING',
                 `<div class="border-2 border-amber-400 bg-amber-50 rounded-lg p-3 text-center"><p class="text-base font-bold text-amber-700"><i class="fa-solid fa-user mr-1.5"></i>Vas a entrar en MODO INVITADO</p>
                 <p class="mt-1 text-amber-800">Puedes ver y probar toda la aplicación, pero <b>no se guarda ni se exporta nada</b> (proyectos, DXF, PDF, informes, listados, impresión, nube).</p></div>
-                <p class="mt-2 text-slate-500 text-[11px]">Para trabajar con guardado: Archivo > Administración > Iniciar sesión (administrador).</p>`,
-                [{ texto: 'Entrar como invitado', valor: 'invitado', clase: 'bg-amber-500 hover:bg-amber-600 text-white' }, { texto: 'Iniciar sesión (administrador)...', valor: 'admin', clase: 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' }]);
+                <p class="mt-2 text-slate-500 text-[11px]">Para trabajar con guardado: Archivo > Administración > Iniciar sesión.</p>`,
+                [{ texto: 'Entrar como invitado', valor: 'invitado', clase: 'bg-amber-500 hover:bg-amber-600 text-white' }, { texto: 'Iniciar sesión...', valor: 'admin', clase: 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' }]);
             if (r === 'admin') await iniciarSesionAdmin();
             pintarInsignia();
-            if (!esAdministrador()) aviso('Modo invitado: solo consulta. Archivo > Administración > Iniciar sesión para guardar.');
+            if (!sesionActual()) aviso('Modo invitado: solo consulta. Archivo > Administración > Iniciar sesión para guardar.');
         }
-        { const _pi = pantallaInicio; let primera = true; pantallaInicio = async function () { if (primera) { primera = false; if (!esAdministrador()) await pantallaAcceso(); } return _pi.apply(this, arguments); }; }
+        { const _pi = pantallaInicio; let primera = true; pantallaInicio = async function () { if (primera) { primera = false; if (!sesionActual()) await pantallaAcceso(); } return _pi.apply(this, arguments); }; }
         setTimeout(pintarInsignia, 0);
         const barraMenus = document.getElementById('barra-menus');
         let menuAbierto = null;
