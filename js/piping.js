@@ -1172,6 +1172,9 @@
                     ${nNum('nd-h0', 'h0', `Presión a caudal cero (${lP()})`, mostrarCampo('h0', el.h0))}${nNum('nd-npsh', 'npsh', 'NPSH requerido (m)', el.npsh, '0.1')}
                     ${nNum('nd-eta', 'eta', 'Rendimiento η', el.eta || 0.7, '0.01')}${nNum('nd-cota', 'cota', 'Cota de la bomba (m)', el.cota, '0.01')}
                     ${nSel('nd-reservaDe', 'reservaDe', 'Función', [['', 'Servicio'], ...otras.map(e => [e.id, 'Reserva de ' + tagDe(e)])], el.reservaDe || '')}
+                    <p class="font-bold text-slate-600 pt-1">Conexiones</p>
+                    ${(() => { const dns = [['', '—'], ...LISTA_DN.map(d => [d, etiquetaDN(d)])], pns = [['', '—'], ...PN_LISTA.map(x => Array.isArray(x) ? x : [x, x])];
+                        return nSel('nd-dnAsp', 'dnAsp', 'Entrada (aspiración) · tamaño', dns, el.dnAsp || '') + nSel('nd-pnAsp', 'pnAsp', 'Entrada · rating', pns, el.pnAsp || '') + nSel('nd-dnImp', 'dnImp', 'Salida (impulsión) · tamaño', dns, el.dnImp || '') + nSel('nd-pnImp', 'pnImp', 'Salida · rating', pns, el.pnImp || ''); })()}
                     <p class="text-[10px] text-slate-400">Aspiración (A) a la izquierda e impulsión (I) a la derecha. Herramientas > Dimensionar bomba propone el punto Q-H.</p>`;
             } else if (esEquipo(el)) {
                 const dc = dosCircuitos(el);
@@ -1229,7 +1232,7 @@
             }
             document.getElementById('modal-nuevo-body').innerHTML = h;
         }
-        const CAMPOS_TEXTO_NUEVO = ['dn', 'dnMenor', 'pn', 'craneTipo', 'caracteristica', 'reservaDe', 'tipoConexion', 'dnConexion', 'dnInstr', 'rango', 'materialComp', 'gradoMaterial', 'url'];
+        const CAMPOS_TEXTO_NUEVO = ['dn', 'dnMenor', 'pn', 'craneTipo', 'caracteristica', 'reservaDe', 'tipoConexion', 'dnConexion', 'dnInstr', 'rango', 'materialComp', 'gradoMaterial', 'url', 'dnAsp', 'pnAsp', 'dnImp', 'pnImp'];
         function nuevoAplicarItem(id) { const { el } = nuevoPendiente; leerModalNuevo(false); aplicarItemLib(el, id ? itemPorId(id) : null); pintarModalNuevo(); }
         // Lee los controles de la ventana de inserción y los aplica al elemento. Devuelve un error o null.
         function leerModalNuevo(validar = true) {
@@ -1237,7 +1240,7 @@
             for (const x of document.querySelectorAll('#modal-nuevo-body [data-campo]')) {
                 const c = x.dataset.campo, raw = x.value;
                 if (c === 'excentrica') { el.excentrica = raw === 'true'; continue; }
-                if (CAMPOS_TEXTO_NUEVO.includes(c)) { if (raw === '' && ['pn', 'reservaDe', 'dnConexion', 'dnInstr', 'rango', 'materialComp', 'gradoMaterial', 'url'].includes(c)) { if (c !== 'pn' || el.type === 'tuberia') delete el[c]; } else if (raw !== '__otro') el[c] = raw; continue; }
+                if (CAMPOS_TEXTO_NUEVO.includes(c)) { if (raw === '' && ['pn', 'reservaDe', 'dnConexion', 'dnInstr', 'rango', 'materialComp', 'gradoMaterial', 'url', 'dnAsp', 'pnAsp', 'dnImp', 'pnImp'].includes(c)) { if (c !== 'pn' || el.type === 'tuberia') delete el[c]; } else if (raw !== '__otro') el[c] = raw; continue; }
                 if (String(raw).trim() === '') { if (['cvUsuario', 'kvs', 'volumen', 'pTarado'].includes(c)) continue; if (validar) return 'Revisa los datos numéricos.'; continue; }
                 let v = parseFloat(raw); if (isNaN(v)) { if (validar) return 'Revisa los datos numéricos.'; continue; }
                 if (CAMPOS_UNIDAD[c]) v = leerCampo(c, v);
@@ -1355,7 +1358,7 @@
 
         // Rellena valores por defecto que puedan faltar (elementos creados con versiones anteriores)
         function normalizarElemento(el) {
-            if (el.materialComp && typeof MATCOMP_ANTIGUOS === 'object' && MATCOMP_ANTIGUOS[el.materialComp]) el.materialComp = MATCOMP_ANTIGUOS[el.materialComp];
+            if (el.materialComp && typeof MATCOMP_ANTIGUOS === 'object') { const M = el.type === 'bomba' ? MATCOMP_BOMBA_ANTIGUOS : MATCOMP_ANTIGUOS; if (M[el.materialComp]) el.materialComp = M[el.materialComp]; }
             if (el.pn) el.pn = PN_NUEVO(el.pn);
             if (el.subtype === 'continuacion' && typeof prepararContinuacion === 'function') prepararContinuacion(el);
             if (el.gradoMaterial) el.gradoMaterial = GRADO_NUEVO(el.gradoMaterial);
@@ -1703,7 +1706,7 @@
             COLS_LISTADO.forEach(([n], k) => { const [x0, w] = xs[k]; h += tx(x0 + w / 2, yC, tradMayDoc(n), 'font-weight="bold" text-anchor="middle"') + (k ? `<line x1="${x0.toFixed(2)}" y1="${g.hT.toFixed(2)}" x2="${x0.toFixed(2)}" y2="${g.H.toFixed(2)}" stroke="${c}" stroke-width="0.45"/>` : ''); });
             g.filas.forEach((f, i) => {
                 const y0 = g.hT + g.hC + i * g.hF, y = y0 + g.hF / 2 + fs * 0.36;
-                const vals = [String(i + 1), f.ud === 'm' ? fmt(f.n, 1) + ' M' : String(f.n), f.desc, f.tam, f.pn, f.mat].map(v => String(v || '').toUpperCase());
+                const vals = [String(i + 1), f.ud === 'm' ? String(Math.round(f.n * 1000)) : String(f.n), f.desc, f.tam, f.pn, f.mat].map(v => String(v || '').toUpperCase());
                 vals.forEach((v, k) => { const [x0, w] = xs[k]; const cen = k !== 2 && k !== 5; h += tx(cen ? x0 + w / 2 : x0 + MM(1.5), y, recortarA(v, fs, w - MM(3)), cen ? 'text-anchor="middle"' : ''); });
                 if (i) h += Lh(y0, 0.3);
             });
@@ -1928,12 +1931,13 @@
             const Vf = (x, y, t, fs, maxU, extra = '') => { if (!t) return ''; ctxMedida.font = `bold ${fs * k}px sans-serif`; const w = ctxMedida.measureText(String(t)).width / k; return V(x, y, t, w > maxU ? Math.max(14, fs * maxU / w) : fs, extra); };
             // Plano nº: el nº de plano (o, si no se ha indicado, la referencia del proyecto); Nº de proyecto solo si ambos existen
             const planoN = p.planoNumero || p.numero, proyN = p.planoNumero ? p.numero : '';
-            h += V(60, 370, opciones.formato || 'A3') + Vf(193, 370, proyN, 34, 265) + Vf(489, 370, planoN, 34, 312) + V(833, 370, p.revision) + V(996, 370, p.letraRevision);
+            const CEN = 'text-anchor="middle"';
+            h += V(60, 370, opciones.formato || 'A3') + Vf(193, 370, proyN, 34, 265) + Vf(640, 374, planoN, 42, 320, CEN) + Vf(905, 374, p.revision, 42, 140, CEN) + V(1045, 374, p.letraRevision, 34);
             // nombres de dibujante, revisor y aprobador alineados a la derecha de su casilla
             const DER = 'text-anchor="end"';
-            h += Vf(1476, 312, p.autor, 26, 300, DER) + V(1590, 310, fechaDMA(p.fecha), 26) + Vf(1476, 392, p.revisadoPor, 26, 300, DER) + V(1590, 388, fechaDMA(p.fechaRevisado), 26);
+            h += Vf(1468, 316, p.autor, 34, 270, DER) + Vf(1812, 316, fechaDMA(p.fecha), 34, 300, DER) + Vf(1468, 394, p.revisadoPor, 34, 270, DER) + Vf(1812, 394, fechaDMA(p.fechaRevisado), 34, 300, DER);
             h += V(120, 460, p.escala || 'N/A', 30) + V(470, 460, p.grupoPlano, 30) + V(840, 452, codigoHoja(), 30) + V(990, 452, String(hojas.length), 30);
-            h += Vf(1476, 470, p.aprobadoPor, 26, 300, DER) + V(1590, 470, fechaDMA(p.fechaAprobado), 26);
+            h += Vf(1468, 470, p.aprobadoPor, 34, 270, DER) + Vf(1812, 470, fechaDMA(p.fechaAprobado), 34, 300, DER);
             if (p.logo) h += `<image href="${p.logo}" x="${X(1165)}" y="${Y(18)}" width="${(645 * k).toFixed(2)}" height="${(200 * k).toFixed(2)}" preserveAspectRatio="xMidYMid meet"/>`;
             h += V(230, 530, tr(p.codigoPlano, 28), 30) + V(960, 530, tr(p.planoCert, 10), 26);
             return h + '</g>';
@@ -2419,6 +2423,7 @@
             elementosRed.filter(e => !esAnotacion(e)).forEach(e => {
                 let k, fila;
                 if (e.type === 'tuberia') { k = ['T', e.material, e.serie, e.dn, e.gradoMaterial || ''].join('|'); fila = { desc: `${tradDoc('Tubería')} ${tradDoc(e.material)} ${/^[0-9]+S?$/.test(e.serie) ? 'Sch ' + e.serie : e.serie}`, mat: e.gradoMaterial || trad(e.material) || '', tam: tamanoTubo(e.material, e.dn), pn: e.pn || '', ud: 'm', n: 0 }; }
+                else if (e.type === 'bomba') { const pu = d => d && /^DN/.test(d) ? pulgadas(npsDeDN(d)) + '"' : '', tam = [pu(e.dnAsp), pu(e.dnImp)].filter(Boolean).join(' × '), pn = e.pnAsp && e.pnImp && e.pnAsp !== e.pnImp ? `${e.pnAsp} / ${e.pnImp}` : (e.pnAsp || e.pnImp || ''); k = ['B', tam, pn, e.materialComp || ''].join('|'); fila = { desc: tradDoc(nombreTipo(e)), mat: e.materialComp || '', tam, pn, ud: 'ud', n: 0 }; }
                 else { const tam = e.subtype === 'reduccion' ? `${pulgadas(npsDeDN(e.dn))}" × ${pulgadas(npsDeDN(e.dnMenor))}"` : (e.dn && /^DN/.test(e.dn) ? pulgadas(npsDeDN(e.dn)) + '"' : ''); k = [e.type, e.subtype, tam, e.pn || '', e.craneTipo || '', e.materialComp || ''].join('|'); fila = { desc: tradDoc(nombreTipo(e)), mat: e.materialComp || '', tam, pn: e.pn || '', ud: 'ud', n: 0 }; }
                 if (!m.has(k)) m.set(k, Object.assign(fila, { tags: [] }));
                 const f = m.get(k); f.n += e.type === 'tuberia' ? e.longitud / 1000 : 1; f.tags.push(tagDe(e));
@@ -2605,6 +2610,9 @@
                   else h += info('NPSH: se comprueba al calcular la red (NPSHd ≥ NPSHr + margen).'); }
                 h += ctrlNum(fn, 'cota', obj.cota || 0, 'Cota de la bomba (m)', '0.1');
                 h += ctrlNum(fn, 'eta', obj.eta || 0.70, 'Rendimiento de la bomba η', '0.01');
+                { const dns = [['', '—'], ...LISTA_DN.map(d => [d, etiquetaDN(d)])], pns = [['', '—'], ...PN_LISTA.map(x => Array.isArray(x) ? x : [x, x])];
+                  h += `<p class="font-bold text-slate-600 pt-1 text-[11px]">Conexiones</p>` + ctrlSelect(fn, 'dnAsp', dns, obj.dnAsp || '', 'Entrada (aspiración) · tamaño') + ctrlSelect(fn, 'pnAsp', pns, obj.pnAsp || '', 'Entrada · rating') +
+                       ctrlSelect(fn, 'dnImp', dns, obj.dnImp || '', 'Salida (impulsión) · tamaño') + ctrlSelect(fn, 'pnImp', pns, obj.pnImp || '', 'Salida · rating'); }
                 h += `<button onclick="abrirCurvaBomba('${obj.id}')" class="w-full mt-1 px-2 py-1 border border-blue-300 rounded text-blue-700 hover:bg-blue-50 text-[11px]"><i class="fa-solid fa-chart-line mr-1"></i>${obj.curva ? `Curva del fabricante (${obj.curva.length} puntos)...` : 'Pegar curva Q-H del fabricante...'}</button>`;
                 const otras = elementosRed.filter(e => e.type === 'bomba' && e.id !== obj.id && !e.reservaDe);
                 h += ctrlSelect(fn, 'reservaDe', [['', 'Servicio'], ...otras.map(e => [e.id, 'Reserva de ' + tagDe(e)])], obj.reservaDe || '', 'Función');
@@ -2954,7 +2962,7 @@
 
         function datosProyecto() {
             return {
-                version: "8.6-usuarios",
+                version: "8.6.1-usuarios",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -2981,7 +2989,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="8.6-usuarios" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="8.6.1-usuarios" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -4480,7 +4488,9 @@
             accesorio: { ASME: ['SA-234 Gr.WPB', 'SA-234 Gr.WPC', 'SA-420 Gr.WPL6', 'SA-403 Gr.WP304', 'SA-403 Gr.WP304L', 'SA-403 Gr.WP316', 'SA-403 Gr.WP316L', 'SA-403 Gr.WP321', 'SA-403 Gr.WP321H', 'SA-403 Gr.WP347', 'SA-403 Gr.WP347H', 'SA-105 (forjado, B16.11)', 'SA-182 F316L (forjado, B16.11)'],
                 EN: ['P235GH/1.0345 (EN 10253-2)', 'P265GH/1.0425 (EN 10253-2)', 'P355NH/1.0565 (EN 10253-2)', 'P275NL1/1.0488 (EN 10253-2)', 'P355NL1/1.0566 (EN 10253-2)', 'P275NL2/1.1104 (EN 10253-2)', 'P355NL2/1.1106 (EN 10253-2)', 'X5CrNi18-10/1.4301 (EN 10253-3/-4)', 'X2CrNi19-11/1.4306 (EN 10253-3/-4)', 'X5CrNiMo17-12-2/1.4401 (EN 10253-3/-4)', 'X2CrNiMo17-12-2/1.4404 (EN 10253-3/-4)', 'X6CrNiTi18-10/1.4541 (EN 10253-3/-4)', 'X6CrNiNb18-10/1.4550 (EN 10253-3/-4)', 'P235TR2 (EN 10253-1)', 'EN-GJS-400-15 (EN 1563)'] },
             valvula: { ASME: ['SA-216 WCB', 'SA-352 LCB', 'SA-351 CF8', 'SA-351 CF8M', 'SA-351 CF3M', 'SA-105 (forjado)', 'SA-182 F316 (forjado)', 'B62 bronce', 'SA-395 fundición dúctil'], EN: ['1.0619 GP240GH (EN 10213)', '1.6220 G20Mn5 (EN 10213)', '1.4408 GX5CrNiMo19-11-2 (EN 10213)', 'EN-GJS-400-15 (EN 1563)', 'EN-GJL-250 (EN 1561)', 'CC491K bronce (EN 1982)', 'CW617N latón (EN 12165)'] },
-            bomba: { ASME: ['SA-216 WCB', 'SA-351 CF8M', 'SA-48 Cl. 30 (fundición gris)'], EN: ['EN-GJL-250 (EN 1561)', 'EN-GJS-400-15 (EN 1563)', '1.4408 GX5CrNiMo19-11-2 (EN 10213)', 'CC491K bronce (EN 1982)', '1.4470 dúplex (EN 10213)'] },
+            // bombas (lista de José 01/10/2026; equivalencias en Ayuda > Equivalencias)
+            bomba: { ASME: ['ASTM A48 Cl.30B', 'ASTM A48 Cl.35B', 'ASTM A536 65-45-12 (fundición dúctil)', 'ASTM A216 Gr.WCB', 'SA-105 (forjado)', 'ASTM A351 Gr.CF8', 'ASTM A351 Gr.CF8M', 'ASTM A890/A995 Gr.4A (dúplex)', 'ASTM A890/A995 Gr.5A (superdúplex)', 'ASTM A890/A995 Gr.6A (superdúplex)', 'Bronce', 'Hastelloy', 'Inconel', 'Titanio'],
+                EN: ['EN-GJL-250 (EN 1561)', 'EN-GJS-400-15 (EN 1563)', 'GP240GH/1.0619 (EN 10213)', 'GX5CrNi19-10/1.4308 (EN 10213)', 'GX5CrNiMo19-11-2/1.4408 (EN 10213)', '1.4462 dúplex (EN 10213 / EN 10283)', '1.4410 superdúplex (EN 10213 / EN 10283)', 'CC491K bronce (EN 1982)', '1.4470 dúplex (EN 10213)'] },
             equipo: { ASME: ['SA-516 Gr. 70', 'SA-240 TP316L', 'SB-265 Gr. 1 (titanio)', 'SB-111 C70600 (Cu-Ni 90/10)'], EN: ['P265GH (EN 10028-2)', 'P355NL1 (EN 10028-3)', '1.4404 (EN 10028-7)', 'Titanio Gr. 1', 'CuNi10Fe1Mn (EN 12449)'] },
             tanque: { ASME: ['SA-516 Gr. 70', 'SA-283 Gr. C', 'SA-240 TP316L'], EN: ['S235JR (EN 10025-2)', 'S275JR (EN 10025-2)', 'P265GH (EN 10028-2)', '1.4404 (EN 10028-7)', 'PRFV (EN 13121)', 'PE rotomoldeado'] },
             instrumento: { ASME: ['SA-182 F316L / 316L', 'Latón'], EN: ['1.4404 (AISI 316L)', 'CW617N latón (EN 12165)', 'Plástico técnico (PA / PP)'] }
@@ -4496,6 +4506,7 @@
             'P235GH (EN 10216-2)': 150, 'P265GH (EN 10216-2)': 170.8, 'P235TR1 (EN 10216-1)': 150, 'P235TR2 (EN 10217-1)': 150, 'L245 (EN ISO 3183)': 163.3, 'S235JRH (EN 10219)': 150, 'P355N (EN 10216-3)': 204,
             'SA-312 TP304': 137.9, 'SA-312 TP304L': 115.1, 'SA-312 TP316': 137.9, 'SA-312 TP316L': 115.1, 'SA-312 TP321': 137.9, 'SA-358 TP316L (soldado)': 97.8,
             '1.4301 X5CrNi18-10 (EN 10216-5)': 166.7, '1.4307 X2CrNi18-9 (EN 10216-5)': 150, '1.4401 X5CrNiMo17-12-2 (EN 10216-5)': 170, '1.4404 X2CrNiMo17-12-2 (EN 10216-5)': 173.3, '1.4541 X6CrNiTi18-10 (EN 10216-5)': 166.7, '1.4404 soldado (EN 10217-7)': 147.3 };
+        var MATCOMP_BOMBA_ANTIGUOS = { 'SA-216 WCB': 'ASTM A216 Gr.WCB', 'SA-351 CF8M': 'ASTM A351 Gr.CF8M', 'SA-48 Cl. 30 (fundición gris)': 'ASTM A48 Cl.30B', '1.4408 GX5CrNiMo19-11-2 (EN 10213)': 'GX5CrNiMo19-11-2/1.4408 (EN 10213)' };
         var MATCOMP_ANTIGUOS = { 'SA-105': 'SA-105N', 'SA-350 LF2 Cl. 1': 'SA-350 Gr.LF2', 'SA-182 F304': 'SA-182 Gr.F304', 'SA-182 F304L': 'SA-182 Gr.F304L', 'SA-182 F316': 'SA-182 Gr.F316', 'SA-182 F316L': 'SA-182 Gr.F316L',
             'SA-181 Gr.II': 'SA-181 Cl.70', 'P275NL1 (EN 10222-3)': 'P275NL1/1.0488 (EN 10222-3)', 'P355NL (EN 10222-3)': 'P355NL1/1.0566 (EN 10222-3)', 'P355GH/1.0473 (EN 10253-2)': 'P355NH/1.0565 (EN 10253-2)', 'P275NL1 (EN 10253-2)': 'P275NL1/1.0488 (EN 10253-2)', 'P355NL (EN 10253-2)': 'P355NL1/1.0566 (EN 10253-2)',
             '1.4307 (EN 10222-5)': 'X2CrNi19-11/1.4306 (EN 10222-5)', '1.4404 (EN 10222-5)': 'X2CrNiMo17-12-2/1.4404 (EN 10222-5)',
@@ -4778,6 +4789,13 @@
                 ['SA-234 Gr.WPB (uso general / temperatura moderada)', [['EN 10253-2', ['P235GH / 1.0345', 'P265GH / 1.0425']]]],
                 ['SA-420 Gr.WPL6 (servicio a baja temperatura)', [['EN 10253-2', ['P275NL1 / 1.0488', 'P355NL1 / 1.0566', 'P275NL2 / 1.1104', 'P355NL2 / 1.1106 (con ensayo de impacto)']]]],
                 ['SA-234 Gr.WPC (mayor resistencia mecánica)', [['EN 10253-2', ['P355NH / 1.0565']]]]]],
+            ['Material para bombas', [
+                ['ASTM A48 Cl.30B / 35B (fundición gris)', [['EN 1561', ['EN-GJL-250']]]],
+                ['ASTM A536 65-45-12 (fundición dúctil)', [['EN 1563', ['EN-GJS-400-15']]]],
+                ['ASTM A216 Gr.WCB (carcasa fundida) / SA-105 (forjado)', [['EN 10213', ['GP240GH / 1.0619']]]],
+                ['ASTM A351 Gr.CF8M (AISI 316 fundido) / CF8 (AISI 304 fundido)', [['EN 10213', ['GX5CrNiMo19-11-2 / 1.4408', 'GX5CrNi19-10 / 1.4308']]]],
+                ['ASTM A890 / A995 Gr.4A, 5A, 6A (dúplex y superdúplex)', [['EN 10213 / EN 10283', ['1.4462', '1.4410']]]],
+                ['Bronce y aleaciones especiales (impulsores y cuerpos en agua de mar; ácidos muy corrosivos)', [['—', ['Bronce (EN 1982)', 'Alto níquel (Hastelloy, Inconel)', 'Titanio']]]]]],
             ['Material para codos, tes, cruces y reducciones de acero inoxidable (accesorios para soldar)', [
                 ['SA-403 Gr.WP304 / WP304L', [['EN 10253-3 / EN 10253-4', ['X5CrNi18-10 / 1.4301', 'X2CrNi19-11 / 1.4306']]]],
                 ['SA-403 Gr.WP316 / WP316L', [['EN 10253-3 / EN 10253-4', ['X5CrNiMo17-12-2 / 1.4401', 'X2CrNiMo17-12-2 / 1.4404']]]],
@@ -5172,7 +5190,7 @@
                 tuberia: [['linea', 'Línea', 'sel', lin], ['material', 'Tipo / material', 'sel', () => Object.keys(CAT.materiales)], ['serie', 'Serie', 'sel', el => materialDe(el).series.filter(sr => materialDe(el).tamanos.some(t => t.e[sr] != null))], ['dn', 'Tamaño', 'sel', el => materialDe(el).tamanos.filter(t => t.e[el.serie] != null).map(t => [t.clave, tamanoTubo(el.material, t.clave)])], ['pn', 'Clase / PN', 'sel', pn], ['gradoMaterial', 'Material (grado)', 'mat'], ['longitud', 'L (mm)', 'num'], ['cotaA', 'Cota a (m)', 'num'], ['cotaB', 'Cota b (m)', 'num'], ['aislamiento', 'Aisl. (mm)', 'num']],
                 valvula: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['dn', 'DN', 'sel', () => LISTA_DN.map(d => [d, etiquetaDN(d)])], ['pn', 'PN / clase', 'sel', pn], ['craneTipo', 'Subtipo', 'sel', el => opcionesCrane(claveCrane(el)).map(o => o[0])], ['libItem', 'Modelo de librería', 'sel', el => [['', '—'], ...itemsLib(el.subtype).map(i => [i.id, i.nombre])]], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt'], ['cota', 'Cota (m)', 'num']],
                 accesorio: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['dn', 'DN', 'sel', () => LISTA_DN.map(d => [d, etiquetaDN(d)])], ['dnMenor', 'DN menor', 'sel', el => el.subtype === 'reduccion' ? LISTA_DN.filter(d => dnNum(d) < dnNum(el.dn)).map(d => [d, etiquetaDN(d)]) : null], ['pn', 'PN / clase', 'sel', pn], ['craneTipo', 'Tipo (Crane)', 'sel', el => { const o = opcionesCrane(claveCrane(el)); return o.length > 1 ? o.map(x => x[0]) : null; }], ['libItem', 'Modelo de librería', 'sel', el => [['', '—'], ...itemsLib(el.subtype).map(i => [i.id, i.nombre])]], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt'], ['cota', 'Cota (m)', 'num']],
-                bomba: [['linea', 'Línea', 'sel', lin], ['caudal', `Q (${lQ()})`, 'mag'], ['presion', `p (${lP()})`, 'mag'], ['h0', `p₀ (${lP()})`, 'mag'], ['npsh', 'NPSHr (m)', 'num'], ['eta', 'η', 'num'], ['cota', 'Cota (m)', 'num'], ['libItem', 'Modelo de librería', 'sel', () => [['', '—'], ...itemsLib('bomba').map(i => [i.id, i.nombre])]], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
+                bomba: [['linea', 'Línea', 'sel', lin], ['caudal', `Q (${lQ()})`, 'mag'], ['presion', `p (${lP()})`, 'mag'], ['h0', `p₀ (${lP()})`, 'mag'], ['npsh', 'NPSHr (m)', 'num'], ['eta', 'η', 'num'], ['cota', 'Cota (m)', 'num'], ['dnAsp', 'DN entrada', 'sel', () => LISTA_DN.map(d => [d, etiquetaDN(d)])], ['pnAsp', 'Rating entrada', 'sel', pn], ['dnImp', 'DN salida', 'sel', () => LISTA_DN.map(d => [d, etiquetaDN(d)])], ['pnImp', 'Rating salida', 'sel', pn], ['libItem', 'Modelo de librería', 'sel', () => [['', '—'], ...itemsLib('bomba').map(i => [i.id, i.nombre])]], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
                 equipo: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['qNom', `Q nom (${lQ()})`, 'mag'], ['dpNom', `Δp nom (${lP()})`, 'mag'], ['pn', 'PN / clase', 'sel', pn], ['volumen', 'V (l)', 'num'], ['cota', 'Cota (m)', 'num'], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
                 terminal: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['qCons', `Q cons. (${lQ()})`, 'mag', el => el.subtype === 'consumo'], ['pMin', `p mín (${lP()})`, 'mag', el => el.subtype === 'consumo'], ['cota', 'Cota (m)', 'num', el => el.subtype === 'consumo'], ['cotaFondo', 'Cota fondo (m)', 'num', el => esDeposito(el)], ['hLamina', 'Nivel (m)', 'num', el => esDeposito(el)], ['presionDep', `p lámina (${lP()})`, 'mag', el => esDeposito(el)], ['volumen', 'V (l)', 'num', el => esDeposito(el)], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
                 instrumento: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['dnInstr', 'Conexión', 'sel', () => [['', '—'], ...LISTA_DN.slice(0, 8).map(d => [d, etiquetaDN(d)])]], ['rango', 'Rango', 'txt'], ['cota', 'Cota (m)', 'num'], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']]
@@ -7609,7 +7627,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.6';
+        const VERSION_WEB = '8.6.1';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -10423,7 +10441,7 @@
             cerrarMenus();
             const s = sesionActual();
             if (!tienePermiso('usuarios')) { aviso('Solo un administrador puede gestionar usuarios.', 'error'); return; }
-            if (s.origen !== 'supabase') { aviso(claveSupabase() ? 'Los usuarios se guardan en Supabase: cierra la sesión y vuelve a entrar como admin (si no lo has hecho, ejecuta supabase/05_usuarios.sql).' : 'Los usuarios se guardan en Supabase: configura la conexión (Opciones > Supabase > Configurar conexión) y vuelve a iniciar sesión.', 'error'); return; }
+            if (s.origen !== 'supabase') { if (await conectarUsuariosSupabase()) abrirUsuarios(); return; }
             try { listaUsuarios = await rpcUsuarios('piping_usuarios_listar', { p_token: s.token }) || []; } catch (e) { aviso('Usuarios: ' + e.message, 'error'); return; }
             const fila = u => `<tr class="border-t border-slate-100 ${u.activo ? '' : 'text-slate-400'}"><td class="py-1 pr-1"><input id="un-${u.id}" value="${esc(u.nombre)}" class="border rounded p-0.5 w-28"></td><td class="pr-1"><input id="ua-${u.id}" value="${esc(u.apellidos || '')}" class="border rounded p-0.5 w-36"></td><td class="pr-2 font-mono">${esc(u.usuario)}</td><td>${selRol('ur-' + u.id, u.rol)}</td>
                 <td class="text-center"><input id="uv-${u.id}" type="checkbox" ${u.activo ? 'checked' : ''}></td><td class="text-center">${u.debe_cambiar ? '<span class="text-amber-700">pendiente</span>' : '<span class="text-emerald-700">propia</span>'}</td><td class="whitespace-nowrap">${u.ultimo_acceso ? fechaHora(u.ultimo_acceso) : '—'}</td>
@@ -10438,6 +10456,32 @@
             document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-users text-blue-600 mr-1.5"></i> Usuarios';
             document.querySelector('#modal-red > div').style.width = 'min(1200px, 97vw)';
             document.getElementById('modal-red').style.display = 'flex';
+        }
+        // sesión de administrador local → se conecta a Supabase (y se crea el administrador si la tabla está vacía),
+        // diciendo exactamente qué falla: clave anon, SQL sin ejecutar, contraseña…
+        async function conectarUsuariosSupabase() {
+            let diag = '', vacia = null;
+            if (claveSupabase()) {
+                try { vacia = await rpcUsuarios('piping_usuarios_vacio'); diag = vacia ? 'Conexión correcta. La tabla de usuarios está vacía: se creará el usuario admin en Supabase con la contraseña que escribas.' : 'Conexión correcta. Escribe la contraseña del usuario admin en Supabase.'; }
+                catch (e) { diag = e.sinFuncion ? '⚠ Supabase responde, pero no existe la función piping_usuarios_vacio: ejecuta supabase/05_usuarios.sql en el SQL Editor (si ya lo ejecutaste, ejecuta también: NOTIFY pgrst, \'reload schema\';).' : /401|JWT|apikey|Invalid API key/i.test(e.message) ? '⚠ La clave anon no es válida (HTTP 401): cópiala de Supabase > Project Settings > API > anon public.' : '⚠ ' + e.message; }
+            } else diag = '⚠ No hay clave anon de Supabase en este equipo: pégala abajo (Supabase > Project Settings > API > anon public).';
+            const r = await dialogo('<i class="fa-solid fa-database text-blue-600 mr-1.5"></i>Usuarios en Supabase', `<p class="text-[11px] mb-2 ${diag.startsWith('⚠') ? 'text-rose-700' : 'text-emerald-700'}">${esc(diag)}</p><p class="text-[11px] text-slate-500 mb-2">Has entrado como administrador local (sin Supabase). Los usuarios se guardan en Supabase.</p>
+                <div class="space-y-2"><label class="block">Clave anon <input id="cu-k" class="border rounded p-1 w-full font-mono text-[10px]" value="${esc(claveSupabase())}"></label><label class="block">Contraseña de admin <input id="cu-c" type="password" class="border rounded p-1 w-full"></label></div>`,
+                [{ texto: 'Conectar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
+            if (r !== 'si') return false;
+            const k = valorCampo('cu-k').trim(), c = valorCampo('cu-c');
+            if (k && k !== claveSupabase()) { let rol = ''; try { rol = JSON.parse(atob((k.split('.')[1] || '').replace(/-/g, '+').replace(/_/g, '/'))).role || ''; } catch (e) { } if (rol === 'service_role') { aviso('Esa es la clave service_role: usa la clave anon.', 'error'); return false; } try { localStorage.setItem('piping-supabase-clave', k); } catch (e) { } }
+            try {
+                let d = await rpcUsuarios('piping_login', { p_usuario: 'admin', p_clave: c, p_recordar: false });
+                if (!(d && d.ok) && await rpcUsuarios('piping_usuarios_vacio')) {
+                    if (resumenAcceso('admin', c) !== hashAcceso()) { aviso('La contraseña no es la del administrador de la aplicación.', 'error'); return false; }
+                    d = await rpcUsuarios('piping_inicializar', { p_usuario: 'admin', p_nombre: 'Administrador', p_clave: c });
+                }
+                if (!(d && d.ok)) { aviso((d && d.error) || 'Usuario o contraseña incorrectos.', 'error'); return false; }
+                let rec = false; try { rec = !!localStorage.getItem('piping-sesion'); } catch (e) { }
+                guardarSesion(Object.assign({}, d.usuario, { token: d.token, origen: 'supabase', expira: Date.now() + 12 * 36e5 }), rec); pintarInsignia();
+                aviso('Conectado a Supabase como admin.', 'ok'); return true;
+            } catch (e) { aviso(e.sinFuncion ? 'Falta ejecutar supabase/05_usuarios.sql en Supabase (SQL Editor).' : 'No se ha podido conectar: ' + e.message, 'error'); return false; }
         }
         function claveAleatoria() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'; const v = new Uint32Array(10); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(v) : v.forEach((x, i) => v[i] = Math.random() * 1e9); return [...v].map(x => a[x % a.length]).join(''); }
         const valorCampo = id => (document.getElementById(id) || {}).value || '';
