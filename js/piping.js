@@ -1,5 +1,19 @@
 // PIPING 8.4 · Diseño P&ID y cálculo de redes de tuberías · José A. Manteiga
 // Código de la aplicación (antes dentro de index.html). Lo carga index.html con <script src>.
+        // ---- carga por partes (v8.7): el empaquetado saca de este archivo el informe, CAD/PDF/Excel, administración/nube y herramientas ----
+        const PARTES_LISTA = ["informe","cad","admin","herr"];
+        const PARTES_OK = {}, CARGAS_PARTE = {};
+        function cargarParte(g, silencio) {
+            if (PARTES_OK[g] || typeof PARTES_LISTA === 'undefined') return Promise.resolve();
+            if (!CARGAS_PARTE[g]) CARGAS_PARTE[g] = new Promise((ok, ko) => {
+                const sc = document.createElement('script'); sc.src = `js/partes/${g}.js?v=${VERSION_WEB}`;
+                sc.onload = () => PARTES_OK[g] ? ok() : ko(new Error('parte ' + g));
+                sc.onerror = () => { delete CARGAS_PARTE[g]; if (!silencio) aviso(`No se ha podido cargar una parte del programa (js/partes/${g}.js). Comprueba la conexión y vuelve a intentarlo.`, 'error'); ko(new Error('parte ' + g)); };
+                document.head.appendChild(sc);
+            });
+            return CARGAS_PARTE[g];
+        }
+        async function cargarTodasLasPartes() { if (typeof PARTES_LISTA === 'undefined') return; for (const g of PARTES_LISTA) { try { await cargarParte(g, true); } catch (e) { /* se reintenta al usarla */ } await new Promise(r => setTimeout(r, 250)); } }
         let elementosRed = [];
         let idioma = (() => { try { const l = localStorage.getItem('piping-idioma'); return ['es', 'en', 'pt', 'ko'].includes(l) ? l : 'es'; } catch (e) { return 'es'; } })(); // Opciones > Idioma
         let planoCongelado = false; // hoja congelada (botón derecho en el lienzo > Congelar plano)
@@ -138,6 +152,12 @@
 
         // Mantiene un elemento dentro de la hoja A3 (símbolo + etiqueta). Devuelve true si lo ha movido.
         function limitarAHoja(el) {
+            // la mayoría de los elementos están lejos del borde: se descartan por geometría, sin medir el DOM
+            // (medir obliga al navegador a recalcular la página en cada redibujo)
+            if (el.type !== 'anotacion') {
+                const b = cajaSimbolo(el), mg = el.type === 'tuberia' ? 6 : 28 * (el.scale || 1);
+                if (b.x0 - mg > 0 && b.y0 - mg > 0 && b.x1 + mg < ANCHO_A3 && b.y1 + mg < ALTO_A3) return false;
+            }
             const g = svgCanvas.querySelector(`g[data-id="${el.id}"]`);
             if (!g) return false;
             const rM = marcoA3.getBoundingClientRect();
@@ -870,7 +890,6 @@
         function drag(ev) {
             ev.dataTransfer.setData("text/plain", JSON.stringify(ev.target.dataset));
         }
-
 
         // ---------- Conexión automática al soltar (2.9) ----------
         // Dirección hacia fuera de un puerto, en grados de pantalla (0 derecha, 90 abajo, 180 izquierda, 270 arriba)
@@ -1668,7 +1687,6 @@
             return stubs + lazo;
         }
 
-
         // ---------- Anotaciones: notas de texto y leyenda automática de símbolos ----------
         function dibujoAnotacion(el, c, P) {
             const fs = +el.tamTexto > 0 ? +el.tamTexto : 7;
@@ -2209,7 +2227,18 @@
             ];
         }
 
-        window.addEventListener('mousemove', function(e) {
+        // Arrastre fluido: el primer movimiento se dibuja en el acto; los que lleguen dentro del mismo
+        // fotograma se acumulan y se dibujan juntos en el siguiente (un redibujo por fotograma como máximo)
+        let arrastreEnCola = null, arrastreFotograma = false;
+        function vaciarArrastre() { if (arrastreEnCola) { const e = arrastreEnCola; arrastreEnCola = null; procesarArrastre(e); if (typeof guiasTrasArrastre === 'function') guiasTrasArrastre(); } }
+        window.addEventListener('mousemove', function (e) {
+            if (!isDraggingSymbol || !activeSymbolId) return;
+            if (arrastreFotograma) { arrastreEnCola = e; return; }
+            arrastreFotograma = true; procesarArrastre(e); if (typeof guiasTrasArrastre === 'function') guiasTrasArrastre();
+            requestAnimationFrame(() => { arrastreFotograma = false; vaciarArrastre(); });
+        });
+        window.addEventListener('mouseup', vaciarArrastre, true);
+        function procesarArrastre(e) {
             if (!isDraggingSymbol || !activeSymbolId) return;
             const dx = (e.clientX - dragStartX) / zoomScale;
             const dy = (e.clientY - dragStartY) / zoomScale;
@@ -2237,7 +2266,7 @@
                 if (!esAnotacion(el)) aplicarSnapping(el);
                 renderizarVectorial();
             }
-        });
+        }
 
         window.addEventListener('mouseup', function() {
             if (isDraggingSymbol) {
@@ -2922,6 +2951,7 @@
 
         async function guardarComoProyecto(formato) {
             if ((formato === 'pid' || formato === 'json') && !(await comprobarSueltosAntesDeGuardar())) return;
+            if (formato === 'dxf') await cargarParte('cad');
             const contenido = generarContenido(formato);
             const extensiones = {
                 pid: { description: 'Archivo P&ID (*.pid)', accept: { 'application/json': ['.pid'] } },
@@ -2962,7 +2992,7 @@
 
         function datosProyecto() {
             return {
-                version: "8.6.1-usuarios",
+                version: "8.8.2-accesorios",
                 catalogo: CAT ? CAT.version : null,
                 proyecto: proyecto,
                 lineas: lineas,
@@ -2989,7 +3019,7 @@
         function exportarXML() {
             const x = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const attrs = o => Object.entries(o).filter(([k, v]) => v !== null && v !== undefined && typeof v !== 'object' && !k.startsWith('_')).map(([k, v]) => `${k}="${x(v)}"`).join(' ');
-            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="8.6.1-usuarios" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
+            let out = `<?xml version="1.0" encoding="UTF-8"?>\n<piping version="8.8.2-accesorios" catalogo="${x(CAT ? CAT.version : '')}" fluido="${x(document.getElementById('selector-fluido').value)}" temperatura="${x(document.getElementById('temp-fluido').value)}">\n  <lineas>\n`;
             lineas.forEach(l => { out += `    <linea ${attrs(l)}/>\n`; });
             out += '  </lineas>\n  <elementos>\n';
             elementosRed.forEach(el => {
@@ -3022,73 +3052,8 @@
         ];
         // Plantilla R2000 generada con ezdxf (dxf/gen_plantilla.py): cabecera, tablas (capas y tipos de línea),
         // bloques y objetos; aquí solo se añaden las entidades con identificadores a partir de "seed".
-        const PLANTILLA_DXF = {"cabecera": "  0\nSECTION\n  2\nHEADER\n  9\n$ACADVER\n  1\nAC1015\n  9\n$ACADMAINTVER\n 70\n6\n  9\n$DWGCODEPAGE\n  3\nANSI_1252\n  9\n$INSBASE\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$EXTMIN\n 10\n1e+20\n 20\n1e+20\n 30\n1e+20\n  9\n$EXTMAX\n 10\n-1e+20\n 20\n-1e+20\n 30\n-1e+20\n  9\n$LIMMIN\n 10\n0.0\n 20\n0.0\n  9\n$LIMMAX\n 10\n420.0\n 20\n297.0\n  9\n$ORTHOMODE\n 70\n0\n  9\n$REGENMODE\n 70\n1\n  9\n$FILLMODE\n 70\n1\n  9\n$QTEXTMODE\n 70\n0\n  9\n$MIRRTEXT\n 70\n1\n  9\n$LTSCALE\n 40\n1.0\n  9\n$ATTMODE\n 70\n1\n  9\n$TEXTSIZE\n 40\n2.5\n  9\n$TRACEWID\n 40\n1.0\n  9\n$TEXTSTYLE\n  7\nStandard\n  9\n$CLAYER\n  8\n0\n  9\n$CELTYPE\n  6\nByLayer\n  9\n$CECOLOR\n 62\n256\n  9\n$CELTSCALE\n 40\n1.0\n  9\n$DISPSILH\n 70\n0\n  9\n$DIMSCALE\n 40\n1.0\n  9\n$DIMASZ\n 40\n2.5\n  9\n$DIMEXO\n 40\n0.625\n  9\n$DIMDLI\n 40\n3.75\n  9\n$DIMRND\n 40\n0.0\n  9\n$DIMDLE\n 40\n0.0\n  9\n$DIMEXE\n 40\n1.25\n  9\n$DIMTP\n 40\n0.0\n  9\n$DIMTM\n 40\n0.0\n  9\n$DIMTXT\n 40\n2.5\n  9\n$DIMCEN\n 40\n2.5\n  9\n$DIMTSZ\n 40\n0.0\n  9\n$DIMTOL\n 70\n0\n  9\n$DIMLIM\n 70\n0\n  9\n$DIMTIH\n 70\n0\n  9\n$DIMTOH\n 70\n0\n  9\n$DIMSE1\n 70\n0\n  9\n$DIMSE2\n 70\n0\n  9\n$DIMTAD\n 70\n1\n  9\n$DIMZIN\n 70\n8\n  9\n$DIMBLK\n  1\n\n  9\n$DIMASO\n 70\n1\n  9\n$DIMSHO\n 70\n1\n  9\n$DIMPOST\n  1\n\n  9\n$DIMAPOST\n  1\n\n  9\n$DIMALT\n 70\n0\n  9\n$DIMALTD\n 70\n3\n  9\n$DIMALTF\n 40\n0.03937007874\n  9\n$DIMLFAC\n 40\n1.0\n  9\n$DIMTOFL\n 70\n1\n  9\n$DIMTVP\n 40\n0.0\n  9\n$DIMTIX\n 70\n0\n  9\n$DIMSOXD\n 70\n0\n  9\n$DIMSAH\n 70\n0\n  9\n$DIMBLK1\n  1\n\n  9\n$DIMBLK2\n  1\n\n  9\n$DIMSTYLE\n  2\nISO-25\n  9\n$DIMCLRD\n 70\n0\n  9\n$DIMCLRE\n 70\n0\n  9\n$DIMCLRT\n 70\n0\n  9\n$DIMTFAC\n 40\n1.0\n  9\n$DIMGAP\n 40\n0.625\n  9\n$DIMJUST\n 70\n0\n  9\n$DIMSD1\n 70\n0\n  9\n$DIMSD2\n 70\n0\n  9\n$DIMTOLJ\n 70\n0\n  9\n$DIMTZIN\n 70\n8\n  9\n$DIMALTZ\n 70\n0\n  9\n$DIMALTTZ\n 70\n0\n  9\n$DIMUPT\n 70\n0\n  9\n$DIMDEC\n 70\n2\n  9\n$DIMTDEC\n 70\n2\n  9\n$DIMALTU\n 70\n2\n  9\n$DIMALTTD\n 70\n3\n  9\n$DIMTXSTY\n  7\nStandard\n  9\n$DIMAUNIT\n 70\n0\n  9\n$DIMADEC\n 70\n0\n  9\n$DIMALTRND\n 40\n0.0\n  9\n$DIMAZIN\n 70\n0\n  9\n$DIMDSEP\n 70\n44\n  9\n$DIMATFIT\n 70\n3\n  9\n$DIMFRAC\n 70\n0\n  9\n$DIMLDRBLK\n  1\n\n  9\n$DIMLUNIT\n 70\n2\n  9\n$DIMLWD\n 70\n-2\n  9\n$DIMLWE\n 70\n-2\n  9\n$DIMTMOVE\n 70\n0\n  9\n$LUNITS\n 70\n2\n  9\n$LUPREC\n 70\n4\n  9\n$SKETCHINC\n 40\n1.0\n  9\n$FILLETRAD\n 40\n10.0\n  9\n$AUNITS\n 70\n0\n  9\n$AUPREC\n 70\n2\n  9\n$MENU\n  1\n.\n  9\n$ELEVATION\n 40\n0.0\n  9\n$PELEVATION\n 40\n0.0\n  9\n$THICKNESS\n 40\n0.0\n  9\n$LIMCHECK\n 70\n0\n  9\n$CHAMFERA\n 40\n0.0\n  9\n$CHAMFERB\n 40\n0.0\n  9\n$CHAMFERC\n 40\n0.0\n  9\n$CHAMFERD\n 40\n0.0\n  9\n$SKPOLY\n 70\n0\n  9\n$TDCREATE\n 40\n2461314.881064815\n  9\n$TDUCREATE\n 40\n2458532.153996898\n  9\n$TDUPDATE\n 40\n2461314.881076389\n  9\n$TDUUPDATE\n 40\n2458532.1544311\n  9\n$TDINDWG\n 40\n0.0\n  9\n$TDUSRTIMER\n 40\n0.0\n  9\n$USRTIMER\n 70\n1\n  9\n$ANGBASE\n 50\n0.0\n  9\n$ANGDIR\n 70\n0\n  9\n$PDMODE\n 70\n0\n  9\n$PDSIZE\n 40\n0.0\n  9\n$PLINEWID\n 40\n0.0\n  9\n$SPLFRAME\n 70\n0\n  9\n$SPLINETYPE\n 70\n6\n  9\n$SPLINESEGS\n 70\n8\n  9\n$HANDSEED\n  5\n49\n  9\n$SURFTAB1\n 70\n6\n  9\n$SURFTAB2\n 70\n6\n  9\n$SURFTYPE\n 70\n6\n  9\n$SURFU\n 70\n6\n  9\n$SURFV\n 70\n6\n  9\n$UCSBASE\n  2\n\n  9\n$UCSNAME\n  2\n\n  9\n$UCSORG\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSXDIR\n 10\n1.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSYDIR\n 10\n0.0\n 20\n1.0\n 30\n0.0\n  9\n$UCSORTHOREF\n  2\n\n  9\n$UCSORTHOVIEW\n 70\n0\n  9\n$UCSORGTOP\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGBOTTOM\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGLEFT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGRIGHT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGFRONT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$UCSORGBACK\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSBASE\n  2\n\n  9\n$PUCSNAME\n  2\n\n  9\n$PUCSORG\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSXDIR\n 10\n1.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSYDIR\n 10\n0.0\n 20\n1.0\n 30\n0.0\n  9\n$PUCSORTHOREF\n  2\n\n  9\n$PUCSORTHOVIEW\n 70\n0\n  9\n$PUCSORGTOP\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGBOTTOM\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGLEFT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGRIGHT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGFRONT\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PUCSORGBACK\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$USERI1\n 70\n0\n  9\n$USERI2\n 70\n0\n  9\n$USERI3\n 70\n0\n  9\n$USERI4\n 70\n0\n  9\n$USERI5\n 70\n0\n  9\n$USERR1\n 40\n0.0\n  9\n$USERR2\n 40\n0.0\n  9\n$USERR3\n 40\n0.0\n  9\n$USERR4\n 40\n0.0\n  9\n$USERR5\n 40\n0.0\n  9\n$WORLDVIEW\n 70\n1\n  9\n$SHADEDGE\n 70\n3\n  9\n$SHADEDIF\n 70\n70\n  9\n$TILEMODE\n 70\n1\n  9\n$MAXACTVP\n 70\n64\n  9\n$PINSBASE\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  9\n$PLIMCHECK\n 70\n0\n  9\n$PEXTMIN\n 10\n1e+20\n 20\n1e+20\n 30\n1e+20\n  9\n$PEXTMAX\n 10\n-1e+20\n 20\n-1e+20\n 30\n-1e+20\n  9\n$PLIMMIN\n 10\n0.0\n 20\n0.0\n  9\n$PLIMMAX\n 10\n420.0\n 20\n297.0\n  9\n$UNITMODE\n 70\n0\n  9\n$VISRETAIN\n 70\n1\n  9\n$PLINEGEN\n 70\n0\n  9\n$PSLTSCALE\n 70\n1\n  9\n$TREEDEPTH\n 70\n3020\n  9\n$CMLSTYLE\n  2\nStandard\n  9\n$CMLJUST\n 70\n0\n  9\n$CMLSCALE\n 40\n20.0\n  9\n$PROXYGRAPHICS\n 70\n1\n  9\n$MEASUREMENT\n 70\n1\n  9\n$CELWEIGHT\n370\n-1\n  9\n$ENDCAPS\n280\n0\n  9\n$JOINSTYLE\n280\n0\n  9\n$LWDISPLAY\n290\n1\n  9\n$INSUNITS\n 70\n4\n  9\n$HYPERLINKBASE\n  1\n\n  9\n$STYLESHEET\n  1\n\n  9\n$XEDIT\n290\n1\n  9\n$CEPSNTYPE\n380\n0\n  9\n$PSTYLEMODE\n290\n1\n  9\n$FINGERPRINTGUID\n  2\n{FBFB092F-0CF3-480D-934B-1C92452910B4}\n  9\n$VERSIONGUID\n  2\n{7DE2908E-E822-435E-BA22-2DDEBDC4722E}\n  9\n$EXTNAMES\n290\n1\n  9\n$PSVPSCALE\n 40\n0.0\n  9\n$OLESTARTUP\n290\n0\n  0\nENDSEC\n  0\nSECTION\n  2\nCLASSES\n  0\nCLASS\n  1\nACDBDICTIONARYWDFLT\n  2\nAcDbDictionaryWithDefault\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nSUN\n  2\nAcDbSun\n  3\nSCENEOE\n 90\n1153\n280\n0\n281\n0\n  0\nCLASS\n  1\nVISUALSTYLE\n  2\nAcDbVisualStyle\n  3\nObjectDBX Classes\n 90\n4095\n280\n0\n281\n0\n  0\nCLASS\n  1\nMATERIAL\n  2\nAcDbMaterial\n  3\nObjectDBX Classes\n 90\n1153\n280\n0\n281\n0\n  0\nCLASS\n  1\nSCALE\n  2\nAcDbScale\n  3\nObjectDBX Classes\n 90\n1153\n280\n0\n281\n0\n  0\nCLASS\n  1\nTABLESTYLE\n  2\nAcDbTableStyle\n  3\nObjectDBX Classes\n 90\n4095\n280\n0\n281\n0\n  0\nCLASS\n  1\nMLEADERSTYLE\n  2\nAcDbMLeaderStyle\n  3\nACDB_MLEADERSTYLE_CLASS\n 90\n4095\n280\n0\n281\n0\n  0\nCLASS\n  1\nDICTIONARYVAR\n  2\nAcDbDictionaryVar\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nCELLSTYLEMAP\n  2\nAcDbCellStyleMap\n  3\nObjectDBX Classes\n 90\n1152\n280\n0\n281\n0\n  0\nCLASS\n  1\nMENTALRAYRENDERSETTINGS\n  2\nAcDbMentalRayRenderSettings\n  3\nSCENEOE\n 90\n1024\n280\n0\n281\n0\n  0\nCLASS\n  1\nACDBDETAILVIEWSTYLE\n  2\nAcDbDetailViewStyle\n  3\nObjectDBX Classes\n 90\n1025\n280\n0\n281\n0\n  0\nCLASS\n  1\nACDBSECTIONVIEWSTYLE\n  2\nAcDbSectionViewStyle\n  3\nObjectDBX Classes\n 90\n1025\n280\n0\n281\n0\n  0\nCLASS\n  1\nRASTERVARIABLES\n  2\nAcDbRasterVariables\n  3\nISM\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nACDBPLACEHOLDER\n  2\nAcDbPlaceHolder\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nCLASS\n  1\nLAYOUT\n  2\nAcDbLayout\n  3\nObjectDBX Classes\n 90\n0\n280\n0\n281\n0\n  0\nENDSEC\n  0\nSECTION\n  2\nTABLES\n  0\nTABLE\n  2\nVPORT\n  5\n8\n330\n0\n100\nAcDbSymbolTable\n 70\n1\n  0\nVPORT\n  5\n23\n330\n8\n100\nAcDbSymbolTableRecord\n100\nAcDbViewportTableRecord\n  2\n*Active\n 70\n0\n 10\n0.0\n 20\n0.0\n 11\n1.0\n 21\n1.0\n 12\n0.0\n 22\n0.0\n 13\n0.0\n 23\n0.0\n 14\n0.5\n 24\n0.5\n 15\n0.5\n 25\n0.5\n 16\n0.0\n 26\n0.0\n 36\n1.0\n 17\n0.0\n 27\n0.0\n 37\n0.0\n 40\n1000.0\n 41\n1.34\n 42\n50.0\n 43\n0.0\n 44\n0.0\n 50\n0.0\n 51\n0.0\n 71\n0\n 72\n1000\n 73\n1\n 74\n3\n 75\n0\n 76\n0\n 77\n0\n 78\n0\n281\n0\n 65\n0\n146\n0.0\n  0\nENDTAB\n  0\nTABLE\n  2\nLTYPE\n  5\n2\n330\n0\n100\nAcDbSymbolTable\n 70\n18\n  0\nLTYPE\n  5\n24\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nByBlock\n 70\n0\n  3\n\n 72\n65\n 73\n0\n 40\n0.0\n  0\nLTYPE\n  5\n25\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nByLayer\n 70\n0\n  3\n\n 72\n65\n 73\n0\n 40\n0.0\n  0\nLTYPE\n  5\n26\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nContinuous\n 70\n0\n  3\n\n 72\n65\n 73\n0\n 40\n0.0\n  0\nLTYPE\n  5\n2F\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nCadena\n 70\n0\n  3\nCadena __ __ \n 72\n65\n 73\n4\n 40\n21.0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n3.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n30\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nContinuo\n 70\n0\n  3\nContinuo ________\n 72\n65\n 73\n0\n 40\n0.0\n  0\nLTYPE\n  5\n31\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDoble trazado y doble punto\n 70\n0\n  3\nDoble trazado y doble punto __ __ . . \n 72\n65\n 73\n8\n 40\n36.0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n32\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nDoble trazado y triple punto\n 70\n0\n  3\nDoble trazado y triple punto __ __ . . . \n 72\n65\n 73\n10\n 40\n39.0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n33\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nPunto\n 70\n0\n  3\nPunto . \n 72\n65\n 73\n2\n 40\n3.0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n34\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado\n 70\n0\n  3\nTrazado __ \n 72\n65\n 73\n2\n 40\n15.0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n35\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado doble y cadena\n 70\n0\n  3\nTrazado doble y cadena __ __ __ \n 72\n65\n 73\n6\n 40\n36.0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n3.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n36\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado doble y punto\n 70\n0\n  3\nTrazado doble y punto __ __ . \n 72\n65\n 73\n6\n 40\n33.0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n37\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado largo y doble punto\n 70\n0\n  3\nTrazado largo y doble punto __ . . \n 72\n65\n 73\n6\n 40\n33.0\n 49\n24.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n38\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado largo y punto\n 70\n0\n  3\nTrazado largo y punto __ . \n 72\n65\n 73\n4\n 40\n30.0\n 49\n24.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n39\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado largo y triple punto\n 70\n0\n  3\nTrazado largo y triple punto __ . . . \n 72\n65\n 73\n8\n 40\n36.0\n 49\n24.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n3A\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado y doble punto\n 70\n0\n  3\nTrazado y doble punto __ . . \n 72\n65\n 73\n6\n 40\n21.0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n3B\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado y espacio\n 70\n0\n  3\nTrazado y espacio __ \n 72\n65\n 73\n2\n 40\n18.0\n 49\n12.0\n 74\n0\n 49\n-6.0\n 74\n0\n  0\nLTYPE\n  5\n3C\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado y punto\n 70\n0\n  3\nTrazado y punto __ . \n 72\n65\n 73\n4\n 40\n30.5\n 49\n24.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.5\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nLTYPE\n  5\n3D\n330\n2\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n  2\nTrazado y triple punto\n 70\n0\n  3\nTrazado y triple punto __ . . . \n 72\n65\n 73\n8\n 40\n24.0\n 49\n12.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n 49\n0.0\n 74\n0\n 49\n-3.0\n 74\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nLAYER\n  5\n1\n330\n0\n100\nAcDbSymbolTable\n 70\n10\n  0\nLAYER\n  5\n27\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\n0\n 70\n0\n 62\n7\n  6\nContinuous\n370\n20\n390\n13\n  0\nLAYER\n  5\n28\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nDefpoints\n 70\n0\n 62\n7\n  6\nContinuous\n290\n0\n370\n-3\n390\n13\n  0\nLAYER\n  5\n3E\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nBord\n 70\n0\n 62\n2\n  6\nContinuous\n370\n70\n390\n13\n  0\nLAYER\n  5\n3F\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nDim\n 70\n0\n 62\n6\n  6\nContinuous\n370\n30\n390\n13\n  0\nLAYER\n  5\n40\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nHid\n 70\n0\n 62\n1\n  6\nTrazado\n370\n20\n390\n13\n  0\nLAYER\n  5\n41\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nHidden\n 70\n0\n 62\n5\n  6\nTrazado y punto\n370\n25\n390\n13\n  0\nLAYER\n  5\n42\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nMarca\n 70\n0\n 62\n7\n  6\nContinuous\n370\n35\n390\n13\n  0\nLAYER\n  5\n43\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nObject\n 70\n0\n 62\n7\n  6\nContinuous\n370\n35\n390\n13\n  0\nLAYER\n  5\n44\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nText\n 70\n0\n 62\n3\n  6\nContinuous\n370\n35\n390\n13\n  0\nLAYER\n  5\n45\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\nTratt\n 70\n0\n 62\n5\n  6\nContinuous\n370\n15\n390\n13\n  0\nENDTAB\n  0\nTABLE\n  2\nSTYLE\n  5\n5\n330\n0\n100\nAcDbSymbolTable\n 70\n1\n  0\nSTYLE\n  5\n29\n330\n5\n100\nAcDbSymbolTableRecord\n100\nAcDbTextStyleTableRecord\n  2\nStandard\n 70\n0\n 40\n0.0\n 41\n1.0\n 50\n0.0\n 71\n0\n 42\n2.5\n  3\ntxt\n  4\n\n  0\nENDTAB\n  0\nTABLE\n  2\nVIEW\n  5\n7\n330\n0\n100\nAcDbSymbolTable\n 70\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nUCS\n  5\n6\n330\n0\n100\nAcDbSymbolTable\n 70\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nAPPID\n  5\n3\n330\n0\n100\nAcDbSymbolTable\n 70\n3\n  0\nAPPID\n  5\n2A\n330\n3\n100\nAcDbSymbolTableRecord\n100\nAcDbRegAppTableRecord\n  2\nACAD\n 70\n0\n  0\nAPPID\n  5\n46\n330\n3\n100\nAcDbSymbolTableRecord\n100\nAcDbRegAppTableRecord\n  2\nHATCHBACKGROUNDCOLOR\n 70\n0\n  0\nAPPID\n  5\n47\n330\n3\n100\nAcDbSymbolTableRecord\n100\nAcDbRegAppTableRecord\n  2\nEZDXF\n 70\n0\n  0\nENDTAB\n  0\nTABLE\n  2\nDIMSTYLE\n  5\n4\n330\n0\n100\nAcDbSymbolTable\n 70\n1\n100\nAcDbDimStyleTable\n  0\nDIMSTYLE\n105\n2B\n330\n4\n100\nAcDbSymbolTableRecord\n100\nAcDbDimStyleTableRecord\n  2\nStandard\n 70\n0\n  3\n\n  4\n\n 40\n1.0\n 41\n2.5\n 42\n0.625\n 43\n3.75\n 44\n1.25\n 45\n0.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n140\n2.5\n141\n2.5\n142\n0.0\n143\n0.03937007874\n144\n1.0\n145\n0.0\n146\n1.0\n147\n0.625\n148\n0.0\n 71\n0\n 72\n0\n 73\n0\n 74\n0\n 75\n0\n 76\n0\n 77\n1\n 78\n8\n 79\n3\n170\n0\n171\n3\n172\n1\n173\n0\n174\n0\n175\n0\n176\n0\n177\n0\n178\n0\n179\n2\n271\n2\n272\n2\n273\n2\n274\n3\n275\n0\n276\n0\n277\n2\n278\n44\n279\n0\n280\n0\n281\n0\n282\n0\n283\n0\n284\n8\n285\n0\n286\n0\n288\n0\n289\n3\n371\n-2\n372\n-2\n  0\nENDTAB\n  0\nTABLE\n  2\nBLOCK_RECORD\n  5\n9\n330\n0\n100\nAcDbSymbolTable\n 70\n2\n  0\nBLOCK_RECORD\n  5\n17\n330\n9\n100\nAcDbSymbolTableRecord\n100\nAcDbBlockTableRecord\n  2\n*Model_Space\n340\n1A\n  0\nBLOCK_RECORD\n  5\n1B\n330\n9\n100\nAcDbSymbolTableRecord\n100\nAcDbBlockTableRecord\n  2\n*Paper_Space\n340\n1E\n  0\nENDTAB\n  0\nENDSEC\n  0\nSECTION\n  2\nBLOCKS\n  0\nBLOCK\n  5\n18\n330\n17\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockBegin\n  2\n*Model_Space\n 70\n0\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  3\n*Model_Space\n  1\n\n  0\nENDBLK\n  5\n19\n330\n17\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockEnd\n  0\nBLOCK\n  5\n1C\n330\n1B\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockBegin\n  2\n*Paper_Space\n 70\n0\n 10\n0.0\n 20\n0.0\n 30\n0.0\n  3\n*Paper_Space\n  1\n\n  0\nENDBLK\n  5\n1D\n330\n1B\n100\nAcDbEntity\n  8\n0\n100\nAcDbBlockEnd\n  0\nENDSEC\n  0\nSECTION\n  2\nENTITIES\n", "pie": "  0\nENDSEC\n  0\nSECTION\n  2\nOBJECTS\n  0\nDICTIONARY\n  5\nA\n330\n0\n100\nAcDbDictionary\n281\n1\n  3\nACAD_COLOR\n350\nB\n  3\nACAD_GROUP\n350\nC\n  3\nACAD_LAYOUT\n350\nD\n  3\nACAD_MATERIAL\n350\nE\n  3\nACAD_MLEADERSTYLE\n350\nF\n  3\nACAD_MLINESTYLE\n350\n10\n  3\nACAD_PLOTSETTINGS\n350\n11\n  3\nACAD_PLOTSTYLENAME\n350\n12\n  3\nACAD_SCALELIST\n350\n14\n  3\nACAD_TABLESTYLE\n350\n15\n  3\nACAD_VISUALSTYLE\n350\n16\n  3\nEZDXF_META\n350\n2D\n  0\nDICTIONARY\n  5\nB\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\nC\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\nD\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nModel\n350\n1A\n  3\nLayout1\n350\n1E\n  0\nDICTIONARY\n  5\nE\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nByBlock\n350\n1F\n  3\nByLayer\n350\n20\n  3\nGlobal\n350\n21\n  0\nDICTIONARY\n  5\nF\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nStandard\n350\n2C\n  0\nDICTIONARY\n  5\n10\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nStandard\n350\n22\n  0\nDICTIONARY\n  5\n11\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nACDBDICTIONARYWDFLT\n  5\n12\n330\nA\n100\nAcDbDictionary\n281\n1\n  3\nNormal\n350\n13\n100\nAcDbDictionaryWithDefault\n340\n13\n  0\nACDBPLACEHOLDER\n  5\n13\n330\n12\n  0\nDICTIONARY\n  5\n14\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\n15\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nDICTIONARY\n  5\n16\n330\nA\n100\nAcDbDictionary\n281\n1\n  0\nLAYOUT\n  5\n1A\n330\nD\n100\nAcDbPlotSettings\n  1\n\n  4\nA3\n  6\n\n 40\n7.5\n 41\n20.0\n 42\n7.5\n 43\n20.0\n 44\n420.0\n 45\n297.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n 49\n0.0\n140\n0.0\n141\n0.0\n142\n1.0\n143\n1.0\n 70\n1024\n 72\n1\n 73\n0\n 74\n5\n  7\n\n 75\n16\n 76\n0\n 77\n2\n 78\n300\n147\n1.0\n148\n0.0\n149\n0.0\n100\nAcDbLayout\n  1\nModel\n 70\n1\n 71\n0\n 10\n0.0\n 20\n0.0\n 11\n420.0\n 21\n297.0\n 12\n0.0\n 22\n0.0\n 32\n0.0\n 14\n1e+20\n 24\n1e+20\n 34\n1e+20\n 15\n-1e+20\n 25\n-1e+20\n 35\n-1e+20\n146\n0.0\n 13\n0.0\n 23\n0.0\n 33\n0.0\n 16\n1.0\n 26\n0.0\n 36\n0.0\n 17\n0.0\n 27\n1.0\n 37\n0.0\n 76\n1\n330\n17\n  0\nLAYOUT\n  5\n1E\n330\nD\n100\nAcDbPlotSettings\n  1\n\n  4\nA3\n  6\n\n 40\n7.5\n 41\n20.0\n 42\n7.5\n 43\n20.0\n 44\n420.0\n 45\n297.0\n 46\n0.0\n 47\n0.0\n 48\n0.0\n 49\n0.0\n140\n0.0\n141\n0.0\n142\n1.0\n143\n1.0\n 70\n0\n 72\n1\n 73\n0\n 74\n5\n  7\n\n 75\n16\n 76\n0\n 77\n2\n 78\n300\n147\n1.0\n148\n0.0\n149\n0.0\n100\nAcDbLayout\n  1\nLayout1\n 70\n1\n 71\n1\n 10\n0.0\n 20\n0.0\n 11\n420.0\n 21\n297.0\n 12\n0.0\n 22\n0.0\n 32\n0.0\n 14\n1e+20\n 24\n1e+20\n 34\n1e+20\n 15\n-1e+20\n 25\n-1e+20\n 35\n-1e+20\n146\n0.0\n 13\n0.0\n 23\n0.0\n 33\n0.0\n 16\n1.0\n 26\n0.0\n 36\n0.0\n 17\n0.0\n 27\n1.0\n 37\n0.0\n 76\n1\n330\n1B\n  0\nMATERIAL\n  5\n1F\n102\n{ACAD_REACTORS\n330\nE\n102\n}\n330\nE\n100\nAcDbMaterial\n  1\nByBlock\n  2\n\n 70\n0\n 40\n1.0\n 71\n1\n 41\n1.0\n 91\n-1023410177\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 44\n0.5\n 73\n0\n 45\n1.0\n 46\n1.0\n 77\n1\n  4\n\n 78\n1\n 79\n1\n170\n1\n 48\n1.0\n171\n1\n  6\n\n172\n1\n173\n1\n174\n1\n140\n1.0\n141\n1.0\n175\n1\n  7\n\n176\n1\n177\n1\n178\n1\n143\n1.0\n179\n1\n  8\n\n270\n1\n271\n1\n272\n1\n145\n1.0\n146\n1.0\n273\n1\n  9\n\n274\n1\n275\n1\n276\n1\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 94\n63\n  0\nMATERIAL\n  5\n20\n102\n{ACAD_REACTORS\n330\nE\n102\n}\n330\nE\n100\nAcDbMaterial\n  1\nByLayer\n  2\n\n 70\n0\n 40\n1.0\n 71\n1\n 41\n1.0\n 91\n-1023410177\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 44\n0.5\n 73\n0\n 45\n1.0\n 46\n1.0\n 77\n1\n  4\n\n 78\n1\n 79\n1\n170\n1\n 48\n1.0\n171\n1\n  6\n\n172\n1\n173\n1\n174\n1\n140\n1.0\n141\n1.0\n175\n1\n  7\n\n176\n1\n177\n1\n178\n1\n143\n1.0\n179\n1\n  8\n\n270\n1\n271\n1\n272\n1\n145\n1.0\n146\n1.0\n273\n1\n  9\n\n274\n1\n275\n1\n276\n1\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 94\n63\n  0\nMATERIAL\n  5\n21\n102\n{ACAD_REACTORS\n330\nE\n102\n}\n330\nE\n100\nAcDbMaterial\n  1\nGlobal\n  2\n\n 70\n0\n 40\n1.0\n 71\n1\n 41\n1.0\n 91\n-1023410177\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 44\n0.5\n 73\n0\n 45\n1.0\n 46\n1.0\n 77\n1\n  4\n\n 78\n1\n 79\n1\n170\n1\n 48\n1.0\n171\n1\n  6\n\n172\n1\n173\n1\n174\n1\n140\n1.0\n141\n1.0\n175\n1\n  7\n\n176\n1\n177\n1\n178\n1\n143\n1.0\n179\n1\n  8\n\n270\n1\n271\n1\n272\n1\n145\n1.0\n146\n1.0\n273\n1\n  9\n\n274\n1\n275\n1\n276\n1\n 42\n1.0\n 72\n1\n  3\n\n 73\n1\n 74\n1\n 75\n1\n 94\n63\n  0\nMLINESTYLE\n  5\n22\n102\n{ACAD_REACTORS\n330\n10\n102\n}\n330\n10\n100\nAcDbMlineStyle\n  2\nStandard\n 70\n0\n  3\n\n 62\n256\n 51\n90.0\n 52\n90.0\n 71\n2\n 49\n0.5\n 62\n256\n  6\nBYLAYER\n 49\n-0.5\n 62\n256\n  6\nBYLAYER\n  0\nMLEADERSTYLE\n  5\n2C\n102\n{ACAD_REACTORS\n330\nF\n102\n}\n330\nF\n100\nAcDbMLeaderStyle\n179\n2\n170\n2\n171\n1\n172\n0\n 90\n2\n 40\n0.0\n 41\n0.0\n173\n1\n 91\n-1056964608\n 92\n-2\n290\n1\n 42\n2.0\n291\n1\n 43\n8.0\n  3\nStandard\n 44\n4.0\n300\n\n342\n29\n174\n1\n175\n1\n176\n0\n178\n1\n 93\n-1056964608\n 45\n4.0\n292\n0\n297\n0\n 46\n4.0\n 94\n-1056964608\n 47\n1.0\n 49\n1.0\n140\n1.0\n294\n1\n141\n0.0\n177\n0\n142\n1.0\n295\n0\n296\n0\n143\n3.75\n271\n0\n272\n9\n273\n9\n  0\nDICTIONARY\n  5\n2D\n330\nA\n100\nAcDbDictionary\n280\n1\n281\n1\n  3\nCREATED_BY_EZDXF\n350\n2E\n  3\nWRITTEN_BY_EZDXF\n350\n48\n  0\nDICTIONARYVAR\n  5\n2E\n330\n2D\n100\nDictionaryVariables\n280\n0\n  1\n1.4.4 @ 2026-09-30T19:08:44.999086+00:00\n  0\nDICTIONARYVAR\n  5\n48\n330\n2D\n100\nDictionaryVariables\n280\n0\n  1\n1.4.4 @ 2026-09-30T19:08:45.000733+00:00\n  0\nENDSEC\n  0\nEOF\n", "modelo": "17", "seed": "49"};
-        function exportarDXF() {
-            renderizarVectorial();
-            const FMT = formatoActual(), S = FMT.w / ANCHO_A3; // mm de papel por unidad de dibujo
-            const out = [];
-            let h = parseInt(PLANTILLA_DXF.seed, 16);
-            const MS = PLANTILLA_DXF.modelo;
-            const w = (...kv) => { for (let i = 0; i < kv.length; i += 2) out.push(String(kv[i]).padStart(3, ' '), String(kv[i + 1])); };
-            const ent = (tipo, capa, sub) => { w(0, tipo, 5, (h++).toString(16).toUpperCase(), 330, MS, 100, 'AcDbEntity', 8, capa, 100, sub); };
-            const P = (m, x, y) => { const px = m.a * x + m.c * y + m.e, py = m.b * x + m.d * y + m.f; return [+(px * S).toFixed(3), +((ALTO_A3 - py) * S).toFixed(3)]; };
-            const polilinea = (capa, pts, cerrada) => {
-                if (pts.length < 2) return;
-                ent('LWPOLYLINE', capa, 'AcDbPolyline'); w(90, pts.length, 70, cerrada ? 1 : 0, 43, 0);
-                pts.forEach(p => w(10, p[0], 20, p[1]));
-            };
-            // capaForma: capa de líneas y figuras; los textos van siempre a la capa Text
-            const recorrer = (g, capaForma, propia) => {
-                g.querySelectorAll('*').forEach(n => {
-                    if (!propia && n.closest('[data-capa]')) return; // grupos con capa propia: se recorren aparte
-                    if (n.classList.contains('connection-port') || n.classList.contains('punto-enganche') || n.closest('defs, pattern, .no-imprimir') || n.id === 'rejilla') return;
-                    if (n.tagName.toLowerCase() === 'rect' && n.getAttribute('fill') === 'transparent') return;
-                    const m = n.getCTM();
-                    if (!m) return;
-                    const tag = n.tagName.toLowerCase(), num = a => parseFloat(n.getAttribute(a)) || 0;
-                    if (tag === 'line') { const a = P(m, num('x1'), num('y1')), b = P(m, num('x2'), num('y2')); ent('LINE', capaForma, 'AcDbLine'); w(10, a[0], 20, a[1], 30, 0, 11, b[0], 21, b[1], 31, 0); }
-                    else if (tag === 'polygon' || tag === 'polyline') {
-                        const pts = (n.getAttribute('points') || '').trim().split(/[\s,]+/).map(Number);
-                        const lista = []; for (let i = 0; i + 1 < pts.length; i += 2) lista.push(P(m, pts[i], pts[i + 1]));
-                        polilinea(capaForma, lista, tag === 'polygon');
-                    } else if (tag === 'rect') {
-                        const x = num('x'), y = num('y'), W = num('width'), H = num('height');
-                        polilinea(capaForma, [P(m, x, y), P(m, x + W, y), P(m, x + W, y + H), P(m, x, y + H)], true);
-                    } else if (tag === 'circle') {
-                        const c = P(m, num('cx'), num('cy')), r = num('r') * Math.hypot(m.a, m.b) * S;
-                        ent('CIRCLE', capaForma, 'AcDbCircle'); w(10, c[0], 20, c[1], 30, 0, 40, +r.toFixed(3));
-                    } else if (tag === 'ellipse' || tag === 'path') {
-                        // curvas: se discretizan en 24 tramos
-                        let lista = [];
-                        if (tag === 'ellipse') { const cx = num('cx'), cy = num('cy'), rx = num('rx'), ry = num('ry'); for (let i = 0; i <= 24; i++) { const t = i / 24 * 2 * Math.PI; lista.push(P(m, cx + rx * Math.cos(t), cy + ry * Math.sin(t))); } }
-                        else { const L = n.getTotalLength(); for (let i = 0; i <= 24; i++) { const q = n.getPointAtLength(L * i / 24); lista.push(P(m, q.x, q.y)); } }
-                        polilinea(capaForma, lista, /z\s*$/i.test(n.getAttribute('d') || ''));
-                    } else if (tag === 'text') {
-                        const t = textoDXF(n.textContent); if (!t.trim()) return;
-                        const p = P(m, num('x'), num('y')), hh = (parseFloat(n.getAttribute('font-size')) || 7) * Math.hypot(m.a, m.b) * S;
-                        const ang = Math.atan2(-m.b, m.a) * 180 / Math.PI;
-                        const anc = n.getAttribute('text-anchor') === 'middle' ? 1 : n.getAttribute('text-anchor') === 'end' ? 2 : 0;
-                        ent('TEXT', propia ? capaForma : 'Text', 'AcDbText'); w(10, p[0], 20, p[1], 30, 0, 40, +hh.toFixed(3), 1, t, 50, +ang.toFixed(2), 72, anc);
-                        if (anc) w(11, p[0], 21, p[1], 31, 0);
-                        w(100, 'AcDbText');
-                    }
-                });
-            };
-            const gFmt = svgCanvas.querySelector('#capa-formato'); if (gFmt) recorrer(gFmt, 'Bord');
-            svgCanvas.querySelectorAll('#capa-formato [data-capa]').forEach(g => recorrer(g, g.getAttribute('data-capa'), true));
-            svgCanvas.querySelectorAll('g[data-id]').forEach(g => {
-                const el = elementosRed.find(e => e.id === g.getAttribute('data-id'));
-                if (!el) return;
-                recorrer(g, capaDe(el));
-            });
-            ['#lideres-notas', '#capa-etiquetas'].forEach(sel => { const g = svgCanvas.querySelector(sel); if (g) recorrer(g, 'Object'); });
-            let cab = tablaCapasDXF(PLANTILLA_DXF.cabecera, () => (h++).toString(16).toUpperCase())
-                .replace(/(\$EXTMAX\r?\n\s*10\r?\n)[^\r\n]*(\r?\n\s*20\r?\n)[^\r\n]*/, `$1${FMT.w}$2${FMT.h}`)
-                .replace(/(\$EXTMIN\r?\n\s*10\r?\n)[^\r\n]*(\r?\n\s*20\r?\n)[^\r\n]*/, '$10$20')
-                .replace(/(\$LIMMAX\r?\n\s*10\r?\n)[^\r\n]*(\r?\n\s*20\r?\n)[^\r\n]*/, `$1${FMT.w}$2${FMT.h}`)
-                .replace(/(\$HANDSEED\r?\n\s*5\r?\n)[^\r\n]*/, `$1${h.toString(16).toUpperCase()}`);
-            return (cab + out.join('\n') + (out.length ? '\n' : '') + PLANTILLA_DXF.pie).replace(/\r?\n/g, '\r\n');
-        }
+        
+        function exportarDXF(...a) { return PARTES_OK.cad ? exportarDXF__p.apply(this, a) : cargarParte('cad').then(() => exportarDXF__p.apply(this, a)); }
         // ==================================================================================
         // CAPAS EDITABLES (CAD > Capas...): color del sistema, tipo y grosor de línea, visible, inutilizada,
         // bloqueada, imprimible y transparencia. Se guardan con el proyecto (opciones.capas) y se pueden
@@ -3118,96 +3083,15 @@
         }
         const hexRGB = c => '#' + c.map(v => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
         const rgbHex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
-        function hsv([r, g, b]) {
-            r /= 255; g /= 255; b /= 255; const M = Math.max(r, g, b), m = Math.min(r, g, b), d = M - m;
-            let h = 0; if (d) h = M === r ? ((g - b) / d) % 6 : M === g ? (b - r) / d + 2 : (r - g) / d + 4;
-            return { h: (h * 60 + 360) % 360, s: M ? d / M : 0, v: M };
-        }
+        
         // colores del cálculo en el lienzo (claro y oscuro)
         const COLORES_RESERVADOS = [['verde (componente o línea correctos)', '#16a34a'], ['verde (componente o línea correctos)', '#4ade80'], ['rojo (hay que modificar el componente o la línea)', '#dc2626'], ['rojo (hay que modificar el componente o la línea)', '#f87171'], ['violeta (ruta crítica)', '#7c3aed'], ['violeta (ruta crítica)', '#c084fc']];
-        function colorReservado(c) {
-            const a = hsv(c);
-            if (a.s < 0.4 || a.v < 0.35) return null; // grises, blancos, negros: libres
-            for (const [n, h] of COLORES_RESERVADOS) { const b = hsv(rgbHex(h)); const dh = Math.min(Math.abs(a.h - b.h), 360 - Math.abs(a.h - b.h)); if (dh < 18) return n; }
-            return null;
-        }
-        function aciCercano(c) {
-            let mejor = 7, dm = 1e9;
-            for (let i = 1; i < 256; i++) { const q = ACI_RGB[i], d = (q[0] - c[0]) ** 2 + (q[1] - c[1]) ** 2 + (q[2] - c[2]) ** 2; if (d < dm) { dm = d; mejor = i; } }
-            return mejor;
-        }
+
         // Tabla LAYER del DXF con las capas actuales (se conservan los identificadores de la plantilla)
-        function tablaCapasDXF(cab, nuevoHandle) {
-            const i = cab.indexOf('  0\nTABLE\n  2\nLAYER\n'); if (i < 0) return cab;
-            const j = cab.indexOf('  0\nENDTAB\n', i), tabla = cab.slice(i, j);
-            const k = tabla.indexOf('  0\nLAYER\n', 10), cabTabla = tabla.slice(0, k);
-            const handles = {}, recs = tabla.slice(k).split(/(?=  0\nLAYER\n)/);
-            let defpoints = '';
-            recs.forEach(r => { const m = r.match(/\n  5\n([0-9A-Fa-f]+)\n[\s\S]*?\n  2\n([^\n]*)\n/); if (m) { handles[m[2]] = m[1]; if (m[2] === 'Defpoints') defpoints = r; } });
-            const capas = capasActuales();
-            let out = '';
-            capas.forEach(c => {
-                const h = handles[c.nombre] || nuevoHandle();
-                const aci = aciCercano(c.color) * (c.visible === false ? -1 : 1);
-                const flags = (c.inutilizada ? 1 : 0) | (c.bloqueada || planoCongelado ? 4 : 0);
-                const lw = Math.round((+c.grosor || 0) * 100);
-                out += `  0\nLAYER\n  5\n${h}\n330\n1\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n  2\n${textoDXF(c.nombre)}\n 70\n${flags}\n 62\n${aci}\n  6\n${tipoLineaDXF(c.tipo)}\n${c.imprimible === false ? '290\n0\n' : ''}370\n${lw}\n390\n13\n`;
-            });
-            const cabT = cabTabla.replace(/( 70\n)\d+\n$/, '$1' + (capas.length + 1) + '\n');
-            return cab.slice(0, i) + cabT + out + defpoints + cab.slice(j);
-        }
-        function abrirLineasCapas() {
-            const capas = capasActuales();
-            const muestra = t => `<svg width="60" height="8"><line x1="0" y1="4" x2="60" y2="4" stroke="#334155" stroke-width="1.3" ${dashLinea(t) ? `stroke-dasharray="${dashLinea(t)}"` : ''}/></svg>`;
-            const chk = (i, k, v) => `<td class="text-center"><input type="checkbox" ${v ? 'checked' : ''} onchange="cambiarCapa(${i}, '${k}', this.checked)"></td>`;
-            document.getElementById('red-content').innerHTML = `
-                <p class="text-[11px] text-slate-500 mb-2">Capas del archivo DXF de salida (Archivo &gt; Guardar como &gt; Dibujo CAD). Los cambios se guardan con el proyecto. El color se elige con el selector de color del sistema; no se admiten los colores reservados del cálculo (verde = correcto, rojo = no cumple, violeta = ruta crítica).</p>
-                <div class="overflow-x-auto"><table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500 border-b"><th class="py-1">Capa</th><th class="text-center">Visible</th><th class="text-center">Inutilizada</th><th class="text-center">Bloqueada</th><th class="text-center">Imprimible</th><th>Color</th><th>Tipo de línea</th><th>Grosor de línea</th><th>Transparencia (%)</th><th>Uso en PIPING</th><th></th></tr></thead><tbody>
-                ${capas.map((c, i) => { const base = CAPAS_BASE.includes(c.nombre); return `<tr class="border-b border-slate-100">
-                    <td class="py-1 font-bold">${base ? esc(c.nombre) : `<input value="${esc(c.nombre)}" onchange="cambiarCapa(${i}, 'nombre', this.value)" class="border rounded p-0.5 w-20">`}</td>
-                    ${chk(i, 'visible', c.visible !== false)}${chk(i, 'inutilizada', !!c.inutilizada)}${chk(i, 'bloqueada', !!c.bloqueada)}${chk(i, 'imprimible', c.imprimible !== false)}
-                    <td class="whitespace-nowrap"><input type="color" value="${hexRGB(c.color)}" onchange="cambiarCapa(${i}, 'color', this.value)" class="w-7 h-5 align-middle border rounded cursor-pointer" title="Elegir color del sistema"> ${c.color.join(',')}</td>
-                    <td class="whitespace-nowrap">${muestra(c.tipo)}<select onchange="cambiarCapa(${i}, 'tipo', this.value)" class="border rounded p-0.5 ml-1">${TIPOS_LINEA.map(t => `<option ${t === tipoLineaDXF(c.tipo) ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
-                    <td><select onchange="cambiarCapa(${i}, 'grosor', this.value)" class="border rounded p-0.5">${GROSORES_DXF.map(g => `<option value="${g}" ${Math.abs(g - c.grosor) < 1e-6 ? 'selected' : ''}>${g.toFixed(2).replace('.', ',')} mm</option>`).join('')}</select></td>
-                    <td><input type="number" min="0" max="90" step="5" value="${+c.transparencia || 0}" onchange="cambiarCapa(${i}, 'transparencia', this.value)" class="border rounded p-0.5 w-14"></td>
-                    <td><input value="${esc(c.uso || '')}" onchange="cambiarCapa(${i}, 'uso', this.value)" class="border rounded p-0.5 w-72"></td>
-                    <td>${base ? '' : `<button onclick="borrarCapa(${i})" title="Eliminar capa" class="text-rose-600 px-1"><i class="fa-solid fa-trash-can"></i></button>`}</td></tr>`; }).join('')}
-                </tbody></table></div>
-                <p class="text-[10px] text-slate-400 mt-2">Formato DXF 2000 (AC1015), unidades en mm de papel: el color se exporta como el color AutoCAD (ACI) más próximo y la transparencia se guarda en el proyecto (DXF 2000 no la admite). Las capas 0, Bord, Dim, Hid, Hidden, Marca, Object, Text y Tratt las usa PIPING y no se pueden borrar ni renombrar. Para DWG: abre el DXF en AutoCAD (o con ODA File Converter) y guárdalo como DWG.</p>`;
-            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs">
-                <button onclick="anadirCapa()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded"><i class="fa-solid fa-plus mr-1"></i>Nueva capa</button>
-                <button onclick="capasComoPredeterminadas()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded" title="Las usarán los proyectos nuevos en este navegador">Guardar como predeterminadas</button>
-                <button onclick="restablecerCapas()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded">Valores de fábrica</button>
-                <span class="flex-1"></span>
-                <button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
-            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-layer-group text-blue-600 mr-1.5"></i> Líneas y capas';
-            document.querySelector('#modal-red > div').style.width = 'min(1260px, 97vw)';
-            document.getElementById('modal-red').style.display = 'flex';
-        }
-        function cambiarCapa(i, k, v) {
-            const c = capasActuales()[i]; if (!c) return;
-            if (k === 'color') {
-                const rgb = rgbHex(v), r = colorReservado(rgb);
-                if (r) { aviso(`Color no admitido: se confunde con el ${r} del cálculo. Elige otro.`, 'error'); abrirLineasCapas(); return; }
-                c.color = rgb;
-            } else if (k === 'nombre') {
-                const n = String(v).trim();
-                if (!n || /[<>\/":;?*|=,]/.test(n) || capasActuales().some((x, j) => j !== i && x.nombre.toLowerCase() === n.toLowerCase())) { aviso('Nombre de capa no válido o repetido.', 'error'); abrirLineasCapas(); return; }
-                const antes = c.nombre; c.nombre = n;
-                elementosRed.concat(elementosOtrasHojas()).forEach(e => { if (e.capa === antes) e.capa = n; });
-            } else if (k === 'grosor') c.grosor = +v;
-            else if (k === 'transparencia') c.transparencia = Math.max(0, Math.min(90, +v || 0));
-            else c[k] = v;
-            marcarCambios(true); abrirLineasCapas();
-        }
-        function anadirCapa() {
-            const capas = capasActuales(); let n = 1; while (capas.some(c => c.nombre === 'Capa' + n)) n++;
-            capas.push({ nombre: 'Capa' + n, color: [255, 255, 255], tipo: 'Continuous', grosor: 0.25, uso: '', visible: true, inutilizada: false, bloqueada: false, imprimible: true, transparencia: 0 });
-            marcarCambios(true); abrirLineasCapas();
-        }
-        function borrarCapa(i) { const c = capasActuales()[i]; if (!c || CAPAS_BASE.includes(c.nombre)) return; if (!confirm(`¿Eliminar la capa ${c.nombre}?`)) return; opciones.capas.splice(i, 1); marcarCambios(true); abrirLineasCapas(); }
+        
+        function abrirLineasCapas(...a) { return PARTES_OK.herr ? abrirLineasCapas__p.apply(this, a) : cargarParte('herr').then(() => abrirLineasCapas__p.apply(this, a)); }
+
         function capasComoPredeterminadas() { try { localStorage.setItem(CLAVE_CAPAS, JSON.stringify(capasActuales())); aviso('Capas guardadas como predeterminadas para los proyectos nuevos.', 'ok'); } catch (e) { aviso('No se han podido guardar en este navegador.', 'error'); } }
-        function restablecerCapas() { if (!confirm('¿Volver a los valores de fábrica de las capas en este proyecto?')) return; opciones.capas = CAPAS_DXF.map(capaPorDefecto); marcarCambios(true); abrirLineasCapas(); }
 
         function descargarArchivo(contenido, nombre, tipo) {
             const blob = new Blob([contenido], { type: tipo });
@@ -3716,28 +3600,7 @@
         }
 
         // Cálculo silencioso del escenario "reserva en marcha"; deja la red en el escenario normal recalculada
-        function escenarioReserva() {
-            if (!elementosRed.some(e => e.type === 'bomba' && e.reservaDe)) return null;
-            const previo = escenarioBombas, tenia = !!ultimoCalculo;
-            escenarioBombas = 'reserva';
-            let out = null;
-            try {
-                const g = construirGrafoRed(), a = construirAristas(g), r = calcularResultado(g, a);
-                if (r.error) out = { error: r.error, fallos: [r.error] };
-                else {
-                    const res = r.resultado;
-                    out = { fallos: elementosRed.filter(e => e.estado === 'fallo').map(e => `${tagDe(e)}: ${(ultimoResultado[e.id] || { motivos: [] }).motivos.join('; ')}`),
-                        bombas: res.aristas.filter(x => x.esBomba).map(x => { const rr = ultimoResultado[x.el.id]; return { tag: tagDe(x.el), sustituye: x.el.reservaDe ? tagDe(elementosRed.find(e => e.id === x.el.reservaDe)) : '', Q: rr.Q, H: rr.H, npshd: rr.npshd, npshr: x.el.npsh, estado: x.el.estado }; }),
-                        lc: res.lineaCritica ? res.lineaCritica.hfTotal : null, avisos: res.avisosRed || [] };
-                }
-            } finally {
-                escenarioBombas = previo;
-                const g = construirGrafoRed(), a = construirAristas(g), r = a.length ? calcularResultado(g, a) : { error: 'x' };
-                if (!r.error && tenia) ultimoCalculo = { resultado: r.resultado, condiciones: r.condiciones, huella: huellaRed() };
-                else if (!tenia) invalidarSinProgramar();
-            }
-            return out;
-        }
+        
         // Huella de todo lo que influye en el cálculo: si cambia, el informe exige recalcular
         function huellaRed() {
             const els = elementosRed.map(e => { const c = Object.assign({}, e); delete c.estado; delete c.esLineaCritica; return c; });
@@ -4485,8 +4348,11 @@
             brida: { ASME: ['SA-105N', 'SA-350 Gr.LF2', 'SA-181 Cl.60', 'SA-181 Cl.70', 'SA-216 Gr.WCB', 'SA-182 Gr.F304', 'SA-182 Gr.F304L', 'SA-182 Gr.F316', 'SA-182 Gr.F316L', 'SA-182 Gr.F321', 'SA-182 Gr.F321H', 'SA-182 Gr.F347', 'SA-182 Gr.F347H', 'SA-351 Gr.CF8', 'SA-351 Gr.CF8M'],
                 EN: ['P245GH (EN 10222-2)', 'P250GH (EN 10222-2)', 'P280GH (EN 10222-2)', 'P305GH (EN 10222-2)', 'P275NL1/1.0488 (EN 10222-3)', 'P355NL1/1.0566 (EN 10222-3)', 'P275NL2/1.1104 (EN 1092-1)', 'P355NL2/1.1106 (EN 1092-1)', 'GP240GH/1.0619 (EN 10213)', 'X5CrNi18-10/1.4301 (EN 10222-5)', 'X2CrNi19-11/1.4306 (EN 10222-5)', 'X5CrNiMo17-12-2/1.4401 (EN 10222-5)', 'X2CrNiMo17-12-2/1.4404 (EN 10222-5)', 'X6CrNiTi18-10/1.4541 (EN 10222-5)', 'X6CrNiNb18-10/1.4550 (EN 10222-5)', 'GX5CrNi19-10/1.4308 (EN 10213)', 'GX5CrNiMo19-11-2/1.4408 (EN 10213)', 'S235JR (EN 10025-2)', 'PP / PVC (bridas plásticas)'] },
             // codos, tes, cruces, reducciones y demás accesorios para soldar a tope
-            accesorio: { ASME: ['SA-234 Gr.WPB', 'SA-234 Gr.WPC', 'SA-420 Gr.WPL6', 'SA-403 Gr.WP304', 'SA-403 Gr.WP304L', 'SA-403 Gr.WP316', 'SA-403 Gr.WP316L', 'SA-403 Gr.WP321', 'SA-403 Gr.WP321H', 'SA-403 Gr.WP347', 'SA-403 Gr.WP347H', 'SA-105 (forjado, B16.11)', 'SA-182 F316L (forjado, B16.11)'],
-                EN: ['P235GH/1.0345 (EN 10253-2)', 'P265GH/1.0425 (EN 10253-2)', 'P355NH/1.0565 (EN 10253-2)', 'P275NL1/1.0488 (EN 10253-2)', 'P355NL1/1.0566 (EN 10253-2)', 'P275NL2/1.1104 (EN 10253-2)', 'P355NL2/1.1106 (EN 10253-2)', 'X5CrNi18-10/1.4301 (EN 10253-3/-4)', 'X2CrNi19-11/1.4306 (EN 10253-3/-4)', 'X5CrNiMo17-12-2/1.4401 (EN 10253-3/-4)', 'X2CrNiMo17-12-2/1.4404 (EN 10253-3/-4)', 'X6CrNiTi18-10/1.4541 (EN 10253-3/-4)', 'X6CrNiNb18-10/1.4550 (EN 10253-3/-4)', 'P235TR2 (EN 10253-1)', 'EN-GJS-400-15 (EN 1563)'] },
+            accesorio: { ASME: ['SA-234 Gr.WPB', 'SA-234 Gr.WPC', 'SA-420 Gr.WPL6', 'SA-403 Gr.WP304', 'SA-403 Gr.WP304L', 'SA-403 Gr.WP316', 'SA-403 Gr.WP316L', 'SA-403 Gr.WP321', 'SA-403 Gr.WP321H', 'SA-403 Gr.WP347', 'SA-403 Gr.WP347H'],
+                EN: ['P235GH/1.0345 (EN 10253-2)', 'P265GH/1.0425 (EN 10253-2)', 'P355NH/1.0565 (EN 10253-2)', 'P275NL1/1.0488 (EN 10253-2)', 'P355NL1/1.0566 (EN 10253-2)', 'P275NL2/1.1104 (EN 10253-2)', 'P355NL2/1.1106 (EN 10253-2)', 'X5CrNi18-10/1.4301 (EN 10253-3/-4)', 'X2CrNi19-11/1.4306 (EN 10253-3/-4)', 'X5CrNiMo17-12-2/1.4401 (EN 10253-3/-4)', 'X2CrNiMo17-12-2/1.4404 (EN 10253-3/-4)', 'X6CrNiTi18-10/1.4541 (EN 10253-3/-4)', 'X6CrNiNb18-10/1.4550 (EN 10253-3/-4)'] },
+            // filtros y strainers: cuerpo fundido (ayuda de equivalencias, bridas y forjados) o fabricado con accesorios para soldar
+            filtro: { ASME: ['SA-216 Gr.WCB', 'SA-351 Gr.CF8', 'SA-351 Gr.CF8M', 'SA-234 Gr.WPB', 'SA-234 Gr.WPC', 'SA-420 Gr.WPL6', 'SA-403 Gr.WP304', 'SA-403 Gr.WP304L', 'SA-403 Gr.WP316', 'SA-403 Gr.WP316L', 'SA-403 Gr.WP321', 'SA-403 Gr.WP347'],
+                EN: ['GP240GH/1.0619 (EN 10213)', 'GX5CrNi19-10/1.4308 (EN 10213)', 'GX5CrNiMo19-11-2/1.4408 (EN 10213)', 'P235GH/1.0345 (EN 10253-2)', 'P265GH/1.0425 (EN 10253-2)', 'P355NH/1.0565 (EN 10253-2)', 'P275NL1/1.0488 (EN 10253-2)', 'P355NL1/1.0566 (EN 10253-2)', 'X5CrNi18-10/1.4301 (EN 10253-3/-4)', 'X2CrNi19-11/1.4306 (EN 10253-3/-4)', 'X5CrNiMo17-12-2/1.4401 (EN 10253-3/-4)', 'X2CrNiMo17-12-2/1.4404 (EN 10253-3/-4)', 'X6CrNiTi18-10/1.4541 (EN 10253-3/-4)', 'X6CrNiNb18-10/1.4550 (EN 10253-3/-4)'] },
             valvula: { ASME: ['SA-216 WCB', 'SA-352 LCB', 'SA-351 CF8', 'SA-351 CF8M', 'SA-351 CF3M', 'SA-105 (forjado)', 'SA-182 F316 (forjado)', 'B62 bronce', 'SA-395 fundición dúctil'], EN: ['1.0619 GP240GH (EN 10213)', '1.6220 G20Mn5 (EN 10213)', '1.4408 GX5CrNiMo19-11-2 (EN 10213)', 'EN-GJS-400-15 (EN 1563)', 'EN-GJL-250 (EN 1561)', 'CC491K bronce (EN 1982)', 'CW617N latón (EN 12165)'] },
             // bombas (lista de José 01/10/2026; equivalencias en Ayuda > Equivalencias)
             bomba: { ASME: ['ASTM A48 Cl.30B', 'ASTM A48 Cl.35B', 'ASTM A536 65-45-12 (fundición dúctil)', 'ASTM A216 Gr.WCB', 'SA-105 (forjado)', 'ASTM A351 Gr.CF8', 'ASTM A351 Gr.CF8M', 'ASTM A890/A995 Gr.4A (dúplex)', 'ASTM A890/A995 Gr.5A (superdúplex)', 'ASTM A890/A995 Gr.6A (superdúplex)', 'Bronce', 'Hastelloy', 'Inconel', 'Titanio'],
@@ -4517,6 +4383,7 @@
         function grupoMaterial(el) {
             if (el.type === 'tuberia') return familiaMaterialTubo(el.material);
             if (el.type === 'bomba') return 'bomba';
+            if (el.subtype === 'filtro' || el.subtype === 'strainer') return 'filtro';
             const c = (TIPOS[el.subtype] || {}).cat;
             return { uniones: 'brida', accesorios: 'accesorio', valvulas: 'valvula', intercambiadores: 'equipo', equipos: 'equipo', tanques: 'tanque', terminales: 'tanque', instrumentos: 'instrumento' }[c] || 'accesorio';
         }
@@ -4531,7 +4398,8 @@
         }
         // Grupos de la librería y sus tipos
         const GRUPOS_LIB = {
-            accesorios: { titulo: 'Accesorios de tubería', cat: 'accesorios', mat: 'accesorio' },
+            accesorios: { titulo: 'Accesorios de tubería', cat: 'accesorios', mat: 'accesorio', excluir: ['continuacion', 'junta', 'antivibratorio', 'filtro', 'strainer', 'injerto'] },
+            compensadores: { titulo: 'Filtros, injertos, juntas de expansión y manguitos', subtipos: ['filtro', 'strainer', 'injerto', 'junta', 'antivibratorio'], mat: 'accesorio' },
             intercambiadores: { titulo: 'Intercambiadores (buques)', cat: 'intercambiadores', mat: 'equipo' },
             tanques: { titulo: 'Tanques y depósitos', cat: 'tanques', mat: 'tanque' },
             bombas: { titulo: 'Bombas', subtipos: ['bomba'], mat: 'bomba' },
@@ -4541,17 +4409,20 @@
             valvulas: { titulo: 'Válvulas', cat: 'valvulas', mat: 'valvula' },
             tuberias: { titulo: 'Tuberías', subtipos: ['Acero al carbono', 'Acero inoxidable', 'PE100', 'PVC-U'], mat: 'tubo' }
         };
-        const nombreSubtipo = st => st === 'bomba' ? 'Bomba centrífuga' : (TIPOS[st] ? TIPOS[st].nombre : st);
+        const SUBTIPOS_SOLO_LIB = {};   // tipos solo de librería, sin símbolo en el plano (ninguno por ahora)
+        const nombreSubtipo = st => st === 'bomba' ? 'Bomba centrífuga' : (TIPOS[st] ? TIPOS[st].nombre : (SUBTIPOS_SOLO_LIB[st] || st));
         function subtiposGrupo(g) {
             const G = GRUPOS_LIB[g];
             if (g === 'tuberias') return [...G.subtipos, ...Object.keys(CAT.materiales).filter(m => !G.subtipos.includes(m) && !CAT.materiales[m].base)];
-            return G.subtipos || Object.entries(TIPOS).filter(([, t]) => t.cat === G.cat).map(([k]) => k).sort((a, b) => nombreSubtipo(a).localeCompare(nombreSubtipo(b), 'es'));
+            return G.subtipos || Object.entries(TIPOS).filter(([k, t]) => t.cat === G.cat && !(G.excluir || []).includes(k)).map(([k]) => k).concat(G.extra || []).sort((a, b) => nombreSubtipo(a).localeCompare(nombreSubtipo(b), 'es'));
         }
         const grupoDeSubtipo = st => Object.keys(GRUPOS_LIB).find(g => subtiposGrupo(g).includes(st)) || (CAT.materiales[st] ? 'tuberias' : null);
         // Campos técnicos por grupo: [campo, etiqueta, tipo ('num' | 'txt' | 'sel'), opciones]
         const CAMPOS_LIB = {
             valvulas: [['craneTipo', 'Subtipo (pérdida de carga Crane)', 'crane'], ['cv', 'Cv por tamaño (pulg.:Cv; p. ej. 1/2:20; 1:78; 2:395)', 'txt'], ['kvs', 'Kvs (válvulas de control, m³/h)', 'num'], ['FL', 'Factor FL (IEC 60534)', 'num']],
-            accesorios: [['craneTipo', 'Tipo (pérdida de carga Crane)', 'crane'], ['serie', 'Serie / espesor (Sch)', 'txt'], ['k', 'K del fabricante (vacío = Crane)', 'num']],
+            accesorios: [['variante', 'Reducción: concéntrica o excéntrica', 'sel', ['Concéntrica', 'Excéntrica']], ['dn', 'Tamaño (DN)', 'dn'], ['dn2', 'Tamaño menor / derivación (DN)', 'dn'], ['cotas', 'Cotas (mm; p. ej. A 76 · H 89)', 'txt'], ['craneTipo', 'Tipo (pérdida de carga Crane)', 'crane'], ['serie', 'Serie / espesor (Sch)', 'txt'], ['k', 'K (vacío = Crane)', 'num'],
+                ['kRun', 'Te: K paso directo', 'num'], ['kBranch', 'Te: K derivación', 'num'], ['theta', 'Reducción: ángulo θ (°)', 'num'], ['kc', 'Reducción: K contracción', 'num'], ['ke', 'Reducción: K expansión', 'num']],
+            compensadores: [['serie', 'Serie / espesor (Sch)', 'txt'], ['k', 'K del fabricante', 'num']],
             intercambiadores: [['qNom', 'Primario: caudal nominal (m³/h)', 'num'], ['dpNom', 'Primario: Δp a caudal nominal (kPa)', 'num'], ['qNom2', 'Secundario: caudal nominal (m³/h)', 'num'], ['dpNom2', 'Secundario: Δp (kPa)', 'num'], ['volumen', 'Volumen interior (l)', 'num'], ['potencia', 'Potencia térmica (kW)', 'num']],
             equipos: [['qNom', 'Caudal nominal (m³/h)', 'num'], ['dpNom', 'Δp a caudal nominal (kPa)', 'num'], ['volumen', 'Volumen interior (l)', 'num'], ['potencia', 'Potencia (kW)', 'num']],
             tanques: [['volumen', 'Volumen (l)', 'num'], ['altura', 'Altura (m)', 'num'], ['hB', 'Conexión lateral b sobre el fondo (m)', 'num'], ['hC', 'Conexión superior c sobre el fondo (m)', 'num'], ['psRecipiente', 'Presión máxima admisible PS (bar)', 'num'], ['tipoConexion', 'Tipo de conexión', 'conex'], ['dnConexion', 'Tamaño de la conexión', 'dn']],
@@ -4569,6 +4440,25 @@
         const MATERIALES_BASE = CAT ? new Set(Object.keys(CAT.materiales)) : new Set();
         const cvTexto = cv => Object.entries(cv || {}).map(([k, v]) => `${k}:${v}`).join('; ');
         const cvDesdeTexto = t => { const o = {}; String(t || '').split(/[;\n]+/).forEach(p => { const m = p.trim().match(/^([\d\-\/]+)\s*[:=]\s*([\d.,]+)$/); if (m) o[m[1]] = parseFloat(m[2].replace(',', '.')); }); return o; };
+        // ---------- accesorios de tubería: catálogo central (tabla piping_accesorios de Supabase) con respaldo local (datos/accesorios_b169.js) ----------
+        let ACC_BASE = [], ACC_ORIGEN = null, CARGA_ACC = null;
+        const SUBTIPOS_ACC = new Set(subtiposGrupo('accesorios'));
+        const esSubtipoAccesorio = st => SUBTIPOS_ACC.has(st);
+        const campoLibAplica = (k, st) => ({ variante: st === 'reduccion', theta: st === 'reduccion', kc: st === 'reduccion', ke: st === 'reduccion', kRun: st === 'tee', kBranch: st === 'tee', k: st !== 'tee' && st !== 'reduccion', dn2: ['reduccion', 'tee', 'codo90', 'cruce', 'injerto'].includes(st) }[k] !== false);
+        // administrador con sesión de Supabase y catálogo leído de la base de datos: sus cambios van a la base de datos
+        function accEnBD() { const s = typeof sesionActual === 'function' ? sesionActual() : null; return ACC_ORIGEN === 'supabase' && !!s && s.origen === 'supabase' && s.rol === 'admin'; }
+        function asegurarAccesorios(forzar) {
+            if (CARGA_ACC && !forzar) return CARGA_ACC;
+            return CARGA_ACC = (async () => {
+                if (typeof rpcUsuarios === 'function' && claveSupabase()) {
+                    try { const d = await rpcUsuarios('piping_accesorios_listar', {}); if (Array.isArray(d) && d.length) { ACC_BASE = d.filter(i => SUBTIPOS_ACC.has(i.subtipo)); ACC_ORIGEN = 'supabase'; return ACC_ORIGEN; } } catch (e) { /* sin tabla o sin red: respaldo local */ }
+                }
+                if (!window.PIPING_ACCESORIOS) await new Promise(ok => { const sc = document.createElement('script'); sc.src = `datos/accesorios_b169.js?v=${VERSION_WEB}`; sc.onload = ok; sc.onerror = () => { aviso('No se ha podido cargar datos/accesorios_b169.js.', 'error'); ok(); }; document.head.appendChild(sc); });
+                ACC_BASE = window.PIPING_ACCESORIOS || []; ACC_ORIGEN = 'local'; return ACC_ORIGEN;
+            })();
+        }
+        const tamanoItemLib = i => { const p = i.props || {}; return [p.dn, p.dn2].filter(Boolean).map((d, n) => n ? String(d).replace(/^DN /, '') : d).join(' × '); };
+        const kItemLib = i => { const p = i.props || {}, f = v => v !== '' && v != null; return f(p.kRun) || f(p.kBranch) ? `${p.kRun ?? ''} / ${p.kBranch ?? ''}` : f(p.kc) || f(p.ke) ? `${p.kc ?? ''} / ${p.ke ?? ''}` : (f(p.k) ? String(p.k) : ''); };
         // Elementos de la lista de un tipo (base del catálogo + del usuario, sin los ocultos)
         function itemsLib(subtipo) {
             const usuario = LIB.items.filter(i => i.subtipo === subtipo);
@@ -4580,6 +4470,7 @@
                 // tuberías del usuario creadas sobre esta tabla de tamaños
                 LIB.items.filter(i => i.grupo === 'tuberias' && i.props && i.props.base === subtipo && i.subtipo !== subtipo).forEach(i => base.push(i));
             }
+            if (esSubtipoAccesorio(subtipo)) base = ACC_BASE.filter(i => i.subtipo === subtipo);
             const ids = new Set(usuario.map(i => i.id));
             return [...base.filter(b => !ids.has(b.id)), ...usuario].filter(i => !LIB.ocultos.includes(i.id));
         }
@@ -4630,7 +4521,7 @@
                 if (num(p.FL)) el.FL = num(p.FL);
             } else if (el.type === 'accesorio') {
                 if (p.craneTipo) el.craneTipo = p.craneTipo;
-                if (num(p.k) != null) { el.modoK = 'manual'; el.k = num(p.k); }
+                if (num(p.k) != null && item.origen !== 'catálogo') { el.modoK = 'manual'; el.k = num(p.k); }   // los B16.9 de partida siguen con Crane (mismo K)
             } else if (el.type === 'bomba') ['caudal', 'presion', 'h0', 'npsh', 'eta'].forEach(k => { if (num(p[k]) != null) el[k] = num(p[k]); });
             else if (esEquipo(el)) ['qNom', 'dpNom', 'qNom2', 'dpNom2', 'volumen'].forEach(k => { if (num(p[k]) != null) el[k] = num(p[k]); });
             else if (esDeposito(el)) { ['volumen', 'hB', 'hC', 'psRecipiente'].forEach(k => { if (num(p[k]) != null) el[k] = num(p[k]); }); if (p.tipoConexion) el.tipoConexion = p.tipoConexion; if (p.dnConexion) el.dnConexion = p.dnConexion; }
@@ -4642,7 +4533,13 @@
             if (esAnotacion(obj)) return '';
             let h = '';
             if (obj.type !== 'tuberia') {
-                const lista = itemsLib(obj.type === 'bomba' ? 'bomba' : obj.subtype);
+                if (obj.type === 'accesorio' && !ACC_ORIGEN) asegurarAccesorios();
+                const lista = itemsLib(obj.type === 'bomba' ? 'bomba' : obj.subtype).filter(i => { const p = i.props || {};
+                    if (obj.subtype === 'reduccion' && p.variante && (p.variante === 'Excéntrica') !== !!obj.excentrica) return false;
+                    if (obj.type !== 'accesorio' || i.id === obj.libItem) return true;
+                    if (p.dn && obj.dn && p.dn !== obj.dn) return false;
+                    if (obj.subtype === 'reduccion' && p.dn2 && obj.dnMenor && p.dn2 !== obj.dnMenor) return false;
+                    return true; });
                 h += `<div>Modelo de librería: <select onchange="${fn}('libItem', this.value)" class="${CLS_CTRL}"><option value="">— ninguno (genérico) —</option>${lista.map(i => `<option value="${esc(i.id)}" ${i.id === obj.libItem ? 'selected' : ''}>${esc(i.nombre)}${i.material ? ' · ' + esc(i.material) : ''}</option>`).join('')}</select></div>`;
                 h += ctrlMaterial(fn, 'materialComp', obj.materialComp || '', grupoMaterial(obj));
             } else h += ctrlMaterial(fn, 'gradoMaterial', obj.gradoMaterial || (CAT.materiales[obj.material] || {}).grado || '', familiaMaterialTubo(obj.material), 'Material (grado)');
@@ -4654,8 +4551,14 @@
         let libVista = { grupo: null, subtipo: null, id: null, borrador: null };
         function abrirLibreria(grupo, subtipo) {
             const subs = subtiposGrupo(grupo);
-            libVista = { grupo, subtipo: subtipo && subs.includes(subtipo) ? subtipo : subs[0], id: null, borrador: null };
+            libVista = { grupo, subtipo: subtipo && subs.includes(subtipo) ? subtipo : subs[0], id: null, borrador: null, filtroTipo: '', q: '' };
             document.getElementById('modal-libreria').style.display = 'flex';
+            if (grupo === 'accesorios' && (!ACC_ORIGEN || (ACC_ORIGEN === 'local' && claveSupabase()))) {
+                if (!ACC_ORIGEN) { document.getElementById('lib-titulo').innerHTML = `<i class="fa-solid fa-book text-blue-600 mr-1.5"></i>Librería · ${esc(GRUPOS_LIB[grupo].titulo)}`; document.getElementById('lib-cuerpo').innerHTML = '<p class="text-slate-400 italic p-4"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Cargando accesorios...</p>'; }
+                else pintarLibreria();
+                asegurarAccesorios(true).then(() => { if (libVista.grupo === 'accesorios' && document.getElementById('modal-libreria').style.display === 'flex' && !libVista.borrador) pintarLibreria(); });
+                return;
+            }
             pintarLibreria();
         }
         function cerrarLibreria() { document.getElementById('modal-libreria').style.display = 'none'; }
@@ -4667,7 +4570,7 @@
             if (V.grupo === 'tuberias') { base.props.base = base.props.base || (MATERIALES_BASE.has(V.subtipo) ? V.subtipo : 'Acero al carbono'); if (!copiaDe) base.nombre = base.props.base + ' '; }
             V.id = base.id; V.borrador = base; pintarLibreria();
         }
-        function seleccionarItemLib(id) { const it = itemsLib(libVista.subtipo).find(i => i.id === id); libVista.id = id; libVista.borrador = it ? JSON.parse(JSON.stringify(it)) : null; pintarLibreria(); }
+        function seleccionarItemLib(id) { let it = itemsLib(libVista.subtipo).find(i => i.id === id); if (!it && libTodos()) { it = itemsGrupoLib(libVista.grupo).find(i => i.id === id); if (it) libVista.subtipo = it.subtipo; } libVista.id = id; libVista.borrador = it ? JSON.parse(JSON.stringify(it)) : null; pintarLibreria(); }
         function leerFormLib() {
             const b = libVista.borrador; if (!b) return null;
             document.querySelectorAll('#lib-form [data-lib]').forEach(x => { const k = x.dataset.lib, v = x.value; if (k.startsWith('p.')) { b.props = b.props || {}; b.props[k.slice(2)] = v; } else b[k] = v; });
@@ -4681,16 +4584,40 @@
                 if (MATERIALES_BASE.has(b.nombre)) { alert('Ese nombre es el de un material del programa: usa otro (p. ej. «Acero al carbono SA-333 Gr. 6»).'); return; }
                 if (LIB.items.some(i => i.grupo === 'tuberias' && i.nombre === b.nombre && i.id !== b.id)) { alert('Ya hay una tubería con ese nombre.'); return; }
             }
+            if (libVista.grupo === 'accesorios' && accEnBD()) { guardarAccesorioBD(b); return; }
             const antes = LIB.items.find(i => i.id === b.id);
             if (antes && antes.grupo === 'tuberias' && antes.nombre !== b.nombre && elementosRed.some(e => e.material === antes.nombre)) { alert(`Hay tuberías del dibujo con «${antes.nombre}»: no se puede cambiar el nombre (crea una copia).`); return; }
             b.grupo = libVista.grupo; b.subtipo = b.subtipo || libVista.subtipo; b.fecha = new Date().toISOString();
+            if (b.subtipo !== 'reduccion' && b.props) delete b.props.variante;
             LIB.items = LIB.items.filter(i => i.id !== b.id).concat([JSON.parse(JSON.stringify(b))]);
             if (antes && antes.grupo === 'tuberias' && antes.nombre !== b.nombre) delete CAT.materiales[antes.nombre];
             guardarLib(); aplicarLibreria(); construirLibreria(); libVista.id = b.id; pintarLibreria();
             aviso(`Guardado en la librería: ${b.nombre}`, 'ok');
         }
+        async function guardarAccesorioBD(b) {
+            b.grupo = 'accesorios'; b.subtipo = b.subtipo || libVista.subtipo; if (b.subtipo !== 'reduccion' && b.props) delete b.props.variante;
+            if (String(b.id).startsWith('usr:') && !LIB.items.some(i => i.id === b.id)) b.id = 'emp:' + b.id.slice(4);
+            try {
+                const r = await rpcUsuarios('piping_accesorio_guardar', { p_token: sesionActual().token, p_item: b });
+                ACC_BASE = ACC_BASE.filter(i => i.id !== r.id).concat([r]);
+                if (LIB.items.some(i => i.id === r.id)) { LIB.items = LIB.items.filter(i => i.id !== r.id); guardarLib(); }
+                libVista.id = r.id; libVista.subtipo = r.subtipo; libVista.borrador = JSON.parse(JSON.stringify(r)); pintarLibreria();
+                aviso(`Guardado en la base de datos: ${r.nombre}`, 'ok');
+            } catch (e) { aviso(e.sinFuncion ? 'Falta ejecutar supabase/07_accesorios.sql.' : 'No se ha guardado: ' + e.message, 'error'); }
+        }
+        async function eliminarAccesorioBD(it) {
+            const usados = elementosRed.filter(e => e.libItem === it.id);
+            if (!confirm(`¿Eliminar «${it.nombre}» de la base de datos? Dejará de verlo todo el mundo.${usados.length ? `\n\nLo usan ${usados.length} elemento(s) del dibujo: conservan sus datos.` : ''}`)) return;
+            try { await rpcUsuarios('piping_accesorio_borrar', { p_token: sesionActual().token, p_id: it.id }); ACC_BASE = ACC_BASE.filter(i => i.id !== it.id); libVista.id = null; libVista.borrador = null; pintarLibreria(); aviso('Accesorio eliminado de la base de datos.'); }
+            catch (e) { aviso('No se ha eliminado: ' + e.message, 'error'); }
+        }
+        async function recuperarAccesoriosBD() {
+            if (!confirm('¿Recuperar todos los accesorios eliminados de la base de datos?')) return;
+            try { const n = await rpcUsuarios('piping_accesorios_recuperar', { p_token: sesionActual().token }); await asegurarAccesorios(true); pintarLibreria(); aviso(`Recuperados: ${n}.`, 'ok'); } catch (e) { aviso(e.message, 'error'); }
+        }
         function eliminarItemLib() {
             const V = libVista, it = V.borrador; if (!it) return;
+            if (V.grupo === 'accesorios' && accEnBD() && ACC_BASE.some(i => i.id === it.id)) { eliminarAccesorioBD(it); return; }
             const usados = elementosRed.filter(e => e.libItem === it.id || (V.grupo === 'tuberias' && e.material === it.nombre && !MATERIALES_BASE.has(it.nombre)));
             if (V.grupo === 'tuberias' && MATERIALES_BASE.has(it.nombre)) { alert('Los materiales del programa no se eliminan; puedes modificar su rugosidad y tensión admisible.'); return; }
             if (!confirm(`¿Eliminar «${it.nombre}» de la librería?${usados.length ? `\n\nLo usan ${usados.length} elemento(s) del dibujo: conservan sus datos.` : ''}`)) return;
@@ -4703,7 +4630,7 @@
         function restaurarOcultosLib() { if (!LIB.ocultos.length) return; if (!confirm(`¿Recuperar los ${LIB.ocultos.length} elementos del catálogo eliminados?`)) return; LIB.ocultos = []; guardarLib(); aplicarLibreria(); pintarLibreria(); }
         function pintarLibreria() {
             const V = libVista, G = GRUPOS_LIB[V.grupo], subs = subtiposGrupo(V.grupo), lista = itemsLib(V.subtipo);
-            const b = V.borrador;
+            const b = V.borrador, admin = libTodos();
             document.getElementById('lib-titulo').innerHTML = `<i class="fa-solid fa-book text-blue-600 mr-1.5"></i>Librería · ${esc(G.titulo)}`;
             let izq = subs.length > 1 ? `<select onchange="libVista.subtipo = this.value; libVista.id = null; libVista.borrador = null; pintarLibreria()" class="w-full border rounded p-1.5 mb-2">${subs.map(s => `<option value="${esc(s)}" ${s === V.subtipo ? 'selected' : ''}>${esc(nombreSubtipo(s))}</option>`).join('')}</select>` : `<p class="font-bold text-slate-600 mb-2">${esc(nombreSubtipo(V.subtipo))}</p>`;
             izq += `<div class="border rounded divide-y overflow-y-auto" style="max-height:52vh">${lista.map(i => `<button type="button" onclick="seleccionarItemLib('${esc(i.id)}')" class="block w-full text-left px-2 py-1 hover:bg-blue-50 ${i.id === V.id ? 'bg-amber-50' : ''}"><b>${esc(i.nombre)}</b><br><span class="text-[10px] text-slate-400">${esc([i.fabricante, i.material, i.pn].filter(Boolean).join(' · ') || (i.origen === 'catálogo' ? 'catálogo del programa' : 'usuario'))}</span></button>`).join('') || '<p class="p-2 text-slate-400 italic">Sin elementos: pulsa «Nuevo».</p>'}</div>`;
@@ -4711,19 +4638,21 @@
             let der = '<p class="text-slate-400 italic mt-1 mb-2">Selecciona un elemento de la lista o de la tabla, o pulsa «Nuevo» (o «Copiar» para partir de uno existente).</p>';
             if (b) {
                 const f = (k, et, v, extra = '') => `<label class="block"><span class="text-slate-500">${et}</span><input data-lib="${k}" value="${esc(v == null ? '' : v)}" class="w-full border rounded p-1 mt-0.5" ${extra}></label>`;
-                const sel = (k, et, ops, v) => `<label class="block"><span class="text-slate-500">${et}</span><select data-lib="${k}" class="w-full border rounded p-1 mt-0.5">${ops.map(o => { const [a, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(a)}" ${String(a) === String(v || '') ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>`;
-                const grupoMat = V.grupo === 'tuberias' ? familiaMaterialTubo((b.props || {}).base || V.subtipo) : G.mat;
-                const matSel = `<label class="block"><span class="text-slate-500">Material ${grupoMat === 'plastico' ? '' : '(ASME / EN)'}</span><select data-lib="material" class="w-full border rounded p-1 mt-0.5" onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) { const o = new Option(t, t, true, true); this.add(o, 0); } else this.value = ''; }">${opcionesMaterial(grupoMat, b.material || '')}</select></label>`;
+                const sel = (k, et, ops, v) => `<label class="block"><span class="text-slate-500">${et}</span><select data-lib="${k}" class="w-full border rounded p-1 mt-0.5">${(v && !ops.some(o => String(Array.isArray(o) ? o[0] : o) === String(v)) ? ops.concat([v]) : ops).map(o => { const [a, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(a)}" ${String(a) === String(v || '') ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></label>`;
+                const stB = b.subtipo || V.subtipo;
+                const grupoMat = V.grupo === 'tuberias' ? familiaMaterialTubo((b.props || {}).base || V.subtipo) : (stB === 'filtro' || stB === 'strainer' ? 'filtro' : G.mat);
+                const matSel = `<label class="block"><span class="text-slate-500">Material ${grupoMat === 'plastico' ? '' : '(ASME / EN)'}</span><select data-lib="material" class="w-full border rounded p-1 mt-0.5" onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) { const o = new Option(t, t, true, true); this.add(o, 0); } else this.value = ''; } const e = document.getElementById('lib-equiv'); if (e) e.textContent = equivalenteMaterial(this.value);">${opcionesMaterial(grupoMat, b.material || '')}</select><span id="lib-equiv" class="text-[10px] text-slate-400">${esc(equivalenteMaterial(b.material || ''))}</span></label>`;
                 const esTub = V.grupo === 'tuberias', esBase = esTub && b.id === 'mat:' + V.subtipo;
                 der = `<div id="lib-form" class="grid grid-cols-2 gap-2">
+                    ${admin ? `<label class="block col-span-2"><span class="text-slate-500">Tipo de accesorio *</span><select data-lib="subtipo" onchange="leerFormLib(); libVista.subtipo = this.value; pintarLibreria()" class="w-full border rounded p-1 mt-0.5">${subs.map(x => `<option value="${esc(x)}" ${x === stB ? 'selected' : ''}>${esc(nombreSubtipo(x))}</option>`).join('')}</select></label>` : ''}
                     ${f('nombre', esTub ? 'Nombre del tipo de tubería (aparece en Tuberías del panel derecho) *' : 'Nombre / modelo *', b.nombre, esBase ? 'readonly' : '')}
                     ${f('fabricante', 'Fabricante', b.fabricante)}${f('referencia', 'Referencia del fabricante', b.referencia)}
                     ${matSel}${f('norma', 'Norma (fabricación / dimensional)', b.norma)}
                     ${esTub ? '' : sel('pn', 'Presión nominal / clase', [['', '—'], ...PN_LISTA], b.pn)}
                     <label class="block col-span-2"><span class="text-slate-500">URL (dónde se ha encontrado el componente)</span><div class="flex gap-1 mt-0.5"><input data-lib="url" value="${esc(b.url || '')}" placeholder="https://..." class="w-full border rounded p-1">${b.url ? `<a href="${esc(b.url)}" target="_blank" rel="noopener" class="px-2 py-1 border rounded text-blue-600" title="Abrir"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</div></label>
-                    ${(CAMPOS_LIB[V.grupo] || []).filter(c => !(esBase && (c[0] === 'base' || c[0] === 'codigo'))).filter(c => !(V.grupo === 'intercambiadores' && /2$/.test(c[0]) && !(TIPOS[V.subtipo] || {}).circuitos)).map(([k, et, tipo, ops]) => {
+                    ${(CAMPOS_LIB[V.grupo] || []).filter(c => !(esBase && (c[0] === 'base' || c[0] === 'codigo'))).filter(c => campoLibAplica(c[0], stB)).filter(c => !(V.grupo === 'intercambiadores' && /2$/.test(c[0]) && !(TIPOS[V.subtipo] || {}).circuitos)).map(([k, et, tipo, ops]) => {
                         const v = (b.props || {})[k];
-                        if (tipo === 'crane') { const o = opcionesCrane(claveCrane({ subtype: V.subtipo })); return o.length ? sel('p.' + k, et, [['', '—'], ...o.map(x => x[0])], v) : ''; }
+                        if (tipo === 'crane') { const o = opcionesCrane(claveCrane({ subtype: stB })); return o.length ? sel('p.' + k, et, [['', '—'], ...o.map(x => x[0])], v) : ''; }
                         if (tipo === 'sel') return sel('p.' + k, et, [['', '—'], ...ops], v);
                         if (tipo === 'conex') return sel('p.' + k, et, [['', '—'], ...TIPOS_CONEXION], v);
                         if (tipo === 'dn') return sel('p.' + k, et, [['', '—'], ...LISTA_DN.map(d => [d, etiquetaDN(d)])], v);
@@ -4743,7 +4672,48 @@
                 <th class="px-1 py-1">Nombre / modelo</th><th class="px-1">Origen</th><th class="px-1">Fabricante</th><th class="px-1">Referencia</th><th class="px-1">Material</th><th class="px-1">Norma</th>${V.grupo === 'tuberias' ? '' : '<th class="px-1">PN / clase</th>'}<th class="px-1 text-center">En el proyecto</th><th class="px-1">URL</th></tr></thead><tbody>
                 ${lista.map(i => { const n = usos(i); return `<tr onclick="seleccionarItemLib('${esc(i.id)}')" class="border-t border-slate-100 cursor-pointer ${i.id === V.id ? 'bg-amber-50' : 'hover:bg-blue-50'}"><td class="px-1 py-0.5 font-bold">${esc(i.nombre)}</td><td class="px-1 text-slate-500">${esc(i.origen === 'catálogo' ? 'catálogo' : 'usuario')}</td><td class="px-1">${esc(i.fabricante || '')}</td><td class="px-1">${esc(i.referencia || '')}</td><td class="px-1">${esc(i.material || '')}</td><td class="px-1">${esc(i.norma || '')}</td>${V.grupo === 'tuberias' ? '' : `<td class="px-1">${esc(i.pn || '')}</td>`}<td class="px-1 text-center ${n ? 'font-bold text-emerald-700' : 'text-slate-300'}">${n}</td><td class="px-1">${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-blue-600"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="9" class="p-2 text-slate-400 italic">Sin elementos de este tipo.</td></tr>'}
                 </tbody></table></div></div>`;
+            if (admin) {
+                // administrador: arriba, todos los accesorios con todos sus datos; debajo, la ficha del marcado
+                const barra = `<div class="flex flex-wrap items-center gap-1 mb-2">
+                    <select onchange="libVista.filtroTipo = this.value; pintarTablaLibTodos()" class="border rounded p-1.5"><option value="">Todos los tipos</option>${subs.map(x => `<option value="${esc(x)}" ${x === V.filtroTipo ? 'selected' : ''}>${esc(nombreSubtipo(x))}</option>`).join('')}</select>
+                    <input value="${esc(V.q || '')}" oninput="libVista.q = this.value; pintarTablaLibTodos()" placeholder="Buscar: nombre, fabricante, material, norma..." class="border rounded p-1.5 flex-1" style="min-width:180px">
+                    <button onclick="if (libVista.filtroTipo) libVista.subtipo = libVista.filtroTipo; nuevoItemLib()" class="px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded"><i class="fa-solid fa-plus mr-1"></i>Nuevo</button>
+                    <button onclick="if (libVista.borrador) nuevoItemLib(leerFormLib())" class="px-2 py-1.5 border rounded hover:bg-slate-50" ${b ? '' : 'disabled'} title="Crea un accesorio nuevo con los datos del marcado"><i class="fa-solid fa-copy mr-1"></i>Nuevo a partir del marcado</button>
+                    <button onclick="eliminarItemLib()" class="px-2 py-1.5 border rounded hover:bg-rose-50 text-rose-600" ${b ? '' : 'disabled'}><i class="fa-solid fa-trash-can mr-1"></i>Eliminar</button>
+                    ${LIB.ocultos.length ? `<button onclick="restaurarOcultosLib()" class="px-2 py-1.5 border rounded hover:bg-slate-50 text-[10px]">Recuperar eliminados (${LIB.ocultos.length})</button>` : ''}
+                    ${accEnBD() ? '<button onclick="recuperarAccesoriosBD()" class="px-2 py-1.5 border rounded hover:bg-slate-50 text-[10px]">Recuperar eliminados de la base de datos</button>' : ''}</div>
+                    <p class="text-[10px] mb-2 ${accEnBD() ? 'text-emerald-700' : 'text-amber-700'}"><i class="fa-solid ${accEnBD() ? 'fa-database' : 'fa-hard-drive'} mr-1"></i>${accEnBD() ? 'Base de datos (Supabase): lo que guardes o elimines lo ven todos los usuarios.' : ACC_ORIGEN === 'supabase' ? 'Catálogo leído de la base de datos, pero tu sesión no es de un administrador de Supabase: los cambios se guardan solo en este navegador.' : 'Catálogo local (respaldo): los cambios se guardan solo en este navegador. Para guardarlos en la base de datos, ejecuta supabase/07_accesorios.sql e inicia sesión con un administrador de Supabase.'}</p>`;
+                document.getElementById('lib-cuerpo').innerHTML = `${barra}<div id="lib-tabla-todos"></div><div class="mt-3">${b ? `<p class="font-bold text-slate-600 mb-1">${LIB.items.some(i => i.id === b.id) || ACC_BASE.some(i => i.id === b.id) ? 'Editar' : 'Nuevo'} · ${esc(nombreSubtipo(b.subtipo || V.subtipo))}</p>${der}` : '<p class="text-slate-400 italic">Marca un accesorio de la tabla para editarlo, o pulsa «Nuevo» (o «Nuevo a partir del marcado» para partir de uno existente).</p>'}</div>`;
+                pintarTablaLibTodos(); return;
+            }
             document.getElementById('lib-cuerpo').innerHTML = `<div class="grid gap-4" style="grid-template-columns: 250px 1fr"><div>${izq}</div><div>${der}${tabla}</div></div>`;
+        }
+        // vista completa de un grupo (por ahora, solo accesorios de tubería y solo para el administrador)
+        function libTodos() { return libVista.grupo === 'accesorios' && typeof esAdministrador === 'function' && esAdministrador(); }
+        function itemsGrupoLib(g) { return subtiposGrupo(g).flatMap(st => itemsLib(st)); }
+        function pintarTablaLibTodos() {
+            const c = document.getElementById('lib-tabla-todos'); if (!c) return;
+            const V = libVista, q = String(V.q || '').toLowerCase().trim(), todos = elementosRed.concat(elementosOtrasHojas());
+            const lista = itemsGrupoLib(V.grupo).filter(i => (!V.filtroTipo || i.subtipo === V.filtroTipo) && (!q || q.split(/\s+/).every(w => [nombreSubtipo(i.subtipo), i.nombre, i.fabricante, i.referencia, i.material, i.norma, i.pn, i.notas, ...Object.values(i.props || {})].join(' ').toLowerCase().includes(w))))
+                .sort((a, b) => nombreSubtipo(a.subtipo).localeCompare(nombreSubtipo(b.subtipo), 'es') || String(a.nombre).replace(/ DN .*/, '').localeCompare(String(b.nombre).replace(/ DN .*/, ''), 'es') || dnNum((a.props || {}).dn || '') - dnNum((b.props || {}).dn || '') || dnNum((b.props || {}).dn2 || '') - dnNum((a.props || {}).dn2 || '') || String(a.nombre).localeCompare(String(b.nombre), 'es'));
+            const td = (v, cls = '') => `<td class="px-1 ${cls}">${esc(v == null ? '' : v)}</td>`;
+            c.innerHTML = `<p class="font-bold text-slate-600 mb-1">Accesorios de tubería existentes (${lista.length})</p>
+                <div class="border rounded overflow-auto" style="max-height:${V.borrador ? 30 : 60}vh"><table class="w-full text-[11px] whitespace-nowrap"><thead class="bg-slate-100 sticky top-0"><tr class="text-left text-slate-500">
+                <th class="px-1 py-1">Tipo</th><th class="px-1">Nombre / modelo</th><th class="px-1">Tamaño</th><th class="px-1">Origen</th><th class="px-1">Fabricante</th><th class="px-1">Referencia</th><th class="px-1">Material</th><th class="px-1">Norma</th><th class="px-1">PN / clase</th><th class="px-1">Tipo (Crane)</th><th class="px-1">Serie / Sch</th><th class="px-1">Cotas (mm)</th><th class="px-1" title="K · en tes: paso directo / derivación · en reducciones: contracción / expansión">K</th><th class="px-1">Notas</th><th class="px-1 text-center">En el proyecto</th><th class="px-1">URL</th></tr></thead><tbody>
+                ${lista.map(i => { const p = i.props || {}, n = todos.filter(e => e.libItem === i.id).length; return `<tr onclick="seleccionarItemLib('${esc(i.id)}')" class="border-t border-slate-100 cursor-pointer ${i.id === V.id ? 'bg-amber-50' : 'hover:bg-blue-50'}">${td(nombreSubtipo(i.subtipo) + (i.subtipo === 'reduccion' && p.variante ? ' ' + p.variante.toLowerCase() : ''), 'py-0.5 text-slate-500')}${td(i.nombre, 'font-bold')}${td(tamanoItemLib(i))}${td(i.origen === 'catálogo' ? 'B16.9' : i.origen === 'empresa' ? 'empresa' : 'local', 'text-slate-500')}${td(i.fabricante)}${td(i.referencia)}${td(i.material)}${td(i.norma)}${td(i.pn)}${td(p.craneTipo)}${td(p.serie)}${td(p.cotas)}${td(kItemLib(i))}<td class="px-1 whitespace-normal" style="min-width:200px;max-width:320px">${esc(i.notas || '')}</td><td class="px-1 text-center ${n ? 'font-bold text-emerald-700' : 'text-slate-300'}">${n}</td><td class="px-1">${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-blue-600"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="16" class="p-2 text-slate-400 italic">Sin accesorios: pulsa «Nuevo».</td></tr>'}
+                </tbody></table></div>`;
+        }
+        // equivalente ASME ↔ EN de un material según la ayuda de equivalencias (texto orientativo bajo el desplegable)
+        function equivalenteMaterial(m) {
+            m = String(m || ''); if (!m) return '';
+            const limpio = x => x.replace(/\s*\(.*$/, '').replace(/\s*\/\s*/g, '/').trim(), k = limpio(m);
+            const out = [];
+            EQUIVALENCIAS.forEach(([, g]) => g.forEach(([asme, ens]) => {
+                const asmes = limpio(asme).split('/').map((x, n, a) => n ? x.replace(/^(?!SA-|ASTM)/, a[0].replace(/\w+$/, '')) : x).map(x => x.trim());
+                if (asmes.includes(k)) ens.forEach(([norma, gr]) => out.push(`${norma}: ${gr.join(', ')}`));
+                else ens.forEach(([norma, gr]) => { if (gr.some(x => limpio(x) === k)) out.push(asme); });
+            }));
+            return out.length ? 'Equivalente: ' + [...new Set(out)].join(' · ') : '';
         }
         function exportarLibreria() { descargarArchivo(JSON.stringify({ tipo: 'piping-libreria', version: 1, fecha: new Date().toISOString(), ...LIB }, null, 2), `libreria_PIPING_${new Date().toISOString().slice(0, 10)}.json`, 'application/json'); }
         async function importarLibreria() {
@@ -4808,7 +4778,7 @@
             document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">Equivalencias orientativas entre materiales ASME y norma europea. Comprueba siempre la especificación del proyecto y los requisitos de cada norma (composición, ensayos, temperatura de diseño). P355GH no figura: es un acero de chapa (EN 10028-2), no de tubo ni de accesorio; para SA-234 Gr.WPC se toma P355NH (EN 10253-2). Las tes, cruces y reducciones tienen las mismas equivalencias que los codos.</p>` +
                 EQUIVALENCIAS.map(([tit, g]) => `<h4 class="font-bold text-slate-600 uppercase text-[11px] mt-3 mb-1">${esc(tit)}</h4><table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500"><th class="py-1">ASME</th><th>Norma europea</th><th>Designación</th></tr></thead><tbody>${filas(g)}</tbody></table>`).join('');
             document.getElementById('red-footer').innerHTML = '<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>';
-            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-right-left text-blue-600 mr-1.5"></i> Equivalencias ASME / norma europea';
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-right-left text-blue-600 mr-1.5"></i> Equivalencia ASME / Norma europea';
             document.getElementById('modal-red').style.display = 'flex';
         }
         function menuLibreria() {
@@ -4817,6 +4787,7 @@
             return [
                 { icono: 'fa-shapes', texto: 'Accesorios', sub: () => [
                     { icono: 'fa-grip-lines', texto: 'Accesorios de tubería...', accion: () => abrirLibreria('accesorios') },
+                    { icono: 'fa-arrows-left-right-to-line', texto: 'Filtros, injertos, juntas y manguitos...', accion: () => abrirLibreria('compensadores') },
                     { icono: 'fa-fire-flame-simple', texto: 'Intercambiadores...', accion: () => abrirLibreria('intercambiadores') },
                     { icono: 'fa-database', texto: 'Tanques y depósitos...', accion: () => abrirLibreria('tanques') },
                     { icono: 'fa-ring', texto: 'Uniones y bridas', sub: () => porGrupo('uniones') }] },
@@ -5267,7 +5238,6 @@
             aviso(`${col ? col[1] : campo}: ${n} elemento(s) cambiados${no ? ` · ${no} sin cambiar (valor no válido para ese elemento)` : ''}.`, no ? 'error' : 'ok');
         }
 
-
         // ==================================================================================
         // HOJAS DEL PROYECTO (pestañas abajo a la izquierda: 00, 01, 02… y "Añadir hoja")
         // La hoja activa vive en elementosRed / lineas / condicionesContorno / opciones.formato; las demás
@@ -5466,40 +5436,8 @@
             document.getElementById('modal-red').style.display = 'flex';
         }
         const kbd = t => `<kbd class="inline-block bg-slate-100 border border-slate-300 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-700">${esc(t)}</kbd>`;
-        function pintarEditorAtajos() {
-            const V = vistaAtajos, pest = (k, t, i) => `<button onclick="vistaAtajos.pestana='${k}'; pintarEditorAtajos()" class="px-3 py-1.5 -mb-px border rounded-t text-xs ${V.pestana === k ? 'bg-white border-slate-300 border-b-white font-bold text-blue-700' : 'bg-slate-50 border-transparent text-slate-600 hover:text-blue-700'}"><i class="fa-solid ${i} mr-1"></i>${t}</button>`;
-            let h = `<div class="flex gap-1 border-b border-slate-300 mb-3">${pest('teclado', 'Teclado', 'fa-keyboard')}${pest('gestos', 'Gestos del ratón', 'fa-computer-mouse')}${pest('barra', 'Barra rápida', 'fa-bolt')}</div>`;
-            if (V.pestana === 'barra') h += editorBarraRapida(); else
-            if (V.pestana === 'teclado') {
-                const cmds = listaComandos(), cats = [...new Set(cmds.map(c => c.cat))];
-                const q = sinAcentos(V.texto);
-                const lista = cmds.filter(c => (!V.cat || c.cat === V.cat) && (!q || sinAcentos(c.cat + ' ' + c.texto + ' ' + teclasDe(c.id).join(' ')).includes(q)));
-                h += `<div class="flex flex-wrap gap-2 items-center mb-2 text-[11px]"><label>Categoría <select onchange="vistaAtajos.cat = this.value; pintarEditorAtajos()" class="border rounded p-1 ml-1"><option value="">Todas las órdenes</option>${cats.map(c => `<option ${c === V.cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
-                    <label>Buscar <input id="atajos-buscar" value="${esc(V.texto)}" oninput="vistaAtajos.texto = this.value; clearTimeout(window.__tA); window.__tA = setTimeout(() => { pintarEditorAtajos(); const i = document.getElementById('atajos-buscar'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250)" class="border rounded p-1 ml-1 w-64" placeholder="orden, menú o tecla"></label>
-                    <span class="flex-1"></span><span class="text-slate-400">${lista.length} órdenes · Esc, Intro, Retroceso y Tab están reservadas</span></div>
-                    <div class="border rounded overflow-auto" style="max-height:55vh"><table class="w-full text-[11px]"><thead class="bg-slate-100 sticky top-0"><tr class="text-left text-slate-600"><th class="px-2 py-1 w-28">Categoría</th><th class="px-2">Orden</th><th class="px-2 w-72">Atajo(s)</th><th class="px-2 w-24"></th></tr></thead><tbody>
-                    ${lista.map(c => { const t = teclasDe(c.id), cap = capturaAtajo === c.id, mod = !!CONF_ATAJOS.teclas[c.id];
-                        return `<tr draggable="true" ondragstart="event.dataTransfer.setData('text/x-orden', '${esc(c.id).replace(/'/g, "\\'")}')" title="Arrastra a la barra rápida para añadirla" class="border-t border-slate-100 ${cap ? 'bg-amber-50' : 'hover:bg-slate-50'}"><td class="px-2 py-1 text-slate-500">${esc(c.cat)}</td><td class="px-2"><i class="fa-solid ${c.icono} text-blue-600 w-4 mr-1"></i>${esc(c.texto)}</td>
-                        <td class="px-2">${cap ? '<span class="text-amber-700 font-bold">Pulsa la combinación de teclas… (Esc cancela)</span>' : t.map(k => `<span class="inline-flex items-center gap-0.5 mr-1">${kbd(k)}<button onclick="quitarAtajo('${esc(c.id).replace(/'/g, "\\'")}', '${k}')" title="Quitar" class="text-slate-400 hover:text-rose-600 px-0.5"><i class="fa-solid fa-xmark text-[9px]"></i></button></span>`).join('') + (mod ? '<span class="text-[9px] text-blue-600 ml-1">personalizado</span>' : '')}</td>
-                        <td class="px-2 text-right"><button onclick="empezarCapturaAtajo('${esc(c.id).replace(/'/g, "\\'")}')" class="px-2 py-0.5 border rounded hover:bg-blue-50 text-blue-700"><i class="fa-solid fa-plus mr-1"></i>Asignar</button></td></tr>`; }).join('')}
-                    </tbody></table></div>`;
-            } else {
-                const G = confGestos(), cmds = listaComandos(), dirs = G.n === 4 ? DIRS4 : DIRS8;
-                h += `<div class="grid gap-4 text-[11px]" style="grid-template-columns: 1fr 330px"><div>
-                    <label class="flex items-center gap-2 mb-2"><input type="checkbox" ${G.activo ? 'checked' : ''} onchange="confGestos().activo = this.checked; guardarConfAtajos(); pintarEditorAtajos()"> <b>Activar gestos del ratón</b></label>
-                    <p class="text-slate-500 mb-2">Mantén pulsado el botón derecho sobre el lienzo, desplaza el ratón hacia una dirección y suelta: se ejecuta la orden de esa dirección. Un clic derecho sin desplazar abre el menú contextual, que muestra las mismas órdenes alrededor del cursor.</p>
-                    <label class="block mb-3">Número de direcciones <select onchange="confGestos().n = +this.value; guardarConfAtajos(); pintarEditorAtajos()" class="border rounded p-1 ml-1"><option value="4" ${G.n === 4 ? 'selected' : ''}>4 direcciones</option><option value="8" ${G.n === 8 ? 'selected' : ''}>8 direcciones</option></select></label>
-                    <table class="w-full"><tbody>${['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'].filter(d => dirs.includes(d)).map(d => `<tr class="border-t border-slate-100"><td class="py-1 pr-2 w-32 font-bold text-slate-600">${NOMBRE_DIR[d]}</td><td><select onchange="confGestos().dir['${d}'] = this.value; guardarConfAtajos(); pintarEditorAtajos()" class="border rounded p-1 w-full"><option value="">— sin orden —</option>${cmds.map(c => `<option value="${esc(c.id)}" ${G.dir[d] === c.id ? 'selected' : ''}>${esc(c.cat + ' › ' + c.texto)}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div>
-                    <div><p class="font-bold text-slate-600 mb-1">Guía de gestos</p>${svgGuiaGestos(G, null, 300)}</div></div>`;
-            }
-            document.getElementById('red-content').innerHTML = h;
-            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs">
-                <button onclick="restaurarAtajos()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded">Restaurar valores predeterminados</button>
-                <button onclick="copiarListaAtajos()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded"><i class="fa-solid fa-copy mr-1"></i>Copiar lista</button>
-                <span class="flex-1"></span>
-                <button onclick="capturaAtajo = null; cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
-        }
-        function empezarCapturaAtajo(id) { capturaAtajo = id; document.activeElement && document.activeElement.blur(); pintarEditorAtajos(); }
+        function pintarEditorAtajos(...a) { return PARTES_OK.herr ? pintarEditorAtajos__p.apply(this, a) : cargarParte('herr').then(() => pintarEditorAtajos__p.apply(this, a)); }
+        
         function capturarAtajo(e) {
             const c = comboDe(e); if (!c) return;
             const id = capturaAtajo;
@@ -5513,28 +5451,9 @@
             CONF_ATAJOS.teclas[id] = [...teclasDe(id), c];
             guardarConfAtajos(); pintarEditorAtajos(); aviso(`${c} → ${id}`, 'ok');
         }
-        function quitarAtajo(id, k) { CONF_ATAJOS.teclas[id] = teclasDe(id).filter(x => x !== k); guardarConfAtajos(); pintarEditorAtajos(); }
-        function restaurarAtajos() { if (!confirm('¿Volver a los atajos de teclado y gestos de fábrica?')) return; CONF_ATAJOS = { teclas: {} }; guardarConfAtajos(); pintarEditorAtajos(); }
-        function textoListaAtajos() {
-            return listaComandos().filter(c => teclasDe(c.id).length).map(c => `${c.cat}\t${c.texto}\t${teclasDe(c.id).join(' / ')}`).join('\n');
-        }
-        function copiarListaAtajos() { const t = 'Categoría\tOrden\tAtajo(s)\n' + textoListaAtajos(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => aviso('Lista de atajos copiada al portapapeles.', 'ok'), () => aviso('No se ha podido copiar.', 'error')); }
 
         // ---------- Ayuda > Atajos de teclado (consulta; se completa sola con los atajos nuevos) ----------
-        function mostrarAtajosAyuda() {
-            cerrarMenus();
-            const cmds = listaComandos().filter(c => teclasDe(c.id).length), cats = [...new Set(cmds.map(c => c.cat))];
-            const fijos = [['Intro / Espacio', 'Repetir la última orden (insertar el último componente en el cursor o trazar tubería)'], ['Clic en el panel', 'Coger un componente para insertar varios seguidos (Esc termina)'], ['Asas de la tubería', 'Arrastrar el extremo para cambiar la longitud (Mayús: 1 mm)'], ['Esc', 'Cancelar (trazado, zoom ventana, paleta, inserción) o quitar la selección'], ['Intro / doble clic', 'Terminar el trazado de tubería'], ['Retroceso', 'Quitar el último punto del trazado'], ['Ctrl / Mayús + clic', 'Añadir o quitar de la selección'], ['Arrastrar en vacío', 'Selección por ventana'], ['Rueda del ratón', 'Zoom en el punto del cursor'], ['Doble clic en un componente', 'Ventana de propiedades'], ['Botón derecho', 'Menú contextual con órdenes alrededor del cursor']];
-            const G = confGestos();
-            document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">Atajos activos (se pueden cambiar en CAD &gt; Atajos de teclado…). La lista se amplía sola con cada orden nueva que tenga atajo.</p>
-                <div class="grid grid-cols-2 gap-4 text-[11px]"><div>${cats.map(cat => `<p class="font-bold text-slate-600 uppercase mt-2 mb-1">${esc(cat)}</p><table class="w-full">${cmds.filter(c => c.cat === cat).map(c => `<tr class="border-t border-slate-100"><td class="py-0.5 pr-2">${esc(c.texto)}</td><td class="text-right whitespace-nowrap">${teclasDe(c.id).map(kbd).join(' ')}</td></tr>`).join('')}</table>`).join('')}</div>
-                <div><p class="font-bold text-slate-600 uppercase mt-2 mb-1">Ratón y teclas fijas</p><table class="w-full">${fijos.map(([k, t]) => `<tr class="border-t border-slate-100"><td class="py-0.5 pr-2 whitespace-nowrap">${kbd(k)}</td><td>${esc(t)}</td></tr>`).join('')}</table>
-                <p class="font-bold text-slate-600 uppercase mt-3 mb-1">Gestos del ratón ${G.activo ? '' : '(desactivados)'}</p>${svgGuiaGestos(G, null, 240)}</div></div>`;
-            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><button onclick="abrirEditorAtajos()" class="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded"><i class="fa-solid fa-pen mr-1"></i>Cambiar atajos...</button><span class="flex-1"></span><button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
-            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-keyboard text-blue-600 mr-1.5"></i> Atajos de teclado';
-            document.querySelector('#modal-red > div').style.width = 'min(1000px, 96vw)';
-            document.getElementById('modal-red').style.display = 'flex';
-        }
+        function mostrarAtajosAyuda(...a) { return PARTES_OK.herr ? mostrarAtajosAyuda__p.apply(this, a) : cargarParte('herr').then(() => mostrarAtajosAyuda__p.apply(this, a)); }
 
         // ==================================================================================
         // GESTOS DEL RATÓN: botón derecho pulsado + desplazamiento en una dirección = orden asignada
@@ -6083,51 +6002,9 @@
         // ==================================================================================
         let impresionSel = null;
         // dibujo de una hoja cualquiera sin cambiar de hoja (se restaura todo)
-        function capturarHoja(i) {
-            sincronizarHoja();
-            const g = { e: elementosRed, l: lineas, cc: condicionesContorno, f: opciones.formato, h: hojaActual, c: planoCongelado, sel: idSeleccionado, s: new Set(seleccion) };
-            const h = hojas[i];
-            try {
-                hojaActual = i; elementosRed = h.e || []; lineas = h.l || []; condicionesContorno = h.cc || {}; opciones.formato = h.formato || g.f; idSeleccionado = null; seleccion.clear();
-                aplicarFormato(); renderizarVectorial();
-                document.querySelectorAll('.asa-tubo, #fantasma-mano, #pista-snap').forEach(x => x.remove());
-                return { html: document.getElementById('marco-a3').outerHTML.replace('id="marco-a3"', 'class="hoja-impresa"'), formato: opciones.formato || 'A3' };
-            } finally {
-                hojaActual = g.h; elementosRed = g.e; lineas = g.l; condicionesContorno = g.cc; opciones.formato = g.f; idSeleccionado = g.sel; g.s.forEach(x => seleccion.add(x));
-                aplicarFormato(); renderizarVectorial();
-            }
-        }
-        function abrirImpresion() {
-            cerrarMenus(); sincronizarHoja();
-            if (!impresionSel || impresionSel.length !== hojas.length) impresionSel = hojas.map((h, i) => true);
-            const caps = hojas.map((h, i) => capturarHoja(i));
-            const mini = (c, i) => { const f = FORMATOS[c.formato] || FORMATOS.A3, W = 190, esc_ = W / (f.w * PX_MM), H = f.h * PX_MM * esc_;
-                return `<label class="block border rounded p-1.5 cursor-pointer ${impresionSel[i] ? 'border-blue-500 bg-blue-50' : 'border-slate-200 opacity-60'}"><div class="flex items-center gap-1 mb-1"><input type="checkbox" ${impresionSel[i] ? 'checked' : ''} onchange="impresionSel[${i}] = this.checked; abrirImpresion()"><b>Hoja ${esc(hojas[i].id)}</b><span class="text-slate-400 ml-auto">${c.formato}</span></div>
-                    <div style="width:${W}px;height:${H}px;overflow:hidden;background:#fff;border:1px solid #e2e8f0"><div style="transform:scale(${esc_});transform-origin:0 0;width:${f.w * PX_MM}px;height:${f.h * PX_MM}px;pointer-events:none">${c.html}</div></div></label>`; };
-            const nSel = impresionSel.filter(Boolean).length, fmts = [...new Set(caps.filter((c, i) => impresionSel[i]).map(c => c.formato))];
-            document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">Marca las hojas a imprimir. En el cuadro de impresión elige «Guardar como PDF» para obtener un PDF con todas ellas (una página por hoja).${fmts.length > 1 ? ` <span class="text-amber-700">Hay hojas de formatos distintos (${fmts.join(', ')}): se imprimen en el formato de la primera; imprime por separado si lo necesitas.</span>` : ''}</p>
-                <div class="flex flex-wrap gap-3 overflow-auto" style="max-height:62vh">${caps.map(mini).join('')}</div>`;
-            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><button onclick="impresionSel = hojas.map(() => true); abrirImpresion()" class="px-3 py-1.5 border rounded">Todas</button><button onclick="impresionSel = hojas.map((h, i) => i === hojaActual); abrirImpresion()" class="px-3 py-1.5 border rounded">Solo la actual</button><span class="flex-1"></span>
-                <button onclick="cerrarModalRed()" class="px-3 py-1.5 border rounded">Cancelar</button><button onclick="exportarPDFCapas(hojas.map((h, i) => i).filter(i => impresionSel[i]))" ${nSel ? '' : 'disabled'} class="px-3 py-1.5 border rounded disabled:opacity-40"><i class="fa-solid fa-file-pdf mr-1"></i>PDF vectorial con capas</button><button onclick="imprimirHojas()" ${nSel ? '' : 'disabled'} class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded font-medium"><i class="fa-solid fa-print mr-1"></i>Imprimir / PDF (${nSel} hoja${nSel === 1 ? '' : 's'})</button></div>`;
-            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-print text-blue-600 mr-1.5"></i> Vista previa de impresión';
-            document.querySelector('#modal-red > div').style.width = 'min(1200px, 97vw)';
-            document.getElementById('modal-red').style.display = 'flex';
-        }
-        function imprimirHojas() {
-            const idx = hojas.map((h, i) => i).filter(i => impresionSel[i]); if (!idx.length) return;
-            const caps = idx.map(i => capturarHoja(i)), f = FORMATOS[caps[0].formato] || FORMATOS.A3;
-            cerrarModalRed();
-            let cont = document.getElementById('impresion-multiple'); if (cont) cont.remove();
-            cont = document.createElement('div'); cont.id = 'impresion-multiple';
-            cont.innerHTML = caps.map(c => `<div class="pagina-impresa" style="width:${f.w}mm;height:${f.h}mm">${c.html}</div>`).join('');
-            document.body.appendChild(cont);
-            const st = document.createElement('style'); st.id = 'estilo-imp-multiple';
-            st.textContent = `@media print { @page { size: ${caps[0].formato} ${f.w < f.h ? 'portrait' : 'landscape'}; margin: 0; } body.imp-multi #marco-a3 { display: none !important; } body.imp-multi #impresion-multiple, body.imp-multi #impresion-multiple * { visibility: visible !important; } body.imp-multi #impresion-multiple { position: absolute; left: 0; top: 0; } .pagina-impresa { page-break-after: always; break-after: page; overflow: hidden; position: relative; } .pagina-impresa:last-child { page-break-after: auto; break-after: auto; } .pagina-impresa .hoja-impresa { width: ${f.w}mm !important; height: ${f.h}mm !important; transform: none !important; box-shadow: none !important; background-image: none !important; } .pagina-impresa .connection-port, .pagina-impresa .punto-enganche { display: none !important; } } #impresion-multiple { display: none; } @media print { body.imp-multi #impresion-multiple { display: block; } }`;
-            document.head.appendChild(st); document.body.classList.add('imp-multi');
-            const fin = () => { document.body.classList.remove('imp-multi'); cont.remove(); st.remove(); window.removeEventListener('afterprint', fin); };
-            window.addEventListener('afterprint', fin);
-            setTimeout(() => { window.print(); setTimeout(() => { if (document.body.classList.contains('imp-multi') && !window.matchMedia('print').matches) fin(); }, 1500); }, 50);
-        }
+        
+        function abrirImpresion(...a) { return PARTES_OK.cad ? abrirImpresion__p.apply(this, a) : cargarParte('cad').then(() => abrirImpresion__p.apply(this, a)); }
+        function imprimirHojas(...a) { return PARTES_OK.cad ? imprimirHojas__p.apply(this, a) : cargarParte('cad').then(() => imprimirHojas__p.apply(this, a)); }
 
         // ==================================================================================
         // 21) COMPARAR CON UNA REVISIÓN (Archivo > Comparar con revisión…): verde añadido,
@@ -6201,17 +6078,7 @@
             b.oncontextmenu = ev => { ev.preventDefault(); mostrarMenuContextual(ev.clientX, ev.clientY, [{ icono: 'fa-sliders', texto: 'Personalizar la barra rápida...', accion: () => abrirEditorAtajos('barra') }, ...(ev.target.closest('[data-orden]') ? [{ icono: 'fa-xmark', texto: 'Quitar de la barra', accion: () => { CONF_ATAJOS.barra = barraRapida().filter(x => x !== ev.target.closest('[data-orden]').dataset.orden); guardarConfAtajos(); pintarBarraRapida(); } }] : [])]); };
         }
         setTimeout(pintarBarraRapida, 0);
-        function editorBarraRapida() {
-            const cmds = listaComandos(), en = barraRapida(), q = sinAcentos(vistaAtajos.textoBarra || '');
-            const disp = cmds.filter(c => !en.includes(c.id) && (!q || sinAcentos(c.cat + ' ' + c.texto).includes(q))).slice(0, 200);
-            const fila = (c, dentro, i) => `<div class="flex items-center gap-2 px-2 py-1 border-t border-slate-100 ${dentro ? 'cursor-move' : ''}" ${dentro ? `draggable="true" ondragstart="event.dataTransfer.setData('text/x-orden', '${esc(c.id).replace(/'/g, "\\'")}')"` : ''}><i class="fa-solid ${c.icono === 'fa-keyboard' ? 'fa-bolt' : c.icono} text-blue-600 w-4"></i><span class="flex-1">${esc(c.cat)} › ${esc(c.texto)}</span>${dentro
-                ? `<button onclick="moverEnBarra(${i}, -1)" class="px-1 text-slate-500" title="Subir"><i class="fa-solid fa-arrow-up"></i></button><button onclick="moverEnBarra(${i}, 1)" class="px-1 text-slate-500" title="Bajar"><i class="fa-solid fa-arrow-down"></i></button><button onclick="CONF_ATAJOS.barra = barraRapida().filter((x, k) => k !== ${i}); guardarConfAtajos(); pintarBarraRapida(); pintarEditorAtajos()" class="px-1 text-rose-600" title="Quitar"><i class="fa-solid fa-xmark"></i></button>`
-                : `<button onclick="CONF_ATAJOS.barra = [...barraRapida(), '${esc(c.id).replace(/'/g, "\\'")}']; guardarConfAtajos(); pintarBarraRapida(); pintarEditorAtajos()" class="px-2 border rounded text-blue-700">Añadir →</button>`}</div>`;
-            return `<div class="grid grid-cols-2 gap-4 text-[11px]"><div><p class="font-bold text-slate-600 mb-1">Órdenes disponibles</p><input value="${esc(vistaAtajos.textoBarra || '')}" oninput="vistaAtajos.textoBarra = this.value; clearTimeout(window.__tB); window.__tB = setTimeout(() => { pintarEditorAtajos(); const i = document.querySelector('#red-content input'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250)" placeholder="Buscar" class="border rounded p-1 w-full mb-1"><div class="border rounded overflow-auto" style="max-height:48vh">${disp.map(c => fila(c, false)).join('')}</div></div>
-                <div><p class="font-bold text-slate-600 mb-1">En la barra rápida (arrastra para ordenar; también puedes arrastrar órdenes de la pestaña Teclado a la barra)</p><div class="border rounded overflow-auto" style="max-height:52vh">${en.map((id, i) => { const c = cmds.find(x => x.id === id); return c ? fila(c, true, i) : ''; }).join('') || '<p class="p-2 text-slate-400 italic">Vacía</p>'}</div>
-                <button onclick="CONF_ATAJOS.barra = BARRA_FABRICA.slice(); guardarConfAtajos(); pintarBarraRapida(); pintarEditorAtajos()" class="mt-2 px-2 py-1 border rounded">Barra de fábrica</button></div></div>`;
-        }
-        function moverEnBarra(i, d) { const l = barraRapida().slice(), j = i + d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; CONF_ATAJOS.barra = l; guardarConfAtajos(); pintarBarraRapida(); pintarEditorAtajos(); }
+        function editorBarraRapida(...a) { return PARTES_OK.herr ? editorBarraRapida__p.apply(this, a) : cargarParte('herr').then(() => editorBarraRapida__p.apply(this, a)); }
 
         // ==================================================================================
         // 24) PLANTILLA DE CLIENTE: capas, cajetín, logotipo, plantilla Word y criterios en un archivo
@@ -6493,13 +6360,13 @@
             if (hy && hy.g < 400) h += cota(hy.x, hy.y0, hy.x, hy.y1, hy.g, hy.x + 4 * z, (hy.y0 + hy.y1) / 2);
             g.innerHTML = h; svgCanvas.appendChild(g);
         }
-        window.addEventListener('mousemove', () => {
+        function guiasTrasArrastre() {
             if (!isDraggingSymbol || !activeSymbolId || arrastreGrupo || !arrastreMovido) return;
             const el = elementosRed.find(e => e.id === activeSymbolId); if (!el || esTablaHoja(el)) return;
             const x = el.x, y = el.y;
             pintarGuiasArrastre(el);
             if (el.x !== x || el.y !== y) { renderizarVectorial(); pintarGuiasArrastre(el); }
-        });
+        }
         window.addEventListener('mouseup', () => { document.getElementById('guias-arrastre')?.remove(); });
 
         // ---------- utilidades de copia (6, 7, 8) ----------
@@ -6575,28 +6442,7 @@
         // ==================================================================================
         // 8) MATRIZ: n copias de la selección con separación dada (mm de papel)
         // ==================================================================================
-        async function matrizSeleccion() {
-            cerrarMenus();
-            const ids = idsSeleccion(), els = elementosRed.filter(e => ids.includes(e.id) && !esTablaHoja(e)); if (!els.length) { aviso('Selecciona los elementos a repetir.'); return; }
-            const b = cajaDe(els), ancho = (b.x1 - b.x0) / PX_MM, alto = (b.y1 - b.y0) / PX_MM;
-            const r = await dialogo('<i class="fa-solid fa-table-cells text-blue-600 mr-1.5"></i>Matriz', `<p>${els.length} elemento(s) seleccionados (${ancho.toFixed(0)} × ${alto.toFixed(0)} mm).</p>
-                <div class="grid grid-cols-2 gap-2 mt-2"><label>Copias <input id="mz-n" type="number" min="1" max="50" value="1" class="border rounded p-1 w-20 ml-1"></label><span></span>
-                <label>Separación X (mm) <input id="mz-dx" type="number" step="any" value="0" class="border rounded p-1 w-24 ml-1"></label><label>Separación Y (mm) <input id="mz-dy" type="number" step="any" value="${Math.ceil(alto + 10)}" class="border rounded p-1 w-24 ml-1"></label></div>
-                <label class="block mt-2"><input id="mz-lin" type="checkbox"> Cada copia en una línea nueva</label><p class="text-[10px] text-slate-400 mt-1">Y positiva hacia abajo. Ejemplo: bombas en paralelo → 1 copia, Y = 25 mm.</p>`,
-                [{ texto: 'Crear copias', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
-            if (r !== 'si') return;
-            const v = { n: +document.getElementById('mz-n').value, dx: +document.getElementById('mz-dx').value, dy: +document.getElementById('mz-dy').value, lin: document.getElementById('mz-lin').checked };
-            const n = Math.max(1, Math.min(50, Math.round(v.n || 1)));
-            guardarEstado(); invalidarResultados();
-            const todos = [];
-            for (let i = 1; i <= n; i++) {
-                const mapaL = {};
-                const { nuevos } = clonarElementos(els, v.dx * PX_MM * i, v.dy * PX_MM * i, v.lin ? lid => { if (!mapaL[lid]) { const lo = lineaPorId(lid) || { tipo: 'principal' }; const nid = lo.tipo === 'principal' ? siguienteLinea('principal') : siguienteLinea('ramal', lo.padre); lineas.push(Object.assign({}, lo, { id: nid, desde: null })); mapaL[lid] = nid; } return mapaL[lid]; } : null);
-                elementosRed.push(...nuevos); todos.push(...nuevos);
-            }
-            seleccion.clear(); todos.forEach(x => seleccion.add(x.id)); actualizarSeleccion(); renderArbol();
-            aviso(`Matriz: ${n} copia(s), ${todos.length} elementos nuevos.`, 'ok');
-        }
+        function matrizSeleccion(...a) { return PARTES_OK.herr ? matrizSeleccion__p.apply(this, a) : cargarParte('herr').then(() => matrizSeleccion__p.apply(this, a)); }
 
         // ==================================================================================
         // 9) AUTOCORRECCIÓN DE CONEXIONES: extremos libres casi unidos (≤ 2 mm de papel)
@@ -6653,22 +6499,7 @@
             proyecto.escenarios = proyecto.escenarios || {}; proyecto.escenarios[k] = fotoCalculo(n.trim() || k); marcarCambios(true);
             aviso(`Escenario ${k} guardado (${Object.keys(proyecto.escenarios[k].el).length} elementos).`, 'ok');
         }
-        function compararEscenarios() {
-            cerrarMenus();
-            const E = proyecto.escenarios || {}, A = E.A, B = E.B || (ultimoCalculo ? fotoCalculo('Cálculo actual') : null);
-            if (!A || !B) { aviso('Guarda el escenario A (y el B, o calcula la red para comparar con el cálculo actual).', 'error'); return; }
-            const ids = [...new Set([...Object.keys(A.el), ...Object.keys(B.el)])];
-            const d = (a, b, n = 2) => a == null || b == null ? '' : `<span class="${Math.abs(b - a) > 1e-6 ? (b > a ? 'text-rose-700' : 'text-emerald-700') : 'text-slate-400'}">${b - a >= 0 ? '+' : ''}${(b - a).toFixed(n)}</span>`;
-            const f = (v, n = 2) => v == null || !isFinite(v) ? '—' : (+v).toFixed(n);
-            const filas = ids.map(id => { const a = A.el[id] || {}, b = B.el[id] || {}, t = a.tag || b.tag;
-                return `<tr class="border-t border-slate-100"><td class="py-0.5 pr-2 font-bold whitespace-nowrap">${esc(t)}</td><td>${f(a.Q)}</td><td>${f(b.Q)}</td><td>${d(a.Q, b.Q)}</td><td>${f(a.V)}</td><td>${f(b.V)}</td><td>${d(a.V, b.V)}</td><td>${f(a.hf, 3)}</td><td>${f(b.hf, 3)}</td><td>${d(a.hf, b.hf, 3)}</td><td>${f(a.pB ?? a.p)}</td><td>${f(b.pB ?? b.p)}</td><td>${d(a.pB ?? a.p, b.pB ?? b.p)}</td><td>${f(a.npshd)}</td><td>${f(b.npshd)}</td><td class="${a.estado === 'fallo' ? 'text-rose-600' : ''}">${a.estado || ''}</td><td class="${b.estado === 'fallo' ? 'text-rose-600' : ''}">${b.estado || ''}</td></tr>`; }).join('');
-            document.getElementById('red-content').innerHTML = `<p class="text-[11px] mb-2"><b>A</b>: ${esc(A.nombre)} (${fechaHora(A.fecha)}) · ruta crítica ${f(A.hfCritica)} m · ${A.fallos} fallo(s) &nbsp; | &nbsp; <b>B</b>: ${esc(B.nombre)} (${fechaHora(B.fecha)}) · ruta crítica ${f(B.hfCritica)} m · ${B.fallos} fallo(s)</p>
-                <div class="overflow-auto" style="max-height:62vh"><table class="w-full text-[11px]"><thead class="bg-slate-100 sticky top-0"><tr class="text-left text-slate-600"><th class="px-1">Elemento</th><th>Q A</th><th>Q B</th><th>ΔQ (m³/h)</th><th>V A</th><th>V B</th><th>ΔV (m/s)</th><th>hf A</th><th>hf B</th><th>Δhf (m)</th><th>p A</th><th>p B</th><th>Δp (bar)</th><th>NPSHd A</th><th>NPSHd B</th><th>Estado A</th><th>Estado B</th></tr></thead><tbody>${filas}</tbody></table></div>`;
-            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><button onclick="exportarComparacionEscenarios()" class="px-3 py-1.5 border rounded"><i class="fa-solid fa-file-excel mr-1"></i>Excel</button><span class="flex-1"></span><button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
-            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-scale-balanced text-blue-600 mr-1.5"></i> Comparar escenarios A / B';
-            document.querySelector('#modal-red > div').style.width = 'min(1250px, 97vw)';
-            document.getElementById('modal-red').style.display = 'flex';
-        }
+        function compararEscenarios(...a) { return PARTES_OK.herr ? compararEscenarios__p.apply(this, a) : cargarParte('herr').then(() => compararEscenarios__p.apply(this, a)); }
         async function exportarComparacionEscenarios() {
             const E = proyecto.escenarios || {}, A = E.A, B = E.B || fotoCalculo('Cálculo actual'); if (!A || !B) return;
             const X = await cargarXLSX(), ids = [...new Set([...Object.keys(A.el), ...Object.keys(B.el)])];
@@ -6793,18 +6624,7 @@
                 <text x="5" y="${fs * 1.2 + 2}" font-family="sans-serif" font-size="${fs - 1}" font-weight="bold" fill="${col}">${esc(el.autor || '')} · ${esc(fechaDMA(String(el.fecha || '').slice(0, 10)))}${ab ? '' : ' · resuelto'}</text>
                 ${lineasT.map((l, i) => `<text x="5" y="${fs * 1.25 * (i + 2) + 2}" font-family="sans-serif" font-size="${fs}" fill="#1e293b">${esc(l.trim())}</text>`).join('')}</g></g>`;
         }
-        function verComentarios() {
-            cerrarMenus();
-            const todos = []; hojas.forEach((h, i) => { (i === hojaActual ? elementosRed : h.e || []).filter(e => e.subtype === 'comentario').forEach(e => todos.push({ e, i, h })); });
-            document.getElementById('red-content').innerHTML = todos.length ? `<table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500"><th class="py-1">Hoja</th><th>Estado</th><th>Autor</th><th>Fecha</th><th>Comentario</th><th>Elemento</th><th></th></tr></thead><tbody>${todos.map(({ e, i, h }) => {
-                const a = e.sigueA && (i === hojaActual ? elementosRed : h.e || []).find(x => x.id === e.sigueA);
-                return `<tr class="border-t border-slate-100 ${e.estadoCom === 'resuelto' ? 'text-slate-400' : ''}"><td class="py-1">${esc(h.id)}</td><td>${e.estadoCom === 'resuelto' ? '<i class="fa-solid fa-check text-emerald-600"></i> resuelto' : '<i class="fa-solid fa-circle text-rose-600 text-[8px]"></i> abierto'}</td><td>${esc(e.autor || '')}</td><td>${fechaDMA(String(e.fecha || '').slice(0, 10))}</td><td>${esc(e.texto || '')}</td><td>${a ? esc(tagDe(a)) : '—'}</td>
-                    <td class="text-right whitespace-nowrap"><button onclick="cerrarModalRed(); if (${i} !== hojaActual) cambiarHoja(${i}); irAElemento('${e.id}')" class="px-2 border rounded text-blue-700">Ir</button> <button onclick="estadoComentario(${i}, '${e.id}')" class="px-2 border rounded">${e.estadoCom === 'resuelto' ? 'Reabrir' : 'Resolver'}</button></td></tr>`; }).join('')}</tbody></table>` : '<p class="text-slate-400 italic">No hay comentarios. Botón derecho en el lienzo > Comentario de revisión.</p>';
-            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><label class="flex items-center gap-1"><input type="checkbox" ${opciones.verComentarios !== false ? 'checked' : ''} onchange="opciones.verComentarios = this.checked; renderizarVectorial()"> Mostrar en el lienzo</label><span class="flex-1"></span><button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
-            document.querySelector('#modal-red h3 span').innerHTML = `<i class="fa-solid fa-comment-dots text-rose-600 mr-1.5"></i> Comentarios de revisión (${todos.filter(t => t.e.estadoCom !== 'resuelto').length} abiertos)`;
-            document.querySelector('#modal-red > div').style.width = 'min(1000px, 97vw)';
-            document.getElementById('modal-red').style.display = 'flex';
-        }
+        function verComentarios(...a) { return PARTES_OK.admin ? verComentarios__p.apply(this, a) : cargarParte('admin').then(() => verComentarios__p.apply(this, a)); }
         function estadoComentario(i, id) {
             const lista = i === hojaActual ? elementosRed : hojas[i].e || [], e = lista.find(x => x.id === id); if (!e) return;
             if (i === hojaActual) guardarEstado();
@@ -6863,70 +6683,10 @@
         // 31) ISOMÉTRICO AUTOMÁTICO DE UNA LÍNEA a partir de las cotas (hoja nueva, imprimible y exportable a DXF)
         // Direcciones en planta: las del esquema (derecha = este, arriba = norte); vertical: cota b − cota a.
         // ==================================================================================
-        function geometriaIsometrico(idLinea) {
-            const vec = mapaVecinos(); let orden = ordenarLinea(idLinea, vec).map(id => elementosRed.find(e => e.id === id)).filter(e => e && !esAnotacion(e));
-            if (orden.length > 1) orden = orden.filter(e => (vec[e.id] || []).length);
-            if (!orden.length) return null;
-            const d2 = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
-            let P = { x: 0, y: 0, z: null }, cur = null;
-            const segs = [], marcas = [];
-            orden.forEach((el, i) => {
-                const ps = obtenerPuertosConexion(el), sig = orden[i + 1], psSig = sig ? obtenerPuertosConexion(sig) : [];
-                let ent = cur ? ps.slice().sort((a, b) => d2(a, cur) - d2(b, cur))[0] : (sig ? ps.slice().sort((a, b) => Math.min(...psSig.map(q => d2(b, q))) - Math.min(...psSig.map(q => d2(a, q))))[0] : ps[0]);
-                const resto = ps.filter(p => p !== ent);
-                const sal = resto.length ? (sig ? resto.slice().sort((a, b) => Math.min(...psSig.map(q => d2(a, q))) - Math.min(...psSig.map(q => d2(b, q))))[0] : resto.sort((a, b) => d2(b, ent) - d2(a, ent))[0]) : ent;
-                if (el.type === 'tuberia') {
-                    const desdeA = ent.id === 'a', zA = +el.cotaA || 0, zB = +el.cotaB || 0, z0 = desdeA ? zA : zB, z1 = desdeA ? zB : zA;
-                    if (P.z == null) P.z = z0;
-                    const L = (+el.longitud || 0) / 1000, dz = z1 - z0, h = Math.sqrt(Math.max(0, L * L - dz * dz));
-                    const dx = sal.x - ent.x, dy = sal.y - ent.y, n = Math.hypot(dx, dy) || 1;
-                    const Q = { x: P.x + dx / n * h, y: P.y - dy / n * h, z: z1 };
-                    segs.push({ a: Object.assign({}, P), b: Q, L: +el.longitud || 0, tag: tagDe(el), el });
-                    P = Q;
-                } else {
-                    if (P.z == null) P.z = +el.cota || 0;
-                    marcas.push({ p: Object.assign({}, P), tag: tagDe(el), tipo: el.type, sub: el.subtype, ramal: ps.length > 2 });
-                }
-                cur = sal;
-            });
-            return { orden, segs, marcas };
-        }
+        
         const ISO_C = Math.cos(Math.PI / 6), ISO_S = Math.sin(Math.PI / 6);
         const isoProy = p => ({ u: (p.x + p.y) * ISO_C, v: (p.x - p.y) * ISO_S - p.z });
-        async function isometricoLinea(idLinea) {
-            cerrarMenus();
-            if (!idLinea) {
-                if (!lineas.length) { aviso('No hay líneas en la hoja.', 'error'); return; }
-                const sel = idSeleccionado && elementosRed.find(e => e.id === idSeleccionado);
-                const r = await dialogo('<i class="fa-solid fa-cube text-blue-600 mr-1.5"></i>Isométrico de línea', `<p>Línea: <select id="iso-linea" class="border rounded p-1">${lineas.map(l => `<option value="${l.id}" ${sel && sel.linea === l.id ? 'selected' : ''}>${esc(l.id + (l.nombre ? ' · ' + l.nombre : ''))}</option>`).join('')}</select></p><p class="text-[10px] text-slate-400 mt-1">Se dibuja en una hoja nueva a partir de la longitud y las cotas a / b de cada tubería; la dirección en planta es la del esquema (derecha = este, arriba = norte).</p>`,
-                    [{ texto: 'Crear isométrico', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
-                if (r !== 'si') return; idLinea = document.getElementById('iso-linea').value;
-            }
-            const g = geometriaIsometrico(idLinea);
-            if (!g || !g.segs.length) { aviso(`La línea ${idLinea} no tiene tuberías conectadas.`, 'error'); return; }
-            const l = lineaPorId(idLinea), t0 = g.segs[0].el;
-            const pts = g.segs.flatMap(s => [isoProy(s.a), isoProy(s.b)]);
-            const u0 = Math.min(...pts.map(p => p.u)), u1 = Math.max(...pts.map(p => p.u)), v0 = Math.min(...pts.map(p => p.v)), v1 = Math.max(...pts.map(p => p.v));
-            const hojaOrigen = codigoHoja();
-            anadirHoja();
-            const W = ANCHO_A3 - MM(60), H = ALTO_A3 - MM(95), k = Math.min(W / Math.max(u1 - u0, 1e-6), H / Math.max(v1 - v0, 1e-6), MM(60));
-            const X = p => +((isoProy(p).u - u0) * k).toFixed(2), Y = p => +((isoProy(p).v - v0) * k).toFixed(2);
-            const zTxt = z => 'EL ' + (z >= 0 ? '+' : '') + (+z).toFixed(2).replace('.', decimalDoc());
-            const geo = { segs: g.segs.map(s => ({ x1: X(s.a), y1: Y(s.a), x2: X(s.b), y2: Y(s.b), L: Math.round(s.L), tag: s.tag, za: s.a.z, zb: s.b.z })),
-                marcas: g.marcas.map(m => ({ x: X(m.p), y: Y(m.p), tag: m.tag, tipo: m.tipo, sub: m.sub, ramal: m.ramal })), titulo: `${idLinea}${l && l.nombre ? ' · ' + l.nombre : ''}`,
-                sub: `${tamanoTexto(t0)}" ${CODIGO_MATERIAL[t0.material] || t0.material} ${serieTexto(t0)} · ${hojaOrigen}`, w: +((u1 - u0) * k).toFixed(1), h: +((v1 - v0) * k).toFixed(1) };
-            // cotas de elevación en el inicio, el final y cada cambio de nivel
-            geo.cotas = []; let zUlt = null;
-            const ponerCota = p => { geo.cotas.push({ x: X(p), y: Y(p), t: zTxt(p.z) }); zUlt = p.z; };
-            g.segs.forEach((s, i) => { if (i === 0) ponerCota(s.a); if (Math.abs(s.b.z - s.a.z) > 1e-3) { if (zUlt == null || Math.abs(zUlt - s.a.z) > 1e-3) ponerCota(s.a); ponerCota(s.b); } else if (i === g.segs.length - 1 && Math.abs(zUlt - s.b.z) > 1e-3) ponerCota(s.b); });
-            if (g.segs.length > 1 && geo.cotas.length < 2) ponerCota(g.segs[g.segs.length - 1].b);
-            const n = nuevaAnotacion('isometrico', MM(30), MM(30) + Math.max(0, (H - geo.h) / 2));
-            n.iso = geo; n.linea = undefined; n.x = MM(30) + Math.max(0, (W - geo.w) / 2);
-            renderizarVectorial(); marcarCambios(true);
-            const r = await dialogo('<i class="fa-solid fa-cube text-blue-600 mr-1.5"></i>Isométrico creado', `<p>Isométrico de la línea <b>${esc(idLinea)}</b> (${g.segs.length} tuberías, ${g.marcas.length} componentes) en la hoja <b>${esc(codigoHoja())}</b>.</p><p class="text-[11px] text-slate-500 mt-1">Se imprime con la hoja y se exporta con Archivo > Guardar como > Dibujo CAD (*.dxf).</p>`,
-                [{ texto: 'Exportar a DXF', valor: 'dxf', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cerrar', valor: null }]);
-            if (r === 'dxf') guardarComoProyecto('dxf');
-        }
+        function isometricoLinea(...a) { return PARTES_OK.cad ? isometricoLinea__p.apply(this, a) : cargarParte('cad').then(() => isometricoLinea__p.apply(this, a)); }
         function dibujoIsometrico(el, c, P) {
             const g = el.iso; if (!g) return '';
             const fs = MM(2.5), fsT = MM(4);
@@ -6992,72 +6752,9 @@
                 X.writeFile(wb, 'Plantilla_lineas_equipos_PIPING.xlsx');
             } catch (e) { alert(e.message); }
         }
-        function importarLineasEquipos() {
-            cerrarMenus();
-            const input = document.createElement('input'); input.type = 'file'; input.accept = '.xlsx,.xls';
-            input.onchange = async ev => { const f = ev.target.files[0]; if (!f) return; try { const X = await cargarXLSX(); generarEsquemaExcel(X.read(await f.arrayBuffer(), { type: 'array' }), X); } catch (e) { console.error(e); alert('No se ha podido importar: ' + e.message); } };
-            input.click();
-        }
-        function generarEsquemaExcel(wb, X) {
-            const hoja = re => { const n = wb.SheetNames.find(s => re.test(s)); return n ? X.utils.sheet_to_json(wb.Sheets[n], { defval: '' }) : []; };
-            const col = (r, ...ns) => { const k = Object.keys(r).find(k => ns.some(n => k.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').startsWith(n))); return k != null ? r[k] : ''; };
-            const filasEq = hoja(/^equip/i), filasLi = hoja(/^l[ií]ne/i);
-            if (!filasLi.length) throw new Error('No se ha encontrado la hoja «Líneas» (o está vacía).');
-            guardarEstado(); invalidarResultados(); document.getElementById('empty-state')?.remove();
-            const avisos = [], equipos = {}, nuevos = [];
-            const yIni = elementosRed.length ? Math.min(...elementosRed.map(e => e.y)) - 140 : ALTO_A3 - MM(40);
-            let y = yIni;
-            filasEq.forEach(r => { const tag = String(col(r, 'tag')).trim(); if (!tag) return; const sub = tipoDesdeTexto(col(r, 'tipo')); if (!sub) { avisos.push(`Equipo ${tag}: tipo «${col(r, 'tipo')}» desconocido.`); return; } equipos[tag] = { sub, nombre: String(col(r, 'nombre')).trim(), cota: +col(r, 'cota') || 0, el: null }; });
-            const colocar = (el, prev, puerto) => { if (!prev) return; const [, pb] = puerto ? [null, puerto] : puertoEntradaSalida(prev), [pa] = puertoEntradaSalida(el); el.x += pb.x - pa.x; el.y -= (pb.y - pa.y); };
-            const anadir = (el, linea) => { if (linea) el.linea = linea; elementosRed.push(el); asignarNumero(el); nuevos.push(el); return el; };
-            const crearEquipo = (tag, x, yy, linea) => { const q = equipos[tag]; const el = elementoDeTipo(q.sub, x, yy, { name: q.nombre || tag, cota: q.cota }); el.tagExterno = tag; q.el = anadir(el, linea); return el; };
-            let nL = 0, nT = 0;
-            filasLi.forEach((r, i) => {
-                const id = String(col(r, 'linea')).trim(); if (!id) return;
-                if (!lineaPorId(id)) lineas.push({ id, tipo: /^R/i.test(id) ? 'ramal' : 'principal', nombre: String(col(r, 'nombre')).trim(), padre: /^R/i.test(id) ? (lineas.find(l => l.tipo === 'principal') || {}).id : undefined, desde: null });
-                const desde = String(col(r, 'desde')).trim(), hasta = String(col(r, 'hasta')).trim();
-                const mat = String(col(r, 'material')).trim() || MATERIAL_DEF, ser = String(col(r, 'serie')).trim(), dn = String(col(r, 'dn')).trim() || 'DN 50';
-                const L = +col(r, 'longitud') || 3000, za = +col(r, 'cota a') || 0, zb = +col(r, 'cota b') || 0;
-                const comps = String(col(r, 'componentes')).split(/[;,]/).map(s => s.trim()).filter(Boolean);
-                if (!CAT.materiales[mat]) avisos.push(`${id}: material «${mat}» desconocido; se usa ${MATERIAL_DEF}.`);
-                let prev = null, x0 = MM(30), puertoIni = null;
-                if (desde && equipos[desde]) { prev = equipos[desde].el || crearEquipo(desde, x0, y, id); }
-                else if (desde) avisos.push(`${id}: el equipo de origen «${desde}» no está en la hoja Equipos.`);
-                // tramos: la longitud se reparte entre los tramos que separan los componentes
-                const nTramos = comps.length + 1, Lt = Math.max(100, Math.round(L / nTramos));
-                const tubo = (k) => { const z0 = za + (zb - za) * k / nTramos, z1 = za + (zb - za) * (k + 1) / nTramos;
-                    const t = elementoDeTipoTubo(mat, ser, dn, Lt, z0, z1); if (Math.abs(z1 - z0) > Lt / 1000) { t.cotaB = t.cotaA; }
-                    if (!prev) { t.x = x0; t.y = y; t.inicioLinea = true; } else colocar(t, prev, puertoLibreSalida(prev));
-                    anadir(t, id); prev = t; nT++; };
-                tubo(0);
-                comps.forEach((c, k) => {
-                    const sub = tipoDesdeTexto(c); if (!sub) { avisos.push(`${id}: componente «${c}» desconocido.`); return; }
-                    const el = elementoDeTipo(sub, 0, 0, sub === 'bomba' ? {} : { dn: /^DN/.test(dn) ? dn : undefined }); colocar(el, prev); anadir(el, id); prev = el; tubo(k + 1);
-                });
-                if (hasta && equipos[hasta]) {
-                    if (!equipos[hasta].el) { const pb = puertoLibreSalida(prev), el = crearEquipo(hasta, 0, 0, id); const pe = entradaEquipo(el); el.x += pb.x - pe.x; el.y -= (pb.y - pe.y); }
-                    else avisos.push(`${id}: el final llega a ${hasta}, ya dibujado en otra línea: conéctalo a mano.`);
-                } else if (hasta) avisos.push(`${id}: el equipo de destino «${hasta}» no está en la hoja Equipos.`);
-                nL++; y -= 110;
-            });
-            // equipos que no aparecen en ninguna línea
-            Object.entries(equipos).forEach(([tag, q]) => { if (!q.el) { crearEquipo(tag, MM(30), y, (lineas.find(l => l.tipo === 'principal') || {}).id); y -= 90; } });
-            renderizarVectorial(); renderArbol(); try { ajustarVistaVentana(); } catch (e) { }
-            seleccion.clear(); nuevos.forEach(n => seleccion.add(n.id)); actualizarSeleccion();
-            alert(`Esquema base generado: ${nL} línea(s), ${nT} tuberías, ${Object.keys(equipos).length} equipo(s), ${nuevos.length} elementos.${avisos.length ? '\n\n' + avisos.slice(0, 20).join('\n') : ''}\n\nRevisa la disposición, une los extremos que hayan quedado libres y completa los datos de cálculo.`);
-        }
-        function elementoDeTipoTubo(mat, ser, dn, L, za, zb) {
-            const m = CAT.materiales[mat] ? mat : MATERIAL_DEF;
-            const el = { id: 'sym_' + Date.now() + '_' + Math.floor(Math.random() * 1e6), type: 'tuberia', material: m, serie: ser || (CAT.materiales[m] || {}).serieDef, dn, longitud: L, cotaA: za, cotaB: zb, x: 0, y: 0, scale: 1, rotation: 0, name: '' };
-            normalizarElemento(el); return el;
-        }
+        function importarLineasEquipos(...a) { return PARTES_OK.cad ? importarLineasEquipos__p.apply(this, a) : cargarParte('cad').then(() => importarLineasEquipos__p.apply(this, a)); }
+
         // puerto de salida de un elemento ya colocado: el libre más a la derecha
-        function puertoLibreSalida(el) {
-            const libres = puertosLibres().filter(p => p.el.id === el.id);
-            const ps = libres.length ? libres : obtenerPuertosConexion(el);
-            return ps.slice().sort((a, b) => b.x - a.x)[0];
-        }
-        function entradaEquipo(el) { const ps = obtenerPuertosConexion(el); return ps.slice().sort((a, b) => a.x - b.x)[0]; }
 
         // ==================================================================================
         // 39) BUSCAR UN COMPONENTE EN EL CATÁLOGO DEL FABRICANTE (catálogo / Supabase, librería o URL)
@@ -7175,11 +6872,6 @@
         }
         function fijarModuloPED(linea, v) { proyecto.pedModulos = proyecto.pedModulos || {}; (proyecto.pedModulos[linea] = proyecto.pedModulos[linea] || {}).modulo = v; marcarCambios(true); }
         // filas de la tabla del informe
-        function filasModulosPED(ped) {
-            const M = proyecto.pedModulos || {};
-            return ped.filter(x => x.cat !== 'Fuera').map(x => { const m = M[x.linea] || {}, ops = modulosDe(x.cat), v = m.validado;
-                return [x.linea, x.cat, m.modulo || (ops.length === 1 ? ops[0] : tradDoc('Pendiente de elegir')), ops.join(' / '), v ? `${v.categoria}${v.modulo ? ' · ' + v.modulo : ''} (${fechaDMA(v.fecha.slice(0, 10))})` : '—']; });
-        }
 
         // ==================================================================================
         // 36) NUBE (Supabase): usuarios, equipos, proyectos y librerías compartidas con bloqueo de edición
@@ -7241,39 +6933,8 @@
                 if (r === 'miembro') { const m = document.getElementById('nb-mi').value.trim(), e = document.getElementById('nb-mieq').value; if (!m || !e) return; await SB.rpc('piping_anadir_miembro', { p_equipo: e, p_email: m, p_rol: 'editor' }); aviso(`${m} añadido al equipo como editor.`, 'ok'); }
             } catch (e) { aviso('Nube: ' + e.message, 'error'); }
         }
-        async function nubeGuardar(comoNuevo) {
-            cerrarMenus();
-            if (nubeSoloLectura) { aviso('Proyecto en solo lectura (bloqueado por otro usuario).', 'error'); return; }
-            try {
-                const u = usuarioNube(); if (!u) { await nubeIniciarSesion(); if (!usuarioNube()) return; }
-                const contenido = generarContenido('pid'), nombre = proyecto.nombrePlano || proyecto.nombre || proyecto.numero || 'Proyecto', numero = proyecto.numero || '';
-                if (nubeActual && !comoNuevo) {
-                    const d = await SB.rest(`piping_proyectos?id=eq.${nubeActual.id}&version=eq.${nubeActual.version}`, { method: 'PATCH', body: { contenido, nombre, numero, version: nubeActual.version + 1, actualizado: new Date().toISOString(), actualizado_por_email: usuarioNube().email }, prefer: 'return=representation' });
-                    if (!d || !d.length) throw new Error('El proyecto ha cambiado en la nube desde que lo abriste o no tienes el bloqueo de edición. Ábrelo de nuevo.');
-                    nubeActual.version = d[0].version; marcarCambios(false); aviso(`Guardado en la nube (versión ${nubeActual.version}).`, 'ok'); return;
-                }
-                const eq = (await equiposNube()).filter(x => x.rol !== 'lector');
-                if (!eq.length) { aviso('Crea antes un equipo (Archivo > Nube > Equipos).', 'error'); return; }
-                const r = await dialogo('<i class="fa-solid fa-cloud-arrow-up text-blue-600 mr-1.5"></i>Guardar en la nube', `<p>Equipo: <select id="nb-gq" class="border rounded p-1">${eq.map(x => `<option value="${x.equipo_id}">${esc(x.equipos ? x.equipos.nombre : x.equipo_id)}</option>`).join('')}</select></p><p class="mt-1">Nombre: <b>${esc(nombre)}</b></p>`, [{ texto: 'Guardar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
-                if (r !== 'si') return;
-                const d = await SB.rest('piping_proyectos', { method: 'POST', body: { equipo_id: document.getElementById('nb-gq').value, contenido, nombre, numero, actualizado_por_email: usuarioNube().email }, prefer: 'return=representation' });
-                nubeActual = { id: d[0].id, version: d[0].version || 1, nombre }; await nubeBloquear(); marcarCambios(false);
-                aviso('Proyecto guardado en la nube y bloqueado para tu edición.', 'ok');
-            } catch (e) { aviso('Nube: ' + e.message, 'error'); }
-        }
-        async function nubeAbrir() {
-            cerrarMenus();
-            try {
-                if (!usuarioNube()) { await nubeIniciarSesion(); if (!usuarioNube()) return; }
-                const lista = await SB.rest('piping_proyectos?select=id,nombre,numero,version,actualizado,actualizado_por_email,bloqueado_por_email,bloqueado_hasta,equipos:piping_equipos(nombre)&order=actualizado.desc');
-                const libre = x => !x.bloqueado_hasta || new Date(x.bloqueado_hasta) < new Date() || x.bloqueado_por_email === usuarioNube().email;
-                document.getElementById('red-content').innerHTML = lista && lista.length ? `<table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500"><th class="py-1">Proyecto</th><th>Nº</th><th>Equipo</th><th>Versión</th><th>Modificado</th><th>Edición</th><th></th></tr></thead><tbody>${lista.map(x => `<tr class="border-t border-slate-100"><td class="py-1 font-medium">${esc(x.nombre || '')}</td><td>${esc(x.numero || '')}</td><td>${esc(x.equipos ? x.equipos.nombre : '')}</td><td>${x.version || 1}</td><td>${fechaHora(x.actualizado)} · ${esc(x.actualizado_por_email || '')}</td><td>${libre(x) ? '<span class="text-emerald-700">libre</span>' : `<span class="text-rose-700"><i class="fa-solid fa-lock mr-1"></i>${esc(x.bloqueado_por_email || '')} hasta ${new Date(x.bloqueado_hasta).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>`}</td><td class="text-right"><button onclick="nubeAbrirProyecto('${x.id}')" class="px-2 py-0.5 bg-blue-600 text-white rounded">Abrir</button></td></tr>`).join('')}</tbody></table>` : '<p class="text-slate-400 italic">No hay proyectos en la nube de tus equipos.</p>';
-                document.getElementById('red-footer').innerHTML = '<button onclick="cerrarModalRed()" class="px-3 py-1.5 border rounded">Cerrar</button>';
-                document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-cloud text-blue-600 mr-1.5"></i> Proyectos en la nube';
-                document.querySelector('#modal-red > div').style.width = 'min(1000px, 97vw)';
-                document.getElementById('modal-red').style.display = 'flex';
-            } catch (e) { aviso('Nube: ' + e.message, 'error'); }
-        }
+        function nubeGuardar(...a) { return PARTES_OK.admin ? nubeGuardar__p.apply(this, a) : cargarParte('admin').then(() => nubeGuardar__p.apply(this, a)); }
+        function nubeAbrir(...a) { return PARTES_OK.admin ? nubeAbrir__p.apply(this, a) : cargarParte('admin').then(() => nubeAbrir__p.apply(this, a)); }
         async function nubeAbrirProyecto(id) {
             try {
                 if (hayCambiosSinGuardar && !confirm('Hay cambios sin guardar en el proyecto actual. ¿Abrir el de la nube de todos modos?')) return;
@@ -7350,213 +7011,20 @@
         const ANCHOS_HELVB = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
         const WINANSI_EXTRA = { '€': 0x80, '‚': 0x82, 'ƒ': 0x83, '„': 0x84, '…': 0x85, '†': 0x86, '‡': 0x87, 'ˆ': 0x88, '‰': 0x89, 'Š': 0x8A, '‹': 0x8B, 'Œ': 0x8C, 'Ž': 0x8E, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97, '˜': 0x98, '™': 0x99, 'š': 0x9A, '›': 0x9B, 'œ': 0x9C, 'ž': 0x9E, 'Ÿ': 0x9F, 'μ': 0xB5 };
         const SUSTITUTOS_PDF = { '≥': '>=', '≤': '<=', '→': '->', '←': '<-', '↔': '<->', '↳': '>', 'Δ': 'D', 'ρ': 'rho', 'ν': 'nu', 'η': 'eta', 'λ': 'lambda', '√': 'raiz', '₀': '0', '₁': '1', '₂': '2', '″': '"', '′': "'", '−': '-', '·': '·', '⌀': 'Ø', '✓': 'OK' };
-        function winAnsi(s) {
-            let o = '';
-            for (const ch of String(s)) { const c = ch.codePointAt(0); if ((c >= 32 && c < 127) || (c >= 160 && c <= 255)) o += ch; else if (WINANSI_EXTRA[ch]) o += String.fromCharCode(WINANSI_EXTRA[ch]); else if (SUSTITUTOS_PDF[ch] != null) o += winAnsi(SUSTITUTOS_PDF[ch]); else if (c === 9) o += ' '; else o += '?'; }
-            return o;
-        }
+        
         const anchoHelv = (s, neg) => { const T = neg ? ANCHOS_HELVB : ANCHOS_HELV; let w = 0; for (const ch of s) { const c = ch.charCodeAt(0); w += c >= 32 && c < 127 ? T[c - 32] : 556; } return w / 1000; };
         const escPDF = s => s.replace(/[\\()]/g, '\\$&');
         const nPDF = v => { const x = Math.round(v * 1000) / 1000; return Object.is(x, -0) ? '0' : String(x); };
-        function colorPDF(c) { if (!c || c === 'none' || c === 'transparent') return null; const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const v = m[1].split(/[,\s/]+/).filter(Boolean).map(Number); if (v.length > 3 && v[3] === 0) return null; return { rgb: v.slice(0, 3).map(x => nPDF(x / 255)).join(' '), a: v.length > 3 ? v[3] : 1 }; }
+        
         // ---- trayectos SVG (path d) → órdenes PDF con curvas de Bézier ----
-        function trayectoPDF(d, T) {
-            const tk = String(d).match(/[a-zA-Z]|-?\d*\.?\d+(?:e[-+]?\d+)?/gi) || []; let i = 0, cmd = '', x = 0, y = 0, sx = 0, sy = 0, cx = 0, cy = 0, qx = 0, qy = 0, o = '';
-            const num = () => +tk[i++], P = (a, b) => { const p = T(a, b); return nPDF(p[0]) + ' ' + nPDF(p[1]); };
-            const cub = (x1, y1, x2, y2, x3, y3) => { o += `${P(x1, y1)} ${P(x2, y2)} ${P(x3, y3)} c\n`; };
-            const arco = (rx, ry, rot, fa, fs, x2, y2) => {
-                if (!rx || !ry) { o += P(x2, y2) + ' l\n'; return; }
-                const ph = rot * Math.PI / 180, cs = Math.cos(ph), sn = Math.sin(ph), dx = (x - x2) / 2, dy = (y - y2) / 2, x1p = cs * dx + sn * dy, y1p = -sn * dx + cs * dy;
-                rx = Math.abs(rx); ry = Math.abs(ry); const L = x1p * x1p / (rx * rx) + y1p * y1p / (ry * ry); if (L > 1) { rx *= Math.sqrt(L); ry *= Math.sqrt(L); }
-                const sg = fa === fs ? -1 : 1, num_ = rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p, co = sg * Math.sqrt(Math.max(0, num_ / (rx * rx * y1p * y1p + ry * ry * x1p * x1p)));
-                const cxp = co * rx * y1p / ry, cyp = -co * ry * x1p / rx, ccx = cs * cxp - sn * cyp + (x + x2) / 2, ccy = sn * cxp + cs * cyp + (y + y2) / 2;
-                const ang = (ux, uy, vx, vy) => { const a = Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy); return a; };
-                let t1 = ang(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry), dt = ang((x1p - cxp) / rx, (y1p - cyp) / ry, (-x1p - cxp) / rx, (-y1p - cyp) / ry);
-                if (!fs && dt > 0) dt -= 2 * Math.PI; else if (fs && dt < 0) dt += 2 * Math.PI;
-                const n = Math.ceil(Math.abs(dt) / (Math.PI / 2)), h = dt / n, kk = 4 / 3 * Math.tan(h / 4);
-                const pt = t => [ccx + rx * Math.cos(t) * cs - ry * Math.sin(t) * sn, ccy + rx * Math.cos(t) * sn + ry * Math.sin(t) * cs];
-                const dv = t => [-rx * Math.sin(t) * cs - ry * Math.cos(t) * sn, -rx * Math.sin(t) * sn + ry * Math.cos(t) * cs];
-                for (let k = 0; k < n; k++) { const a = t1 + k * h, b = a + h, p0 = pt(a), p3 = pt(b), d0 = dv(a), d3 = dv(b); cub(p0[0] + kk * d0[0], p0[1] + kk * d0[1], p3[0] - kk * d3[0], p3[1] - kk * d3[1], p3[0], p3[1]); }
-            };
-            while (i < tk.length) {
-                if (/[a-zA-Z]/.test(tk[i])) cmd = tk[i++]; else if (!cmd) { i++; continue; }
-                const rel = cmd === cmd.toLowerCase(), C = cmd.toUpperCase(), bx = rel ? x : 0, by = rel ? y : 0;
-                if (C === 'M') { x = bx + num(); y = by + num(); sx = x; sy = y; o += P(x, y) + ' m\n'; cmd = rel ? 'l' : 'L'; cx = x; cy = y; continue; }
-                if (C === 'Z') { o += 'h\n'; x = sx; y = sy; cx = x; cy = y; cmd = ''; continue; }
-                if (C === 'L') { x = bx + num(); y = by + num(); o += P(x, y) + ' l\n'; cx = x; cy = y; }
-                else if (C === 'H') { x = bx + num(); o += P(x, y) + ' l\n'; cx = x; cy = y; }
-                else if (C === 'V') { y = (rel ? y : 0) + num(); o += P(x, y) + ' l\n'; cx = x; cy = y; }
-                else if (C === 'C') { const x1 = bx + num(), y1 = by + num(), x2 = bx + num(), y2 = by + num(); x = bx + num(); y = by + num(); cub(x1, y1, x2, y2, x, y); cx = x2; cy = y2; }
-                else if (C === 'S') { const x1 = 2 * x - cx, y1 = 2 * y - cy, x2 = bx + num(), y2 = by + num(); x = bx + num(); y = by + num(); cub(x1, y1, x2, y2, x, y); cx = x2; cy = y2; }
-                else if (C === 'Q') { qx = bx + num(); qy = by + num(); const x3 = bx + num(), y3 = by + num(); cub(x + 2 / 3 * (qx - x), y + 2 / 3 * (qy - y), x3 + 2 / 3 * (qx - x3), y3 + 2 / 3 * (qy - y3), x3, y3); x = x3; y = y3; cx = x; cy = y; }
-                else if (C === 'T') { qx = 2 * x - qx; qy = 2 * y - qy; const x3 = bx + num(), y3 = by + num(); cub(x + 2 / 3 * (qx - x), y + 2 / 3 * (qy - y), x3 + 2 / 3 * (qx - x3), y3 + 2 / 3 * (qy - y3), x3, y3); x = x3; y = y3; cx = x; cy = y; }
-                else if (C === 'A') { const rx = num(), ry = num(), rot = num(), fa = num(), fs = num(), x2 = bx + num(), y2 = by + num(); arco(rx, ry, rot, fa, fs, x2, y2); x = x2; y = y2; cx = x; cy = y; }
-                else i++;
-            }
-            return o;
-        }
+        
         const KAPPA = 0.5522847498;
-        function elipsePDF(cx, cy, rx, ry, T) { const P = (a, b) => { const p = T(a, b); return nPDF(p[0]) + ' ' + nPDF(p[1]); }, k = KAPPA; return `${P(cx + rx, cy)} m\n${P(cx + rx, cy + k * ry)} ${P(cx + k * rx, cy + ry)} ${P(cx, cy + ry)} c\n${P(cx - k * rx, cy + ry)} ${P(cx - rx, cy + k * ry)} ${P(cx - rx, cy)} c\n${P(cx - rx, cy - k * ry)} ${P(cx - k * rx, cy - ry)} ${P(cx, cy - ry)} c\n${P(cx + k * rx, cy - ry)} ${P(cx + rx, cy - k * ry)} ${P(cx + rx, cy)} c\nh\n`; }
-        function rectPDF(x, y, w, h, r, T) {
-            const P = (a, b) => { const p = T(a, b); return nPDF(p[0]) + ' ' + nPDF(p[1]); };
-            if (!(r > 0)) return `${P(x, y)} m\n${P(x + w, y)} l\n${P(x + w, y + h)} l\n${P(x, y + h)} l\nh\n`;
-            r = Math.min(r, w / 2, h / 2); const k = KAPPA * r;
-            return `${P(x + r, y)} m\n${P(x + w - r, y)} l\n${P(x + w - r + k, y)} ${P(x + w, y + r - k)} ${P(x + w, y + r)} c\n${P(x + w, y + h - r)} l\n${P(x + w, y + h - r + k)} ${P(x + w - r + k, y + h)} ${P(x + w - r, y + h)} c\n${P(x + r, y + h)} l\n${P(x + r - k, y + h)} ${P(x, y + h - r + k)} ${P(x, y + h - r)} c\n${P(x, y + r)} l\n${P(x, y + r - k)} ${P(x + r - k, y)} ${P(x + r, y)} c\nh\n`;
-        }
+
         // dibujo de la hoja cargada en el lienzo → órdenes PDF por capa
-        function paginaPDF() {
-            const FMT = formatoActual(), S = FMT.w / ANCHO_A3, K = S * 72 / 25.4, Hpt = FMT.h * 72 / 25.4;
-            const capas = new Map(), imgs = [], est = {};
-            const capaConf = Object.fromEntries(capasActuales().map(c => [c.nombre, c]));
-            const add = (capa, s) => { if (!capas.has(capa)) capas.set(capa, []); capas.get(capa).push(s); };
-            const gs = (ca, CA) => { const k = `${nPDF(ca)}_${nPDF(CA)}`; est[k] = { ca, CA }; return '/G' + k.replace(/\./g, 'p') + ' gs\n'; };
-            const recorrer = (n, capaForma, alfa, capaTexto = 'Text') => {
-                if (n.nodeType !== 1) return;
-                if (n.hasAttribute && n.hasAttribute('data-capa')) { capaForma = capaTexto = n.getAttribute('data-capa'); }
-                const tag = n.tagName.toLowerCase();
-                if (['defs', 'pattern', 'marker', 'clippath', 'mask', 'title', 'style', 'script', 'foreignobject'].includes(tag)) return;
-                if (n.classList.contains('connection-port') || n.classList.contains('punto-enganche') || n.classList.contains('no-imprimir') || n.id === 'rejilla' || n.id === 'guias-arrastre') return;
-                const cs = getComputedStyle(n); if (cs.display === 'none') return;
-                const a = alfa * (parseFloat(cs.opacity) || (cs.opacity === '0' ? 0 : 1)); if (a <= 0.001) return;
-                if (tag === 'g' || tag === 'svg' || tag === 'a') { [...n.children].forEach(c => recorrer(c, capaForma, a, capaTexto)); return; }
-                if (cs.visibility === 'hidden') return;
-                if (tag === 'rect' && n.getAttribute('fill') === 'transparent') return;
-                const m = n.getCTM(); if (!m) return;
-                const T = (x, y) => [(m.a * x + m.c * y + m.e) * K, Hpt - (m.b * x + m.d * y + m.f) * K];
-                const num = k => parseFloat(n.getAttribute(k)) || 0, esc_ = Math.sqrt(Math.abs(m.a * m.d - m.b * m.c));
-                if (tag === 'text') {
-                    const t = winAnsi(n.textContent.replace(/\s+/g, ' ')); if (!t.trim()) return;
-                    const f = colorPDF(cs.fill); if (!f) return;
-                    const fs = parseFloat(cs.fontSize) || 7, neg = (parseInt(cs.fontWeight, 10) || 400) >= 600, ital = cs.fontStyle === 'italic';
-                    const xs = (n.getAttribute('x') || '0').split(/[\s,]+/).map(Number), ys = (n.getAttribute('y') || '0').split(/[\s,]+/).map(Number);
-                    const anc = cs.textAnchor === 'middle' ? 0.5 : cs.textAnchor === 'end' ? 1 : 0, x = (xs[0] || 0) - anc * anchoHelv(t, neg) * fs, y = ys[0] || 0, p = T(x, y);
-                    add(capaTexto, `q\n${f.a * a < 0.999 ? gs(f.a * a, 1) : ''}${f.rgb} rg\nBT /${neg ? 'F2' : ital ? 'F3' : 'F1'} ${nPDF(fs)} Tf ${nPDF(K * m.a)} ${nPDF(-K * m.b)} ${nPDF(-K * m.c)} ${nPDF(K * m.d)} ${nPDF(p[0])} ${nPDF(p[1])} Tm (${escPDF(t)}) Tj ET\nQ\n`);
-                    return;
-                }
-                if (tag === 'image') {
-                    const href = n.getAttribute('href') || n.getAttributeNS('http://www.w3.org/1999/xlink', 'href'); if (!href) return;
-                    imgs.push({ href, capa: capaForma, x: num('x'), y: num('y'), w: num('width'), h: num('height'), m: { a: m.a, b: m.b, c: m.c, d: m.d, e: m.e, f: m.f }, K, Hpt, alfa: a }); add(capaForma, { img: imgs.length - 1 });
-                    return;
-                }
-                let geo = '';
-                if (tag === 'line') { const p = T(num('x1'), num('y1')), q = T(num('x2'), num('y2')); geo = `${nPDF(p[0])} ${nPDF(p[1])} m\n${nPDF(q[0])} ${nPDF(q[1])} l\n`; }
-                else if (tag === 'polyline' || tag === 'polygon') { const v = (n.getAttribute('points') || '').trim().split(/[\s,]+/).map(Number); for (let k = 0; k + 1 < v.length; k += 2) { const p = T(v[k], v[k + 1]); geo += `${nPDF(p[0])} ${nPDF(p[1])} ${k ? 'l' : 'm'}\n`; } if (tag === 'polygon' && geo) geo += 'h\n'; }
-                else if (tag === 'rect') geo = rectPDF(num('x'), num('y'), num('width'), num('height'), num('rx') || num('ry'), T);
-                else if (tag === 'circle') geo = elipsePDF(num('cx'), num('cy'), num('r'), num('r'), T);
-                else if (tag === 'ellipse') geo = elipsePDF(num('cx'), num('cy'), num('rx'), num('ry'), T);
-                else if (tag === 'path') geo = trayectoPDF(n.getAttribute('d') || '', T);
-                if (!geo) return;
-                const fill = tag === 'line' ? null : colorPDF(cs.fill), st = colorPDF(cs.stroke), sw = (parseFloat(cs.strokeWidth) || 0) * esc_ * K;
-                const fa = fill ? fill.a * (parseFloat(cs.fillOpacity) || (cs.fillOpacity === '0' ? 0 : 1)) * a : 0, sa = st ? st.a * (parseFloat(cs.strokeOpacity) || (cs.strokeOpacity === '0' ? 0 : 1)) * a : 0;
-                const hayF = fill && fa > 0.001, hayS = st && sa > 0.001 && sw > 0; if (!hayF && !hayS) return;
-                let o = 'q\n' + (fa < 0.999 && hayF || sa < 0.999 && hayS ? gs(hayF ? fa : 1, hayS ? sa : 1) : '');
-                if (hayF) o += fill.rgb + ' rg\n';
-                if (hayS) {
-                    o += `${st.rgb} RG\n${nPDF(sw)} w\n${{ round: 1, square: 2 }[cs.strokeLinecap] || 0} J\n${{ round: 1, bevel: 2 }[cs.strokeLinejoin] || 0} j\n`;
-                    const da = cs.strokeDasharray && cs.strokeDasharray !== 'none' ? cs.strokeDasharray.split(/[\s,]+/).map(parseFloat).filter(v => !isNaN(v)) : [];
-                    if (da.length && da.some(v => v > 0)) o += `[${da.map(v => nPDF(v * esc_ * K)).join(' ')}] 0 d\n`;
-                }
-                const regla = cs.fillRule === 'evenodd' ? '*' : '';
-                o += geo + (hayF && hayS ? 'B' + regla : hayF ? 'f' + regla : 'S') + '\nQ\n';
-                add(capaForma, o);
-            };
-            const gF = svgCanvas.querySelector('#capa-formato'); if (gF) recorrer(gF, 'Bord', 1);
-            ['#lideres-notas'].forEach(sel => { const g = svgCanvas.querySelector(sel); if (g) recorrer(g, 'Object', 1); });
-            svgCanvas.querySelectorAll('g[data-id]').forEach(g => { const el = elementosRed.find(e => e.id === g.getAttribute('data-id')); if (el) recorrer(g, capaDe(el), 1); });
-            const gE = svgCanvas.querySelector('#capa-etiquetas'); if (gE) recorrer(gE, 'Object', 1);
-            return { w: FMT.w * 72 / 25.4, h: Hpt, capas, imgs, est, conf: capaConf, hoja: codigoHoja() };
-        }
-        function conHoja(i, fn) {
-            const g = { e: elementosRed, l: lineas, cc: condicionesContorno, f: opciones.formato, h: hojaActual, c: planoCongelado, sel: idSeleccionado, s: new Set(seleccion) };
-            const h = hojas[i];
-            try {
-                hojaActual = i; elementosRed = h.e || []; lineas = h.l || []; condicionesContorno = h.cc || {}; opciones.formato = h.formato || g.f; idSeleccionado = null; seleccion.clear();
-                aplicarFormato(); renderizarVectorial();
-                document.querySelectorAll('.asa-tubo, #fantasma-mano, #pista-snap, #guias-arrastre').forEach(x => x.remove());
-                return fn();
-            } finally {
-                hojaActual = g.h; elementosRed = g.e; lineas = g.l; condicionesContorno = g.cc; opciones.formato = g.f; idSeleccionado = g.sel; g.s.forEach(x => seleccion.add(x));
-                aplicarFormato(); renderizarVectorial();
-            }
-        }
-        async function imagenJPEG(href) {
-            return new Promise((ok, mal) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => { try { const cv = document.createElement('canvas'); cv.width = im.naturalWidth; cv.height = im.naturalHeight; const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(im, 0, 0); const b = atob(cv.toDataURL('image/jpeg', 0.92).split(',')[1]); const u = new Uint8Array(b.length); for (let k = 0; k < b.length; k++) u[k] = b.charCodeAt(k); ok({ datos: u, w: cv.width, h: cv.height }); } catch (e) { mal(e); } }; im.onerror = () => mal(new Error('imagen')); im.src = href; });
-        }
-        async function comprimirPDF(bytes) {
-            if (typeof CompressionStream === 'undefined') return null;
-            try { const cs = new CompressionStream('deflate'), w = cs.writable.getWriter(); w.write(bytes); w.close(); return new Uint8Array(await new Response(cs.readable).arrayBuffer()); } catch (e) { return null; }
-        }
+
         const bytesLatin = s => { const u = new Uint8Array(s.length); for (let k = 0; k < s.length; k++) u[k] = s.charCodeAt(k) & 0xFF; return u; };
-        async function escribirPDF(paginas, titulo) {
-            const objs = []; const nuevo = () => { objs.push(null); return objs.length; };
-            const fijar = (n, v) => { objs[n - 1] = v; };
-            const cat = nuevo(), arbol = nuevo(), fF1 = nuevo(), fF2 = nuevo(), fF3 = nuevo(), info = nuevo();
-            [[fF1, 'Helvetica'], [fF2, 'Helvetica-Bold'], [fF3, 'Helvetica-Oblique']].forEach(([n, f]) => fijar(n, `<< /Type /Font /Subtype /Type1 /BaseFont /${f} /Encoding /WinAnsiEncoding >>`));
-            // capas (OCG) en el orden de CAD > Capas
-            const nombresCapa = []; const conf = paginas[0] ? paginas[0].conf : {};
-            const orden = Object.keys(conf); paginas.forEach(p => p.capas.forEach((v, k) => { if (!nombresCapa.includes(k)) nombresCapa.push(k); }));
-            nombresCapa.sort((a, b) => (orden.indexOf(a) + 1 || 999) - (orden.indexOf(b) + 1 || 999));
-            const ocg = {}; nombresCapa.forEach(k => { ocg[k] = nuevo(); fijar(ocg[k], `<< /Type /OCG /Name (${escPDF(winAnsi(k))}) >>`); });
-            const idsPag = [];
-            for (const p of paginas) {
-                const cont = nuevo(), pag = nuevo(); idsPag.push(pag);
-                const xo = {}; let s = '';
-                for (let ix = 0; ix < p.imgs.length; ix++) {
-                    const im = p.imgs[ix]; try { const j = await imagenJPEG(im.href); const n = nuevo(); fijar(n, { dict: `<< /Type /XObject /Subtype /Image /Width ${j.w} /Height ${j.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode`, datos: j.datos, sinComprimir: true }); xo['Im' + ix] = n; im.ok = j; } catch (e) { console.warn('PDF: logotipo no incluido', e); }
-                }
-                const props = []; let k = 0;
-                for (const nom of nombresCapa) {
-                    const c = p.conf[nom] || {}; if (c.imprimible === false || c.inutilizada) continue;
-                    const ops = p.capas.get(nom); if (!ops || !ops.length) continue;
-                    props.push(`/OC${k} ${ocg[nom]} 0 R`);
-                    s += `/OC /OC${k} BDC\n`;
-                    ops.forEach(o => {
-                        if (typeof o === 'string') { s += o; return; }
-                        const im = p.imgs[o.img]; if (!im.ok) return;
-                        const m = im.m, sc = Math.min(im.w / im.ok.w, im.h / im.ok.h), w = im.ok.w * sc, h = im.ok.h * sc, x = im.x + (im.w - w) / 2, y = im.y + (im.h - h) / 2, K = im.K;
-                        const X = (m.a * x + m.c * (y + h) + m.e) * K, Y = im.Hpt - (m.b * x + m.d * (y + h) + m.f) * K;
-                        s += `q\n${nPDF(K * m.a * w)} ${nPDF(-K * m.b * w)} ${nPDF(-K * m.c * h)} ${nPDF(K * m.d * h)} ${nPDF(X)} ${nPDF(Y)} cm\n/Im${o.img} Do\nQ\n`;
-                    });
-                    s += 'EMC\n'; k++;
-                }
-                fijar(cont, { dict: '<<', datos: bytesLatin(s) });
-                const gsDic = Object.entries(p.est).map(([key, v]) => `/G${key.replace(/\./g, 'p')} << /Type /ExtGState /ca ${nPDF(v.ca)} /CA ${nPDF(v.CA)} >>`).join(' ');
-                fijar(pag, `<< /Type /Page /Parent ${arbol} 0 R /MediaBox [0 0 ${nPDF(p.w)} ${nPDF(p.h)}] /Contents ${cont} 0 R /Resources << /Font << /F1 ${fF1} 0 R /F2 ${fF2} 0 R /F3 ${fF3} 0 R >> /ExtGState << ${gsDic} >> /Properties << ${props.join(' ')} >> /XObject << ${Object.entries(xo).map(([a, b]) => `/${a} ${b} 0 R`).join(' ')} >> >> >>`);
-            }
-            fijar(arbol, `<< /Type /Pages /Kids [${idsPag.map(n => n + ' 0 R').join(' ')}] /Count ${idsPag.length} >>`);
-            const off = nombresCapa.filter(k => conf[k] && conf[k].visible === false);
-            fijar(cat, `<< /Type /Catalog /Pages ${arbol} 0 R /PageMode /UseOC /OCProperties << /OCGs [${nombresCapa.map(k => ocg[k] + ' 0 R').join(' ')}] /D << /Name (PIPING) /Order [${nombresCapa.map(k => ocg[k] + ' 0 R').join(' ')}] /ON [${nombresCapa.filter(k => !off.includes(k)).map(k => ocg[k] + ' 0 R').join(' ')}] /OFF [${off.map(k => ocg[k] + ' 0 R').join(' ')}] >> >> >>`);
-            const d = new Date(), f2 = v => String(v).padStart(2, '0');
-            fijar(info, `<< /Title (${escPDF(winAnsi(titulo || 'PIPING'))}) /Producer (PIPING) /Creator (PIPING) /CreationDate (D:${d.getFullYear()}${f2(d.getMonth() + 1)}${f2(d.getDate())}${f2(d.getHours())}${f2(d.getMinutes())}${f2(d.getSeconds())}) >>`);
-            // serialización
-            const partes = [bytesLatin('%PDF-1.5\n%\xE2\xE3\xCF\xD3\n')], offs = []; let pos = partes[0].length;
-            const meter = u => { partes.push(u); pos += u.length; };
-            for (let n = 1; n <= objs.length; n++) {
-                offs.push(pos); const o = objs[n - 1];
-                if (typeof o === 'string') { meter(bytesLatin(`${n} 0 obj\n${o}\nendobj\n`)); continue; }
-                let datos = o.datos, filtro = '';
-                if (!o.sinComprimir) { const z = await comprimirPDF(datos); if (z) { datos = z; filtro = ' /Filter /FlateDecode'; } }
-                const dict = o.dict === '<<' ? `<< /Length ${datos.length}${filtro} >>` : `${o.dict} /Length ${datos.length}${filtro} >>`;
-                meter(bytesLatin(`${n} 0 obj\n${dict}\nstream\n`)); meter(datos); meter(bytesLatin('\nendstream\nendobj\n'));
-            }
-            const xref = pos; let x = `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`; offs.forEach(v => { x += String(v).padStart(10, '0') + ' 00000 n \n'; });
-            x += `trailer\n<< /Size ${objs.length + 1} /Root ${cat} 0 R /Info ${info} 0 R >>\nstartxref\n${xref}\n%%EOF\n`; meter(bytesLatin(x));
-            return new Blob(partes, { type: 'application/pdf' });
-        }
-        async function exportarPDFCapas(indices) {
-            cerrarMenus(); sincronizarHoja();
-            indices = indices && indices.length ? indices : hojas.map((h, i) => i);
-            try {
-                aviso('Generando el PDF vectorial…');
-                const paginas = indices.map(i => conHoja(i, paginaPDF));
-                const blob = await escribirPDF(paginas, [proyecto.numero, proyecto.nombrePlano].filter(Boolean).join(' - '));
-                const nombre = `${(proyecto.planoNumero || proyecto.numero || 'plano').replace(/[^\w.-]+/g, '_')}.pdf`;
-                const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
-                window.__ultimoPDF = blob;
-                const coreano = paginas.some(p => [...p.capas.values()].some(ops => ops.some(o => typeof o === 'string' && /\(\?+/.test(o))));
-                aviso(`PDF con ${paginas.length} página(s) y capas CAD generado: ${nombre}.${coreano ? ' Algunos caracteres no WinAnsi (p. ej. coreano) se han sustituido por «?»: usa Imprimir > Guardar como PDF para esos textos.' : ''}`, 'ok');
-            } catch (e) { console.error(e); aviso('No se ha podido generar el PDF: ' + e.message, 'error'); }
-        }
+        
+        function exportarPDFCapas(...a) { return PARTES_OK.cad ? exportarPDFCapas__p.apply(this, a) : cargarParte('cad').then(() => exportarPDFCapas__p.apply(this, a)); }
 
         // ==================================================================================
         // v8.3: integración (tipos nuevos de anotación, dibujo, menús contextuales, árbol, guardado)
@@ -7622,12 +7090,11 @@
         // 9) antes de guardar se ofrecen unir los extremos casi unidos
         { const _cs = comprobarSueltosAntesDeGuardar; comprobarSueltosAntesDeGuardar = async function () { try { await corregirConexiones(true); } catch (e) { console.warn(e); } return _cs.apply(this, arguments); }; }
 
-
         // ==================================================================================
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.6.1';
+        const VERSION_WEB = '8.8.2';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -8212,13 +7679,7 @@
             d.innerHTML = proyectoDefinido() ? fila('Caudal de proyecto', `${fQ(+proyecto.caudalDiseno, 2)} ${lQ()}`) + fila('V máx. impulsión', `${lim.imp} m/s`) + fila('V máx. aspiración', `${lim.asp} m/s`) + fila('TS máx.', `${proyecto.tsMax} °C`)
                 : '<span class="text-amber-600">Proyecto sin definir</span>';
         }
-        function faltanDatosProyecto() {
-            const f = [];
-            if (!proyecto.numero) f.push('Nº de proyecto'); if (!proyecto.cliente) f.push('Cliente'); if (!proyecto.instalacion) f.push('Instalación');
-            if (!(+proyecto.caudalDiseno > 0)) f.push('Caudal de diseño');
-            if (proyecto.esBuque) CAMPOS_BUQUE.filter(([, e]) => e.endsWith('*')).forEach(([k, e]) => { if (!proyecto.buque[k]) f.push(e.replace(' *', '')); });
-            return f;
-        }
+        
         function actualizarTituloProyecto() {
             const h = document.querySelector('header h1');
             if (h) h.innerHTML = `<i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&ID${proyecto.numero ? ' · ' + esc(proyecto.numero) + (proyecto.cliente ? ' · ' + esc(proyecto.cliente) : '') : ''}`;
@@ -8235,56 +7696,19 @@
         // la ruta crítica · 6 conclusiones · anexos.
         // ==================================================================================
         const URL_DOCX = 'https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.iife.js';
-        function cargarDocx() {
-            if (window.docx) return Promise.resolve(window.docx);
-            return new Promise((ok, ko) => {
-                const s = document.createElement('script');
-                s.src = URL_DOCX;
-                s.onload = () => window.docx ? ok(window.docx) : ko(new Error('La librería docx no se ha inicializado.'));
-                s.onerror = () => ko(new Error('No se ha podido descargar la librería de Word (docx) desde jsDelivr. Comprueba la conexión a internet.'));
-                document.head.appendChild(s);
-            });
-        }
+        
         // Formatos numéricos del informe (coma decimal)
         const nf = (x, d = 3) => (x == null || !isFinite(x)) ? '—' : (+x).toFixed(d).replace('.', decimalDoc());
         const SUP = { '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
-        function nsci(x, d = 3) {
-            if (x == null || !isFinite(x)) return '—';
-            if (x === 0) return '0';
-            const [m, e] = (+x).toExponential(d).split('e');
-            const ex = parseInt(e, 10);
-            if (ex >= -2 && ex <= 4) return nf(x, Math.max(0, d - ex));
-            return m.replace('.', ',') + '·10' + String(ex).split('').map(c => SUP[c] || '').join('');
-        }
+        
         function nombreTipo(el) {
             if (el.type === 'tuberia') return 'Tubería';
             if (el.type === 'bomba') return 'Bomba centrífuga';
             const t = TIPOS[el.subtype];
             return t ? t.nombre + (el.subtype === 'reduccion' ? (el.excentrica ? ' excéntrica' : ' concéntrica') : '') : el.subtype;
         }
-        function mostrarAvisoProgreso(texto) {
-            let d = document.getElementById('aviso-progreso');
-            if (!texto) { if (d) d.remove(); return; }
-            if (!d) { d = document.createElement('div'); d.id = 'aviso-progreso'; d.style.cssText = 'position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:3000;background:#1e3a8a;color:#fff;padding:8px 16px;border-radius:6px;font:12px sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.25)'; document.body.appendChild(d); }
-            d.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>${esc(texto)}`;
-        }
 
         // ---------- Comprobaciones previas ----------
-        function comprobarInforme() {
-            const falta = faltanDatosProyecto();
-            if (falta.length) return { tipo: 'datos', falta };
-            if (!ultimoCalculo || ultimoCalculo.huella !== huellaRed()) return { tipo: 'calculo' };
-            const ars = ultimoCalculo.resultado.aristas;
-            const calculados = new Set(ars.map(a => a.el.id));
-            const fallos = elementosRed.filter(e => e.estado === 'fallo').map(e => { const r = ultimoResultado[e.id] || { motivos: [] }; return `${tagDe(e)}: ${r.motivos.join('; ')}${(r.alternativas || []).map(x => '\n    → ' + x).join('')}`; });
-            elementosRed.filter(e => !sinFlujo(e) && !calculados.has(e.id) && !(esTerminal(e) && ultimoResultado[e.id]) && bombaEnMarcha(e)).forEach(e => fallos.push(`${tagDe(e)}: no está conectado a la red (no se ha calculado)`));
-            if (!ars.some(a => a.esBomba) && ultimoCalculo.resultado.Qbombas != null && ultimoCalculo.resultado.Qbombas < (+proyecto.caudalDiseno || 0) * 0.999) fallos.push(`Red sin bombas: el caudal de funcionamiento (${ultimoCalculo.resultado.Qbombas.toFixed(2)} m³/h) no alcanza el caudal de diseño (${proyecto.caudalDiseno} m³/h).`);
-            if (fallos.length) return { tipo: 'fallos', fallos };
-            // con bombas de reserva, también debe cumplir el escenario "reserva en marcha"
-            const esc = escenarioReserva();
-            if (esc && esc.fallos.length) return { tipo: 'fallos', fallos: esc.fallos.map(f => '[Reserva en marcha] ' + f) };
-            return null;
-        }
 
         // ==================================================================================
         // PLANTILLA DE WORD DEL INFORME (una por cliente, guardada en el navegador)
@@ -8295,10 +7719,7 @@
         // {{INSTALACION}}, {{DESCRIPCION}}, {{FECHA}}, {{REVISION}}, {{AUTOR}}, {{TITULO}}.
         // ==================================================================================
         const URL_JSZIP = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-        function cargarJSZip() {
-            if (window.JSZip) return Promise.resolve(window.JSZip);
-            return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = URL_JSZIP; s.onload = () => window.JSZip ? ok(window.JSZip) : ko(new Error('JSZip no se ha inicializado.')); s.onerror = () => ko(new Error('No se ha podido cargar JSZip (sin conexión).')); document.head.appendChild(s); });
-        }
+        
         const clavePlantilla = () => 'piping-plantilla:' + String(proyecto.cliente || '').trim().toLowerCase();
         const b64aBuf = b => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; };
         const bufAb64 = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode.apply(null, u.subarray(i, i + 32768)); return btoa(s); };
@@ -8306,164 +7727,10 @@
         function elegirArchivo(accept) {
             return new Promise(ok => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => ok(i.files[0] || null); i.addEventListener('cancel', () => ok(null)); i.click(); });
         }
-        async function elegirPlantillaInforme() {
-            let guardada = null; try { guardada = proyecto.cliente ? JSON.parse(localStorage.getItem(clavePlantilla()) || 'null') : null; } catch (e) { guardada = null; }
-            const cli = esc(proyecto.cliente || '');
-            const botones = [];
-            if (guardada) botones.push({ texto: `Sí: plantilla de ${proyecto.cliente}`, valor: 'guardada', clase: 'bg-blue-600 hover:bg-blue-700 text-white' });
-            botones.push({ texto: guardada ? 'Sí: otra plantilla...' : 'Sí: elegir plantilla (*.docx)...', valor: 'elegir', clase: guardada ? 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' : 'bg-blue-600 hover:bg-blue-700 text-white' });
-            botones.push({ texto: 'No: plantilla del programa', valor: 'no', clase: 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' });
-            botones.push({ texto: 'Cancelar', valor: null });
-            const r = await dialogo('<i class="fa-solid fa-file-word text-blue-600 mr-1.5"></i>¿Usar una plantilla de Word?',
-                `<p>Cliente: <b>${cli || '—'}</b>${guardada ? ` · plantilla guardada: <b>${esc(guardada.nombre)}</b> (${new Date(guardada.fecha).toLocaleDateString('es-ES')})` : ''}</p>
-                 <p class="text-slate-400">La plantilla aporta página, cabecera, pie y estilos. Marcadores: <code>{{INFORME}}</code> (lugar del informe; sin él se añade al final con la portada del programa), <code>{{PROYECTO}}</code>, <code>{{CLIENTE}}</code>, <code>{{REF_CLIENTE}}</code>, <code>{{INSTALACION}}</code>, <code>{{DESCRIPCION}}</code>, <code>{{FECHA}}</code>, <code>{{REVISION}}</code>, <code>{{AUTOR}}</code>, <code>{{TITULO}}</code>.</p>
-                 <p class="text-slate-400">La plantilla elegida se recuerda para este cliente.</p>`, botones);
-            if (r == null) return 'cancelar';
-            if (r === 'no') return null;
-            let nombre, buffer;
-            if (r === 'guardada') { nombre = guardada.nombre; buffer = b64aBuf(guardada.b64); }
-            else {
-                const f = await elegirArchivo('.docx,.dotx'); if (!f) return 'cancelar';
-                nombre = f.name; buffer = await f.arrayBuffer();
-                if (proyecto.cliente) { try { localStorage.setItem(clavePlantilla(), JSON.stringify({ nombre, fecha: new Date().toISOString(), b64: bufAb64(buffer) })); } catch (e) { aviso('La plantilla es demasiado grande para recordarla en el navegador; se usará solo esta vez.', 'error'); } }
-            }
-            try {
-                const Z = await cargarJSZip(), zip = await Z.loadAsync(buffer), d = zip.file('word/document.xml');
-                if (!d) throw new Error('no es un documento de Word (.docx)');
-                const conMarcador = /\{\{\s*INFORME\s*\}\}/.test(textoXML(await d.async('string')));
-                return { nombre, buffer, conMarcador };
-            } catch (e) { alert('No se puede usar la plantilla ' + nombre + ': ' + e.message); return 'cancelar'; }
-        }
+        function elegirPlantillaInforme(...a) { return PARTES_OK.informe ? elegirPlantillaInforme__p.apply(this, a) : cargarParte('informe').then(() => elegirPlantillaInforme__p.apply(this, a)); }
         // Sustituye {{MARCADOR}} aunque Word lo haya partido en varias ejecuciones de texto
-        function sustituirMarcadores(xml, valores) {
-            return xml.replace(/\{(?:<[^>]+>)*\{((?:[^{}<]|<[^>]+>)+?)\}(?:<[^>]+>)*\}/g, (m, dentro) => {
-                const clave = textoXML(dentro).trim().toUpperCase();
-                if (!(clave in valores)) return m;
-                const etiquetas = (m.match(/<[^>]+>/g) || []).join('');
-                return esc(valores[clave]).replace(/"/g, '&quot;') + etiquetas;
-            });
-        }
-        async function aplicarPlantillaDocx(blob, plantilla) {
-            const Z = await cargarJSZip();
-            const nuestro = await Z.loadAsync(await blob.arrayBuffer()), pl = await Z.loadAsync(plantilla.buffer.slice(0));
-            const leer = (z, f) => z.file(f) ? z.file(f).async('string') : Promise.resolve(null);
-            const docO = await leer(nuestro, 'word/document.xml'), relsO = await leer(nuestro, 'word/_rels/document.xml.rels') || '';
-            let docP = await leer(pl, 'word/document.xml'), relsP = await leer(pl, 'word/_rels/document.xml.rels') || '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
-            const p = proyecto;
-            const valores = { PROYECTO: p.numero, CLIENTE: p.cliente, REF_CLIENTE: p.refCliente, INSTALACION: p.instalacion, DESCRIPCION: p.descripcion, FECHA: p.fecha, REVISION: p.revision, AUTOR: p.autor, TITULO: 'Informe de cálculo hidráulico' };
-            // 1) cuerpo del informe (sin la sección final)
-            let cuerpo = docO.slice(docO.indexOf('<w:body>') + 8, docO.lastIndexOf('<w:sectPr'));
-            // 2) relaciones que usa el cuerpo (imágenes, vínculos): se copian con identificadores nuevos
-            const rels = {}; (relsO.match(/<Relationship\b[^>]*\/>/g) || []).forEach(r => { const id = (r.match(/Id="([^"]+)"/) || [])[1]; if (id) rels[id] = r; });
-            const mapa = {}; let n = 0, nuevasRels = '';
-            for (const [, id] of cuerpo.matchAll(/r:(?:embed|id|link)="([^"]+)"/g)) {
-                if (mapa[id] || !rels[id]) continue;
-                const r = rels[id], nid = 'rIdPiping' + (++n), tgt = (r.match(/Target="([^"]+)"/) || [])[1] || '';
-                let r2 = r.replace(/Id="[^"]+"/, `Id="${nid}"`);
-                if (!/TargetMode="External"/.test(r)) {
-                    const src = 'word/' + tgt.replace(/^\/?word\//, ''), nombreF = 'media/piping_' + tgt.split('/').pop();
-                    const f = nuestro.file(src); if (f) pl.file('word/' + nombreF, await f.async('uint8array'));
-                    r2 = r2.replace(/Target="[^"]+"/, `Target="${nombreF}"`);
-                }
-                mapa[id] = nid; nuevasRels += r2;
-            }
-            cuerpo = cuerpo.replace(/r:(embed|id|link)="([^"]+)"/g, (m, a, id) => mapa[id] ? `r:${a}="${mapa[id]}"` : m);
-            cuerpo = cuerpo.replace(/(<wp:docPr\b[^>]*\bid=")(\d+)"/g, (m, a, id) => a + (10000 + +id) + '"'); // identificadores de dibujo únicos
-            relsP = relsP.replace('</Relationships>', nuevasRels + '</Relationships>');
-            // 3) estilos: los de la plantilla mandan (mismo nombre de estilo); los que falten se añaden
-            const stO = await leer(nuestro, 'word/styles.xml') || '', stPf = 'word/styles.xml';
-            let stP = await leer(pl, stPf);
-            if (stP) {
-                const lista = x => (x.match(/<w:style\b[\s\S]*?<\/w:style>/g) || []).map(t => ({ t, id: (t.match(/w:styleId="([^"]+)"/) || [])[1], nombre: ((t.match(/<w:name w:val="([^"]+)"/) || [])[1] || '').toLowerCase() }));
-                const deP = lista(stP), porNombre = {}, ids = new Set(deP.map(x => x.id)); deP.forEach(x => { porNombre[x.nombre] = x.id; });
-                const mapaEst = {}; let anadir = '';
-                lista(stO).forEach(x => { if (porNombre[x.nombre]) mapaEst[x.id] = porNombre[x.nombre]; else if (!ids.has(x.id)) anadir += x.t; });
-                stP = stP.replace('</w:styles>', anadir + '</w:styles>'); pl.file(stPf, stP);
-                cuerpo = cuerpo.replace(/(<w:(?:pStyle|rStyle|tblStyle) w:val=")([^"]+)"/g, (m, a, id) => a + (mapaEst[id] || id) + '"');
-            } else pl.file(stPf, stO);
-            // 4) espacios de nombres que usa el cuerpo y no declara la plantilla
-            const raizO = docO.match(/<w:document\b[^>]*>/)[0], raizP = docP.match(/<w:document\b[^>]*>/)[0];
-            let raizN = raizP;
-            (raizO.match(/xmlns:\w+="[^"]*"/g) || []).forEach(ns => { const pref = ns.split('=')[0]; if (!raizN.includes(pref + '=')) raizN = raizN.replace(/>$/, ' ' + ns + '>'); });
-            docP = docP.replace(raizP, raizN);
-            // 5) marcadores de la plantilla y colocación del informe
-            docP = sustituirMarcadores(docP, valores);
-            let insertado = false;
-            docP = docP.replace(/<w:p\b[\s\S]*?<\/w:p>/g, par => { if (!insertado && /\{\{\s*INFORME\s*\}\}/.test(textoXML(par))) { insertado = true; return cuerpo; } return par; });
-            if (!insertado) { const k = docP.lastIndexOf('<w:sectPr'); const salto = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'; docP = docP.slice(0, k) + salto + cuerpo + docP.slice(k); }
-            pl.file('word/document.xml', docP);
-            pl.file('word/_rels/document.xml.rels', relsP);
-            for (const f of Object.keys(pl.files).filter(f => /^word\/(header|footer)\d*\.xml$/.test(f))) pl.file(f, sustituirMarcadores(await pl.file(f).async('string'), valores));
-            // 6) tipos de contenido (imágenes) y actualización de campos (índices) al abrir
-            let ct = await leer(pl, '[Content_Types].xml');
-            ['png', 'jpeg', 'jpg'].forEach(ext => { if (!new RegExp(`Extension="${ext}"`, 'i').test(ct)) ct = ct.replace('</Types>', `<Default Extension="${ext}" ContentType="image/${ext === 'jpg' ? 'jpeg' : ext}"/></Types>`); });
-            ct = ct.replace(/application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.template\.main\+xml/, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'); // .dotx -> .docx
-            pl.file('[Content_Types].xml', ct);
-            let st = await leer(pl, 'word/settings.xml');
-            if (st && !/<w:updateFields\b/.test(st)) {
-                // el esquema fija el orden: updateFields va antes de hdrShapeDefaults, footnotePr, compat, rsids...
-                const sig = ['<w:hdrShapeDefaults', '<w:footnotePr', '<w:endnotePr', '<w:compat', '<w:docVars', '<w:rsids', '<m:mathPr', '<w:attachedSchema', '<w:themeFontLang', '<w:clrSchemeMapping', '<w:doNotIncludeSubdocsInStats', '<w:doNotAutoCompressPictures', '<w:forceUpgrade', '<w:captions', '<w:readModeInkLockDown', '<w:smartTagType', '<sl:schemaLibrary', '<w:shapeDefaults', '<w:doNotEmbedSmartTags', '<w:decimalSymbol', '<w:listSeparator']
-                    .map(t => st.indexOf(t)).filter(i => i >= 0);
-                const k = sig.length ? Math.min(...sig) : st.lastIndexOf('</w:settings>');
-                pl.file('word/settings.xml', st.slice(0, k) + '<w:updateFields w:val="true"/>' + st.slice(k));
-            }
-            return await pl.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-        }
 
-        async function generarInforme() {
-            if (escenarioBombas !== 'normal') {
-                escenarioBombas = 'normal';
-                const g = construirGrafoRed(), a = construirAristas(g), r = a.length ? calcularResultado(g, a) : { error: 'sin red' };
-                if (!r.error) ultimoCalculo = { resultado: r.resultado, condiciones: r.condiciones, huella: huellaRed() };
-                renderizarVectorial();
-                alert('El informe parte del escenario normal (bombas de servicio); el de reserva se comprueba y se incluye aparte. Se ha vuelto al escenario normal.');
-            }
-            const c = comprobarInforme();
-            if (c && c.tipo === 'datos') {
-                alert('Para generar el informe faltan datos del proyecto:\n\n• ' + c.falta.join('\n• ') + '\n\nCompleta los datos; al guardarlos el informe continuará.');
-                abrirDatosProyecto(() => generarInforme());
-                return;
-            }
-            if (c && c.tipo === 'calculo') { alert('La red no está calculada o ha cambiado desde el último cálculo.\n\nEjecuta Cálculo > Calcular red y vuelve a Informe > Generar informe.'); return; }
-            if (c && c.tipo === 'fallos') {
-                const lista = c.fallos.slice(0, 25).map(f => '• ' + f).join('\n') + (c.fallos.length > 25 ? `\n… y ${c.fallos.length - 25} más` : '');
-                alert('No se puede generar el informe: hay elementos que NO cumplen (en rojo en el plano).\n\n' + lista + '\n\nCorrige la red, recalcula y vuelve a intentarlo.');
-                return;
-            }
-            const limpio = t => String(t || '').trim().replace(/[\\/:*?"<>|\r\n]+/g, '_');
-            const nombre = `${limpio(proyecto.numero)}-${limpio(proyecto.instalacion)}-${new Date().toISOString().slice(0, 10)}-${limpio(proyecto.revision || '0')}.docx`; // NOMBREPROYECTO-INSTALACION-FECHA-REVISION
-            // Plantilla de Word (por cliente) o la del programa
-            const plantilla = await elegirPlantillaInforme();
-            if (plantilla === 'cancelar') return;
-            // El selector de destino se abre ANTES de generar (el navegador exige que venga de un clic reciente)
-            let handle = null;
-            if (window.showSaveFilePicker && !(navigator.userActivation && !navigator.userActivation.isActive)) {
-                try {
-                    handle = await window.showSaveFilePicker({ suggestedName: nombre, types: [{ description: 'Documento Word (*.docx)', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } }] });
-                } catch (err) { if (err.name === 'AbortError') return; handle = null; }
-            }
-            try {
-                mostrarAvisoProgreso('Cargando la librería de Word…');
-                const D = await cargarDocx();
-                mostrarAvisoProgreso('Generando figuras y tablas…');
-                const doc = await construirInforme(D, plantilla ? { unaSeccion: true, sinPortada: plantilla.conMarcador } : {});
-                mostrarAvisoProgreso('Guardando el informe…');
-                let blob = await D.Packer.toBlob(doc);
-                if (plantilla) { mostrarAvisoProgreso('Aplicando la plantilla ' + plantilla.nombre + '…'); blob = await aplicarPlantillaDocx(blob, plantilla); }
-                if (handle) {
-                    const w = await handle.createWritable(); await w.write(blob); await w.close();
-                } else {
-                    const url = URL.createObjectURL(blob), a = document.createElement('a');
-                    a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
-                    setTimeout(() => URL.revokeObjectURL(url), 5000);
-                }
-                mostrarAvisoProgreso(null);
-                alert(`Informe generado: ${handle ? handle.name : nombre}${plantilla ? '\nPlantilla: ' + plantilla.nombre : ''}\n\nAl abrirlo en Word acepta "actualizar campos" para rellenar los números de página de los índices (en LibreOffice: Herramientas > Actualizar > Actualizar todo).`);
-            } catch (err) {
-                console.error(err); mostrarAvisoProgreso(null);
-                alert('No se ha podido generar el informe: ' + err.message);
-            }
-        }
+        function generarInforme(...a) { return PARTES_OK.informe ? generarInforme__p.apply(this, a) : cargarParte('informe').then(() => generarInforme__p.apply(this, a)); }
 
         // ---------- Figuras (croquis SVG -> PNG) ----------
         function aPantalla(el, px, py) {
@@ -8472,692 +7739,13 @@
             return { x: el.x + 25 + dx * Math.cos(r) - dy * Math.sin(r), y: mundoAScreenY(el.y) + 25 + dx * Math.sin(r) + dy * Math.cos(r) };
         }
         function centroElemento(el) { return el.type === 'tuberia' ? aPantalla(el, (el.longitud || 3000) / 60, 20) : aPantalla(el, 25, 25); }
-        function dibujoElemento(el, c, P) {
-            const tr = `translate(${el.x}, ${mundoAScreenY(el.y)}) rotate(${el.rotation || 0}, 25, 25) scale(${el.scale || 1})${trEspejo(el)}`;
-            let d;
-            if (el.type === 'bomba') d = simboloBomba(c, P);
-            else if (el.type === 'tuberia') d = `<line x1="0" y1="20" x2="${(el.longitud || 3000) / 30}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/>`;
-            else d = simboloSVG(el, c, P);
-            return `<g transform="${tr}">${d}</g>`;
-        }
+        
         // opciones: { principales: [el], contexto: [el], numeros: {id: n}, rotulosLinea: bool }
-        async function figuraPNG(op) {
-            const P = { base: '#2563eb', texto: '#1e293b', halo: '#ffffff', relleno: '#ffffff', ok: '#16a34a', fallo: '#dc2626', critica: '#7c3aed', flecha: '#16a34a', sel: '#f59e0b' };
-            const NS = 'http://www.w3.org/2000/svg';
-            const svg = document.createElementNS(NS, 'svg');
-            svg.setAttribute('style', 'position:fixed;left:-20000px;top:0;width:4000px;height:4000px');
-            document.body.appendChild(svg);
-            try {
-                const g = document.createElementNS(NS, 'g');
-                svg.appendChild(g);
-                g.innerHTML = op.contexto.map(el => dibujoElemento(el, '#a3aab5', P)).join('') + op.principales.map(el => dibujoElemento(el, colorElemento(el, P), P)).join('');
-                let bb = g.getBBox();
-                const k = Math.max(1, Math.max(bb.width, bb.height * 1.3) / 640);
-                const R = 6.5 * k, fs = 7.5 * k;
-                let extra = '';
-                if (op.numeros) {
-                    op.principales.forEach((el, i) => {
-                        const n = op.numeros[el.id]; if (n == null) return;
-                        const cen = centroElemento(el);
-                        const vertical = el.type === 'instrumento' || Math.round(((el.rotation || 0) % 180 + 180) % 180) === 90;
-                        const lado = el.type === 'instrumento' ? 1 : (i % 2 ? -1 : 1), off = (el.type === 'tuberia' ? 8 : 20) * (el.scale || 1) + R * 1.6;
-                        const cx = vertical ? cen.x + lado * off : cen.x, cy = vertical ? cen.y : cen.y + lado * off;
-                        const ix = vertical ? cen.x + lado * (off - R * 1.6 + 2) : cen.x, iy = vertical ? cen.y : cen.y + lado * (off - R * 1.6 + 2);
-                        extra += `<line x1="${ix}" y1="${iy}" x2="${cx - (vertical ? lado * R : 0)}" y2="${cy - (vertical ? 0 : lado * R)}" stroke="#64748b" stroke-width="${0.6 * k}"/>` +
-                            `<circle cx="${cx}" cy="${cy}" r="${R}" fill="#ffffff" stroke="#1e3a8a" stroke-width="${0.8 * k}"/>` +
-                            `<text x="${cx}" y="${cy + fs * 0.36}" font-family="Arial, sans-serif" font-size="${n > 99 ? fs * 0.75 : fs}" font-weight="bold" fill="#1e3a8a" text-anchor="middle">${n}</text>`;
-                    });
-                }
-                if (op.rotulosLinea) {
-                    const porLinea = {};
-                    op.principales.forEach(el => { if (el.linea) (porLinea[el.linea] = porLinea[el.linea] || []).push(el); });
-                    Object.entries(porLinea).forEach(([id, els]) => {
-                        const cs = els.map(centroElemento), cx = cs.reduce((s, p) => s + p.x, 0) / cs.length;
-                        const masCerca = cs.reduce((b, p) => Math.abs(p.x - cx) < Math.abs(b.x - cx) ? p : b, cs[0]);
-                        extra += `<text x="${masCerca.x}" y="${masCerca.y - 14 * k}" font-family="Arial, sans-serif" font-size="${fs * 1.15}" font-weight="bold" fill="#1e3a8a" text-anchor="middle" paint-order="stroke" stroke="#ffffff" stroke-width="${3 * k}">${esc(id)}</text>`;
-                    });
-                }
-                g.insertAdjacentHTML('beforeend', extra);
-                bb = g.getBBox();
-                const m = 8 * k, x0 = bb.x - m, y0 = bb.y - m, w = bb.width + 2 * m, h = bb.height + 2 * m;
-                let esc2 = 1800 / w; if (h * esc2 > 2200) esc2 = 2200 / h;
-                const W = Math.round(w * esc2), H = Math.round(h * esc2);
-                const txt = `<svg xmlns="${NS}" width="${W}" height="${H}" viewBox="${x0} ${y0} ${w} ${h}"><rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="#ffffff"/>${g.innerHTML}</svg>`;
-                const img = new Image();
-                await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error('No se ha podido rasterizar una figura.')); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(txt); });
-                const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-                const cx = cv.getContext('2d'); cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, W, H); cx.drawImage(img, 0, 0, W, H);
-                const blob = await new Promise(ok => cv.toBlob(ok, 'image/png'));
-                const data = new Uint8Array(await blob.arrayBuffer());
-                // tamaño en el documento (px a 96 ppp): ancho útil 16,5 cm, alto máx. 20 cm
-                // (sin ampliar los croquis pequeños más de 1,4 veces su tamaño en el lienzo)
-                let dw = Math.min(620, w * 1.4), dh = dw * H / W;
-                if (dh > 755) { dw *= 755 / dh; dh = 755; }
-                return { data, width: Math.round(dw), height: Math.round(dh) };
-            } finally { svg.remove(); }
-        }
 
-        async function svgAPNG(txt, W, H) {
-            const img = new Image();
-            await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error('No se ha podido rasterizar un gráfico.')); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(txt); });
-            const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-            const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H); cx.drawImage(img, 0, 0, W, H);
-            const blob = await new Promise(ok => cv.toBlob(ok, 'image/png'));
-            return new Uint8Array(await blob.arrayBuffer());
-        }
         // ---------- Justificación de cada elemento ----------
         // Devuelve { k: texto K/Cv para la tabla de componentes, filas: [[magnitud, expresión, sustitución, resultado]] }
-        function detalleK(el, a) {
-            const Dmm = a.D * 1000, dn = dnNum(el.dn), F = [];
-            const fTfila = () => { const v = fT(dn, Dmm); F.push(['Factor de fricción de referencia', 'fT (Crane TP-410, turbulencia total)', CAT.ft.some(r => r[0] === dn) ? `tabla Crane, DN ${dn}` : `Colebrook, ε = 0,045 mm, D = ${nf(Dmm, 2)} mm`, nf(v, 4)]); return v; };
-            const conCv = (cv, fuente) => {
-                F.push(['Coeficiente de caudal', 'Cv (' + fuente + ')', '', nf(cv, 1)]);
-                F.push(['Coeficiente de resistencia', 'K = 891·d⁴/Cv²  (d en pulgadas)', `891 × (${nf(Dmm, 2)}/25,4)⁴ / ${nf(cv, 1)}²`, nf(a.K, 4)]);
-                return `K = ${nf(a.K, 3)} (Cv ${nf(cv, 0)})`;
-            };
-            if (calcDe(el) === 'cero') { F.push(['Coeficiente de resistencia', 'K despreciable (unión/brida)', '', '0']); return { k: 'K = 0', filas: F }; }
-            if (el.modoK === 'manual') { F.push(['Coeficiente de resistencia', 'K facilitado por el usuario', '', nf(a.K, 4)]); return { k: `K = ${nf(a.K, 3)} (usuario)`, filas: F }; }
-            if (el.modoK === 'kvs') {
-                const kv = kvApertura(el), h = Math.min(Math.max((+el.apertura || 0) / 100, 0.02), 1);
-                F.push(['Coeficiente a la apertura', el.caracteristica === 'lineal' ? 'Kv = Kvs·h (lineal)' : 'Kv = Kvs·R^(h−1), R = 50 (isoporcentual)', el.caracteristica === 'lineal' ? `${nf(+el.kvs, 2)} × ${nf(h, 2)}` : `${nf(+el.kvs, 2)} × 50^(${nf(h, 2)} − 1)`, `${nf(kv, 3)} m³/h`]);
-                F.push(['Coeficiente de resistencia', 'K = 891·d⁴/Cv²;  Cv = 1,156·Kv', `891 × (${nf(Dmm, 2)}/25,4)⁴ / (1,156 × ${nf(kv, 3)})²`, nf(a.K, 4)]);
-                return { k: `Kvs ${nf(+el.kvs, 1)} · ${nf(+el.apertura, 0)} % → K ${nf(a.K, 2)}`, filas: F };
-            }
-            if (el.modoK === 'cv' && +el.cvUsuario > 0) return { k: conCv(+el.cvUsuario, 'fabricante, dato del usuario'), filas: F };
-            if (el.type === 'valvula' && el.modoK === 'catalogo') {
-                const s = CAT.valvulas.find(v => v.nombre === el.serieCat), cv = s ? s.cv[npsDeDN(el.dn)] : null;
-                if (cv) return { k: conCv(cv, s.nombre), filas: F };
-            }
-            const ent = entradaCrane(el);
-            if (ent && ent[1] && typeof ent[1] === 'object') { F.push(['Coeficiente de resistencia', `K fijo: ${ent[0]}`, '', nf(a.K, 4)]); return { k: `K = ${nf(a.K, 3)}`, filas: F }; }
-            if (ent) {
-                const n = nCrane(ent[1], dn), v = fTfila();
-                F.push(['Coeficiente de resistencia', `K = n·fT  (${ent[0]})`, `${nf(n, 1)} × ${nf(v, 4)}`, nf(a.K, 4)]);
-                return { k: `K = ${nf(a.K, 3)} (${nf(n, 0)}·fT)`, filas: F };
-            }
-            F.push(['Coeficiente de resistencia', 'K', '', nf(a.K, 4)]);
-            return { k: `K = ${nf(a.K, 3)}`, filas: F };
-        }
-        function filasVelocidad(a, F) {
-            const Q = Math.abs(a.Qprev);
-            F.push(['Caudal', 'Q', '', `${nf(Q * 3600, 3)} m³/h = ${nsci(Q)} m³/s`]);
-            F.push(['Sección', 'A = π·D²/4', `π × ${nf(a.D, 4)}² / 4`, `${nsci(a.A)} m²`]);
-            F.push(['Velocidad', 'V = Q / A', `${nsci(Q)} / ${nsci(a.A)}`, `${nf(a.V, 3)} m/s`]);
-        }
-        function filaVmax(a, F) {
-            const lim = ultimoCalculo.resultado.limites, vl = a.lado === 'asp' ? lim.asp : lim.imp;
-            F.push([`Comprobación de velocidad (${a.lado === 'asp' ? 'aspiración' : 'impulsión'})`, 'V ≤ Vmax', `${nf(a.V, 3)} ≤ ${nf(vl, 2)} m/s`, a.V <= vl ? 'CUMPLE' : 'NO CUMPLE']);
-        }
-        function justificacion(el, ars) {
-            const res = ultimoCalculo.resultado, fl = res.fluido, F = [];
-            let kTexto = '';
-            if (sinFlujo(el)) { F.push(['—', 'Elemento sin caudal', 'No interviene en el balance hidráulico', '—']); return { filas: F, k: '—' }; }
-            const rhoG = `${nf(fl.rho, 1)} × 9,81`;
-            if (esTerminal(el)) {
-                const r = ultimoResultado[el.id];
-                if (!r) { F.push(['—', 'Terminal sin conectar', '', '—']); return { filas: F, k: '—' }; }
-                if (el.subtype === 'consumo') {
-                    F.push(['Caudal demandado', 'Q (dato)', '', `${nf(r.Q, 3)} m³/h`]);
-                    F.push(['Presión en el punto de consumo', 'p = (H − z)·ρ·g − p_atm', `(${nf(r.H, 3)} − ${nf(r.z, 2)}) × ${rhoG} − 101 325 Pa`, `${nf(r.p, 3)} bar`]);
-                    F.push(['Comprobación de presión', 'p ≥ p mín', `${nf(r.p, 3)} ≥ ${nf(r.pMin, 2)} bar`, r.exceso >= -1e-4 ? 'CUMPLE' : 'NO CUMPLE']);
-                    F.push(['Exceso de presión', 'Δp exc = p − p mín', `${nf(r.p, 3)} − ${nf(r.pMin, 2)}`, `${nf(r.exceso, 3)} bar`]);
-                    const cc = res.consumoCritico;
-                    if (r.equilibrado) {
-                        F.push(['Presión a equilibrar', 'Δp = Δp exc − Δp exc (consumo más desfavorable)', `${nf(r.exceso, 3)} − ${nf(cc.margen, 3)}  (${tagDe(cc.el)})`, `${nf(r.equilibrado.dp, 3)} bar`]);
-                        F.push(['Válvula de equilibrado', 'Kv = Q·√[(ρ/1000)/Δp];  Cv = 1,156·Kv', `${nf(r.Q, 3)} × √[(${nf(fl.rho / 1000, 4)})/${nf(r.equilibrado.dp, 3)}]`, `Kv ${nf(r.equilibrado.Kv, 2)} m³/h · Cv ${nf(r.equilibrado.Cv, 2)}`]);
-                    } else F.push(['Válvula de equilibrado', r.critico ? 'Consumo más desfavorable: sin válvula; su exceso es el margen de la bomba o de la alimentación' : 'No necesaria (diferencia < 0,01 bar)', '', '—']);
-                    return { filas: F, k: `Q ${nf(r.Q, 2)} · p mín ${nf(r.pMin, 2)} bar` };
-                }
-                F.push(['Altura piezométrica impuesta', 'H = z lámina + (p_atm + p)/(ρ·g)', `${nf(el.cotaLamina, 2)} + (101 325 + ${nf(el.presionDep * 1e5, 0)}) / (${rhoG})`, `${nf(r.H, 3)} m`]);
-                F.push(['Presión en la conexión', 'p = (H − z)·ρ·g − p_atm', `(${nf(r.H, 3)} − ${nf(r.z, 2)}) × ${rhoG} − 101 325 Pa`, `${nf(r.p, 3)} bar`]);
-                F.push(['Caudal', 'Balance de masa en el nodo', r.sentido, `${nf(r.Q, 3)} m³/h`]);
-                return { filas: F, k: `lámina ${nf(el.cotaLamina, 2)} m` };
-            }
-            if (el.type === 'equipo') {
-                ars.forEach(a => {
-                    const sec = a.rama === 'sec', qN = sec ? el.qNom2 : el.qNom, dpN = sec ? el.dpNom2 : el.dpNom;
-                    const hfN = dpN * 1000 / (fl.rho * G), Vn = qN / 3600 / a.A;
-                    if (dosCircuitos(el)) F.push([sec ? 'Circuito secundario (c–d)' : 'Circuito primario (a–b)', '', '', '']);
-                    F.push(['Dato del fabricante', 'Δp nom a Q nom', '', `${nf(dpN, 2)} kPa a ${nf(qN, 2)} m³/h`]);
-                    F.push(['Pérdida nominal en altura', 'hf nom = Δp nom/(ρ·g)', `${nf(dpN * 1000, 0)} / (${rhoG})`, `${nf(hfN, 3)} m`]);
-                    F.push(['K equivalente (Dint de la tubería conectada)', 'K = 2g·hf nom / V nom²', `2 × 9,81 × ${nf(hfN, 3)} / ${nf(Vn, 3)}²  (D = ${nf(a.D * 1000, 2)} mm)`, nf(a.K, 3)]);
-                    filasVelocidad(a, F);
-                    const hf = hfDeArista(a);
-                    F.push(['Pérdida de carga en funcionamiento', 'Δp = Δp nom·(Q/Q nom)²', `${nf(dpN, 2)} × (${nf(Math.abs(a.Qprev) * 3600, 3)}/${nf(qN, 2)})²`, `${nf(hf * fl.rho * G / 1000, 2)} kPa = ${nf(hf, 3)} m`]);
-                });
-                return { filas: F, k: `Δp ${nf(el.dpNom, 1)} kPa @ ${nf(el.qNom, 1)} m³/h${dosCircuitos(el) ? ` · sec. ${nf(el.dpNom2, 1)} kPa @ ${nf(el.qNom2, 1)}` : ''}` };
-            }
-            if (el.type === 'tuberia') {
-                const a = ars[0], dt = datosTuberia(el), hf = hfDeArista(a);
-                F.push(['Diámetro interior', 'Dint = De − 2·e', `${nf(dt.od, 1)} − 2 × ${nf(dt.e, 2)} mm`, `${nf(dt.Dint, 2)} mm`]);
-                filasVelocidad(a, F);
-                F.push(['Número de Reynolds', 'Re = V·D / ν', `${nf(a.V, 3)} × ${nf(a.D, 4)} / ${nsci(fl.nu)}`, String(Math.round(a.Re))]);
-                if (a.Re < 2300) F.push(['Factor de fricción (laminar)', 'f = 64 / Re', `64 / ${Math.round(a.Re)}`, nf(a.f, 5)]);
-                else F.push([`Factor de fricción (${a.Re < 4000 ? 'transición, ' : ''}Colebrook-White)`, '1/√f = −2·log₁₀[ε/(3,7·D) + 2,51/(Re·√f)]', `ε = ${nf(dt.rug, 3)} mm; ε/D = ${nsci(a.rugosidad / a.D)}; Re = ${Math.round(a.Re)}`, nf(a.f, 5)]);
-                F.push(['Pérdida de carga por fricción', 'hf = f·(L/D)·V²/(2g)', `${nf(a.f, 5)} × (${nf(a.L, 3)} / ${nf(a.D, 4)}) × ${nf(a.V, 3)}² / (2 × 9,81)`, `${nf(hf, 4)} m`]);
-                filaVmax(a, F);
-                F.push(['Cotas de los extremos', 'z a, z b', '', `${nf(el.cotaA, 2)} / ${nf(el.cotaB, 2)} m`]);
-                F.push(['Presión manométrica en los extremos', 'p = (H − z)·ρ·g − p_atm', `H = ${nf(res.Hnodo[a.nodoA], 3)} / ${nf(res.Hnodo[a.nodoB], 3)} m`, `${nf(a.pA, 3)} / ${nf(a.pB, 3)} bar`]);
-                F.push(['Presión mínima (vaporización)', 'p abs ≥ pv', `${nf(Math.min(res.pAbs[a.nodoA], res.pAbs[a.nodoB]) / 1000, 2)} ≥ ${nf(fl.pv / 1000, 3)} kPa`, 'CUMPLE']);
-                const pm = pmaTuberia(el, fl.T);
-                if (pm.t != null) F.push(['Presión máxima admisible', 'PMA = 2·S·E·W·t/(D − 2·Y·t);  t = 0,875·e − c', `S = ${nf(pm.S, 1)} MPa; E = W = 1; Y = 0,4; t = 0,875 × ${nf(dt.e, 2)} − ${nf(pm.c, 1)} = ${nf(pm.t, 3)} mm; D = ${nf(dt.od, 1)} mm`, `${nf(pm.pma, 1)} bar`]);
-                else if (pm.PN != null) F.push(['Presión máxima admisible', 'PMA = PN·fT', `${nf(pm.PN, 0)} × ${nf(pm.fT, 2)}  (${pm.origen.replace(/^.*\(/, '').replace(/\)$/, '')})`, `${nf(pm.pma, 1)} bar`]);
-                else F.push(['Presión máxima admisible', 'Dato del usuario', '', pm.pma != null ? `${nf(pm.pma, 1)} bar` : '—']);
-                if (pm.pma != null) {
-                    F.push(['Comprobación de presión de servicio', 'p máx ≤ PMA', `${nf(a.pmax, 3)} ≤ ${nf(pm.pma, 1)} bar`, a.pmax <= pm.pma ? 'CUMPLE' : 'NO CUMPLE']);
-                    if (a.pCierre != null) F.push(['Presión a caudal nulo (bomba contra válvula cerrada)', 'p = (Hs + H₀ − z)·ρ·g − p_atm', '', `${nf(a.pCierre, 2)} bar → ${a.pCierre <= pm.pma ? 'CUMPLE' : 'AVISO'}`]);
-                }
-                const w = a.ariete;
-                if (w) {
-                    F.push(['Celeridad de la onda (Korteweg)', 'a = √[(Kf/ρ)/(1 + Kf·D/(E·e))]', `Kf = ${nf(w.Kf / 1e6, 0)} MPa; E = ${nf(w.E / 1e6, 0)} MPa; D = ${nf(w.Dint, 2)} mm; e = ${nf(w.e, 2)} mm`, `${nf(w.cel, 0)} m/s`]);
-                    F.push(['Tiempo crítico', 'Tc = 2·L/a', `2 × ${nf(w.L, 2)} / ${nf(w.cel, 0)}  (L de la línea)`, `${nf(w.Tcrit, 3)} s`]);
-                    F.push([`Sobrepresión de golpe de ariete (${w.rapido ? 'Joukowsky, cierre rápido' : 'Michaud, cierre lento'})`, w.rapido ? 'Δp = ρ·a·V' : 'Δp = 2·ρ·L·V/tc',
-                        w.rapido ? `${nf(fl.rho, 1)} × ${nf(w.cel, 0)} × ${nf(a.V, 3)}${w.tc ? `  (tc ${nf(w.tc, 2)} s ≤ Tc)` : '  (cierre instantáneo)'}` : `2 × ${nf(fl.rho, 1)} × ${nf(w.L, 2)} × ${nf(a.V, 3)} / ${nf(w.tc, 2)}`, `${nf(w.dp / 1e5, 3)} bar`]);
-                    if (pm.pma != null) F.push(['Comprobación con golpe de ariete', 'p máx + Δp ≤ PMA', `${nf(a.pmax, 3)} + ${nf(w.dp / 1e5, 3)} ≤ ${nf(pm.pma, 1)} bar`, a.pmax + w.dp / 1e5 <= pm.pma ? 'CUMPLE' : 'AVISO']);
-                }
-                return { filas: F, k: `f = ${nf(a.f, 4)}` };
-            }
-            if (el.type === 'bomba' && !ars.length) { F.push(['Bomba de reserva', 'Parada en el escenario normal (válvula cerrada)', 'Ver el funcionamiento con la bomba de reserva en el apartado 3.3', '—']); return { filas: F, k: el.reservaDe ? 'Reserva' : '—' }; }
-            if (el.type === 'bomba') {
-                const a = ars[0], r = ultimoResultado[el.id], rho = fl.rho;
-                const Hd = a.Hd_m, H0 = a.H0m, Qd = a.Qd;
-                F.push(['Curva de la bomba', 'H = H₀ − k·Q²;  k = (H₀ − Hd)/Qd²', `H₀ = ${nf(a.H0_bar, 2)} bar = ${nf(H0, 2)} m; Hd = ${nf(a.Hd_bar, 2)} bar = ${nf(Hd, 2)} m; Qd = ${nf(Qd * 3600, 2)} m³/h`, `k = ${nsci(a.kPump)} s²/m⁵`]);
-                F.push(['Punto de funcionamiento', 'Q, H = H(descarga) − H(aspiración)', '', `Q = ${nf(r.Q, 2)} m³/h; H = ${nf(r.H, 2)} m`]);
-                F.push(['Potencia hidráulica', 'Ph = ρ·g·Q·H', `${nf(rho, 1)} × 9,81 × ${nsci(Math.abs(a.Qprev))} × ${nf(r.H, 2)} / 1000`, `${nf(r.potencia, 3)} kW`]);
-                const Hs = res.Hnodo[a.nodoA], vS = velocidadEnNodo(a.nodoA, res.aristas, a);
-                F.push(['NPSH disponible', 'NPSHd = Hs − z − pv/(ρ·g) + v²/(2g)', `${nf(Hs, 3)} − ${nf(el.cota || 0, 2)} − ${nf(fl.pv, 0)}/(${nf(rho, 1)} × 9,81) + ${nf(vS, 3)}²/(2 × 9,81)`, `${nf(r.npshd, 3)} m`]);
-                F.push(['Comprobación NPSH', 'NPSHd − NPSHr ≥ margen', `${nf(r.npshd, 2)} − ${nf(el.npsh, 2)} ≥ ${nf(opciones.margenNPSH, 2)} m`, r.npshd - el.npsh >= opciones.margenNPSH ? 'CUMPLE' : 'NO CUMPLE']);
-                if (res.Qdiseno) F.push(['Comprobación del caudal de diseño', 'ΣQ bombas ≥ Q diseño', `${nf(res.Qbombas, 2)} ≥ ${nf(res.Qdiseno, 2)} m³/h`, res.Qbombas >= res.Qdiseno * 0.999 ? 'CUMPLE' : 'NO CUMPLE']);
-                return { filas: F, k: `H₀ ${nf(a.H0_bar, 2)} bar · Qd ${nf(Qd * 3600, 1)} m³/h` };
-            }
-            if (el.subtype === 'reduccion') {
-                const a = ars[0], D1 = dintTuberiaEnNodo(a.nodoA, res.aristas) || dintReferencia(el.dn), D2 = dintTuberiaEnNodo(a.nodoB, res.aristas) || dintReferencia(el.dnMenor);
-                const Dg = Math.max(D1, D2), Dp = Math.min(D1, D2), th = thetaReduccion(el), r = kReduccion(el, Dg, Dp);
-                F.push(['Ángulo de la reducción', th.fuente === 'ASME B16.9' ? 'θ = 2·atan[(De₁ − De₂)/(2·H)]  (ASME B16.9)' : 'θ (dato del usuario)', th.H ? `H = ${nf(th.H, 0)} mm` : '', `${nf(th.theta, 1)}°`]);
-                F.push(['Relación de diámetros', 'β = D₂ / D₁', `${nf(Dp, 2)} / ${nf(Dg, 2)}`, nf(r.beta, 4)]);
-                const s2 = `sin(${nf(th.theta / 2, 2)}°)`;
-                if (a.sentidoRed === 'expansión') F.push(['Coeficiente (expansión, Crane)', th.theta <= 45 ? 'K = 2,6·sin(θ/2)·(1 − β²)²' : 'K = (1 − β²)²', th.theta <= 45 ? `2,6 × ${s2} × (1 − ${nf(r.beta, 4)}²)²` : `(1 − ${nf(r.beta, 4)}²)²`, nf(a.K, 4)]);
-                else F.push(['Coeficiente (contracción, Crane)', th.theta <= 45 ? 'K = 0,8·sin(θ/2)·(1 − β²)' : 'K = 0,5·(1 − β²)·√sin(θ/2)', th.theta <= 45 ? `0,8 × ${s2} × (1 − ${nf(r.beta, 4)}²)` : `0,5 × (1 − ${nf(r.beta, 4)}²) × √${s2}`, nf(a.K, 4)]);
-                F.push(['Diámetro de referencia', 'K referido al diámetro menor', '', `${nf(Dp, 2)} mm`]);
-                filasVelocidad(a, F);
-                F.push(['Pérdida de carga', 'hf = K·V²/(2g)', `${nf(a.K, 4)} × ${nf(a.V, 3)}² / (2 × 9,81)`, `${nf(hfDeArista(a), 4)} m`]);
-                filaVmax(a, F);
-                return { filas: F, k: `K = ${nf(a.K, 3)} (${a.sentidoRed || 'contracción'})` };
-            }
-            if (esNodo(el)) {
-                const kt = kTee(el), dn = dnNum(el.dn), fv = fT(dn, dintReferencia(el.dn));
-                if (el.modoK === 'manual') F.push(['Coeficientes (usuario)', 'K paso directo, K derivación', '', `${nf(kt.run, 3)} / ${nf(kt.der, 3)}`]);
-                else {
-                    F.push(['Factor de fricción de referencia', 'fT (Crane TP-410)', `DN ${dn}`, nf(fv, 4)]);
-                    F.push(['K paso directo', el.subtype === 'injerto' ? 'K = 0 (continuidad de la tubería)' : 'K = 20·fT', el.subtype === 'injerto' ? '' : `20 × ${nf(fv, 4)}`, nf(kt.run, 4)]);
-                    F.push(['K derivación', 'K = 60·fT', `60 × ${nf(fv, 4)}`, nf(kt.der, 4)]);
-                }
-                F.push(['Reparto por ramas', 'ramas de paso: K/2 · derivación: K_der − K_run/2', '', `${nf(kt.run / 2, 4)} / ${nf(Math.max(kt.der - kt.run / 2, 0), 4)}`]);
-                ars.forEach(a => {
-                    const Q = Math.abs(a.Qprev);
-                    F.push([`Rama ${a.rama}`, 'V = Q/A;  hf = K·V²/(2g)', `Q = ${nf(Q * 3600, 3)} m³/h; D = ${nf(a.D * 1000, 2)} mm; K = ${nf(a.K, 4)}`, `V = ${nf(a.V, 3)} m/s; hf = ${nf(hfDeArista(a), 4)} m`]);
-                    filaVmax(a, F);
-                });
-                return { filas: F, k: `K ${nf(kt.run, 3)} / ${nf(kt.der, 3)}` };
-            }
-            const a = ars[0], dk = detalleK(el, a);
-            F.push(['Diámetro de cálculo', 'Dint de la tubería conectada', '', `${nf(a.D * 1000, 2)} mm`]);
-            F.push(...dk.filas);
-            filasVelocidad(a, F);
-            F.push(['Pérdida de carga', 'hf = K·V²/(2g)', `${nf(a.K, 4)} × ${nf(a.V, 3)}² / (2 × 9,81)`, `${nf(hfDeArista(a), 4)} m`]);
-            filaVmax(a, F);
-            const rc = (ultimoResultado[el.id] || {}).control;
-            if (rc) {
-                F.push(['Coeficiente de cavitación', 'σ = (p1 − pv)/(p1 − p2)', `(${nf(rc.p1 / 1e5, 3)} − ${nf(fl.pv / 1e5, 4)}) / (${nf(rc.p1 / 1e5, 3)} − ${nf(rc.p2 / 1e5, 3)}) bar abs`, `${nf(rc.sigma, 2)} ${rc.sigma < 2 ? '(riesgo)' : ''}`]);
-                F.push(['Δp de estrangulamiento (IEC 60534)', 'Δp máx = FL²·(p1 − FF·pv)', `${nf(rc.FL, 2)}² × (${nf(rc.p1 / 1e5, 3)} − FF·${nf(fl.pv / 1e5, 4)})`, `${nf(rc.dpMax / 1e5, 3)} bar → Δp ${nf(rc.dp / 1e5, 3)} bar ${rc.dp < rc.dpMax ? 'CUMPLE' : 'NO CUMPLE'}`]);
-                if (rc.kvNec) F.push(['Kv necesario / Kvs recomendado', 'Kv = Q·√[(ρ/1000)/Δp]; Kvs para trabajar al 70 %', `Q ${nf(Math.abs(a.Qprev) * 3600, 2)} m³/h; Δp ${nf(rc.dp / 1e5, 3)} bar`, `${nf(rc.kvNec, 2)} / ${nf(rc.kvsRec, 1)} m³/h`]);
-            }
-            if (el.type === 'valvula' && el.subtype === 'retencion') {
-                const tipo = el.modoK === 'crane' ? el.craneTipo : 'Clapeta oscilante (swing)', C = CAT.vmin[tipo];
-                if (C && a.V <= 1e-3) F.push(['Apertura total de la retención', 'Sin caudal en este escenario', 'Válvula cerrada (bomba parada)', '—']);
-                else if (C) { const vmin = C * Math.sqrt(1 / fl.rho); F.push(['Apertura total de la retención', 'Vmin = C·√(1/ρ)  (Crane)', `${C} × √(1/${nf(fl.rho, 1)})`, `${nf(vmin, 3)} m/s → ${a.V >= vmin ? 'CUMPLE' : 'NO CUMPLE'}`]); }
-            }
-            return { filas: F, k: dk.k };
-        }
 
         // ---------- Documento ----------
-        async function construirInforme(D, opc = {}) {
-            // dimensionado de las bombas (recalcula la red al terminar, con los mismos datos)
-            let dimB = null;
-            try { const x = calcularDimBomba(ultimoDimBomba && ultimoDimBomba.eta); if (!x.error) dimB = x; } catch (e) { console.error(e); }
-            let escRes = null;
-            try { escRes = escenarioReserva(); } catch (e) { console.error(e); }
-            const res = ultimoCalculo.resultado, fl = res.fluido, p = proyecto, b = p.buque;
-            const ANCHO = 9638; // ancho útil A4 con márgenes de 2 cm (twips)
-            const AZUL = '1F4E79';
-            const toc = [], listaTablas = [], listaFiguras = [];
-            const cont = { Tabla: 0, Figura: 0 };
-            const cuerpo = [];
-            const T = (text, o = {}) => new D.TextRun(Object.assign({ text: tradDoc(text) }, o));
-            const par = (text, o = {}) => new D.Paragraph(Object.assign({ children: [T(text, o.run || {})], spacing: { after: 100 } }, o.par || {}));
-            const titulo = (nivel, text) => { text = tradDoc(text); toc.push({ title: text, level: nivel }); cuerpo.push(new D.Paragraph({ heading: D.HeadingLevel['HEADING_' + nivel], children: [T(text)], keepNext: true })); };
-            const leyenda = (tipo, text) => {
-                const n = ++cont[tipo], tt = tradDoc(tipo); text = tradDoc(text);
-                (tipo === 'Tabla' ? listaTablas : listaFiguras).push({ title: `${tt} ${n}. ${text}`, level: 1 });
-                return new D.Paragraph({ style: 'Caption', keepNext: tipo === 'Tabla', alignment: tipo === 'Figura' ? D.AlignmentType.CENTER : D.AlignmentType.LEFT,
-                    children: [T(tt + ' '), new D.SimpleField(`SEQ ${tipo} \\* ARABIC`, String(n)), T('. ' + text)] });
-            };
-            const celda = (txt, o = {}) => new D.TableCell({
-                columnSpan: o.span, width: o.w ? { size: o.w, type: D.WidthType.DXA } : undefined,
-                shading: o.fondo ? { type: D.ShadingType.CLEAR, color: 'auto', fill: o.fondo } : undefined,
-                margins: { top: 30, bottom: 30, left: 70, right: 70 }, verticalAlign: D.VerticalAlign.CENTER,
-                children: String(txt == null ? '' : txt).split('\n').map(l => new D.Paragraph({ alignment: o.alin || D.AlignmentType.LEFT, indent: o.sangria ? { left: o.sangria } : undefined,
-                    children: [T(l, { bold: !!o.negrita, size: o.tam || 16, color: o.color })] }))
-            });
-            // tabla(cabecera, filas, anchos relativos, { grupo: índice de filas que son cabecera de grupo })
-            const tabla = (cab, filas, rel, o = {}) => { cab = cab.map(c => typeof c === 'string' ? tradDoc(c) : c);
-                const tot = rel.reduce((s, x) => s + x, 0), w = rel.map(x => Math.round(ANCHO * x / tot));
-                const rows = [new D.TableRow({ tableHeader: true, children: cab.map((c, i) => celda(c, { w: w[i], negrita: true, fondo: AZUL, color: 'FFFFFF' })) })];
-                filas.forEach(f => {
-                    if (f.grupo) rows.push(new D.TableRow({ cantSplit: true, children: [celda(f.grupo, { span: cab.length, negrita: true, fondo: 'DCE6F1' })] }));
-                    else rows.push(new D.TableRow({ cantSplit: true, children: f.map((c, i) => {
-                        const v = typeof c === 'object' && c !== null ? c : { t: c };
-                        const estado = v.t === 'CUMPLE' || v.t === 'OK' || v.t === 'OK · crítica';
-                        return celda(v.t, { w: w[i], sangria: v.sangria, negrita: v.negrita || estado, color: estado ? (v.t === 'OK · crítica' ? '7030A0' : '00863D') : (/NO CUMPLE/.test(v.t) ? 'C00000' : undefined), alin: o.alin && o.alin[i] });
-                    }) }));
-                });
-                return new D.Table({ width: { size: ANCHO, type: D.WidthType.DXA }, columnWidths: w, rows });
-            };
-            const clave = (pares) => tabla(['Concepto', 'Valor'], pares.filter(x => x[1] !== '' && x[1] != null).map(([a, v]) => [{ t: a, negrita: true }, v]), [35, 65]);
-            const espacio = () => new D.Paragraph({ children: [], spacing: { after: 120 } });
-            const figura = async (op, text) => {
-                const f = await figuraPNG(op);
-                cuerpo.push(new D.Paragraph({ alignment: D.AlignmentType.CENTER, keepNext: true, children: [new D.ImageRun({ type: 'png', data: f.data, transformation: { width: f.width, height: f.height }, altText: { title: text, description: text, name: text } })] }));
-                cuerpo.push(leyenda('Figura', text));
-            };
-            const lim = res.limites, emplaz = [p.direccion, p.ciudad, p.provincia, p.pais].filter(Boolean).join(', ');
-            const ars = res.aristas, de = id => ars.filter(a => a.el.id === id);
-            const orden = lineasEnOrden();
-            const numLinea = {}; orden.forEach((o, i) => { numLinea[o.linea.id] = i + 1; });
-            const nombreLinea = l => `${l.id}${l.nombre ? ' · ' + l.nombre : ''}`;
-
-            // ===== 1 DATOS DEL PROYECTO =====
-            titulo(1, '1. Datos del proyecto');
-            titulo(2, '1.1. Datos generales');
-            cuerpo.push(leyenda('Tabla', 'Datos generales del proyecto'));
-            cuerpo.push(clave([['Nº de proyecto', p.numero], ['Revisión', p.revision], ['Fecha', p.fecha], ['Autor / calculista', p.autor], ['Cliente', p.cliente], ['Referencia del cliente', p.refCliente],
-                ['Instalación', p.instalacion], ['Tipo de instalación', TIPOS_INSTALACION[p.tipoInstalacion]], ['Emplazamiento', emplaz], ['Provincia', p.provincia], ['Ciudad', p.ciudad]]));
-            if (p.descripcion) { cuerpo.push(espacio()); cuerpo.push(par(p.descripcion)); }
-            if (p.esBuque) {
-                titulo(2, '1.2. Datos del buque');
-                titulo(3, '1.2.1. Astillero, armador e identificación');
-                cuerpo.push(leyenda('Tabla', 'Identificación del buque'));
-                cuerpo.push(clave([['Astillero', b.astillero], ['Nº de construcción', b.construccion], ['Nombre del buque', b.nombre], ['Armador', b.armador], ['Tipo de buque', b.tipo], ['Nº IMO', b.imo], ['Bandera', b.bandera], ['Sociedad de clasificación', b.clasificacion]]));
-                titulo(3, '1.2.2. Características principales');
-                cuerpo.push(leyenda('Tabla', 'Características principales del buque'));
-                const m = v => v === '' ? '' : `${nf(+v, 2)} m`;
-                cuerpo.push(clave([['Eslora total', m(b.esloraTotal)], ['Eslora entre perpendiculares', m(b.esloraPP)], ['Manga de trazado', m(b.manga)], ['Puntal de trazado', m(b.puntal)], ['Calado de trazado', m(b.calado)], ['Peso muerto', b.peMuerto === '' ? '' : `${nf(+b.peMuerto, 0)} t`]]));
-            }
-
-            // ===== 2 BASES DE DISEÑO =====
-            titulo(1, '2. Bases de diseño');
-            titulo(2, '2.1. Fluido');
-            cuerpo.push(leyenda('Tabla', `Propiedades del fluido (${fl.nombre} a ${fl.T} °C)`));
-            cuerpo.push(clave([['Fluido', fl.nombre], ['Temperatura de cálculo', `${fl.T} °C`], ['Densidad ρ', `${nf(fl.rho, 1)} kg/m³`], ['Viscosidad cinemática ν', `${nf(fl.nu * 1e6, 3)} mm²/s`],
-                ['Viscosidad dinámica μ', `${nsci(fl.mu)} Pa·s`], ['Presión de vapor pv', `${nf(fl.pv / 1000, 3)} kPa`], ['Rango de datos del catálogo', `${fl.Tmin} a ${fl.Tmax} °C (sin extrapolación)`], ['Observaciones', fl.nota || '']]));
-            titulo(2, '2.2. Caudal de diseño');
-            cuerpo.push(par(`El caudal de diseño de la instalación es Q = ${nf(+p.caudalDiseno, 2)} m³/h. ${res.origenQ === 'bombas' || !res.origenQ ? 'El punto de funcionamiento de las bombas, obtenido del cálculo de la red, debe ser igual o superior a este caudal.' : `La red no tiene bombas (alimentación por gravedad o desde depósito presurizado): el caudal que ${res.origenQ === 'fuentes' ? 'aportan a la red ' + (res.fuentesQ || []).join(', ') : 'suman los puntos de consumo'}, obtenido del cálculo, debe ser igual o superior a este caudal.`}`));
-            cuerpo.push(leyenda('Tabla', 'Comprobación del caudal de diseño'));
-            cuerpo.push(tabla(['Concepto', 'Valor', 'Estado'], [['Caudal de diseño', `${nf(res.Qdiseno, 2)} m³/h`, ''], [res.origenQ === 'fuentes' ? 'Caudal aportado por la alimentación (sin bombas)' : res.origenQ === 'consumos' ? 'Caudal de los consumos (sin bombas)' : 'Caudal de funcionamiento (suma de bombas)', `${nf(res.Qbombas, 2)} m³/h`, res.Qbombas >= res.Qdiseno * 0.999 ? 'CUMPLE' : 'NO CUMPLE']], [50, 30, 20]));
-            titulo(2, '2.3. Velocidades de diseño');
-            cuerpo.push(par(`Velocidades máximas orientativas para instalación de tipo «${TIPOS_INSTALACION[p.tipoInstalacion]}», según el fluido. En aspiración se limita la velocidad para asegurar el NPSH disponible; en impulsión, para acotar pérdidas, ruido y erosión.`));
-            cuerpo.push(leyenda('Tabla', 'Velocidades máximas recomendadas por fluido'));
-            cuerpo.push(tabla(['Fluido', 'V máx. aspiración (m/s)', 'V máx. impulsión (m/s)'], Object.keys(CAT.fluidos).map(f => {
-                const r = velocidadRecomendada(f, p.tipoInstalacion), es = f === fl.nombre;
-                return [{ t: f + (es ? '  ◄ fluido del proyecto' : ''), negrita: es }, { t: nf(r[0], 1), negrita: es }, { t: nf(r[1], 1), negrita: es }];
-            }), [50, 25, 25], { alin: [null, D.AlignmentType.CENTER, D.AlignmentType.CENTER] }));
-            cuerpo.push(espacio());
-            cuerpo.push(leyenda('Tabla', 'Velocidades máximas adoptadas en el cálculo'));
-            cuerpo.push(tabla(['Tramo', 'V máx. adoptada (m/s)', 'Criterio'], [['Aspiración (aguas arriba de las bombas)', nf(lim.asp, 2), +p.vAsp > 0 ? 'Dato del proyecto' : 'Valor recomendado'], ['Impulsión y resto de la red', nf(lim.imp, 2), +p.vImp > 0 ? 'Dato del proyecto' : 'Valor recomendado']], [50, 20, 30]));
-            titulo(2, '2.4. Criterios de comprobación');
-            cuerpo.push(leyenda('Tabla', 'Criterios de aceptación'));
-            cuerpo.push(tabla(['Elemento', 'Criterio'], [['Tuberías, válvulas y accesorios', `V ≤ ${nf(lim.asp, 2)} m/s en aspiración y V ≤ ${nf(lim.imp, 2)} m/s en impulsión`], ['Válvulas de retención', 'V ≥ velocidad mínima de apertura total, Vmin = C·√(1/ρ) (Crane TP-410)'],
-                ['Bombas: cavitación', `NPSHd − NPSHr ≥ ${nf(opciones.margenNPSH, 2)} m`], ['Bombas: caudal', `Σ Q bombas ≥ ${nf(res.Qdiseno, 2)} m³/h (caudal de diseño)`],
-                ['Tuberías: presión', 'p máx de servicio ≤ PMA (ASME B31.3 en acero; PN × factor de temperatura en PVC-U y PE)'], ['Toda la red: vaporización', 'p absoluta ≥ pv del fluido en todos los nodos'],
-                ['Puntos de consumo', 'p ≥ p mínima requerida; el exceso se absorbe con válvula de equilibrado'],
-                ['Clasificación PED de líneas', 'Art. 4.1.c y anexo II (cuadros 6 a 9) de la Directiva 2014/68/UE; presión de prueba ≤ 1,5·PMA en tuberías y ≤ prueba de cuerpo 1,5·PN en componentes (aviso)'],
-                ['Golpe de ariete (aviso)', `p máx + Δp ariete ≤ PMA; tiempo de cierre ${+p.tCierre > 0 ? nf(+p.tCierre, 1) + ' s' : 'instantáneo'}`], ['Presión a caudal nulo (aviso)', 'p con la bomba contra válvula cerrada ≤ PMA']], [35, 65]));
-            titulo(2, '2.5. Método de cálculo y referencias');
-            cuerpo.push(leyenda('Tabla', 'Formulación empleada'));
-            cuerpo.push(tabla(['Magnitud', 'Expresión', 'Referencia'], [
-                ['Pérdida por fricción', 'hf = f·(L/D)·V²/(2g)', 'Darcy-Weisbach'],
-                ['Factor de fricción turbulento', '1/√f = −2·log₁₀[ε/(3,7·D) + 2,51/(Re·√f)]', 'Colebrook-White (Newton, semilla Swamee-Jain)'],
-                ['Factor de fricción laminar (Re < 2300)', 'f = 64/Re', 'Hagen-Poiseuille'],
-                ['Pérdida en válvulas y accesorios', 'hf = K·V²/(2g);  K = n·fT', 'Crane TP-410'],
-                ['K a partir del Cv', 'K = 891·d⁴/Cv²  (d en pulgadas);  Cv = 1,156·Kv', 'Crane TP-410 / catálogos de fabricante'],
-                ['Reducciones', 'Fórmulas 1 a 4 de Crane con θ de ASME B16.9', 'Crane TP-410, ASME B16.9'],
-                ['Tes, cruces e injertos', 'Nodo central: ramas de paso K_run/2, derivación K_der − K_run/2', 'Crane TP-410 (20·fT / 60·fT)'],
-                ['Curva de bomba', 'H = H₀ − k·Q²', 'Parábola por el punto de diseño y la altura a caudal nulo'],
-                ['NPSH disponible', 'NPSHd = Hs − z − pv/(ρg) + v²/(2g)', 'Hs: altura piezométrica absoluta en la aspiración'],
-                ['Resolución de la red', 'Teoría lineal (Wood y Charles), convergencia 10⁻⁴ en caudales', 'Balance de masa en nodos y de energía en elementos'],
-                ['Dimensiones de tubería', 'Dint = De − 2·e', 'ASME B36.10M/B36.19M, EN ISO 1452-2, EN 12201-2, ISO 4065'],
-                ['Presión en un nodo', 'p = (H − z)·ρ·g − p_atm', 'H: altura piezométrica absoluta; z: cota'],
-                ['PMA acero', 'P = 2·S·E·W·t/(D − 2·Y·t);  t = 0,875·e − c', 'ASME B31.3 ec. (3a); A106 Gr. B / A312 TP316L'],
-                ['PMA termoplásticos', 'PMA = PN·fT', 'EN ISO 1452-2 anexo A (PVC-U), EN 12201-1 anexo A (PE)'],
-                ['Equipos', 'Δp = Δp nom·(Q/Q nom)²', 'Dato del fabricante'],
-                ['Válvulas de equilibrado', 'Kv = Q·√[(ρ/1000)/Δp];  Cv = 1,156·Kv', 'IEC 60534 / EN 60534'],
-                ['Celeridad de la onda', 'a = √[(Kf/ρ)/(1 + Kf·D/(E·e))]', 'Korteweg'],
-                ['Golpe de ariete', 'tc ≤ 2L/a: Δp = ρ·a·V;  tc > 2L/a: Δp = 2·ρ·L·V/tc', 'Joukowsky / Michaud'],
-                ['Categoría PED de tuberías', 'Estado (gas si pv(TS) > 0,5 bar man.), grupo (art. 13), PS y DN → cuadros 6 a 9', 'Directiva 2014/68/UE, anexo II'],
-                ['Presión de prueba', (CRITERIOS_PRUEBA[p.criterioPrueba] || CRITERIOS_PRUEBA.PED).texto, (CRITERIOS_PRUEBA[p.criterioPrueba] || CRITERIOS_PRUEBA.PED).nombre]], [28, 42, 30]));
-
-            // ===== 3 DESCRIPCIÓN DE LA RED Y RESUMEN =====
-            titulo(1, '3. Descripción de la red y resumen de resultados');
-            titulo(2, '3.1. Estructura de la red');
-            cuerpo.push(par('La red se describe como un árbol: la línea principal y, colgando de ella, los ramales en el orden en que salen. El cálculo justificativo del apartado 4 sigue este mismo orden.'));
-            cuerpo.push(leyenda('Tabla', 'Estructura de líneas de la red'));
-            cuerpo.push(tabla(['Apdo.', 'Línea', 'Tipo', 'Sale de', 'Nº elementos'], orden.map(o => {
-                const l = o.linea, desde = l.desde && elementosRed.find(e => e.id === l.desde);
-                return [`4.${numLinea[l.id]}`, { t: nombreLinea(l), sangria: o.nivel * 340, negrita: o.nivel === 0 }, l.tipo === 'principal' ? 'Principal' : (o.nivel > 1 ? 'Subramal' : 'Ramal'), desde ? tagDe(desde) : (l.padre || '—'), String(o.orden.length)];
-            }), [10, 38, 14, 26, 12]));
-            titulo(2, '3.2. Esquema general');
-            await figura({ principales: elementosRed.slice(), contexto: [], rotulosLinea: true }, 'Esquema general de la red (verde: cumple · violeta: ruta crítica)');
-            titulo(2, '3.3. Bombas');
-            if (!ars.some(a => a.esBomba)) cuerpo.push(par(`La red no tiene bombas: la alimentación es por gravedad o desde un depósito presurizado${(res.fuentesQ || []).length ? ' (' + res.fuentesQ.join(', ') + ')' : ''}. El caudal de funcionamiento resultante es ${nf(res.Qbombas, 2)} m³/h.`));
-            else cuerpo.push(leyenda('Tabla', 'Punto de funcionamiento de las bombas'));
-            if (ars.some(a => a.esBomba))
-            cuerpo.push(tabla(['Bomba', 'Q (m³/h)', 'H (m)', 'Ph (kW)', 'NPSHd (m)', 'NPSHr (m)', 'Estado'], ars.filter(a => a.esBomba).map(a => {
-                const r = ultimoResultado[a.el.id];
-                return [tagDe(a.el), nf(r.Q, 2), nf(r.H, 2), nf(r.potencia, 3), nf(r.npshd, 2), nf(a.el.npsh, 2), a.el.esLineaCritica ? 'OK · crítica' : 'OK'];
-            }), [24, 12, 12, 12, 13, 13, 14]));
-            { const en = ars.filter(a => a.esBomba).map(a => ({ tag: tagDe(a.el), e: ultimoResultado[a.el.id].energia })).filter(x => x.e);
-              if (en.length) {
-                  cuerpo.push(espacio());
-                  cuerpo.push(leyenda('Tabla', 'Consumo y coste energético del bombeo'));
-                  cuerpo.push(tabla(['Bomba', 'η bomba', 'η motor', 'P eléctrica (kW)', 'Horas/año', 'Energía (kWh/año)', 'Coste (€/año)'], en.map(x => [x.tag, nf(x.e.etaB, 2), nf(x.e.etaM, 2), nf(x.e.Pe, 3), nf(x.e.horas, 0), nf(x.e.kWh, 0), nf(x.e.eur, 0)]).concat(en.length > 1 ? [[{ t: 'Total', negrita: true }, '', '', nf(en.reduce((s_, x) => s_ + x.e.Pe, 0), 3), '', nf(en.reduce((s_, x) => s_ + x.e.kWh, 0), 0), nf(en.reduce((s_, x) => s_ + x.e.eur, 0), 0)]] : []), [20, 10, 10, 15, 12, 17, 16]));
-                  cuerpo.push(par(`P eléctrica = ρ·g·Q·H/(η bomba·η motor); precio ${nf(en[0].e.precio, 3)} €/kWh.`, { run: { italics: true, size: 16 } }));
-              } }
-            if (dimB) {
-                titulo(3, '3.3.1. Dimensionado de la bomba');
-                cuerpo.push(par(`Para cada circuito se busca la altura mínima que da el caudal necesario y la presión mínima de todos los consumos (bisección sobre la red completa). La curva de la instalación se obtiene repitiendo el cálculo a caudales parciales. El punto de selección añade un 10 % de margen en altura; la potencia al eje se calcula con un rendimiento η = ${nf(dimB.eta, 2)} y el motor se elige normalizado IEC con un 15 % de reserva.`));
-                for (const [i, d] of dimB.circuitos.entries()) {
-                    cuerpo.push(leyenda('Tabla', `Dimensionado de ${d.tags.join(', ')}${d.nB > 1 ? ' (iguales, en paralelo)' : ''}`));
-                    cuerpo.push(clave([['Caudal necesario', `${nf(d.Qreq, 2)} m³/h (${d.origenQ})`], ['Caudal por bomba', `${nf(d.Qb, 2)} m³/h`], ['Altura necesaria', `${nf(d.Hreq, 2)} m c.l.`],
-                        ['Punto de selección (+10 % H)', `${nf(d.Qb, 2)} m³/h · ${nf(d.H, 2)} m = ${nf(d.Hbar, 3)} bar`], ['NPSH disponible / NPSHr máximo admisible', `${nf(d.npsh, 2)} m / ${nf(d.npsh - opciones.margenNPSH, 2)} m`],
-                        ['Potencia hidráulica Ph = ρ·g·Q·H', `${nf(d.Ph, 3)} kW`], [`Potencia al eje Ph/η (η = ${nf(dimB.eta, 2)})`, `${nf(d.Peje, 3)} kW`], ['Motor normalizado IEC (+15 %)', `${d.Pmotor} kW`]]));
-                    cuerpo.push(espacio());
-                    cuerpo.push(leyenda('Tabla', `Curva de la instalación del circuito de ${d.tags.join(', ')}`));
-                    cuerpo.push(tabla(['Q total (m³/h)', 'H necesaria (m c.l.)'], d.curva.map(q => [nf(q.Q, 2), nf(q.H, 2)]), [50, 50]));
-                    const b0 = elementosRed.find(e => e.id === d.bombas[0]);
-                    const svg = graficoBombaSVG(d, b0, dimB.rho).replace('width="100%"', 'xmlns="http://www.w3.org/2000/svg" width="1240" height="560"').replace(/style="max-width:[^"]*"/, 'style="font-family:Arial,sans-serif;background:#fff"');
-                    const img = await svgAPNG(svg, 1240, 560);
-                    cuerpo.push(new D.Paragraph({ alignment: D.AlignmentType.CENTER, keepNext: true, children: [new D.ImageRun({ type: 'png', data: img, transformation: { width: 600, height: 271 } })] }));
-                    cuerpo.push(leyenda('Figura', `Curva de la instalación y punto de selección de ${d.tags.join(', ')}`));
-                }
-            }
-            if (escRes && escRes.bombas) {
-                titulo(3, `3.3.${dimB ? 2 : 1}. Funcionamiento con la bomba de reserva`);
-                const pares = elementosRed.filter(e => e.type === 'bomba' && e.reservaDe).map(e => [tagDe(e), tagDe(elementosRed.find(x => x.id === e.reservaDe))]);
-                cuerpo.push(par(`Bombas de reserva (1+1): ${pares.map(([r, s_]) => `${r} respalda a ${s_}`).join('; ')}. Se recalcula la red con cada reserva en marcha y su bomba de servicio parada (tratada como válvula cerrada); todos los elementos cumplen también en este escenario.`));
-                cuerpo.push(leyenda('Tabla', 'Punto de funcionamiento en el escenario de reserva'));
-                cuerpo.push(tabla(['Bomba en marcha', 'Sustituye a', 'Q (m³/h)', 'H (m)', 'NPSHd (m)', 'NPSHr (m)', 'Estado'], escRes.bombas.map(x => [x.tag, x.sustituye || '—', nf(x.Q, 2), nf(x.H, 2), nf(x.npshd, 2), nf(x.npshr, 2), x.estado === 'fallo' ? 'NO CUMPLE' : 'OK']), [20, 20, 12, 12, 12, 12, 12]));
-                if (escRes.lc != null) cuerpo.push(par(`Pérdida de carga de la ruta crítica en este escenario: ${nf(escRes.lc, 3)} m.`));
-            }
-            titulo(2, '3.4. Ruta crítica');
-            const lc = res.lineaCritica;
-            if (lc) {
-                const nombres = lc.aristasCamino.map(a => tagDe(a.el)).filter((n, i, arr) => i === 0 || n !== arr[i - 1]);
-                cuerpo.push(par(`La ruta crítica es el camino desde ${ars.some(a => a.esBomba) ? 'la descarga de la bomba' : 'el depósito de alimentación'} hasta un extremo abierto con mayor pérdida de carga acumulada: ${nf(lc.hfTotal, 3)} m. Recorrido: ${nombres.join(' → ')}. Su balance detallado figura en el apartado 7.`));
-            } else cuerpo.push(par('No se ha identificado ruta crítica (la red no tiene extremos aguas abajo de una bomba o de un depósito de alimentación).'));
-            const termV = (res.terminales || { elementos: [] }).elementos;
-            const consumos = termV.filter(e => e.subtype === 'consumo'), depositos = termV.filter(e => esDeposito(e));
-            if (consumos.length) {
-                titulo(2, '3.5. Puntos de consumo y válvulas de equilibrado');
-                cuerpo.push(par(`Cada punto de consumo recibe su caudal con una presión igual o superior a la mínima. El consumo más desfavorable${res.consumoCritico ? ` (${tagDe(res.consumoCritico.el)}, con ${nf(res.consumoCritico.margen, 2)} bar de margen)` : ''} no lleva válvula; en el resto, la diferencia de presión respecto a él se absorbe con una válvula de equilibrado cuyo Kv se indica.`));
-                cuerpo.push(leyenda('Tabla', 'Puntos de consumo y equilibrado'));
-                cuerpo.push(tabla(['Consumo', 'Q (m³/h)', 'Cota (m)', 'p (bar)', 'p mín (bar)', 'Δp a equilibrar (bar)', 'Kv (m³/h)', 'Estado'], consumos.map(e => {
-                    const r = ultimoResultado[e.id];
-                    return [tagDe(e), nf(r.Q, 2), nf(r.z, 2), nf(r.p, 3), nf(r.pMin, 2), r.equilibrado ? nf(r.equilibrado.dp, 3) : '—', r.equilibrado ? nf(r.equilibrado.Kv, 2) : (r.critico ? 'más desfavorable' : '—'), e.esLineaCritica ? 'OK · crítica' : 'OK'];
-                }), [20, 10, 10, 10, 11, 14, 13, 12]));
-            }
-            if (depositos.length) {
-                titulo(2, `3.${consumos.length ? 6 : 5}. Depósitos`);
-                cuerpo.push(leyenda('Tabla', 'Depósitos de la red'));
-                cuerpo.push(tabla(['Depósito', 'Cota conexión (m)', 'Cota lámina (m)', 'p sobre lámina (bar)', 'Q (m³/h)', 'Sentido'], depositos.map(e => { const r = ultimoResultado[e.id]; return [tagDe(e), nf(e.cota, 2), nf(e.cotaLamina, 2), nf(e.presionDep, 2), nf(r.Q, 2), r.sentido]; }), [20, 15, 15, 17, 13, 20]));
-            }
-            titulo(2, `3.${5 + (consumos.length ? 1 : 0) + (depositos.length ? 1 : 0)}. Resumen de comprobaciones`);
-            const nEl = elementosRed.filter(e => !sinFlujo(e)).length;
-            cuerpo.push(par(`Se han comprobado ${nEl} elementos hidráulicos (${elementosRed.length - nEl} instrumentos o elementos sin caudal). Todos cumplen los criterios del apartado 2.4.`));
-            const avisos = [];
-            ars.forEach(a => (a.avisos || []).forEach(t => avisos.push(t)));
-            ars.filter(a => !a.esBomba && a.Re > 2300 && a.Re < 4000).forEach(a => avisos.push(`${tagDe(a.el)}: Re = ${Math.round(a.Re)} en zona de transición; el factor de fricción es incierto.`));
-            (res.avisosRed || []).forEach(t => avisos.push(t));
-            if (avisos.length) {
-                cuerpo.push(par('Se registran las siguientes observaciones, que no impiden el cumplimiento de los criterios pero deben revisarse:'));
-                cuerpo.push(leyenda('Tabla', 'Observaciones y avisos del cálculo'));
-                cuerpo.push(tabla(['Nº', 'Observación'], [...new Set(avisos)].map((t, i) => [String(i + 1), t]), [6, 94]));
-            }
-
-            // ===== 4 CÁLCULO JUSTIFICATIVO POR LÍNEAS =====
-            titulo(1, '4. Cálculo justificativo por líneas');
-            cuerpo.push(par('Para cada línea se incluye el croquis de sus elementos (numerados; en gris los elementos contiguos de otras líneas), la relación de componentes con sus propiedades, los resultados y la justificación de cada elemento con las expresiones y los valores sustituidos.'));
-            for (const o of orden) {
-                const l = o.linea, nL = numLinea[l.id], els = o.orden.map(id => elementosRed.find(e => e.id === id));
-                const desde = l.desde && elementosRed.find(e => e.id === l.desde);
-                titulo(2, `4.${nL}. Línea ${nombreLinea(l)}`);
-                cuerpo.push(par(l.tipo === 'principal' ? 'Línea principal de la red.' : `Ramal de la línea ${l.padre || '—'}${desde ? `, con salida en ${tagDe(desde)}` : ''}.`));
-                const numeros = {}; els.forEach((e, i) => { numeros[e.id] = i + 1; });
-                const enLinea = new Set(els.map(e => e.id)), vec = mapaVecinos();
-                const contexto = [...new Set(els.flatMap(e => vec[e.id] || []))].filter(id => !enLinea.has(id)).map(id => elementosRed.find(e => e.id === id)).filter(Boolean);
-                titulo(3, `4.${nL}.1. Croquis`);
-                await figura({ principales: els, contexto, numeros }, `Croquis de la línea ${l.id}`);
-                const just = {}; els.forEach(e => { just[e.id] = justificacion(e, de(e.id)); });
-                titulo(3, `4.${nL}.2. Componentes`);
-                cuerpo.push(leyenda('Tabla', `Componentes de la línea ${l.id}`));
-                cuerpo.push(tabla(['Nº', 'Etiqueta', 'Tipo', 'Descripción', 'Dint (mm)', 'L (m)', 'K / Cv / f'], els.map(e => {
-                    const a = de(e.id)[0];
-                    let desc = '';
-                    if (e.type === 'tuberia') { const dt = datosTuberia(e); desc = `${e.material} · ${etiquetaTuberia(e)} · De ${nf(dt.od, 1)} × e ${nf(dt.e, 2)} mm · ε ${nf(dt.rug, 3)} mm (${dt.norma})`; }
-                    else if (e.type === 'bomba') desc = `Diseño ${nf(e.caudal, 1)} m³/h a ${nf(e.presion, 2)} bar · H₀ ${nf(e.h0, 2)} bar · NPSHr ${nf(e.npsh, 2)} m · cota ${nf(e.cota || 0, 2)} m`;
-                    else if (sinFlujo(e)) desc = 'Sin caudal (no interviene en el cálculo)';
-                    else if (e.subtype === 'consumo') desc = `Q ${nf(e.qCons, 2)} m³/h · p mín ${nf(e.pMin, 2)} bar · cota ${nf(e.cota, 2)} m`;
-                    else if (esDeposito(e)) desc = `Lámina ${nf(e.cotaLamina, 2)} m · conexión ${nf(e.cota, 2)} m · ${nf(e.presionDep, 2)} bar man.`;
-                    else if (e.type === 'equipo') desc = `Δp ${nf(e.dpNom, 1)} kPa a ${nf(e.qNom, 2)} m³/h (fabricante) · cota ${nf(e.cota, 2)} m`;
-                    else desc = `${e.subtype === 'reduccion' ? `${etiquetaDN(e.dn)} × ${etiquetaDN(e.dnMenor)}` : (e.dn ? etiquetaDN(e.dn) : '')}${a && a.origenK ? ' · ' + a.origenK.replace(/ · rama \w+$/, '') : ''}`;
-                    if (e.pn && (e.type === 'valvula' || e.type === 'accesorio' || e.type === 'equipo')) desc += ` · ${e.pn}`;
-                    return [String(numeros[e.id]), tagDe(e), nombreTipo(e), desc, a && a.D ? nf(a.D * 1000, 2) : '—', e.type === 'tuberia' ? nf(a.L, 3) : '—', just[e.id].k];
-                }), [5, 17, 14, 34, 9, 7, 14]));
-                titulo(3, `4.${nL}.3. Resultados`);
-                cuerpo.push(leyenda('Tabla', `Resultados de la línea ${l.id}`));
-                const filasR = [];
-                els.filter(esTerminal).forEach(e => { const r = ultimoResultado[e.id]; if (r) filasR.push([String(numeros[e.id]), tagDe(e), '—', nf(r.Q, 2), '—', '—', '—', '—', '—', nf(r.p, 2), e.esLineaCritica ? 'OK · crítica' : 'OK']); });
-                els.forEach(e => de(e.id).forEach(a => {
-                    const vl = a.lado === 'asp' ? lim.asp : lim.imp;
-                    const est = e.esLineaCritica ? 'OK · crítica' : 'OK';
-                    if (a.esBomba) { const r = ultimoResultado[e.id]; filasR.push([String(numeros[e.id]), tagDe(e), '—', nf(r.Q, 2), '—', '—', '—', '—', `H = ${nf(r.H, 2)}`, `${nf(a.pA, 2)}→${nf(a.pB, 2)}`, est]); return; }
-                    filasR.push([String(numeros[e.id]), tagDe(e) + (a.rama ? ` (${a.rama})` : ''), a.lado === 'asp' ? 'Asp.' : 'Imp.', nf(Math.abs(a.Qprev) * 3600, 2), nf(a.V, 3), a.esEquipo ? '—' : nf(vl, 2), String(Math.round(a.Re)),
-                        e.type === 'tuberia' ? `f ${nf(a.f, 4)}` : `K ${nf(a.K, 3)}`, nf(hfDeArista(a), 4), nf(Math.max(a.pA, a.pB), 2), est]);
-                }));
-                filasR.sort((x, y) => (+x[0]) - (+y[0]));
-                cuerpo.push(tabla(['Nº', 'Elemento', 'Lado', 'Q (m³/h)', 'V (m/s)', 'Vmax (m/s)', 'Re', 'f / K', 'hf (m)', 'p máx (bar)', 'Estado'], filasR.length ? filasR : [['—', 'Sin elementos con caudal', '', '', '', '', '', '', '', '', '']], [5, 19, 6, 9, 8, 8, 9, 10, 8, 8, 10]));
-                titulo(3, `4.${nL}.4. Justificación del cálculo`);
-                cuerpo.push(leyenda('Tabla', `Justificación de cálculo de la línea ${l.id}`));
-                const filasJ = [];
-                els.forEach(e => { filasJ.push({ grupo: `${numeros[e.id]}. ${tagDe(e)} — ${nombreTipo(e)}` }); just[e.id].filas.forEach(f => filasJ.push(f)); });
-                cuerpo.push(tabla(['Magnitud', 'Expresión', 'Sustitución', 'Resultado'], filasJ, [22, 28, 32, 18]));
-            }
-            const sueltos = elementosRed.filter(e => !e.linea || !lineaPorId(e.linea));
-            if (sueltos.length) cuerpo.push(par(`Elementos sin línea asignada (incluidos en el esquema general): ${sueltos.map(tagDe).join(', ')}.`, { run: { italics: true } }));
-
-            // ===== 5 BALANCE DE LA RUTA CRÍTICA =====
-            // ===== 5 CLASIFICACIÓN PED Y PRUEBA DE PRESIÓN =====
-            titulo(1, '5. Clasificación PED y prueba de presión');
-            const ped = res.ped || [];
-            if (ped.length) {
-                const x0 = ped[0];
-                cuerpo.push(par(`Las líneas se clasifican según el artículo 4.1.c y el anexo II (cuadros 6 a 9) de la Directiva 2014/68/UE de equipos a presión, con PS = mayor presión de diseño de sus tuberías (máximo entre servicio y bomba a caudal nulo), DN = mayor diámetro nominal de la línea y TS = ${nf(x0.TS, 0)} °C. ` +
-                    `El fluido se trata como ${x0.gas ? 'gas (presión de vapor a TS superior a 0,5 bar sobre la atmosférica)' : 'líquido (presión de vapor a TS no superior a 0,5 bar sobre la atmosférica)'} del grupo ${x0.grupo} (${x0.motivoGrupo}). La presión de prueba se calcula como ${x0.criterio}.`));
-                cuerpo.push(leyenda('Tabla', 'Clasificación PED y presión de prueba por línea'));
-                cuerpo.push(tabla(['Línea', 'PS (bar)', 'DN', 'PS·DN (bar)', 'Cuadro', 'Categoría', 'Pt (bar)'], ped.map(x => [x.linea + (x.nombre ? ' · ' + x.nombre : ''), nf(x.PS, 2), String(x.DN), nf(x.PSDN, 0), x.cuadro, x.cat === 'Art. 4.3' ? 'Art. 4.3 (buenas prácticas)' : x.cat === 'Fuera' ? 'Fuera de ámbito (PS ≤ 0,5 bar)' : 'Categoría ' + x.cat, nf(x.Pt, 2)]), [22, 11, 8, 12, 20, 16, 11]));
-                { const fm = filasModulosPED(ped); if (fm.length) { cuerpo.push(espacio()); cuerpo.push(leyenda('Tabla', 'Módulos de evaluación de la conformidad (anexo III)')); cuerpo.push(tabla(['Línea', 'Categoría', 'Módulo elegido', 'Módulos admisibles', 'Validación externa'], fm, [12, 12, 26, 32, 18])); } }
-                if (x0.naval) {
-                    titulo(2, '5.1. Clase de las tuberías según la sociedad de clasificación');
-                    cuerpo.push(par(`Buque${p.buque.clasificacion ? ' clasificado por ' + p.buque.clasificacion : ''}. Medio: ${MEDIOS_NAVALES[x0.medio]}. Clase según presión y temperatura de diseño (criterio común de BV Pt C Ch 1 Sec 10, LR Pt 5 Ch 12 y DNV Pt 4 Ch 6)${x0.medio === 'toxico' ? `; ${p.salvaguardas ? 'con' : 'sin'} salvaguardas especiales` : ''}. El espesor mínimo y los ensayos no destructivos se toman de las reglas de la sociedad para la clase obtenida.`));
-                    cuerpo.push(leyenda('Tabla', 'Clase de tuberías del buque'));
-                    cuerpo.push(tabla(['Línea', 'p diseño (bar)', 'T diseño (°C)', 'Medio', 'Clase'], ped.map(x => [x.linea + (x.nombre ? ' · ' + x.nombre : ''), nf(x.PS, 2), nf(x.TS, 0), x.medio === 'toxico' ? 'Tóxico / inflamable' : x.medio === 'combustible' ? 'Combustible / aceite' : 'Otros medios', { t: 'Clase ' + x.clase, negrita: true }]), [30, 15, 15, 25, 15]));
-                    cuerpo.push(leyenda('Tabla', 'Criterio de clases de tuberías de buques'));
-                    cuerpo.push(tabla(['Medio', 'Clase I', 'Clase II', 'Clase III'], [
-                        ['Tóxicos, corrosivos, inflamables (p.i. < 60 °C o calentados por encima)', 'Sin salvaguardas especiales', 'Con salvaguardas especiales', 'No aplicable'],
-                        ['Combustible, aceite lubricante, hidráulico inflamable', 'p > 16 bar o T > 150 °C', 'Resto', 'p ≤ 7 bar y T ≤ 60 °C'],
-                        ['Otros medios (agua, aire, gases, hidráulico no inflamable)', 'p > 40 bar o T > 300 °C', 'Resto', 'p ≤ 16 bar y T ≤ 200 °C']], [40, 20, 20, 20]));
-                }
-                const conAv = ped.filter(x => x.avisos.length);
-                if (conAv.length) {
-                    cuerpo.push(espacio());
-                    cuerpo.push(leyenda('Tabla', 'Observaciones de la prueba de presión'));
-                    cuerpo.push(tabla(['Línea', 'Observación'], conAv.flatMap(x => x.avisos.map(t => [x.linea, t])), [15, 85]));
-                }
-                const rec = res.pedRecipientes || [];
-                if (rec.length) {
-                    titulo(2, `5.${x0.naval ? 2 : 1}. Recipientes a presión`);
-                    cuerpo.push(par(`Los tanques y equipos con volumen se clasifican según el artículo 4.1.a y los cuadros 1 a 4 del anexo II (mismo criterio que la aplicación «Recipientes a presión», ${URL_RECIPIENTES}). PS es la presión indicada para el recipiente o, si no se indica, la mayor entre la presión sobre la lámina y la calculada en sus conexiones; V es el volumen interior.`));
-                    cuerpo.push(leyenda('Tabla', 'Clasificación PED de los recipientes'));
-                    cuerpo.push(tabla(['Elemento', 'V (l)', 'PS (bar)', 'PS·V (bar·l)', 'Cuadro', 'Categoría'], rec.map(x => [x.tag + ' · ' + x.nombre, nf(x.V, 0), nf(x.PS, 2) + (x.origenPS === 'indicada' ? ' (indicada)' : ''), nf(x.PSV, 0), x.cuadro, x.cat === 'Art. 4.3' ? 'Art. 4.3 (buenas prácticas)' : x.cat === 'Fuera' ? 'Fuera de la Directiva (PS ≤ 0,5 bar)' : 'Categoría ' + x.cat]), [30, 10, 14, 14, 18, 14]));
-                }
-                cuerpo.push(par('Nota: las líneas de categoría I o superior requieren la evaluación de la conformidad del módulo correspondiente (anexo III); las de art. 4.3 se diseñan y fabrican según buenas prácticas de ingeniería y no llevan marcado CE. La clasificación de los accesorios a presión y de los equipos se hace por separado.', { run: { italics: true, size: 16 } }));
-            } else cuerpo.push(par('No hay tuberías calculadas que clasificar.'));
-
-            // ===== 6 AISLAMIENTO, DILATACIÓN Y SOPORTES =====
-            titulo(1, '6. Aislamiento térmico, dilatación y soportes');
-            const tm = res.termica;
-            if (tm && tm.lineas.length) {
-                cuerpo.push(par(`Temperatura del fluido ${nf(fl.T, 0)} °C, ambiente ${nf(tm.Ta, 0)} °C (${tm.ext ? 'exterior' : 'interior'}), máxima admisible TS ${nf(tm.TS, 0)} °C y de montaje ${nf(tm.Tm, 0)} °C. ` +
-                    `Aislamiento mínimo según RITE IT 1.2.4.2.1.2 (λ de referencia 0,040 W/(m·K), corregido para el λ del aislamiento). Pérdidas q = ΔT/[ln(D₂/D₁)/(2πλ) + 1/(h·π·D₂)] con h = 10 W/(m²·K) y caída de temperatura T(L) = Ta + (T − Ta)·exp[−L/(R·ṁ·cp)], cp = ${nf(tm.cp, 0)} J/(kg·K). ` +
-                    `Dilatación ΔL = α·L·(TS − Tmontaje). Separación máxima entre soportes orientativa: ASME B31.1 tabla 121.5 para tubería metálica llena de agua y criterio de fabricante por diámetro exterior para termoplásticos.`));
-                for (const ln_ of tm.lineas) {
-                    cuerpo.push(leyenda('Tabla', `Aislamiento, dilatación y soportes de la línea ${ln_.linea}`));
-                    cuerpo.push(tabla(['Tubería', 'De (mm)', 'L (m)', 'Aisl. / mín. RITE (mm)', 'q (W/m)', 'ΔT fluido (K)', 'ΔL (mm)', 'Sep. soportes (m)', 'Nº soportes', 'Peso lleno (kg/m)'],
-                        ln_.tubos.map(x => [x.tag, nf(x.De, 1), nf(x.L, 2), `${x.e || '—'} / ${x.eMin || '—'}`, nf(x.q, 1), nf(x.dT, 3), nf(x.dL, 1), nf(x.sep, 2), String(x.nSop), nf(x.peso, 1)]).concat([[{ t: 'Total línea', negrita: true }, '', nf(ln_.L, 2), '', '', '', nf(ln_.dL, 1), '', String(ln_.nSop), `${nf(ln_.peso, 0)} kg`]]),
-                        [19, 8, 7, 11, 8, 9, 8, 10, 8, 12]));
-                }
-                cuerpo.push(par('Las pérdidas positivas son calor cedido al ambiente; las negativas, calor ganado. El peso lleno no incluye el aislamiento ni los accesorios. La disposición final de soportes, guías y puntos fijos debe comprobarse con el trazado real.', { run: { italics: true, size: 16 } }));
-            } else cuerpo.push(par('No hay tuberías calculadas.'));
-            titulo(2, '6.1. Puntos altos y bajos');
-            const pab = res.puntosAB || [];
-            if (pab.length) {
-                cuerpo.push(leyenda('Tabla', 'Puntos altos sin purgador y puntos bajos sin drenaje'));
-                cuerpo.push(tabla(['Tipo', 'Situación', 'Cota (m)', 'Acción'], pab.map(x => [x.tipo === 'alto' ? 'Punto alto' : 'Punto bajo', x.donde, nf(x.z, 2), x.tipo === 'alto' ? 'Añadir purgador de aire (PG)' : 'Añadir drenaje (DR)']), [15, 45, 12, 28]));
-            } else cuerpo.push(par('Todos los puntos altos de la red tienen purgador y todos los puntos bajos tienen drenaje (o la red no tiene puntos altos ni bajos intermedios).'));
-            titulo(2, '6.2. Volumen de la instalación y vaso de expansión');
-            const circs = volumenCircuitos(), TSv = +p.tsMax > 0 ? +p.tsMax : fl.T, glm = fl.nombre.match(/(MEG|MPG) (\d+) %/);
-            cuerpo.push(leyenda('Tabla', 'Volumen por circuito y vaso de expansión'));
-            cuerpo.push(tabla(['Circuito (líneas)', 'V tuberías (l)', 'V equipos (l)', 'V total (l)', glm ? 'Glicol (kg)' : 'Tipo', 'Vaso de expansión'], circs.map(c => {
-                const vv = c.abierto ? null : calcVaso(c.V, fl, 10, TSv, c.zmax - (c.vaso ? +c.vaso.cota || 0 : c.zmin), 3);
-                return [c.lineas.join(', '), nf(c.Vtub, 1), nf(c.Veq, 1), nf(c.V, 1), glm ? nf(c.V / 1000 * fl.rho * (+glm[2] / 100), 1) : (c.abierto ? 'Abierto' : 'Cerrado'),
-                    c.abierto ? 'No aplica (circuito abierto)' : (isFinite(vv.Cp) ? `Ce ${nf(vv.Ce, 4)} · Cp ${nf(vv.Cp, 2)} → ${nf(vv.Vv, 1)} l → ${vv.nor ? vv.nor + ' l' : 'varios'} (precarga ${nf(vv.Pm - 1.01325, 2)} bar)` : 'Revisar tarado de la válvula de seguridad')];
-            }), [22, 12, 12, 11, 12, 31]));
-            cuerpo.push(par('Vaso según UNE 100155 con T de llenado 10 °C, T máxima = TS, altura estática desde el vaso (o el punto más bajo) hasta el más alto del circuito y tarado de la válvula de seguridad de 3 bar; ajustar en Herramientas > Volumen, vaso de expansión y glicol si los datos reales son otros. El volumen de los equipos es el indicado en cada equipo.', { run: { italics: true, size: 16 } }));
-
-            titulo(1, '7. Balance de la ruta crítica');
-            if (lc) {
-                let acum = 0;
-                const filas = lc.aristasCamino.map((a, i) => { const hf = hfDeArista(a); acum += hf; return [String(i + 1), tagDe(a.el) + (a.rama ? ` (${a.rama})` : ''), nombreTipo(a.el), nf(hf, 4), nf(acum, 4)]; });
-                cuerpo.push(leyenda('Tabla', 'Pérdidas de carga acumuladas en la ruta crítica'));
-                cuerpo.push(tabla(['Nº', 'Elemento', 'Tipo', 'hf (m)', 'Σ hf (m)'], filas, [7, 33, 30, 15, 15]));
-                const bomba = ars.find(a => a.esBomba && a.nodoB === lc.aristasCamino[0].nodoA) || ars.find(a => a.esBomba);
-                const ult = lc.aristasCamino[lc.aristasCamino.length - 1], nFin = [ult.nodoA, ult.nodoB].find(n => !lc.aristasCamino.slice(0, -1).some(x => x.nodoA === n || x.nodoB === n));
-                if (bomba) {
-                    const Hdes = res.Hnodo[bomba.nodoB], Hfin = res.Hnodo[nFin];
-                    cuerpo.push(espacio());
-                    cuerpo.push(leyenda('Tabla', 'Balance de energía de la ruta crítica'));
-                    cuerpo.push(tabla(['Concepto', 'Valor (m c.l.)'], [['Altura piezométrica en la descarga de ' + tagDe(bomba.el), nf(Hdes, 3)], ['Σ pérdidas de carga de la ruta', nf(lc.hfTotal, 3)],
-                        ['Altura piezométrica en el extremo (calculada)', nf(Hfin, 3)], ['Comprobación: descarga − pérdidas − extremo', nf(Hdes - lc.hfTotal - Hfin, 4)]], [70, 30]));
-                    cuerpo.push(par('Las alturas piezométricas son absolutas (incluyen la presión atmosférica) y están expresadas en metros de columna del fluido de cálculo.', { run: { italics: true, size: 16 } }));
-                }
-            } else cuerpo.push(par('No aplica.'));
-
-            // ===== 6 CONCLUSIONES =====
-            titulo(1, '8. Conclusiones');
-            const bs = ars.filter(a => a.esBomba);
-            cuerpo.push(par(`Con ${fl.nombre} a ${fl.T} °C, la red de la instalación «${p.instalacion}» trabaja a ${nf(res.Qbombas, 2)} m³/h, igual o superior al caudal de diseño de ${nf(res.Qdiseno, 2)} m³/h. ` +
-                `Todos los tramos respetan las velocidades máximas adoptadas (${nf(lim.asp, 2)} m/s en aspiración y ${nf(lim.imp, 2)} m/s en impulsión), las válvulas de retención trabajan totalmente abiertas y ` +
-                (bs.length ? `${bs.length > 1 ? 'las bombas disponen' : 'la bomba dispone'} de NPSH suficiente con un margen mínimo de ${nf(opciones.margenNPSH, 2)} m. ` : 'la red funciona sin bombas (alimentación por gravedad o desde depósito presurizado). ') +
-                `Las presiones de servicio no superan la presión máxima admisible de ninguna tubería y en ningún punto se alcanza la presión de vapor.` + (consumos.length ? ` Todos los puntos de consumo disponen de la presión mínima requerida.` : '') + (lc ? ` La ruta crítica acumula ${nf(lc.hfTotal, 3)} m de pérdida de carga.` : '') +
-                (avisos.length ? ` Se han registrado ${[...new Set(avisos)].length} observaciones (apartado 3), que deben revisarse.` : '')));
-            cuerpo.push(par('En consecuencia, la red CUMPLE los criterios de diseño establecidos.', { run: { bold: true } }));
-
-            // ===== ANEXOS =====
-            titulo(1, 'Anexo A. Condiciones de contorno');
-            const nodosG = construirGrafoRed().nodos;
-            const filasC = Object.entries(ultimoCalculo.condiciones).map(([nid, c]) => {
-                const n = nodosG[nid]; const pc = n && (n.puertos.find(x => { const e = elementosRed.find(y => y.id === x.elId); return e && !sinFlujo(e); }) || n.puertos[0]);
-                const e = pc && elementosRed.find(y => y.id === pc.elId);
-                const dep = c.deposito && elementosRed.find(y => y.id === c.deposito);
-                return [dep ? `${tagDe(dep)} (lámina)` : e ? `${tagDe(e)} (${nombrePuerto(e, pc.portId)})` : `Nodo ${nid}`, nf(c.elevacion || 0, 2), nf(c.presion || 0, 3), nf(res.Hnodo[nid], 3)];
-            });
-            cuerpo.push(leyenda('Tabla', 'Extremos con altura conocida (abiertos y depósitos)'));
-            cuerpo.push(tabla(['Extremo', 'Cota (m)', 'Presión man. (bar)', 'H absoluta (m)'], filasC.length ? filasC : [['Red cerrada', '—', '—', '—']], [46, 16, 20, 18]));
-            titulo(1, 'Anexo B. Control de revisiones');
-            const revs = p.revisiones || [];
-            cuerpo.push(leyenda('Tabla', 'Historial de revisiones'));
-            cuerpo.push(tabla(['Rev.', 'Fecha', 'Autor', 'Descripción'], revs.map(r => [r.rev, r.fecha, r.autor, r.descripcion]).concat([[{ t: p.revision || '0', negrita: true }, p.fecha || '', p.autor || '', { t: 'Revisión en curso (este informe)', negrita: true }]]), [10, 15, 20, 55]));
-            const dif = cambiosDesdeRevision();
-            if (dif) {
-                cuerpo.push(espacio());
-                cuerpo.push(leyenda('Tabla', `Cambios respecto a la revisión ${dif.rev}`));
-                cuerpo.push(tabla(['Cambio', 'Elemento', 'Detalle'], dif.cambios.length ? dif.cambios.map(c => [c.tipo, c.tag, c.detalle]) : [['—', '—', 'Sin cambios en la red']], [14, 24, 62]));
-            }
-            titulo(1, 'Anexo C. Nomenclatura');
-            cuerpo.push(leyenda('Tabla', 'Símbolos y abreviaturas'));
-            cuerpo.push(tabla(['Símbolo', 'Significado', 'Unidad'], [['Q', 'Caudal', 'm³/h, m³/s'], ['V', 'Velocidad media', 'm/s'], ['D, Dint', 'Diámetro interior', 'mm, m'], ['De, e', 'Diámetro exterior y espesor', 'mm'], ['L', 'Longitud', 'm'],
-                ['ε', 'Rugosidad absoluta', 'mm'], ['Re', 'Número de Reynolds', '—'], ['f', 'Factor de fricción de Darcy', '—'], ['fT', 'Factor de fricción en turbulencia total (Crane)', '—'], ['K', 'Coeficiente de resistencia', '—'],
-                ['Cv', 'Coeficiente de caudal (US gpm/√psi)', '—'], ['hf', 'Pérdida de carga', 'm c.l.'], ['H', 'Altura manométrica / piezométrica', 'm c.l.'], ['NPSHd / NPSHr', 'NPSH disponible / requerido', 'm'], ['ρ, ν, pv', 'Densidad, viscosidad cinemática, presión de vapor', 'kg/m³, mm²/s, kPa'],
-                ['Asp. / Imp.', 'Tramo de aspiración / impulsión', '—']], [18, 60, 22]));
-
-            // ===== PORTADA E ÍNDICES =====
-            const portada = [
-                new D.Paragraph({ spacing: { before: 2200, after: 200 }, alignment: D.AlignmentType.CENTER, children: [T('INFORME DE CÁLCULO HIDRÁULICO', { bold: true, size: 44, color: AZUL })] }),
-                new D.Paragraph({ alignment: D.AlignmentType.CENTER, spacing: { after: 600 }, children: [T(`Red de tuberías · ${p.instalacion}`, { size: 28, color: '404040' })] }),
-                clave([['Proyecto', p.numero], ['Cliente', p.cliente], ['Referencia del cliente', p.refCliente], ['Instalación', p.instalacion], ['Emplazamiento', emplaz],
-                    ...(p.esBuque ? [['Astillero', b.astillero], ['Construcción nº', b.construccion], ['Buque', b.nombre], ['Armador', b.armador]] : []),
-                    ['Revisión', p.revision], ['Fecha', p.fecha], ['Autor', p.autor]]),
-                new D.Paragraph({ spacing: { before: 800 }, alignment: D.AlignmentType.CENTER, children: [T('Documento generado con PIPING P&ID', { italics: true, size: 16, color: '808080' })] })
-            ];
-            const indices = [
-                new D.Paragraph({ children: [T('Índice', { bold: true, size: 32, color: AZUL })], spacing: { after: 200 } }),
-                new D.TableOfContents('Índice', { hyperlink: true, headingStyleRange: '1-3', cachedEntries: toc }),
-                new D.Paragraph({ children: [new D.PageBreak()] }),
-                new D.Paragraph({ children: [T('Índice de tablas', { bold: true, size: 32, color: AZUL })], spacing: { after: 200 } }),
-                new D.TableOfContents('Índice de tablas', { hyperlink: true, captionLabelIncludingNumbers: 'Tabla', cachedEntries: listaTablas }),
-                new D.Paragraph({ children: [T('Índice de figuras', { bold: true, size: 32, color: AZUL })], spacing: { before: 400, after: 200 } }),
-                new D.TableOfContents('Índice de figuras', { hyperlink: true, captionLabelIncludingNumbers: 'Figura', cachedEntries: listaFiguras }),
-                new D.Paragraph({ children: [new D.PageBreak()] })
-            ];
-            const cabecera = new D.Header({ children: [new D.Paragraph({ alignment: D.AlignmentType.RIGHT, border: { bottom: { style: D.BorderStyle.SINGLE, size: 4, color: AZUL, space: 2 } },
-                children: [T(`${p.numero} · ${p.cliente}${p.esBuque && b.construccion ? ' · C-' + b.construccion : ''} · Informe de cálculo hidráulico · Rev. ${p.revision}`, { size: 16, color: '595959' })] })] });
-            const pie = new D.Footer({ children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.TextRun({ size: 16, color: '595959', children: ['Página ', D.PageNumber.CURRENT, ' de ', D.PageNumber.TOTAL_PAGES] })] })] });
-            const pagina = { page: { size: { width: 11906, height: 16838 }, margin: { top: 1134, bottom: 1134, left: 1134, right: 1134, header: 567, footer: 567 } } };
-            return new D.Document({
-                creator: p.autor || 'PIPING', title: `Informe de cálculo hidráulico ${p.numero}`, description: p.descripcion || '',
-                features: { updateFields: true },
-                styles: {
-                    default: {
-                        document: { run: { font: 'Calibri', size: 20 } },
-                        heading1: { run: { font: 'Calibri', size: 30, bold: true, color: AZUL }, paragraph: { spacing: { before: 360, after: 160 } } },
-                        heading2: { run: { font: 'Calibri', size: 25, bold: true, color: AZUL }, paragraph: { spacing: { before: 280, after: 120 } } },
-                        heading3: { run: { font: 'Calibri', size: 21, bold: true, color: '2E74B5' }, paragraph: { spacing: { before: 200, after: 100 } } }
-                    },
-                    paragraphStyles: [
-                        { id: 'Caption', name: 'caption', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 17, italics: true, color: AZUL }, paragraph: { spacing: { before: 80, after: 80 } } }
-                    ]
-                },
-                sections: opc.unaSeccion
-                    // con plantilla: una sola sección (la página, cabecera y pie son los de la plantilla)
-                    ? [{ properties: pagina, children: [...(opc.sinPortada ? [] : [...portada, new D.Paragraph({ children: [new D.PageBreak()] })]), ...indices, ...cuerpo] }]
-                    : [
-                        { properties: pagina, children: portada },
-                        { properties: pagina, headers: { default: cabecera }, footers: { default: pie }, children: [...indices, ...cuerpo] }
-                    ]
-            });
-        }
-
-
-
 
         // ==================================================================================
         // AISLAMIENTO, DILATACIÓN Y SOPORTES (por tubería y por línea)
@@ -9280,37 +7868,7 @@
             return circs;
         }
         const VASOS_NORMALIZADOS = [8, 12, 18, 25, 35, 50, 80, 100, 140, 200, 250, 300, 400, 500, 600, 800, 1000, 1500, 2000];
-        function abrirVolumenVaso() {
-            const fl = fluidoSeleccionado(); if (!fl.ok) { alert(fl.msg); return; }
-            const cs = volumenCircuitos();
-            if (!cs.length) { alert('No hay circuitos conectados.'); return; }
-            const ts = +proyecto.tsMax > 0 ? +proyecto.tsMax : fl.T;
-            const gl = fl.nombre.match(/(MEG|MPG) (\d+) %/);
-            document.getElementById('red-content').innerHTML = `
-                <p class="text-[11px] text-slate-500 mb-2">Volumen por circuito hidráulico. Vaso de expansión solo en circuitos cerrados (sin depósitos abiertos ni consumos): V vaso = V·Ce·Cp (UNE 100155), Ce = ρ(T llenado)/ρ(T máx) − 1, Cp = PM/(PM − Pm) en presión absoluta.</p>
-                ${cs.map((c, i) => `<div class="border border-slate-200 rounded p-2 mb-2 text-[11px]" data-circ="${i}">
-                    <p class="font-bold text-slate-700">Circuito ${i + 1} · líneas ${esc(c.lineas.join(', '))} ${c.abierto ? '<span class="text-slate-400">(abierto: no lleva vaso)</span>' : ''}</p>
-                    <p>Volumen: tuberías ${fmt(c.Vtub, 1)} l + equipos ${fmt(c.Veq, 1)} l = <b>${fmt(c.V, 1)} l</b> <span class="text-slate-400">(volumen de equipos: campo "Volumen interior" de cada equipo)</span></p>
-                    ${gl ? `<p>Glicol ${gl[1]} al ${gl[2]} % en masa: <b>${fmt(c.V / 1000 * fl.rho * (+gl[2] / 100), 1)} kg</b> ≈ ${fmt(c.V / 1000 * fl.rho * (+gl[2] / 100) / (gl[1] === 'MEG' ? 1.113 : 1.036), 1)} l de glicol puro</p>` : ''}
-                    ${c.abierto ? '' : `<div class="grid grid-cols-4 gap-2 mt-1">
-                        <label>T llenado (°C)<input type="number" step="any" class="vv-t1 w-full border rounded p-1" value="10"></label>
-                        <label>T máx (°C)<input type="number" step="any" class="vv-t2 w-full border rounded p-1" value="${ts}"></label>
-                        <label>Altura estática sobre el vaso (m)<input type="number" step="any" class="vv-h w-full border rounded p-1" value="${fmt(c.zmax - (c.vaso ? +c.vaso.cota || 0 : c.zmin), 2)}"></label>
-                        <label>Tarado válvula de seguridad (bar man.)<input type="number" step="any" class="vv-psv w-full border rounded p-1" value="3"></label>
-                    </div><p class="vv-res mt-1"></p>`}
-                </div>`).join('')}`;
-            const calc = () => document.querySelectorAll('#red-content [data-circ]').forEach(d => {
-                const c = cs[+d.dataset.circ]; if (c.abierto) return;
-                const t1 = +d.querySelector('.vv-t1').value, t2 = +d.querySelector('.vv-t2').value, h = +d.querySelector('.vv-h').value, psv = +d.querySelector('.vv-psv').value;
-                const { Ce, Pm, PM, Cp, Vv, nor } = calcVaso(c.V, fl, t1, t2, h, psv);
-                d.querySelector('.vv-res').innerHTML = isFinite(Cp) ? `Ce ${fmt(Ce, 4)} · Pm ${fmt(Pm, 2)} bar abs (precarga ≈ ${fmt(Pm - 1.01325, 2)} bar man.) · PM ${fmt(PM, 2)} bar abs · Cp ${fmt(Cp, 2)} → <b>V vaso ${fmt(Vv, 1)} l → ${nor ? nor + ' l' : 'varios vasos'}</b>` : '<span class="text-rose-600">La presión máxima debe superar la mínima: sube el tarado de la válvula de seguridad.</span>';
-                c.resVaso = { t1, t2, h, psv, Ce, Pm, PM, Cp, Vv, nor };
-            });
-            document.getElementById('red-content').oninput = calc; calc();
-            ultimoVolumen = cs;
-            document.getElementById('red-footer').innerHTML = `<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>`;
-            document.getElementById('modal-red').style.display = 'flex';
-        }
+        function abrirVolumenVaso(...a) { return PARTES_OK.herr ? abrirVolumenVaso__p.apply(this, a) : cargarParte('herr').then(() => abrirVolumenVaso__p.apply(this, a)); }
         let ultimoVolumen = null;
         function calcVaso(V, fl, t1, t2, h, psv) {
             const rho = T => /^Agua( |$)/.test(fl.nombre) && !/mar|glicol/.test(fl.nombre) ? rhoAguaReal(T) : (propiedadesFluido(fl.nombre, T).rho || fl.rho);
@@ -9371,12 +7929,7 @@
             const Hreal = bs.length ? Math.max(...bs.map(a => fin.res.Hnodo[a.nodoB] - fin.res.Hnodo[a.nodoA])) : hi;
             return { H: Hreal, r: fin };
         }
-        function dimensionarBomba(eta) {
-            const d = calcularDimBomba(eta);
-            if (d.error) { alert(d.error); return; }
-            ultimoDimBomba = d;
-            mostrarDimBomba();
-        }
+        function dimensionarBomba(...a) { return PARTES_OK.herr ? dimensionarBomba__p.apply(this, a) : cargarParte('herr').then(() => dimensionarBomba__p.apply(this, a)); }
         // Dimensionado sin interfaz (también lo usa el informe). Deja la red como estaba.
         function calcularDimBomba(eta) {
             if (!elementosRed.some(e => e.type === 'bomba')) return { error: 'La red no tiene bomba. Inserta una bomba (librería > Bombas) y vuelve a intentarlo.' };
@@ -9460,46 +8013,7 @@
                 <text x="${x(d.Qb) + 8}" y="${y(d.H) - 6}" font-size="10" fill="#1e293b">${d.Qb.toFixed(1)} m³/h · ${d.H.toFixed(1)} m</text>
             </svg>`;
         }
-        function mostrarDimBomba() {
-            const D = ultimoDimBomba; if (!D) return;
-            const fila = (k, v) => `<tr><td class="pr-3 py-0.5 text-slate-500">${k}</td><td class="font-bold">${v}</td></tr>`;
-            const bloques = D.circuitos.map((d, i) => {
-                const b0 = elementosRed.find(e => e.id === d.bombas[0]);
-                return `<div class="border border-slate-200 rounded p-2 mb-3">
-                <p class="text-xs font-bold text-slate-700 mb-1">${D.circuitos.length > 1 ? `Circuito ${i + 1} · ` : ''}${esc(d.tags.join(', '))}${d.nB > 1 ? ' (iguales, en paralelo)' : ''}</p>
-                <p class="text-[11px] text-slate-500 mb-1">Caudal necesario ${fQ(d.Qreq, 2)} ${lQ()} (${d.origenQ})${d.sumaCons && d.Qd && Math.abs(d.Qd - d.sumaCons) > 0.01 ? ` · <span class="text-amber-600">el caudal de diseño del proyecto es ${fQ(d.Qd, 2)} ${lQ()}</span>` : ''}</p>
-                <div class="grid grid-cols-2 gap-3 text-[11px]">
-                  <table>
-                    ${fila('Punto necesario (por bomba)', `${fQ(d.Qb, 2)} ${lQ()} · ${fmt(d.Hreq, 2)} m`)}
-                    ${fila('Punto de selección (+10 % H)', `${fQ(d.Qb, 2)} ${lQ()} · ${fmt(d.H, 2)} m = ${fP(d.Hbar, 2)} ${lP()}`)}
-                    ${fila('NPSH disponible', `${fmt(d.npsh, 2)} m → NPSHr ≤ ${fmt(d.npsh - opciones.margenNPSH, 2)} m`)}
-                    ${fila('Potencia hidráulica', `${fmt(d.Ph, 2)} kW`)}
-                    ${fila('Potencia al eje (η ' + D.eta + ')', `${fmt(d.Peje, 2)} kW`)}
-                    ${fila('Motor normalizado IEC (+15 %)', `${d.Pmotor} kW`)}
-                  </table>
-                  <table class="text-[10px]"><tr class="text-slate-500"><th class="text-left pr-2">Q total (${lQ()})</th><th class="text-left">H necesaria (m)</th></tr>
-                    ${d.curva.map(p => `<tr><td>${fQ(p.Q, 2)}</td><td>${fmt(p.H, 2)}</td></tr>`).join('')}
-                    <tr><td colspan="2" class="text-slate-400 pt-1">Q = 0: altura estática + presión mínima</td></tr></table>
-                </div>
-                <div class="mt-1">${graficoBombaSVG(d, b0, D.rho)}</div>
-                <div class="text-right"><button onclick="aplicarDimBomba(${i})" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px]">Aplicar a ${d.nB > 1 ? 'estas bombas' : 'esta bomba'}</button></div>
-                </div>`;
-            }).join('');
-            document.getElementById('red-content').innerHTML = `
-                <p class="text-[11px] text-slate-500 mb-2">Fluido: <b>${esc(D.fluido)}</b> · rendimiento η <input id="dim-eta" type="number" step="0.01" min="0.2" max="0.95" value="${D.eta}" class="border rounded p-0.5 w-16"> <button onclick="dimensionarBomba(parseFloat(document.getElementById('dim-eta').value))" class="text-blue-600 underline">recalcular</button></p>
-                ${D.errores.length ? `<div class="bg-amber-50 border border-amber-200 text-amber-700 rounded p-2 mb-2 text-[11px]">${D.errores.map(esc).join('<br>')}</div>` : ''}
-                ${bloques}
-                <p class="text-[10px] text-slate-500"><span style="color:#2a78d6">━</span> Instalación · <span style="color:#eb6834">━</span> Bomba propuesta (H₀ = 1,2·H) · <span style="color:#1baf7a">┅</span> Bomba actual. Cuando tengas la curva del fabricante, sustituye la propuesta.</p>`;
-            document.getElementById('red-footer').innerHTML = `<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cerrar</button>`;
-            document.getElementById('modal-red').style.display = 'flex';
-        }
-        function aplicarDimBomba(i) {
-            const D = ultimoDimBomba, d = D && D.circuitos[i]; if (!d) return;
-            guardarEstado(); invalidarResultados();
-            elementosRed.filter(e => d.bombas.includes(e.id) || d.bombas.includes(e.reservaDe)).forEach(e => { e.caudal = +d.Qb.toFixed(3); e.presion = +d.Hbar.toFixed(3); e.h0 = +(d.Hbar * 1.2).toFixed(3); e.potenciaMotor = d.Pmotor; e.eta = D.eta; });
-            mostrarDimBomba(); renderizarVectorial();
-            alert(`${d.tags.join(', ')}: ${d.Qb.toFixed(2)} m³/h a ${d.Hbar.toFixed(2)} bar (${d.H.toFixed(1)} m), H₀ ${(d.Hbar * 1.2).toFixed(2)} bar, motor ${d.Pmotor} kW.`);
-        }
+
         // ==================================================================================
         // LISTADOS (Informe > Listados *.xlsx): líneas, válvulas, materiales, equipos y consumos
         // Librería SheetJS cargada bajo demanda. Si la red está calculada (y sin cambios) se añaden
@@ -9515,93 +8029,8 @@
                 document.head.appendChild(s);
             });
         }
-        function datosListados() {
-            const calc = ultimoCalculo && ultimoCalculo.huella === huellaRed() ? ultimoCalculo.resultado : null;
-            const ars = calc ? calc.aristas : [], de = id => ars.filter(a => a.el.id === id);
-            const r2 = x => x == null || !isFinite(x) ? '' : +(+x).toFixed(3);
-            const cab = [['PIPING · ' + (proyecto.numero || '') + ' · ' + (proyecto.cliente || '')], [proyecto.instalacion || ''], ['Fluido: ' + document.getElementById('selector-fluido').value + ' a ' + document.getElementById('temp-fluido').value + ' °C' + (calc ? '' : ' · (sin resultados de cálculo)')], []];
-            // Líneas
-            const L = [['Línea', 'Tipo', 'Nombre', 'Sale de', 'Nº elementos', 'Materiales', 'Tamaños', 'Longitud de tubería (m)', 'Cota mín (m)', 'Cota máx (m)', 'Q máx (m³/h)', 'V máx (m/s)', 'p máx (bar)', 'PMA mín (bar)', 'Estado', 'PS (bar)', 'TS (°C)', 'Grupo PED', 'Categoría PED', 'Pt prueba (bar)', 'Clase buque']];
-            lineasEnOrden().forEach(o => {
-                const l = o.linea, els = o.orden.map(id => elementosRed.find(e => e.id === id)), tubs = els.filter(e => e.type === 'tuberia');
-                const cotas = els.flatMap(e => e.type === 'tuberia' ? [+e.cotaA, +e.cotaB] : [+e.cota || 0]);
-                const aL = els.flatMap(e => de(e.id)).filter(a => !a.esBomba);
-                const desde = l.desde && elementosRed.find(e => e.id === l.desde);
-                L.push([{ v: '  '.repeat(o.nivel) + l.id }, l.tipo === 'principal' ? 'Principal' : 'Ramal', l.nombre || '', desde ? tagDe(desde) : (l.padre || ''), els.length,
-                    [...new Set(tubs.map(e => e.material))].join(', '), [...new Set(tubs.map(e => tamanoTubo(e.material, e.dn)))].join(', '), r2(tubs.reduce((s, e) => s + e.longitud / 1000, 0)),
-                    cotas.length ? r2(Math.min(...cotas)) : '', cotas.length ? r2(Math.max(...cotas)) : '',
-                    aL.length ? r2(Math.max(...aL.map(a => Math.abs(a.Qprev) * 3600))) : '', aL.length ? r2(Math.max(...aL.map(a => a.V))) : '', aL.length ? r2(Math.max(...aL.map(a => Math.max(a.pA, a.pB)))) : '',
-                    (() => { const p = aL.filter(a => a.pma != null).map(a => a.pma); return p.length ? r2(Math.min(...p)) : ''; })(),
-                    calc ? (els.some(e => e.estado === 'fallo') ? 'NO CUMPLE' : 'OK') : '',
-                    ...(() => { const x = calc && (calc.ped || []).find(y => y.linea === l.id); return x ? [r2(x.PS), x.TS, x.grupo, x.cat, r2(x.Pt), x.clase ? 'Clase ' + x.clase : ''] : ['', '', '', '', '', '']; })()]);
-            });
-            // Válvulas
-            const V = [['Etiqueta', 'Tipo', 'Línea', 'DN', 'PN / clase', 'Cálculo de K', 'Serie / tipo', 'Cv', 'Kv', 'K', 'Q (m³/h)', 'V (m/s)', 'Δp (kPa)', 'Estado']];
-            elementosRed.filter(e => e.type === 'valvula').forEach(e => {
-                const a = de(e.id)[0], nps = npsDeDN(e.dn);
-                let cv = '';
-                if (e.modoK === 'cv') cv = +e.cvUsuario || '';
-                else if (e.modoK === 'catalogo') { const sv = CAT.valvulas.find(v => v.nombre === e.serieCat); cv = sv && sv.cv[nps] || ''; }
-                const Dmm = a ? a.D * 1000 : dintReferencia(e.dn), K = a ? a.K : (sinFlujo(e) ? null : kElemento(e, Dmm).K);
-                if (!cv && K > 0) cv = Math.sqrt(891 * Math.pow(Dmm / 25.4, 4) / K);
-                V.push([tagDe(e), nombreTipo(e), e.linea || '', e.dn ? etiquetaDN(e.dn) : '', e.pn || '', sinFlujo(e) ? 'Sin caudal' : ({ crane: 'Crane', catalogo: 'Catálogo', cv: 'Cv usuario', manual: 'K usuario' }[e.modoK] || ''),
-                    e.modoK === 'catalogo' ? e.serieCat : (e.craneTipo || ''), cv ? r2(cv) : '', cv ? r2(cv / 1.156) : '', K != null ? r2(K) : '',
-                    a ? r2(Math.abs(a.Qprev) * 3600) : '', a ? r2(a.V) : '', a ? r2(hfDeArista(a) * calc.fluido.rho * G / 1000) : '', calc ? (e.estado === 'fallo' ? 'NO CUMPLE' : e.estado ? 'OK' : '') : '']);
-            });
-            if (calc) (calc.terminales.elementos).forEach(e => { const r = ultimoResultado[e.id]; if (r && r.equilibrado) V.push([`VE-${tagDe(e)}`, 'Válvula de equilibrado (propuesta)', e.linea || '', '', '', 'Kv necesario', `Δp ${r2(r.equilibrado.dp)} bar`, r2(r.equilibrado.Cv), r2(r.equilibrado.Kv), '', r2(r.Q), '', r2(r.equilibrado.dp * 100), 'A instalar']); });
-            // Materiales (mediciones)
-            const M = [['Grupo', 'Descripción', 'Norma / serie', 'Tamaño', 'Cantidad', 'Unidad']];
-            const agrupar = (lista, clave) => { const m = new Map(); lista.forEach(x => { const k = clave(x); m.set(k, (m.get(k) || []).concat([x])); }); return m; };
-            agrupar(elementosRed.filter(e => e.type === 'tuberia'), e => [e.material, e.serie, e.dn].join('|')).forEach((v, k) => {
-                const [mat, ser, dn] = k.split('|'), dt = datosTuberia(v[0]);
-                M.push(['Tubería', `${mat} · De ${dt.od} × e ${dt.e} mm`, `${dt.norma} · ${/^[0-9]+S?$/.test(ser) ? 'Sch ' + ser : ser}`, tamanoTubo(mat, dn), r2(v.reduce((s, e) => s + e.longitud / 1000, 0)), 'm']);
-            });
-            if (calc && calc.termica) {
-                const ais = new Map();
-                calc.termica.lineas.forEach(l => l.tubos.forEach(x => { if (x.e > 0) { const k = `${x.e} mm · De ${x.De}`; ais.set(k, (ais.get(k) || 0) + x.L); } }));
-                ais.forEach((L, k) => M.push(['Aislamiento', 'Coquilla aislante ' + k.split(' · ')[0], `λ ≤ 0,040 W/(m·K) (RITE)`, k.split(' · ')[1] + ' mm', r2(L), 'm']));
-                const nS = calc.termica.lineas.reduce((s_, l) => s_ + l.nSop, 0); if (nS) M.push(['Soportes', 'Soportes / abrazaderas (separación máx. orientativa)', '', '', nS, 'ud']);
-            }
-            [['accesorio', 'Accesorio'], ['valvula', 'Válvula'], ['equipo', 'Equipo'], ['bomba', 'Bomba'], ['instrumento', 'Instrumento'], ['terminal', 'Terminal']].forEach(([t, g]) => {
-                agrupar(elementosRed.filter(e => e.type === t), e => [nombreTipo(e), e.subtype === 'reduccion' ? `${e.dn} × ${e.dnMenor}` : (e.dn || '')].join('|')).forEach((v, k) => {
-                    const [n, dn] = k.split('|'); M.push([g, n, '', dn.split(' × ').map(d => d ? etiquetaDN(d) : '').join(' × '), v.length, 'ud']);
-                });
-            });
-            // Equipos, bombas y consumos
-            const E = [['Etiqueta', 'Tipo', 'Línea', 'Cota (m)', 'Datos de diseño', 'Q calc. (m³/h)', 'H / Δp / p calc.', 'Estado']];
-            elementosRed.filter(e => e.type === 'bomba' || e.type === 'equipo' || esTerminal(e)).forEach(e => {
-                const r = calc && ultimoResultado[e.id];
-                const dis = e.type === 'bomba' ? `${e.caudal} m³/h a ${e.presion} bar · H0 ${e.h0} bar · NPSHr ${e.npsh} m${e.reservaDe ? ' · reserva de ' + tagDe(elementosRed.find(x => x.id === e.reservaDe) || e) : ''}` : e.type === 'equipo' ? `Δp ${e.dpNom} kPa a ${e.qNom} m³/h` : e.subtype === 'consumo' ? `${e.qCons} m³/h · p mín ${e.pMin} bar` : `lámina ${e.cotaLamina} m · ${e.presionDep} bar`;
-                const res = !r ? '' : e.type === 'bomba' ? `H ${r2(r.H)} m · NPSHd ${r2(r.npshd)} m` : e.type === 'equipo' ? `Δp ${r2(r.dp)} kPa` : `p ${r2(r.p)} bar`;
-                E.push([tagDe(e), nombreTipo(e), e.linea || '', e.type === 'bomba' ? e.cota || 0 : r2(e.cota), dis, r ? r2(r.Q) : '', res, calc ? (e.estado === 'fallo' ? 'NO CUMPLE' : e.estado ? 'OK' : '') : '']);
-            });
-            return { cab, hojas: [['Líneas', L], ['Válvulas', V], ['Materiales', M], ['Equipos y consumos', E]] };
-        }
-        async function generarListados() {
-            const nombre = `Listados_${String(proyecto.numero || 'PIPING').replace(/[^\w.-]+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-            let handle = null;
-            if (window.showSaveFilePicker) {
-                try { handle = await window.showSaveFilePicker({ suggestedName: nombre, types: [{ description: 'Libro de Excel (*.xlsx)', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] }); }
-                catch (err) { if (err.name === 'AbortError') return; handle = null; }
-            }
-            try {
-                mostrarAvisoProgreso('Generando listados…');
-                const X = await cargarXLSX(), d = datosListados(), wb = X.utils.book_new();
-                d.hojas.forEach(([n, filas]) => {
-                    const aoa = d.cab.concat(filas.map(f => f.map(c => c && typeof c === 'object' ? c.v : c)));
-                    const ws = X.utils.aoa_to_sheet(aoa);
-                    ws['!cols'] = filas[0].map((_, i) => ({ wch: Math.min(60, Math.max(8, ...filas.map(f => String((f[i] && f[i].v) || f[i] || '').length + 2))) }));
-                    ws['!autofilter'] = { ref: X.utils.encode_range({ s: { r: d.cab.length, c: 0 }, e: { r: d.cab.length + filas.length - 1, c: filas[0].length - 1 } }) };
-                    X.utils.book_append_sheet(wb, ws, n);
-                });
-                const buf = X.write(wb, { type: 'array', bookType: 'xlsx' });
-                const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                if (handle) { const w = await handle.createWritable(); await w.write(blob); await w.close(); }
-                else { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000); }
-                mostrarAvisoProgreso(null);
-                alert(`Listados guardados: ${handle ? handle.name : nombre}`);
-            } catch (err) { console.error(err); mostrarAvisoProgreso(null); alert('No se han podido generar los listados: ' + err.message); }
-        }
+        
+        function generarListados(...a) { return PARTES_OK.informe ? generarListados__p.apply(this, a) : cargarParte('informe').then(() => generarListados__p.apply(this, a)); }
 
         // ==================================================================================
         // EDICIÓN DEL PLANO: alinear, distribuir, plantillas de conjuntos, notas y leyenda
@@ -9711,19 +8140,6 @@
             alert(`Revisión registrada. La revisión en curso pasa a ser la ${proyecto.revision}.`);
         }
         const CAMPOS_DIFF = ['material', 'serie', 'dn', 'dnMenor', 'longitud', 'cotaA', 'cotaB', 'cota', 'pn', 'modoK', 'craneTipo', 'k', 'cvUsuario', 'kvs', 'apertura', 'caudal', 'presion', 'h0', 'npsh', 'qNom', 'dpNom', 'qCons', 'pMin', 'cotaLamina', 'presionDep', 'aislamiento', 'linea', 'reservaDe'];
-        function cambiosDesdeRevision() {
-            const rs = proyecto.revisiones || []; if (!rs.length) return null;
-            const ult = rs[rs.length - 1], antes = JSON.parse(ult.red).e, ahora = elementosRed.filter(e => !esAnotacion(e));
-            const tag = e => tagDe(e), cambios = [];
-            ahora.forEach(e => {
-                const a = antes.find(x => x.id === e.id);
-                if (!a) { cambios.push({ tipo: 'Añadido', tag: tag(e), detalle: nombreTipo(e) }); return; }
-                const dif = CAMPOS_DIFF.filter(k => String(a[k] ?? '') !== String(e[k] ?? '')).map(k => `${k}: ${a[k] ?? '—'} → ${e[k] ?? '—'}`);
-                if (dif.length) cambios.push({ tipo: 'Modificado', tag: tag(e), detalle: dif.join('; ') });
-            });
-            antes.filter(a => !esAnotacion(a) && !ahora.some(e => e.id === a.id)).forEach(a => cambios.push({ tipo: 'Eliminado', tag: tagDe(a), detalle: nombreTipo(a) }));
-            return { rev: ult.rev, cambios };
-        }
 
         // ==================================================================================
         // IMPORTACIÓN: líneas desde Excel y DXF de referencia como fondo del plano
@@ -9741,44 +8157,7 @@
                 const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = 'Plantilla_lineas_PIPING.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
             } catch (e) { alert(e.message); }
         }
-        function importarExcel() {
-            const input = document.createElement('input'); input.type = 'file'; input.accept = '.xlsx,.xls,.csv';
-            input.onchange = async ev => {
-                const f = ev.target.files[0]; if (!f) return;
-                try {
-                    const X = await cargarXLSX(), wb = X.read(await f.arrayBuffer(), { type: 'array' }), ws = wb.Sheets[wb.SheetNames[0]];
-                    const filas = X.utils.sheet_to_json(ws, { defval: '' });
-                    const col = (r, ...ns) => { const k = Object.keys(r).find(k => ns.some(n => k.toLowerCase().startsWith(n))); return k != null ? r[k] : ''; };
-                    const porLinea = new Map();
-                    filas.forEach(r => { const l = String(col(r, 'línea', 'linea')).trim(); if (l) (porLinea.get(l) || porLinea.set(l, []).get(l)).push(r); });
-                    if (!porLinea.size) throw new Error('No se han encontrado filas con la columna "Línea".');
-                    guardarEstado(); invalidarResultados(); document.getElementById('empty-state')?.remove();
-                    const avisos = [];
-                    let yBase = elementosRed.length ? Math.min(...elementosRed.map(e => e.y)) - 120 : 900, n = 0;
-                    porLinea.forEach((rows, id) => {
-                        if (!lineaPorId(id)) lineas.push({ id, tipo: /^P/i.test(id) ? 'principal' : 'ramal', nombre: String(col(rows[0], 'nombre')).trim(), padre: /^P/i.test(id) ? undefined : (lineas.find(l => l.tipo === 'principal') || {}).id, desde: null });
-                        let prev = null;
-                        rows.forEach((r, i) => {
-                            const mat = String(col(r, 'material')).trim() || MATERIAL_DEF, ser = String(col(r, 'serie')).trim(), dn = String(col(r, 'dn')).trim();
-                            if (!CAT.materiales[mat]) avisos.push(`${id} fila ${i + 1}: material "${mat}" desconocido; se usa ${MATERIAL_DEF}.`);
-                            const el = { id: `sym_${Date.now()}_${n++}`, type: 'tuberia', material: CAT.materiales[mat] ? mat : MATERIAL_DEF, serie: ser || (CAT.materiales[mat] || CAT.materiales[MATERIAL_DEF]).serieDef, dn: dn || 'DN 50',
-                                longitud: +col(r, 'longitud') || 3000, cotaA: +col(r, 'cota a') || 0, cotaB: +col(r, 'cota b') || 0, x: 80, y: yBase, scale: 1, rotation: 0, name: '', linea: id };
-                            const serieAntes = el.serie, dnAntes = el.dn;
-                            normalizarElemento(el);
-                            if (el.serie !== serieAntes || el.dn !== dnAntes) avisos.push(`${id} fila ${i + 1}: ${dnAntes} ${serieAntes} no existe; se usa ${el.dn} ${el.serie}.`);
-                            if (Math.abs(el.cotaB - el.cotaA) > el.longitud / 1000) { el.cotaB = el.cotaA; avisos.push(`${id} fila ${i + 1}: desnivel mayor que la longitud; se iguala la cota b.`); }
-                            if (prev) { const pb = obtenerPuertosConexion(prev).find(p => p.id === 'b'), pa = obtenerPuertosConexion(el).find(p => p.id === 'a'); el.x += pb.x - pa.x; el.y -= (pb.y - pa.y); }
-                            else el.inicioLinea = true;
-                            elementosRed.push(el); asignarNumero(el); prev = el;
-                        });
-                        yBase -= 90;
-                    });
-                    renderizarVectorial(); ajustarVistaVentana();
-                    alert(`Importadas ${n} tuberías en ${porLinea.size} línea(s).${avisos.length ? '\n\n' + avisos.slice(0, 15).join('\n') : ''}\n\nInserta después válvulas, accesorios y conexiones entre líneas.`);
-                } catch (e) { console.error(e); alert('No se ha podido importar: ' + e.message); }
-            };
-            input.click();
-        }
+        function importarExcel(...a) { return PARTES_OK.cad ? importarExcel__p.apply(this, a) : cargarParte('cad').then(() => importarExcel__p.apply(this, a)); }
         // DXF → SVG simple (LINE, LWPOLYLINE, POLYLINE/VERTEX, CIRCLE, ARC, TEXT, MTEXT), escalado a la hoja A3
         function dxfASVG(texto) {
             const l = texto.split(/\r?\n/), pares = [];
@@ -10096,7 +8475,9 @@
         // mismo JSON que catalogo.js, y se guarda en el navegador para el siguiente arranque.
         // ==================================================================================
         const SUPABASE_URL = 'https://wuarkraddnndmgvfnkmm.supabase.co';
-        const claveSupabase = () => { try { return localStorage.getItem('piping-supabase-clave') || ''; } catch (e) { return ''; } };
+        // clave pública «anon» del proyecto (Supabase > Project Settings > API > anon public): con ella dentro nadie tiene que pegarla
+        const SUPABASE_ANON = '';
+        const claveSupabase = () => { try { return localStorage.getItem('piping-supabase-clave') || SUPABASE_ANON; } catch (e) { return SUPABASE_ANON; } };
         function configurarSupabase() {
             const actual = claveSupabase();
             const k = prompt(`Proyecto Supabase: ${SUPABASE_URL}\n\nPega la clave pública "anon" (Supabase > Project Settings > API > anon public).\nNo uses la clave service_role.\n\nDeja vacío para desconectar.`, actual);
@@ -10298,7 +8679,7 @@
             { titulo: 'Ayuda', items: [
                 { icono: 'fa-person-chalkboard', texto: 'Tutorial guiado', accion: () => iniciarTutorial() },
                 { icono: 'fa-keyboard', texto: 'Atajos de teclado', accion: () => mostrarAtajosAyuda() },
-                { icono: 'fa-right-left', texto: 'Equivalencias ASME / norma europea...', accion: () => mostrarEquivalencias() },
+                { icono: 'fa-right-left', texto: 'Equivalencia ASME / Norma europea...', accion: () => mostrarEquivalencias() },
                 { icono: 'fa-circle-info', texto: 'Créditos...', accion: () => mostrarCreditos() }
             ]}
         ];
@@ -10399,7 +8780,7 @@
             await new Promise(ok => setTimeout(ok, 30));
             const localOk = u.toLowerCase() === 'admin' && resumenAcceso(u, c) === hashAcceso();
             const entrarLocal = motivo => { guardarSesion(testigoSesion(), rec); pintarInsignia(); aviso(`Sesión de administrador local iniciada${motivo ? ' (' + motivo + ')' : ''}.`, 'ok'); return true; };
-            const entrarNube = (d, msg) => { const s = Object.assign({}, d.usuario, { token: d.token, origen: 'supabase', expira: Date.now() + (rec ? 30 * 864e5 : 12 * 36e5) }); guardarSesion(s, rec); pintarInsignia(); aviso(msg || `Sesión iniciada: ${nombreSesion(s)} · ${trad(ROLES[s.rol])}.`, 'ok'); return s; };
+            const entrarNube = (d, msg) => { const s = Object.assign({}, d.usuario, { token: d.token, origen: 'supabase', expira: Date.parse(d.expira) || Date.now() + (rec ? 30 * 864e5 : 12 * 36e5) }); guardarSesion(s, rec); pintarInsignia(); aviso(msg || `Sesión iniciada: ${nombreSesion(s)} · ${trad(ROLES[s.rol])}.`, 'ok'); return s; };
             if (!claveSupabase()) { if (localOk) return entrarLocal('sin conexión con Supabase'); aviso('Usuario o contraseña incorrectos.', 'error'); return false; }
             try {
                 const d = await rpcUsuarios('piping_login', { p_usuario: u, p_clave: c, p_recordar: rec });
@@ -10417,103 +8798,24 @@
             if (s && s.origen === 'supabase') { try { await rpcUsuarios('piping_logout', { p_token: s.token }); } catch (e) { } }
             borrarSesion(); pintarInsignia(); aviso('Sesión cerrada: modo invitado (solo consulta).');
         }
-        async function cambiarClaveAdmin(obligatorio) {
-            cerrarMenus(); const s = sesionActual(); if (!s) { aviso('Inicia sesión primero.', 'error'); return; }
-            const min = s.origen === 'supabase' ? 8 : 10;
-            const r = await dialogo('<i class="fa-solid fa-key text-blue-600 mr-1.5"></i>Cambiar contraseña', `${obligatorio ? '<p class="mb-2 text-amber-700 font-medium">Tienes la contraseña por defecto: cámbiala para continuar.</p>' : ''}<div class="space-y-2"><label class="block">Contraseña actual <input id="acc-a" type="password" class="border rounded p-1 w-full"></label><label class="block">Nueva contraseña (mín. ${min} caracteres) <input id="acc-n" type="password" class="border rounded p-1 w-full"></label><label class="block">Repetir <input id="acc-n2" type="password" class="border rounded p-1 w-full"></label>${s.origen === 'local' ? '<p class="text-[10px] text-slate-400">Administrador local: se guarda solo en este navegador.</p>' : ''}</div>`,
-                [{ texto: 'Cambiar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: obligatorio ? 'Más tarde' : 'Cancelar', valor: null }]);
-            if (r !== 'si') return;
-            const a = document.getElementById('acc-a').value, n1 = document.getElementById('acc-n').value, n2 = document.getElementById('acc-n2').value;
-            if (n1.length < min || n1 !== n2) { aviso(`La nueva contraseña debe tener al menos ${min} caracteres y coincidir en las dos casillas.`, 'error'); return cambiarClaveAdmin(obligatorio); }
-            if (s.origen === 'supabase') {
-                try { await rpcUsuarios('piping_cambiar_clave', { p_token: s.token, p_actual: a, p_nueva: n1 }); s.debe_cambiar = false; let rec = false; try { rec = !!localStorage.getItem('piping-sesion'); } catch (e) { } guardarSesion(s, rec); aviso('Contraseña cambiada.', 'ok'); }
-                catch (e) { aviso(e.message, 'error'); }
-                return;
-            }
-            if (resumenAcceso('admin', a) !== hashAcceso()) { aviso('La contraseña actual no es correcta.', 'error'); return; }
-            try { const rec = !!localStorage.getItem('piping-sesion'); localStorage.setItem('piping-admin-hash', resumenAcceso('admin', n1)); guardarSesion(testigoSesion(), rec); } catch (e) { }
-            pintarInsignia(); aviso('Contraseña cambiada en este navegador.', 'ok');
-        }
+        function cambiarClaveAdmin(...a) { return PARTES_OK.admin ? cambiarClaveAdmin__p.apply(this, a) : cargarParte('admin').then(() => cambiarClaveAdmin__p.apply(this, a)); }
         // ---------- Archivo > Administración > Usuarios ----------
         let listaUsuarios = [];
         const selRol = (id, v) => `<select id="${id}" class="border rounded p-0.5">${Object.entries(ROLES).map(([k, n]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
-        async function abrirUsuarios() {
-            cerrarMenus();
-            const s = sesionActual();
-            if (!tienePermiso('usuarios')) { aviso('Solo un administrador puede gestionar usuarios.', 'error'); return; }
-            if (s.origen !== 'supabase') { if (await conectarUsuariosSupabase()) abrirUsuarios(); return; }
-            try { listaUsuarios = await rpcUsuarios('piping_usuarios_listar', { p_token: s.token }) || []; } catch (e) { aviso('Usuarios: ' + e.message, 'error'); return; }
-            const fila = u => `<tr class="border-t border-slate-100 ${u.activo ? '' : 'text-slate-400'}"><td class="py-1 pr-1"><input id="un-${u.id}" value="${esc(u.nombre)}" class="border rounded p-0.5 w-28"></td><td class="pr-1"><input id="ua-${u.id}" value="${esc(u.apellidos || '')}" class="border rounded p-0.5 w-36"></td><td class="pr-2 font-mono">${esc(u.usuario)}</td><td>${selRol('ur-' + u.id, u.rol)}</td>
-                <td class="text-center"><input id="uv-${u.id}" type="checkbox" ${u.activo ? 'checked' : ''}></td><td class="text-center">${u.debe_cambiar ? '<span class="text-amber-700">pendiente</span>' : '<span class="text-emerald-700">propia</span>'}</td><td class="whitespace-nowrap">${u.ultimo_acceso ? fechaHora(u.ultimo_acceso) : '—'}</td>
-                <td class="text-right whitespace-nowrap"><button onclick="usuarioGuardar('${u.id}')" class="px-2 border rounded text-blue-700">Guardar</button> <button onclick="usuarioResetear('${u.id}')" class="px-2 border rounded">Resetear contraseña</button> ${u.id === s.id ? '' : `<button onclick="usuarioBorrar('${u.id}')" class="px-2 border rounded text-rose-700"><i class="fa-solid fa-trash-can"></i></button>`}</td></tr>`;
-            document.getElementById('red-content').innerHTML = `<div class="border rounded p-2 mb-3 bg-slate-50 text-[11px]"><p class="font-bold text-slate-600 mb-1">Nuevo usuario</p>
-                <div class="flex flex-wrap gap-2 items-end"><label>Nombre<br><input id="nu-nombre" class="border rounded p-1 w-28"></label><label>Apellidos<br><input id="nu-apellidos" class="border rounded p-1 w-40"></label><label>Usuario<br><input id="nu-usuario" placeholder="p. ej. pperez" class="border rounded p-1 w-28 font-mono"></label>
-                <label>Contraseña por defecto<br><input id="nu-clave" class="border rounded p-1 w-32 font-mono" value="${esc(claveAleatoria())}"></label><label>Rol<br>${selRol('nu-rol', 'usuario')}</label><button onclick="usuarioCrear()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded"><i class="fa-solid fa-user-plus mr-1"></i>Crear</button></div>
-                <p class="text-slate-400 mt-1">El usuario tendrá que cambiar la contraseña por defecto la primera vez que entre (Archivo > Administración > Cambiar mi contraseña).</p></div>
-                <div class="overflow-auto" style="max-height:48vh"><table class="w-full text-[11px]"><thead class="sticky top-0 bg-white"><tr class="text-left text-slate-500"><th class="py-1">Nombre</th><th>Apellidos</th><th>Usuario</th><th>Rol</th><th>Activo</th><th>Contraseña</th><th>Último acceso</th><th></th></tr></thead><tbody>${listaUsuarios.map(fila).join('')}</tbody></table></div>
-                <table class="w-full text-[10px] text-slate-500 mt-3">${Object.entries(ROLES).map(([k, n]) => `<tr><td class="pr-2 font-bold whitespace-nowrap align-top">${esc(n)}</td><td>${esc(DESCRIPCION_ROLES[k])}</td></tr>`).join('')}</table>`;
-            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><span class="text-slate-400 self-center">${listaUsuarios.length} usuario(s) · Supabase</span><span class="flex-1"></span><button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
-            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-users text-blue-600 mr-1.5"></i> Usuarios';
-            document.querySelector('#modal-red > div').style.width = 'min(1200px, 97vw)';
-            document.getElementById('modal-red').style.display = 'flex';
-        }
+        function abrirUsuarios(...a) { return PARTES_OK.admin ? abrirUsuarios__p.apply(this, a) : cargarParte('admin').then(() => abrirUsuarios__p.apply(this, a)); }
         // sesión de administrador local → se conecta a Supabase (y se crea el administrador si la tabla está vacía),
         // diciendo exactamente qué falla: clave anon, SQL sin ejecutar, contraseña…
-        async function conectarUsuariosSupabase() {
-            let diag = '', vacia = null;
-            if (claveSupabase()) {
-                try { vacia = await rpcUsuarios('piping_usuarios_vacio'); diag = vacia ? 'Conexión correcta. La tabla de usuarios está vacía: se creará el usuario admin en Supabase con la contraseña que escribas.' : 'Conexión correcta. Escribe la contraseña del usuario admin en Supabase.'; }
-                catch (e) { diag = e.sinFuncion ? '⚠ Supabase responde, pero no existe la función piping_usuarios_vacio: ejecuta supabase/05_usuarios.sql en el SQL Editor (si ya lo ejecutaste, ejecuta también: NOTIFY pgrst, \'reload schema\';).' : /401|JWT|apikey|Invalid API key/i.test(e.message) ? '⚠ La clave anon no es válida (HTTP 401): cópiala de Supabase > Project Settings > API > anon public.' : '⚠ ' + e.message; }
-            } else diag = '⚠ No hay clave anon de Supabase en este equipo: pégala abajo (Supabase > Project Settings > API > anon public).';
-            const r = await dialogo('<i class="fa-solid fa-database text-blue-600 mr-1.5"></i>Usuarios en Supabase', `<p class="text-[11px] mb-2 ${diag.startsWith('⚠') ? 'text-rose-700' : 'text-emerald-700'}">${esc(diag)}</p><p class="text-[11px] text-slate-500 mb-2">Has entrado como administrador local (sin Supabase). Los usuarios se guardan en Supabase.</p>
-                <div class="space-y-2"><label class="block">Clave anon <input id="cu-k" class="border rounded p-1 w-full font-mono text-[10px]" value="${esc(claveSupabase())}"></label><label class="block">Contraseña de admin <input id="cu-c" type="password" class="border rounded p-1 w-full"></label></div>`,
-                [{ texto: 'Conectar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
-            if (r !== 'si') return false;
-            const k = valorCampo('cu-k').trim(), c = valorCampo('cu-c');
-            if (k && k !== claveSupabase()) { let rol = ''; try { rol = JSON.parse(atob((k.split('.')[1] || '').replace(/-/g, '+').replace(/_/g, '/'))).role || ''; } catch (e) { } if (rol === 'service_role') { aviso('Esa es la clave service_role: usa la clave anon.', 'error'); return false; } try { localStorage.setItem('piping-supabase-clave', k); } catch (e) { } }
-            try {
-                let d = await rpcUsuarios('piping_login', { p_usuario: 'admin', p_clave: c, p_recordar: false });
-                if (!(d && d.ok) && await rpcUsuarios('piping_usuarios_vacio')) {
-                    if (resumenAcceso('admin', c) !== hashAcceso()) { aviso('La contraseña no es la del administrador de la aplicación.', 'error'); return false; }
-                    d = await rpcUsuarios('piping_inicializar', { p_usuario: 'admin', p_nombre: 'Administrador', p_clave: c });
-                }
-                if (!(d && d.ok)) { aviso((d && d.error) || 'Usuario o contraseña incorrectos.', 'error'); return false; }
-                let rec = false; try { rec = !!localStorage.getItem('piping-sesion'); } catch (e) { }
-                guardarSesion(Object.assign({}, d.usuario, { token: d.token, origen: 'supabase', expira: Date.now() + 12 * 36e5 }), rec); pintarInsignia();
-                aviso('Conectado a Supabase como admin.', 'ok'); return true;
-            } catch (e) { aviso(e.sinFuncion ? 'Falta ejecutar supabase/05_usuarios.sql en Supabase (SQL Editor).' : 'No se ha podido conectar: ' + e.message, 'error'); return false; }
-        }
-        function claveAleatoria() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'; const v = new Uint32Array(10); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(v) : v.forEach((x, i) => v[i] = Math.random() * 1e9); return [...v].map(x => a[x % a.length]).join(''); }
+        function conectarUsuariosSupabase(...a) { return PARTES_OK.admin ? conectarUsuariosSupabase__p.apply(this, a) : cargarParte('admin').then(() => conectarUsuariosSupabase__p.apply(this, a)); }
+        
         const valorCampo = id => (document.getElementById(id) || {}).value || '';
-        async function usuarioCrear() {
-            const s = sesionActual(), u = valorCampo('nu-usuario').trim().toLowerCase(), nombre = valorCampo('nu-nombre').trim(), clave = valorCampo('nu-clave');
-            if (!/^[a-z0-9._-]{3,40}$/.test(u)) { aviso('Nombre de usuario: de 3 a 40 caracteres, minúsculas, números, punto, guion o guion bajo.', 'error'); return; }
-            if (!nombre) { aviso('Indica el nombre.', 'error'); return; }
-            if (clave.length < 8) { aviso('La contraseña por defecto debe tener al menos 8 caracteres.', 'error'); return; }
-            try { await rpcUsuarios('piping_usuario_crear', { p_token: s.token, p_usuario: u, p_nombre: nombre, p_apellidos: valorCampo('nu-apellidos').trim(), p_rol: valorCampo('nu-rol'), p_clave: clave }); aviso(`Usuario ${u} creado. Contraseña por defecto: ${clave} (tendrá que cambiarla al entrar).`, 'ok'); abrirUsuarios(); }
-            catch (e) { aviso('Usuarios: ' + e.message, 'error'); }
-        }
-        async function usuarioGuardar(id) {
-            const s = sesionActual();
-            try { await rpcUsuarios('piping_usuario_actualizar', { p_token: s.token, p_id: id, p_nombre: valorCampo('un-' + id).trim(), p_apellidos: valorCampo('ua-' + id).trim(), p_rol: valorCampo('ur-' + id), p_activo: !!(document.getElementById('uv-' + id) || {}).checked }); aviso('Usuario actualizado.', 'ok'); abrirUsuarios(); }
-            catch (e) { aviso('Usuarios: ' + e.message, 'error'); }
-        }
-        async function usuarioResetear(id) {
-            const s = sesionActual(), u = listaUsuarios.find(x => x.id === id); if (!u) return;
-            const sug = claveAleatoria();
-            const r = await dialogo('<i class="fa-solid fa-key text-blue-600 mr-1.5"></i>Resetear contraseña', `<p>Nueva contraseña por defecto para <b>${esc(u.usuario)}</b> (${esc(nombreSesion(u))}). Tendrá que cambiarla al entrar.</p><input id="ur-clave" class="border rounded p-1 w-full font-mono mt-2" value="${esc(sug)}">`,
-                [{ texto: 'Resetear', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
-            if (r !== 'si') return;
-            const c = valorCampo('ur-clave'); if (c.length < 8) { aviso('Al menos 8 caracteres.', 'error'); return; }
-            try { await rpcUsuarios('piping_usuario_resetear', { p_token: s.token, p_id: id, p_clave: c }); aviso(`Contraseña de ${u.usuario} reseteada: ${c}`, 'ok'); abrirUsuarios(); }
-            catch (e) { aviso('Usuarios: ' + e.message, 'error'); }
-        }
-        async function usuarioBorrar(id) {
-            const s = sesionActual(), u = listaUsuarios.find(x => x.id === id); if (!u) return;
-            if (!confirm(`¿Eliminar el usuario ${u.usuario} (${nombreSesion(u)})? Si solo quieres impedir el acceso, desmarca «Activo».`)) return;
-            try { await rpcUsuarios('piping_usuario_borrar', { p_token: s.token, p_id: id }); aviso('Usuario eliminado.', 'ok'); abrirUsuarios(); }
-            catch (e) { aviso('Usuarios: ' + e.message, 'error'); }
-        }
+
+        // ---------- registro de actividad: se anota lo que el rol permite hacer ----------
+        [['guardarProyecto', 'guardar', () => nombreArchivoActual || ''], ['guardarComoProyecto', 'guardar como', f => String(f || '')], ['generarInforme', 'informe'], ['generarListados', 'listados'], ['exportarPDFCapas', 'PDF con capas'],
+         ['imprimirHojas', 'imprimir'], ['registrarRevision', 'registrar revisión', () => 'rev. ' + (proyecto.revision || '0')], ['nubeGuardar', 'guardar en la nube'], ['nubeAbrirProyecto', 'abrir de la nube']].forEach(([n, accion, det]) => {
+            const f = window[n]; if (typeof f !== 'function') return;
+            window[n] = function () { try { registrarActividad(accion, det ? det.apply(this, arguments) : ''); } catch (e) { } return f.apply(this, arguments); };
+        });
+        { const _cp0 = congelarPlano; congelarPlano = function (si) { try { registrarActividad(si ? 'congelar plano' : 'descongelar plano'); } catch (e) { } return _cp0.apply(this, arguments); }; }
         // ---------- qué puede hacer cada rol ----------
         [['guardarProyecto', 'el proyecto'], ['guardarComoProyecto', 'el proyecto'], ['generarInforme', 'el informe'], ['generarListados', 'los listados'], ['abrirImpresion', '(imprimir)'], ['imprimirHojas', '(imprimir)'],
          ['exportarPDFCapas', 'el PDF'], ['exportarComparacionEscenarios', 'la comparación'], ['nubeGuardar', 'en la nube'], ['guardarPlantillasUsuario', 'la plantilla'],
@@ -10532,8 +8834,9 @@
         // Ctrl+G / Ctrl+S, Ctrl+P y similares pasan por las funciones anteriores
         function submenuAdministracion() { const s = sesionActual(); return s ? [
             { icono: s.rol === 'admin' ? 'fa-user-shield' : 'fa-user-check', texto: `Sesión: ${nombreSesion(s)} · ${trad(ROLES[s.rol])}`, accion: () => {} },
+            { icono: 'fa-id-badge', texto: 'Mi perfil...', accion: () => abrirPerfil() },
             { icono: 'fa-key', texto: 'Cambiar mi contraseña...', accion: () => cambiarClaveAdmin() },
-            ...(s.rol === 'admin' ? [{ icono: 'fa-users', texto: 'Usuarios...', accion: () => abrirUsuarios() }] : []),
+            ...(s.rol === 'admin' ? ['sep', { icono: 'fa-users', texto: 'Usuarios...', accion: () => abrirUsuarios() }, { icono: 'fa-clipboard-list', texto: 'Registro de actividad...', accion: () => abrirRegistro() }] : []),
             'sep', { icono: 'fa-right-from-bracket', texto: 'Cerrar sesión', accion: () => cerrarSesionAdmin() }
         ] : [{ icono: 'fa-right-to-bracket', texto: 'Iniciar sesión...', accion: () => iniciarSesionAdmin() }, { icono: 'fa-circle-info', texto: 'Modo invitado: se puede ver y probar todo, pero no guardar ni exportar', accion: () => {} }]; }
         { const archivo = MENUS.find(m => m.titulo === 'Archivo'), k = archivo.items.findIndex(x => x && x.texto === 'Nube (equipo)'); archivo.items.splice(k + 1, 0, { icono: 'fa-user-shield', texto: 'Administración', sub: () => submenuAdministracion() }); }
@@ -10550,6 +8853,127 @@
         }
         { const _pi = pantallaInicio; let primera = true; pantallaInicio = async function () { if (primera) { primera = false; if (!sesionActual()) await pantallaAcceso(); } return _pi.apply(this, arguments); }; }
         setTimeout(pintarInsignia, 0);
+        // ==================================================================================
+        // v8.7 · Sesión que se renueva sola, «Mi perfil», indicador de guardado, registro de actividad
+        // y firma del plano por rol (supabase/06_sesion_perfil_registro.sql)
+        // ==================================================================================
+        const sesionRecordada = () => { try { return !!localStorage.getItem('piping-sesion'); } catch (e) { return false; } };
+        // ---------- 2) renovación de la sesión mientras se trabaja; aviso antes de caducar ----------
+        let ultimaActividad = Date.now(), habiaSesion = false, avisadoCaducidad = false;
+        ['mousedown', 'keydown', 'wheel'].forEach(ev => window.addEventListener(ev, () => { ultimaActividad = Date.now(); }, true));
+        async function renovarSesion(manual) {
+            const s = sesionActual(); if (!s || s.origen !== 'supabase') return false;
+            try {
+                const d = await rpcUsuarios('piping_renovar', { p_token: s.token });
+                if (d && d.ok) { Object.assign(s, d.usuario, { expira: Date.parse(d.expira) || Date.now() + 12 * 36e5 }); guardarSesion(s, sesionRecordada()); avisadoCaducidad = false; pintarInsignia(); if (manual) aviso('Sesión renovada.', 'ok'); return true; }
+            } catch (e) {
+                if (/Sesi[oó]n no v[aá]lida/.test(e.message)) { borrarSesion(); pintarInsignia(); aviso('La sesión ha caducado o el usuario se ha desactivado: vuelve a iniciar sesión (el trabajo sigue en pantalla).', 'error'); }
+                else if (e.sinFuncion && manual) aviso('Falta ejecutar supabase/06_sesion_perfil_registro.sql.', 'error');
+            }
+            return false;
+        }
+        function vigilarSesion() {
+            const s = sesionActual();
+            if (!s) { if (habiaSesion) { habiaSesion = false; pintarInsignia(); aviso('La sesión ha caducado: estás en modo invitado. Archivo > Administración > Iniciar sesión (el trabajo sigue en pantalla).', 'error'); } return; }
+            habiaSesion = true;
+            if (s.origen !== 'supabase' || !s.expira) return;
+            const quedan = s.expira - Date.now(), activo = Date.now() - ultimaActividad < 30 * 60000;
+            // con actividad reciente se renueva cuando ha pasado media hora desde la última renovación o queda menos de una hora
+            if (activo && (quedan < 60 * 60000 || Date.now() - (s.renovada || 0) > 30 * 60000)) { s.renovada = Date.now(); guardarSesion(s, sesionRecordada()); renovarSesion(false); }
+            else if (quedan < 10 * 60000 && !avisadoCaducidad) { avisadoCaducidad = true; aviso(`La sesión caduca en ${Math.max(1, Math.round(quedan / 60000))} min: mueve el ratón o pulsa una tecla para renovarla.`, 'error'); }
+        }
+        setInterval(vigilarSesion, 60000);
+        setTimeout(() => { habiaSesion = !!sesionActual(); if (habiaSesion) renovarSesion(false); }, 1500);
+
+        // ---------- 4) Mi perfil ----------
+        function perfilLocal() { try { return JSON.parse(localStorage.getItem('piping-perfil-local') || '{}'); } catch (e) { return {}; } }
+        // firma para el cajetín: iniciales o, si no hay, nombre y apellidos
+        function firmaSesion() { const s = sesionActual(); if (!s) return ''; if (s.origen === 'local') { const p = perfilLocal(); return p.iniciales || p.nombre || 'ADMIN'; } return s.iniciales || nombreSesion(s); }
+        function abrirPerfil(...a) { return PARTES_OK.admin ? abrirPerfil__p.apply(this, a) : cargarParte('admin').then(() => abrirPerfil__p.apply(this, a)); }
+        // «Dibujado por» de los proyectos: el usuario de la sesión si está vacío; las firmas de revisado y
+        // aprobado no se escriben a mano (Archivo > Firmar plano)
+        { const _adp = abrirDatosProyecto; abrirDatosProyecto = function () {
+            const r = _adp.apply(this, arguments);
+            try {
+                const au = document.getElementById('dp-p-autor'); if (au && !au.value.trim() && firmaSesion()) au.value = firmaSesion();
+                if (!esAdministrador()) ['revisadoPor', 'fechaRevisado', 'aprobadoPor', 'fechaAprobado'].forEach(k => { const x = document.getElementById('dp-p-' + k); if (x) { x.readOnly = true; x.classList.add('bg-slate-100', 'text-slate-500'); x.title = trad('Se rellena al firmar el plano: Archivo > Firmar plano'); if (x.type === 'date') x.addEventListener('keydown', e => e.preventDefault()); x.addEventListener('mousedown', e => { if (x.type === 'date') e.preventDefault(); }); } });
+            } catch (e) { }
+            return r;
+        }; }
+
+        // ---------- 20) indicador de guardado junto al usuario ----------
+        let ultimoGuardadoMs = null;
+        { const _mc = marcarCambios; marcarCambios = function (modificado = true) { if (modificado === false) ultimoGuardadoMs = Date.now(); const r = _mc.apply(this, arguments); pintarEstadoGuardado(); return r; }; }
+        function pintarEstadoGuardado() {
+            let s = document.getElementById('estado-guardado');
+            if (!s) { const c = document.querySelector('header > div'); if (!c) return; s = document.createElement('span'); s.id = 'estado-guardado'; s.setAttribute('data-no-trad', ''); s.className = 'text-[10px] px-2 py-0.5 rounded-full'; c.appendChild(s); }
+            const hayProyecto = !!(proyecto && proyecto.numero) || elementosRed.length > 0;
+            let t = '', cls = 'text-slate-400', ico = 'fa-circle-check';
+            if (!hayProyecto) t = '';
+            else if (!sesionActual()) { t = trad('Invitado: no se guarda'); cls = 'text-amber-700'; ico = 'fa-ban'; }
+            else if (hayCambiosSinGuardar) { t = trad('Cambios sin guardar') + (ultimoGuardadoMs ? ' · ' + trad('guardado') + ' ' + haceCuanto(ultimoGuardadoMs) : ''); cls = 'text-rose-600 font-bold'; ico = 'fa-circle-exclamation'; }
+            else { t = trad('Guardado') + (ultimoGuardadoMs ? ' ' + haceCuanto(ultimoGuardadoMs) : ''); cls = 'text-emerald-700'; }
+            s.className = 'text-[10px] px-2 py-0.5 rounded-full ' + cls; s.style.cursor = hayCambiosSinGuardar && sesionActual() ? 'pointer' : 'default';
+            s.innerHTML = t ? `<i class="fa-solid ${ico} mr-1"></i>${esc(t)}` : ''; s.title = hayCambiosSinGuardar && sesionActual() ? trad('Clic para guardar (Ctrl+G)') : '';
+            s.onclick = () => { if (hayCambiosSinGuardar && sesionActual()) guardarProyecto(); };
+        }
+        function haceCuanto(ms) { const m = Math.floor((Date.now() - ms) / 60000); return m < 1 ? trad('ahora mismo') : m < 60 ? trad('hace') + ' ' + m + ' min' : trad('hace') + ' ' + Math.floor(m / 60) + ' h ' + (m % 60) + ' min'; }
+        setInterval(pintarEstadoGuardado, 30000); setTimeout(pintarEstadoGuardado, 800);
+        { const _pin = pintarInsignia; pintarInsignia = function () { const r = _pin.apply(this, arguments); try { pintarEstadoGuardado(); } catch (e) { } return r; }; }
+
+        // ---------- 7) registro de actividad (solo con usuarios de Supabase) ----------
+        function registrarActividad(accion, detalle) {
+            const s = sesionActual(); if (!s || s.origen !== 'supabase') return;
+            rpcUsuarios('piping_registrar', { p_token: s.token, p_accion: accion, p_detalle: detalle || null, p_proyecto: [proyecto && proyecto.numero, typeof codigoHoja === 'function' && hojas.length > 1 ? 'hoja ' + codigoHoja() : ''].filter(Boolean).join(' · ') || null }).catch(() => { });
+        }
+        let registroDatos = [];
+        function abrirRegistro(...a) { return PARTES_OK.admin ? abrirRegistro__p.apply(this, a) : cargarParte('admin').then(() => abrirRegistro__p.apply(this, a)); }
+
+        // ---------- 11) firma del plano por rol ----------
+        PERMISOS.firmarRevisado = ['admin', 'supervisor'];
+        PERMISOS.firmarAprobado = ['admin', 'jefe'];
+        const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+        async function firmarPlano(tipo) {
+            cerrarMenus();
+            const rev = tipo === 'revisado', campo = rev ? 'revisadoPor' : 'aprobadoPor', cFecha = rev ? 'fechaRevisado' : 'fechaAprobado';
+            if (!puedeGuardar(rev ? 'firmar como revisado (Supervisor)' : 'firmar como aprobado (Jefe de proyecto)', rev ? 'firmarRevisado' : 'firmarAprobado')) return;
+            if (!proyectoDefinido()) { aviso('Completa antes los datos del proyecto (Archivo > Datos del proyecto).', 'error'); return; }
+            if (!rev && !proyecto.revisadoPor) { aviso('El plano tiene que estar revisado antes de aprobarlo (Archivo > Firmar plano > Firmar como revisado).', 'error'); return; }
+            const firma = firmaSesion();
+            const r = await dialogo(`<i class="fa-solid fa-signature text-blue-600 mr-1.5"></i>Firmar como ${rev ? 'revisado' : 'aprobado'}`, `<p>Se anotará en el cajetín: <b>${rev ? 'Revisado por' : 'Aprobado por'}: ${esc(firma)}</b> · ${fechaDMA(hoyISO())}.</p>${proyecto[campo] ? `<p class="text-amber-700 mt-1">Sustituye a la firma actual: ${esc(proyecto[campo])} · ${fechaDMA(proyecto[cFecha])}.</p>` : ''}<p class="text-[11px] text-slate-500 mt-1">Proyecto ${esc(proyecto.numero || '')} · revisión ${esc(String(proyecto.revision || '0'))}.</p>`,
+                [{ texto: 'Firmar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
+            if (r !== 'si') return;
+            const s = sesionActual();
+            proyecto[campo] = firma; proyecto[cFecha] = hoyISO();
+            (proyecto.firmas = proyecto.firmas || []).push({ tipo, firma, usuario: s.usuario, nombre: nombreSesion(s), rol: s.rol, fecha: new Date().toISOString(), revision: String(proyecto.revision || '0') });
+            marcarCambios(true); renderizarVectorial();
+            registrarActividad(rev ? 'firma: revisado' : 'firma: aprobado', `rev. ${proyecto.revision || '0'} · ${firma}`);
+            aviso(`Plano firmado como ${rev ? 'revisado' : 'aprobado'} por ${firma}.`, 'ok');
+        }
+        function quitarFirma(tipo) {
+            cerrarMenus(); const rev = tipo === 'revisado';
+            if (!puedeGuardar('quitar la firma', rev ? 'firmarRevisado' : 'firmarAprobado')) return;
+            if (!confirm(`¿Quitar la firma de ${rev ? 'revisado' : 'aprobado'}?`)) return;
+            proyecto[rev ? 'revisadoPor' : 'aprobadoPor'] = ''; proyecto[rev ? 'fechaRevisado' : 'fechaAprobado'] = '';
+            if (rev) { proyecto.aprobadoPor = ''; proyecto.fechaAprobado = ''; }
+            marcarCambios(true); renderizarVectorial(); registrarActividad('firma retirada', tipo); aviso('Firma retirada.');
+        }
+        { const archivo = MENUS.find(m => m.titulo === 'Archivo'), k = archivo.items.findIndex(x => x && x.texto === 'Registrar revisión...');
+          archivo.items.splice(k + 1, 0, { icono: 'fa-signature', texto: 'Firmar plano', sub: () => [
+            { icono: 'fa-user-check', texto: 'Firmar como revisado (Supervisor)', accion: () => firmarPlano('revisado') },
+            { icono: 'fa-stamp', texto: 'Firmar como aprobado (Jefe de proyecto)', accion: () => firmarPlano('aprobado') },
+            ...(proyecto.revisadoPor || proyecto.aprobadoPor ? ['sep'] : []),
+            ...(proyecto.revisadoPor ? [{ icono: 'fa-eraser', texto: 'Quitar firma de revisado', accion: () => quitarFirma('revisado') }] : []),
+            ...(proyecto.aprobadoPor ? [{ icono: 'fa-eraser', texto: 'Quitar firma de aprobado', accion: () => quitarFirma('aprobado') }] : [])] }); }
+
+        // ---------- 5) menús según el rol: lo que no se puede hacer sale en gris con candado ----------
+        const PERMISOS_MENU = [
+            [/^(Guardar$|Guardar en la nube|Guardar selección como plantilla|Proyecto P&ID \(|Dibujo CAD \(|Datos JSON|Datos XML|Imagen vectorial|Imagen \(|PDF vectorial|Imprimir|Generar informe|Listados de líneas|Descargar plantilla)/, 'guardar'],
+            [/^Registrar revisión/, 'revision'], [/^Compartir mi librería/, 'compartido'], [/^Congelar plano/, 'congelar'], [/^Descongelar plano/, 'descongelar'],
+            [/^(Firmar como revisado|Quitar firma de revisado)/, 'firmarRevisado'], [/^(Firmar como aprobado|Quitar firma de aprobado)/, 'firmarAprobado']
+        ];
+        function permisoMenu(texto) { const x = PERMISOS_MENU.find(([re]) => re.test(String(texto || ''))); return x ? x[1] : null; }
+        function motivoBloqueo(texto) { const p = permisoMenu(texto); if (!p || tienePermiso(p)) return ''; const s = sesionActual(); return s ? `${trad('Tu rol no lo permite')} (${trad(ROLES[s.rol])})` : trad('Modo invitado: inicia sesión (Archivo > Administración)'); }
         const barraMenus = document.getElementById('barra-menus');
         let menuAbierto = null;
 
@@ -10572,6 +8996,7 @@
                 btn.innerHTML = `<i class="fa-solid ${it.icono || ''} ico"></i><span>${it.texto}</span>` +
                     (it.sub ? '<i class="fa-solid fa-chevron-right flecha"></i>' : (() => { const at = ruta ? atajoTexto(ruta + ' › ' + it.texto, it.atajo) : it.atajo; return at ? `<span class="atajo">${esc(at)}</span>` : ''; })());
                 if (it.habilitado && !it.habilitado()) btn.disabled = true;
+                { const mb = !it.sub && typeof motivoBloqueo === 'function' ? motivoBloqueo(it.texto) : ''; if (mb) { btn.style.opacity = '.45'; btn.title = mb; btn.dataset.bloqueado = '1'; btn.insertAdjacentHTML('beforeend', '<i class="fa-solid fa-lock" style="margin-left:8px;font-size:9px"></i>'); } }
                 if (it.sub) {
                     const envoltorio = document.createElement('div');
                     envoltorio.className = 'menu-sub';
@@ -10659,3 +9084,8 @@
         window.addEventListener('keydown', atajosMenu, true);
         if (idioma !== 'es') setTimeout(() => cambiarIdioma(idioma, true), 0);
     
+        // partes: en segundo plano tras arrancar (o de inmediato si lo pide la página, p. ej. en las pruebas)
+        if (typeof PARTES_LISTA !== 'undefined') {
+            if (window.PIPING_PRECARGA) PARTES_LISTA.forEach(g => document.write(`<script src="js/partes/${g}.js?v=${VERSION_WEB}"><\/script>`));
+            else window.addEventListener('load', () => setTimeout(() => cargarTodasLasPartes().then(() => asegurarAccesorios()), 2500));
+        }
