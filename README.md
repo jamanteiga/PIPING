@@ -137,7 +137,33 @@ Prueba de la nueva librería solo con **accesorios de tubería**; si convence, s
 - La librería sigue guardándose en el navegador de cada equipo (y en la nube con «Compartir mi librería»); no es todavía una librería central de empresa.
 - Extender la tabla completa al resto de grupos si la prueba convence.
 - Clave anon de Supabase (8.7, punto 1) y confirmación de materiales de bombas (8.6.1).
+# PIPING 8.7.1 «accesorios» (2026-10-02)
 
+Entrega en `C:\Users\jaman\Documents\PROYECTOS\PIPING\` · copia de la 8.7 en `copias\v87\`.
+Prueba de la nueva librería solo con **accesorios de tubería**; si convence, se extiende al resto de grupos.
 
+## Librerías > Accesorios > Accesorios de tubería...
+- **Tipos:** Codo 45°, Codo 60°, Codo 90°, Cruce, Filtro, Injerto, Reducción, Strainer (rejilla), Te.
+  Salen de este grupo: Continuación entre hojas (no es accesorio; sin librería), Junta de expansión y Manguito antivibratorio (pasan a Librerías > Accesorios > Juntas de expansión y manguitos..., grupo `compensadores`).
+- **Administrador:** arriba, tabla con **todos** los accesorios y todos sus datos (Tipo, Nombre/modelo, Fabricante, Referencia, Material, Norma, PN/clase, Tipo Crane, Serie/Sch, K, Notas, En el proyecto, URL), con filtro por tipo y buscador. Debajo, la ficha del marcado.
+  - Nuevo · Nuevo a partir del marcado (copia todos los datos; se puede cambiar el tipo en «Tipo de accesorio») · Eliminar · Guardar (edita el marcado).
+- **Resto de roles:** ventana anterior (desplegable de tipo + lista), con los tipos nuevos.
+- **Reducción:** campo «Reducción: concéntrica o excéntrica» (`props.variante`). En el plano, «Modelo de librería» de una reducción solo ofrece los de su variante (o sin variante).
+- **Materiales** (`MATERIALES.accesorio`): exactamente los de Ayuda > Equivalencia ASME / Norma europea para codos, tes, cruces y reducciones (SA-234 WPB/WPC, SA-420 WPL6, SA-403 WP304…WP347H y sus EN 10253-2 / -3 / -4). Se retiran SA-105 y SA-182 F316L (B16.11), P235TR2 (EN 10253-1) y EN-GJS-400-15; los componentes que ya los tuvieran los conservan como «Otro».
+  - Filtro y Strainer (`MATERIALES.filtro`): además fundición de la misma ayuda (SA-216 Gr.WCB, SA-351 Gr.CF8/CF8M; GP240GH, 1.4308, 1.4408).
+  - Bajo el desplegable de material se muestra el equivalente ASME ↔ EN (`equivalenteMaterial`).
 
+## Ayuda
+- El menú y el título pasan a «Equivalencia ASME / Norma europea» (ASME en mayúsculas por ser sigla).
 
+## Código
+- `GRUPOS_LIB.accesorios.excluir`, `GRUPOS_LIB.compensadores`, `libTodos()`, `itemsGrupoLib()`, `pintarTablaLibTodos()`, `equivalenteMaterial()`; `libVista.filtroTipo/q`.
+- Versión `8.7.1-accesorios`, `VERSION_WEB = '8.7.1'`, `?v=8.7.1`. Las partes `js/partes/*.js` no cambian.
+
+## Pruebas
+- `t_lib.js`: administrador (alta, copia a reducción excéntrica, edición, búsqueda, borrado, materiales de filtro, equivalencias) y supervisor (ventana anterior). Regresión test10–test23: solo cambia el menú de Librerías.
+
+## Pendiente
+- La librería sigue guardándose en el navegador de cada equipo (y en la nube con «Compartir mi librería»); no es todavía una librería central de empresa.
+- Extender la tabla completa al resto de grupos si la prueba convence.
+- Clave anon de Supabase (8.7, punto 1) y confirmación de materiales de bombas (8.6.1).
