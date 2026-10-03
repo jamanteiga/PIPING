@@ -53,3 +53,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Cruces": "크로스", "Cruces...": "크
 
 // v8.17
 Object.assign(window.PIPING_I18N.ko.d, {"Presión de diseño": "설계 압력", "Presión de diseño (bar) * · presión con la que parte la línea P01": "설계 압력 (bar) * · P01 라인 시작 압력"});
+
+// v8.18
+Object.assign(window.PIPING_I18N.ko.d, {"Partir tubería...": "배관 분할...", "Tipo de bomba": "펌프 형식", "Fabricante": "제조사", "Modelo": "모델", "Velocidad de rotación (rpm)": "회전 속도 (rpm)", "Potencia del motor (kW)": "모터 출력 (kW)", "Tensión (V)": "전압 (V)", "Frecuencia (Hz)": "주파수 (Hz)", "Grado de protección (IP)": "보호 등급 (IP)", "Diámetro del impulsor (mm)": "임펠러 직경 (mm)", "Diámetro máximo del impulsor (mm)": "임펠러 최대 직경 (mm)", "Plan de sellado (API 682)": "실 플랜 (API 682)", "Bomba volumétrica": "용적식 펌프", "Volumen por ciclo / revolución (cm³)": "행정 / 회전당 토출량 (cm³)", "Ciclos o revoluciones por minuto": "분당 행정 또는 회전수", "Presión máxima de trabajo (bar)": "최대 사용 압력 (bar)", "N.º de cilindros / pulsaciones por ciclo": "실린더 수 / 사이클당 맥동", "Presión de descarga de diseño": "설계 토출 압력"});

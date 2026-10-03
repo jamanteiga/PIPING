@@ -53,3 +53,6 @@ Object.assign(window.PIPING_I18N.en.d, {"Cruces": "Crosses", "Cruces...": "Cross
 
 // v8.17
 Object.assign(window.PIPING_I18N.en.d, {"Presión de diseño": "Design pressure", "Presión de diseño (bar) * · presión con la que parte la línea P01": "Design pressure (bar) * · pressure at the start of line P01"});
+
+// v8.18
+Object.assign(window.PIPING_I18N.en.d, {"Partir tubería...": "Split pipe...", "Tipo de bomba": "Pump type", "Fabricante": "Manufacturer", "Modelo": "Model", "Velocidad de rotación (rpm)": "Rotation speed (rpm)", "Potencia del motor (kW)": "Motor power (kW)", "Tensión (V)": "Voltage (V)", "Frecuencia (Hz)": "Frequency (Hz)", "Grado de protección (IP)": "Protection rating (IP)", "Diámetro del impulsor (mm)": "Impeller diameter (mm)", "Diámetro máximo del impulsor (mm)": "Maximum impeller diameter (mm)", "Plan de sellado (API 682)": "Seal plan (API 682)", "Bomba volumétrica": "Positive-displacement pump", "Volumen por ciclo / revolución (cm³)": "Displacement per stroke / revolution (cm³)", "Ciclos o revoluciones por minuto": "Strokes or revolutions per minute", "Presión máxima de trabajo (bar)": "Maximum working pressure (bar)", "N.º de cilindros / pulsaciones por ciclo": "No. of cylinders / pulses per cycle", "Presión de descarga de diseño": "Design discharge pressure"});

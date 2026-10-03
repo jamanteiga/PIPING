@@ -53,3 +53,6 @@ Object.assign(window.PIPING_I18N.pt.d, {"Cruces": "Cruzetas", "Cruces...": "Cruz
 
 // v8.17
 Object.assign(window.PIPING_I18N.pt.d, {"Presión de diseño": "Pressão de projeto", "Presión de diseño (bar) * · presión con la que parte la línea P01": "Pressão de projeto (bar) * · pressão com que parte a linha P01"});
+
+// v8.18
+Object.assign(window.PIPING_I18N.pt.d, {"Partir tubería...": "Dividir tubagem...", "Tipo de bomba": "Tipo de bomba", "Fabricante": "Fabricante", "Modelo": "Modelo", "Velocidad de rotación (rpm)": "Velocidade de rotação (rpm)", "Potencia del motor (kW)": "Potência do motor (kW)", "Tensión (V)": "Tensão (V)", "Frecuencia (Hz)": "Frequência (Hz)", "Grado de protección (IP)": "Grau de proteção (IP)", "Diámetro del impulsor (mm)": "Diâmetro do impulsor (mm)", "Diámetro máximo del impulsor (mm)": "Diâmetro máximo do impulsor (mm)", "Plan de sellado (API 682)": "Plano de selagem (API 682)", "Bomba volumétrica": "Bomba volumétrica", "Volumen por ciclo / revolución (cm³)": "Volume por ciclo / rotação (cm³)", "Ciclos o revoluciones por minuto": "Ciclos ou rotações por minuto", "Presión máxima de trabajo (bar)": "Pressão máxima de trabalho (bar)", "N.º de cilindros / pulsaciones por ciclo": "N.º de cilindros / pulsações por ciclo", "Presión de descarga de diseño": "Pressão de descarga de projeto"});
