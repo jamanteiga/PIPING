@@ -47,3 +47,6 @@ Object.assign(window.PIPING_I18N.en.d, {"Editar": "Edit", "Ver ficha": "View det
 
 // v8.15
 Object.assign(window.PIPING_I18N.en.d, {"PN / Rating": "PN / Rating", "PN / RATING": "PN / RATING", "Norma": "Standard", "Racord": "Union fitting", "Uniones": "Unions", "Bridas...": "Flanges...", "Cota (mm)": "Elevation (mm)", "Cota extremo a (mm)": "Elevation end a (mm)", "Cota extremo b (mm)": "Elevation end b (mm)", "Cota de la bomba (mm)": "Pump elevation (mm)", "Cota del punto de consumo (mm)": "Consumption point elevation (mm)", "Cota del fondo del tanque (mm)": "Tank bottom elevation (mm)", "PN / Rating que admite (separados por comas; vacío = todos)": "Allowed PN / rating (comma separated; empty = all)"});
+
+// v8.16
+Object.assign(window.PIPING_I18N.en.d, {"Cruces": "Crosses", "Cruces...": "Crosses...", "Manguitos de unión...": "Couplings...", "Clase (forjados B16.11)": "Class (B16.11 forged)", "Clase que admite (separadas por comas; NO = sin clase)": "Allowed classes (comma separated; NO = no class)", "Clase · Tipo (Crane)": "Class · Type (Crane)"});

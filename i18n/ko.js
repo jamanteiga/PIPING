@@ -47,3 +47,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Editar": "편집", "Ver ficha": "상세
 
 // v8.15
 Object.assign(window.PIPING_I18N.ko.d, {"PN / Rating": "PN / 등급", "PN / RATING": "PN / 등급", "Norma": "규격", "Racord": "유니언 피팅", "Uniones": "유니언", "Bridas...": "플랜지...", "Cota (mm)": "표고 (mm)", "Cota extremo a (mm)": "a단 표고 (mm)", "Cota extremo b (mm)": "b단 표고 (mm)", "Cota de la bomba (mm)": "펌프 표고 (mm)", "Cota del punto de consumo (mm)": "사용점 표고 (mm)", "Cota del fondo del tanque (mm)": "탱크 바닥 표고 (mm)", "PN / Rating que admite (separados por comas; vacío = todos)": "허용 PN / 등급 (쉼표로 구분, 비우면 전체)"});
+
+// v8.16
+Object.assign(window.PIPING_I18N.ko.d, {"Cruces": "크로스", "Cruces...": "크로스...", "Manguitos de unión...": "커플링...", "Clase (forjados B16.11)": "등급 (B16.11 단조)", "Clase que admite (separadas por comas; NO = sin clase)": "허용 등급 (쉼표로 구분, NO = 등급 없음)", "Clase · Tipo (Crane)": "등급 · 유형 (Crane)"});
