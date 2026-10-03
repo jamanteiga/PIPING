@@ -44,3 +44,6 @@ Object.assign(window.PIPING_I18N.en.d, {"Clase (forjados)": "Class (forged fitti
 
 // v8.14.1
 Object.assign(window.PIPING_I18N.en.d, {"Editar": "Edit", "Ver ficha": "View details"});
+
+// v8.15
+Object.assign(window.PIPING_I18N.en.d, {"PN / Rating": "PN / Rating", "PN / RATING": "PN / RATING", "Norma": "Standard", "Racord": "Union fitting", "Uniones": "Unions", "Bridas...": "Flanges...", "Cota (mm)": "Elevation (mm)", "Cota extremo a (mm)": "Elevation end a (mm)", "Cota extremo b (mm)": "Elevation end b (mm)", "Cota de la bomba (mm)": "Pump elevation (mm)", "Cota del punto de consumo (mm)": "Consumption point elevation (mm)", "Cota del fondo del tanque (mm)": "Tank bottom elevation (mm)", "PN / Rating que admite (separados por comas; vacío = todos)": "Allowed PN / rating (comma separated; empty = all)"});

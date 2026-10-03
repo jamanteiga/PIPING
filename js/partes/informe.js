@@ -930,7 +930,7 @@ function datosListados() {
                     ...(() => { const x = calc && (calc.ped || []).find(y => y.linea === l.id); return x ? [r2(x.PS), x.TS, x.grupo, x.cat, r2(x.Pt), x.clase ? 'Clase ' + x.clase : ''] : ['', '', '', '', '', '']; })()]);
             });
             // Válvulas
-            const V = [['Etiqueta', 'Tipo', 'Línea', 'DN', 'PN / clase', 'Cálculo de K', 'Serie / tipo', 'Cv', 'Kv', 'K', 'Q (m³/h)', 'V (m/s)', 'Δp (kPa)', 'Estado']];
+            const V = [['Etiqueta', 'Tipo', 'Línea', 'DN', 'PN / Rating', 'Cálculo de K', 'Serie / tipo', 'Cv', 'Kv', 'K', 'Q (m³/h)', 'V (m/s)', 'Δp (kPa)', 'Estado']];
             elementosRed.filter(e => e.type === 'valvula').forEach(e => {
                 const a = de(e.id)[0], nps = npsDeDN(e.dn);
                 let cv = '';
