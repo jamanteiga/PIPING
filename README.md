@@ -219,3 +219,56 @@ Fuera: codo reductor y te reductora como modelos propios (el símbolo solo tiene
 - Clase de tubería por línea (propuesta, no hecha): fijaría norma, schedule, material y rating una vez por línea.
 - Edición de materiales, espesores y medidas desde la aplicación (hoy, solo en Supabase).
 - Incongruencias de la Excel de tubos: ver `claude/version-8.9-catalogo-accesorios.md`.
+
+# PIPING 8.10 «tablas» (2026-10-02) — accesorios en tablas separadas y código compuesto en el plano
+
+Entrega en `C:\Users\jaman\Documents\PROYECTOS\PIPING\` · copia de la 8.9 en `copias\v89\`.
+Sustituye al catálogo de 9 748 filas de la 8.9 (decisión de José: demasiadas referencias para un P&ID).
+
+## Idea
+El accesorio concreto (este codo, 2", Sch 40, WPB) no se guarda en ninguna tabla: se compone al insertarlo, eligiendo modelo, medida nominal, schedule, material y rating en su mismo cuadro. Con eso se forma su código.
+
+**Código:** `TIPO-MEDIDA-SCHEDULE-MATERIAL(-RATING)`, medida en pulgadas en ASME y en DN en EN.
+- `C90LR-2"-S40-WPB` · `C90LR-4"-S40S-WP316L-150#` · `RE-3"x2"-STD-WPB` · `C90-3D-DN100-E4.5-P235GH` · `C90SW-1"-S80-A105N-3000#`
+- En EN el espesor va como `E4.5` (mm).
+- Etiqueta en pantalla: el código con el número y la línea intercalados, `C90LR01-P01-2"-S40-WPB`.
+- El mismo código sale en el listado de componentes y en la ficha del elemento.
+
+## Tablas (Supabase `piping_acc_*`, y copia local `datos/accesorios_tablas.js`)
+| Tabla | Filas | Contenido |
+|---|---|---|
+| `piping_acc_modelos` | 32 | Tipos de accesorio: código del tipo, símbolo, variante, norma, conexión, sistema de medidas, tipo Crane, grupo de materiales, tabla de espesores, K de fabricante |
+| `piping_acc_medidas` | 68 | NPS / DN y diámetro exterior, ASME y EN |
+| `piping_acc_espesores` | 562 | Espesor por medida y schedule: B36.10 (carbono), B36.19 (inoxidable), EN 10253-1 (único), EN 10253-2 (series 1 a 8) |
+| `piping_acc_materiales` | 28 | Código corto (WPB, WP316L, A105N, P235GH…), designación, familia, grupo, equivalencia ASME ↔ EN |
+| `piping_acc_ratings` | 17 | 150# a 2500#, forjados 2000# a 9000#, PN 6 a PN 100 |
+| `piping_acc_cotas` | 1 246 | Cotas de norma por modelo y medida (consulta) |
+
+Modelos de partida: B16.9 (C45LR, C90LR, C90SR, TE, RC, RE), B16.11 (C45/C90/TE/CR en SW y roscado), EN 10253-1 (C45-3D/5D, C90-2D/3D/5D, TE, RC, RC-F1, RE), EN 10253-2 (C45 y C90 en 2D/3D/5D, TE, RC, RE).
+Fuera: codo reductor y te reductora como modelos propios (el símbolo solo tiene un tamaño; la te vale para recta y reductora).
+
+## Supabase
+`supabase/07_accesorios.sql` (después de 05 y 06): crea las seis tablas con sus datos (no hay CSV que importar), elimina `piping_accesorios` de las 8.8 / 8.9 y define:
+- `piping_acc_tablas()` — todas las tablas en una llamada (lectura con clave anon).
+- `piping_acc_modelo_guardar(token, item)`, `piping_acc_modelo_borrar(token, id)`, `piping_acc_modelos_recuperar(token)` — solo administrador; anotadas en el registro de actividad.
+- Medidas, espesores, materiales, ratings y cotas se editan en el Table Editor; la app las relee al abrirse.
+
+## Aplicación
+- **Al insertar** un codo, te, cruce o reducción (ventana de inserción) y en **propiedades**: Modelo, Material (solo los del grupo del modelo), Schedule / espesor (solo los que existen para esa medida y familia), Medida nominal, Rating / PN. Debajo, el código, OD, espesor, cota de norma y equivalencia del material.
+- Al elegir modelo: fija el tipo Crane (LR 14 fT, SR 20 fT…), la variante de la reducción, y propone material y schedule a partir de la tubería conectada.
+- Si se cambia medida o material y el schedule deja de existir, se vacía.
+- Sin modelo elegido, el accesorio se comporta como antes (etiqueta `C9001-P01-2`).
+- **Librerías > Accesorios > Accesorios de tubería...:** pestañas Accesorios (los 32 modelos; Nuevo, Nuevo a partir del marcado, Eliminar, Guardar), Medidas nominales, Espesores / schedule, Materiales, Rating / PN y Cotas (consulta).
+- Campos del elemento: `accModelo`, `accSch`, `materialComp`, `dn`, `dnMenor`, `pn`. Funciones: `modeloAcc`, `schedulesAcc`, `materialesAcc`, `ratingsAcc`, `espesorAcc`, `cotasAcc`, `codigoAccesorio`, `partesCodigoAcc`, `aplicarModeloAcc`, `ajustarScheduleAcc`, `camposAccesorio`.
+- `PN_LISTA` añade 1500#, 2500#, 2000#, 3000#, 6000#, 9000#.
+- Versión `8.10-tablas`. Generador: `gen_tablas.py` (a partir de `gen_catalogo.py`). Revisión: `accesorios_tablas.xlsx`.
+
+## Pruebas
+- SQL 07 en PostgreSQL local (dos ejecuciones seguidas, borrado de la tabla antigua).
+- `t_tab.js`: librería y pestañas; composición del código en ASME carbono, ASME inoxidable, EN y forjados; reducción y te; panel, etiqueta, listado; ventana de inserción; administrador de Supabase (crear a partir de uno, eliminar) e invitado que ve los cambios.
+- Regresión test10–test23: solo cambia el número de opciones de PN.
+
+## Pendiente
+- Clase de tubería por línea (propuesta, no hecha): fijaría norma, schedule, material y rating una vez por línea.
+- Edición de materiales, espesores y medidas desde la aplicación (hoy, solo en Supabase).
+- Incongruencias de la Excel de tubos: ver `claude/version-8.9-catalogo-accesorios.md`.
