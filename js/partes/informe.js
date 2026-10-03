@@ -1,37 +1,8 @@
 // PIPING · parte «informe»: se carga al usarla (la genera el empaquetado a partir de piping.js)
-function escenarioReserva() {
-            if (!elementosRed.some(e => e.type === 'bomba' && e.reservaDe)) return null;
-            const previo = escenarioBombas, tenia = !!ultimoCalculo;
-            escenarioBombas = 'reserva';
-            let out = null;
-            try {
-                const g = construirGrafoRed(), a = construirAristas(g), r = calcularResultado(g, a);
-                if (r.error) out = { error: r.error, fallos: [r.error] };
-                else {
-                    const res = r.resultado;
-                    out = { fallos: elementosRed.filter(e => e.estado === 'fallo').map(e => `${tagDe(e)}: ${(ultimoResultado[e.id] || { motivos: [] }).motivos.join('; ')}`),
-                        bombas: res.aristas.filter(x => x.esBomba).map(x => { const rr = ultimoResultado[x.el.id]; return { tag: tagDe(x.el), sustituye: x.el.reservaDe ? tagDe(elementosRed.find(e => e.id === x.el.reservaDe)) : '', Q: rr.Q, H: rr.H, npshd: rr.npshd, npshr: x.el.npsh, estado: x.el.estado }; }),
-                        lc: res.lineaCritica ? res.lineaCritica.hfTotal : null, avisos: res.avisosRed || [] };
-                }
-            } finally {
-                escenarioBombas = previo;
-                const g = construirGrafoRed(), a = construirAristas(g), r = a.length ? calcularResultado(g, a) : { error: 'x' };
-                if (!r.error && tenia) ultimoCalculo = { resultado: r.resultado, condiciones: r.condiciones, huella: huellaRed() };
-                else if (!tenia) invalidarSinProgramar();
-            }
-            return out;
-        }
 function filasModulosPED(ped) {
             const M = proyecto.pedModulos || {};
             return ped.filter(x => x.cat !== 'Fuera').map(x => { const m = M[x.linea] || {}, ops = modulosDe(x.cat), v = m.validado;
                 return [x.linea, x.cat, m.modulo || (ops.length === 1 ? ops[0] : tradDoc('Pendiente de elegir')), ops.join(' / '), v ? `${v.categoria}${v.modulo ? ' · ' + v.modulo : ''} (${fechaDMA(v.fecha.slice(0, 10))})` : '—']; });
-        }
-function faltanDatosProyecto() {
-            const f = [];
-            if (!proyecto.numero) f.push('Nº de proyecto'); if (!proyecto.cliente) f.push('Cliente'); if (!proyecto.instalacion) f.push('Instalación');
-            if (!(+proyecto.caudalDiseno > 0)) f.push('Caudal de diseño');
-            if (proyecto.esBuque) CAMPOS_BUQUE.filter(([, e]) => e.endsWith('*')).forEach(([k, e]) => { if (!proyecto.buque[k]) f.push(e.replace(' *', '')); });
-            return f;
         }
 function cargarDocx() {
             if (window.docx) return Promise.resolve(window.docx);
@@ -56,21 +27,6 @@ function mostrarAvisoProgreso(texto) {
             if (!texto) { if (d) d.remove(); return; }
             if (!d) { d = document.createElement('div'); d.id = 'aviso-progreso'; d.style.cssText = 'position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:3000;background:#1e3a8a;color:#fff;padding:8px 16px;border-radius:6px;font:12px sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.25)'; document.body.appendChild(d); }
             d.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>${esc(texto)}`;
-        }
-function comprobarInforme() {
-            const falta = faltanDatosProyecto();
-            if (falta.length) return { tipo: 'datos', falta };
-            if (!ultimoCalculo || ultimoCalculo.huella !== huellaRed()) return { tipo: 'calculo' };
-            const ars = ultimoCalculo.resultado.aristas;
-            const calculados = new Set(ars.map(a => a.el.id));
-            const fallos = elementosRed.filter(e => e.estado === 'fallo').map(e => { const r = ultimoResultado[e.id] || { motivos: [] }; return `${tagDe(e)}: ${r.motivos.join('; ')}${(r.alternativas || []).map(x => '\n    → ' + x).join('')}`; });
-            elementosRed.filter(e => !sinFlujo(e) && !calculados.has(e.id) && !(esTerminal(e) && ultimoResultado[e.id]) && bombaEnMarcha(e)).forEach(e => fallos.push(`${tagDe(e)}: no está conectado a la red (no se ha calculado)`));
-            if (!ars.some(a => a.esBomba) && ultimoCalculo.resultado.Qbombas != null && ultimoCalculo.resultado.Qbombas < (+proyecto.caudalDiseno || 0) * 0.999) fallos.push(`Red sin bombas: el caudal de funcionamiento (${ultimoCalculo.resultado.Qbombas.toFixed(2)} m³/h) no alcanza el caudal de diseño (${proyecto.caudalDiseno} m³/h).`);
-            if (fallos.length) return { tipo: 'fallos', fallos };
-            // con bombas de reserva, también debe cumplir el escenario "reserva en marcha"
-            const esc = escenarioReserva();
-            if (esc && esc.fallos.length) return { tipo: 'fallos', fallos: esc.fallos.map(f => '[Reserva en marcha] ' + f) };
-            return null;
         }
 function cargarJSZip() {
             if (window.JSZip) return Promise.resolve(window.JSZip);

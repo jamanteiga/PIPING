@@ -3603,7 +3603,20 @@
                 return;
             }
 
-            mostrarModalContorno(grafo, aristas, nodosContornoDe(grafo, aristas));
+            const seguir = () => mostrarModalContorno(grafo, aristas, nodosContornoDe(grafo, aristas));
+            // red sin bomba ni depósito: P01 parte con la presión de diseño del proyecto; si falta, se pide ahora
+            if (!(+proyecto.presionDiseno > 0) && origenSinBomba(grafo, aristas, terminalesRed(grafo))) {
+                dialogo('<i class="fa-solid fa-gauge-high text-blue-600 mr-1.5"></i>Presión de diseño',
+                    `<p>La red no tiene bomba ni depósito: la línea P01 parte con la presión y el caudal de diseño del proyecto (${fQ(+proyecto.caudalDiseno || 0, 2)} ${lQ()}).</p><p class="mt-2">Falta la presión de diseño:</p><label class="block mt-1">Presión de diseño (bar)<input id="pd-valor" type="number" step="any" min="0" class="w-full border rounded p-1.5 mt-0.5" placeholder="p. ej. 4"></label><p class="text-[10px] text-slate-400 mt-2">Se guarda en Archivo > Datos del proyecto.</p>`,
+                    [{ texto: 'Calcular', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]).then(r => {
+                        if (r !== 'si') return;
+                        const v = parseFloat(String((document.getElementById('pd-valor') || {}).value || '').replace(',', '.'));
+                        if (!(v > 0)) { aviso('Indica una presión de diseño mayor que cero.', 'error'); return; }
+                        proyecto.presionDiseno = String(v); actualizarPanelDiseno(); marcarCambios(true); seguir();
+                    });
+                return;
+            }
+            seguir();
         }
 
         // Extremos abiertos de la red (necesitan cota y presión): nodos con una sola arista, salvo los
@@ -3646,7 +3659,6 @@
         // Red sin bomba ni depósitos: la línea P01 parte con la presión y el caudal de diseño del proyecto.
         // Devuelve el extremo de origen (el extremo abierto del primer elemento de la primera línea principal) y las demás salidas, o null.
         function origenSinBomba(grafo, aristas, term) {
-            if (!(+proyecto.presionDiseno > 0)) return null;
             if (aristas.some(a => a.el.type === 'bomba' && bombaEnMarcha(a.el))) return null;
             if (term && Object.keys(term.fijos).length) return null;   // un depósito ya fija la presión de partida
             const nodos = nodosContornoDe(grafo, aristas); if (!nodos.length) return null;
@@ -3664,7 +3676,8 @@
                 let el = elementosRed.find(e => e.id === p.elId);
                 if (!el) return '';
                 let key = `${p.elId}:${p.portId}`;
-                let cond = condicionesContorno[key] || { elevacion: 0, presion: sb && sb.clave === key ? +proyecto.presionDiseno : 0 };
+                let cond = condicionesContorno[key] || { elevacion: 0, presion: 0 };
+                if (sb && sb.clave === key && !(+cond.presion > 0)) cond = { elevacion: cond.elevacion || 0, presion: +proyecto.presionDiseno || 0 };
                 const esOrigen = sb && sb.clave === key, esSalidaQ = sinConsumos && !esOrigen;
                 return `
                 <tr data-key="${key}">
@@ -3676,7 +3689,7 @@
 
             document.getElementById('red-content').innerHTML = `
                 <p class="text-xs text-slate-500 mb-3">Indica la presión manométrica en cada extremo abierto de la red (0 = descarga/aspiración atmosférica). La cota es la del elemento en ese extremo. Los depósitos y los puntos de consumo usan sus propios datos.</p>
-                ${sb ? `<p class="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded p-2 mb-3"><i class="fa-solid fa-circle-info mr-1"></i>Red sin bomba: la línea parte de <b>${esc(tagDe(elementosRed.find(e => e.id === sb.origen.puertoContorno.elId) || {}))}</b> con la presión de diseño (${fP(+proyecto.presionDiseno, 2)} ${lP()}) y el caudal de diseño (${fQ(+proyecto.caudalDiseno, 2)} ${lQ()}) del proyecto.${sinConsumos ? ' Como no hay puntos de consumo, ese caudal sale por ' + (sb.salidas.length > 1 ? 'las demás salidas, a partes iguales' : 'la otra salida') + ', y su presión es un resultado del cálculo.' : ' El reparto del caudal lo fijan los puntos de consumo.'}</p>` : ''}
+                ${sb ? `<p class="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded p-2 mb-3"><i class="fa-solid fa-circle-info mr-1"></i>Red sin bomba: la línea parte de <b>${esc(tagDe(elementosRed.find(e => e.id === sb.origen.puertoContorno.elId) || {}))}</b> con la presión de diseño (${fP(+proyecto.presionDiseno || 0, 2)} ${lP()}) y el caudal de diseño (${fQ(+proyecto.caudalDiseno, 2)} ${lQ()}) del proyecto.${sinConsumos ? ' Como no hay puntos de consumo, ese caudal sale por ' + (sb.salidas.length > 1 ? 'las demás salidas, a partes iguales' : 'la otra salida') + ', y su presión es un resultado del cálculo.' : ' El reparto del caudal lo fijan los puntos de consumo.'}</p>` : ''}
                 ${filas ? `<table class="w-full text-xs mb-2">
                     <thead><tr class="text-left text-slate-500"><th class="pb-1">Extremo</th><th class="pb-1">Cota (mm)</th><th class="pb-1">Presión man. (${lP()})</th></tr></thead>
                     <tbody>${filas}</tbody>
@@ -3721,7 +3734,28 @@
         }
 
         // Cálculo silencioso del escenario "reserva en marcha"; deja la red en el escenario normal recalculada
-        
+        function escenarioReserva() {
+            if (!elementosRed.some(e => e.type === 'bomba' && e.reservaDe)) return null;
+            const previo = escenarioBombas, tenia = !!ultimoCalculo;
+            escenarioBombas = 'reserva';
+            let out = null;
+            try {
+                const g = construirGrafoRed(), a = construirAristas(g), r = calcularResultado(g, a);
+                if (r.error) out = { error: r.error, fallos: [r.error] };
+                else {
+                    const res = r.resultado;
+                    out = { fallos: elementosRed.filter(e => e.estado === 'fallo').map(e => `${tagDe(e)}: ${(ultimoResultado[e.id] || { motivos: [] }).motivos.join('; ')}`),
+                        bombas: res.aristas.filter(x => x.esBomba).map(x => { const rr = ultimoResultado[x.el.id]; return { tag: tagDe(x.el), sustituye: x.el.reservaDe ? tagDe(elementosRed.find(e => e.id === x.el.reservaDe)) : '', Q: rr.Q, H: rr.H, npshd: rr.npshd, npshr: x.el.npsh, estado: x.el.estado }; }),
+                        lc: res.lineaCritica ? res.lineaCritica.hfTotal : null, avisos: res.avisosRed || [] };
+                }
+            } finally {
+                escenarioBombas = previo;
+                const g = construirGrafoRed(), a = construirAristas(g), r = a.length ? calcularResultado(g, a) : { error: 'x' };
+                if (!r.error && tenia) ultimoCalculo = { resultado: r.resultado, condiciones: r.condiciones, huella: huellaRed() };
+                else if (!tenia) invalidarSinProgramar();
+            }
+            return out;
+        }
         // Huella de todo lo que influye en el cálculo: si cambia, el informe exige recalcular
         function huellaRed() {
             const els = elementosRed.map(e => { const c = Object.assign({}, e); delete c.estado; delete c.esLineaCritica; return c; });
@@ -4084,7 +4118,8 @@
             mostrarResultados(r.resultado);
             actualizarPanelAvisos();
             // cálculo correcto: el diseñador decide si genera ya el informe
-            if (!elementosRed.some(e => e.estado === 'fallo')) setTimeout(async () => {
+            const ci = comprobarInforme();
+            if (!elementosRed.some(e => e.estado === 'fallo') && (!ci || ci.tipo === 'datos')) setTimeout(async () => {
                 const q = await dialogo('<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i>Cálculo correcto',
                     '<p>Todos los componentes y líneas cumplen los criterios de cálculo.</p><p>¿Quieres generar ahora el informe (*.docx)?</p>',
                     [{ texto: 'Sí, generar el informe', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'No', valor: null }]);
@@ -4106,7 +4141,8 @@
             const sb = origenSinBomba(grafo, aristas, term), Qd0 = +proyecto.caudalDiseno || 0;
             let salidasQ = [];
             if (sb) {
-                if (!condicionesContorno[sb.clave]) condiciones[sb.origen.id].presion = +proyecto.presionDiseno;
+                // en el origen, una presión guardada de 0 equivale a «sin indicar»: se parte de la presión de diseño
+                if (!(condicionesContorno[sb.clave] && +condicionesContorno[sb.clave].presion > 0)) condiciones[sb.origen.id].presion = +proyecto.presionDiseno || 0;
                 const hayConsumos = Object.values(term.demandas).some(q => q > 0);
                 if (!hayConsumos && Qd0 > 0 && sb.salidas.length) {
                     salidasQ = sb.salidas;
@@ -4137,7 +4173,8 @@
                 const tg = n => { const e = elementosRed.find(x => x.id === n.puertoContorno.elId); return e ? tagDe(e) : '?'; };
                 resultado.sinBomba = { origen: tg(sb.origen), presion: condiciones[sb.origen.id].presion, caudal: Qd0, salidas: salidasQ.map(n => ({ tag: tg(n), Q: Qd0 / salidasQ.length, p: resultado.pMan[n.id] / 1e5 })) };
                 resultado.avisosRed.push(`Red sin bomba: parte de ${resultado.sinBomba.origen} con ${fP(resultado.sinBomba.presion, 2)} ${lP()}${salidasQ.length ? ` y ${fQ(Qd0, 2)} ${lQ()}` : ''} (presión y caudal de diseño del proyecto).`);
-                resultado.sinBomba.salidas.forEach(x => resultado.avisosRed.push(`Salida ${x.tag}: ${fQ(x.Q, 2)} ${lQ()} a ${fP(x.p, 2)} ${lP()}${x.p < 0 ? ' — PRESIÓN INSUFICIENTE: la presión de diseño no vence las pérdidas de carga y el desnivel' : ''}.`));
+                if (!(+proyecto.presionDiseno > 0)) resultado.avisosRed.push('Falta la presión de diseño del proyecto (Archivo > Datos del proyecto): las presiones se han calculado partiendo de la presión indicada en el origen. Los caudales, las velocidades y las pérdidas de carga no dependen de ella.');
+                resultado.sinBomba.salidas.forEach(x => resultado.avisosRed.push(`Salida ${x.tag}: ${fQ(x.Q, 2)} ${lQ()} a ${fP(x.p, 2)} ${lP()}${x.p < 0 && +proyecto.presionDiseno > 0 ? ' — PRESIÓN INSUFICIENTE: la presión de diseño no vence las pérdidas de carga y el desnivel' : ''}.`));
                 if (salidasQ.length > 1) resultado.avisosRed.push(`El caudal de diseño se ha repartido a partes iguales entre las ${salidasQ.length} salidas. Para fijar otro reparto, coloca un punto de consumo en cada salida (panel lateral > Consumos).`);
             }
             evaluarCriterios(resultado);
@@ -7546,7 +7583,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.18';
+        const VERSION_WEB = '8.18.1';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -8135,7 +8172,13 @@
             d.innerHTML = proyectoDefinido() ? fila('Caudal de proyecto', `${fQ(+proyecto.caudalDiseno, 2)} ${lQ()}`) + (+proyecto.presionDiseno > 0 ? fila('Presión de diseño', `${fP(+proyecto.presionDiseno, 2)} ${lP()}`) : '') + fila('V máx. impulsión', `${lim.imp} m/s`) + fila('V máx. aspiración', `${lim.asp} m/s`) + fila('TS máx.', `${proyecto.tsMax} °C`)
                 : '<span class="text-amber-600">Proyecto sin definir</span>';
         }
-        
+        function faltanDatosProyecto() {
+            const f = [];
+            if (!proyecto.numero) f.push('Nº de proyecto'); if (!proyecto.cliente) f.push('Cliente'); if (!proyecto.instalacion) f.push('Instalación');
+            if (!(+proyecto.caudalDiseno > 0)) f.push('Caudal de diseño');
+            if (proyecto.esBuque) CAMPOS_BUQUE.filter(([, e]) => e.endsWith('*')).forEach(([k, e]) => { if (!proyecto.buque[k]) f.push(e.replace(' *', '')); });
+            return f;
+        }
         function actualizarTituloProyecto() {
             const h = document.querySelector('header h1');
             if (h) h.innerHTML = `<i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&ID${proyecto.numero ? ' · ' + esc(proyecto.numero) + (proyecto.cliente ? ' · ' + esc(proyecto.cliente) : '') : ''}`;
@@ -8165,6 +8208,21 @@
         }
 
         // ---------- Comprobaciones previas ----------
+        function comprobarInforme() {
+            const falta = faltanDatosProyecto();
+            if (falta.length) return { tipo: 'datos', falta };
+            if (!ultimoCalculo || ultimoCalculo.huella !== huellaRed()) return { tipo: 'calculo' };
+            const ars = ultimoCalculo.resultado.aristas;
+            const calculados = new Set(ars.map(a => a.el.id));
+            const fallos = elementosRed.filter(e => e.estado === 'fallo').map(e => { const r = ultimoResultado[e.id] || { motivos: [] }; return `${tagDe(e)}: ${r.motivos.join('; ')}${(r.alternativas || []).map(x => '\n    → ' + x).join('')}`; });
+            elementosRed.filter(e => !sinFlujo(e) && !calculados.has(e.id) && !(esTerminal(e) && ultimoResultado[e.id]) && bombaEnMarcha(e)).forEach(e => fallos.push(`${tagDe(e)}: no está conectado a la red (no se ha calculado)`));
+            if (!ars.some(a => a.esBomba) && ultimoCalculo.resultado.Qbombas != null && ultimoCalculo.resultado.Qbombas < (+proyecto.caudalDiseno || 0) * 0.999) fallos.push(`Red sin bombas: el caudal de funcionamiento (${ultimoCalculo.resultado.Qbombas.toFixed(2)} m³/h) no alcanza el caudal de diseño (${proyecto.caudalDiseno} m³/h).`);
+            if (fallos.length) return { tipo: 'fallos', fallos };
+            // con bombas de reserva, también debe cumplir el escenario "reserva en marcha"
+            const esc = escenarioReserva();
+            if (esc && esc.fallos.length) return { tipo: 'fallos', fallos: esc.fallos.map(f => '[Reserva en marcha] ' + f) };
+            return null;
+        }
 
         // ==================================================================================
         // PLANTILLA DE WORD DEL INFORME (una por cliente, guardada en el navegador)
