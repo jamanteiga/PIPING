@@ -512,9 +512,8 @@
         };
         // Subtipos de versiones anteriores
         const MIGRA_SUBTIPO = { codo: 'codo90', union: 'bridaunion' };
-        const CATEGORIAS = [['tuberias', 'Tuberías'], ['accesorios', 'Accesorios'], ['valvulas', 'Válvulas'], ['instrumentos', 'Instrumentos'], ['bombas', 'Bombas'], ['equipos', 'Equipos'], ['terminales', 'Consumos'], ['anotaciones', 'Anotaciones']];
+        const CATEGORIAS = [['tuberias', 'Tuberías'], ['accesorios', 'Accesorios'], ['valvulas', 'Válvulas'], ['instrumentos', 'Instrumentos'], ['bombas', 'Bombas'], ['equipos', 'Equipos'], ['compensadores', 'Filtros, injertos y juntas'], ['terminales', 'Consumos'], ['anotaciones', 'Anotaciones']];
         // Grupos que se muestran dentro de la categoría Accesorios de la librería
-        const SUBGRUPOS_ACCESORIOS = [['tanques', 'Tanques y depósitos'], ['intercambiadores', 'Intercambiadores (buques)'], ['uniones', 'Uniones y bridas']];
 
         // Tablas de Crane adicionales (se añaden al catálogo). Un valor numérico es el múltiplo n de
         // fT; un objeto {K} es un K fijo (no depende del DN).
@@ -2853,8 +2852,10 @@
                     btn.className = 'px-3 py-1.5 rounded font-medium ' + (b.clase || 'bg-slate-100 hover:bg-slate-200 text-slate-700');
                     btn.textContent = b.texto;
                     btn.onclick = () => { document.getElementById('modal-dialogo').style.display = 'none'; ok(b.valor); };
+                    if (b.valor == null) btn.dataset.esc = '1'; // el botón que pulsa Escape (Cancelar / Cerrar)
                     cont.appendChild(btn);
                 });
+                if (botones.length === 1) cont.firstChild.dataset.esc = '1';
                 document.getElementById('modal-dialogo').style.display = 'flex';
             });
         }
@@ -4271,12 +4272,18 @@
         // LIBRERÍA DE SÍMBOLOS (panel derecho), generada desde TIPOS
         // ==================================================================================
         const TUBERIAS_LIBRERIA = [
-            { material: 'Acero al carbono', serie: '40', dn: 'DN 50', texto: 'Acero carbono DN 50 Sch 40' },
-            { material: 'Acero al carbono', serie: '40', dn: 'DN 100', texto: 'Acero carbono DN 100 Sch 40' },
-            { material: 'Acero inoxidable', serie: '10S', dn: 'DN 50', texto: 'Inox DN 50 Sch 10S' },
-            { material: 'PVC-U', serie: 'PN10', dn: 'd63', texto: 'PVC-U d63 PN10' },
-            { material: 'PE100', serie: 'SDR 11 (PN16)', dn: 'd63', texto: 'PE100 d63 SDR 11' }
+            { material: 'Acero al carbono', serie: '40', dn: 'DN 50', texto: 'Acero ASME / EN', acero: true },
+            { material: 'PE80', texto: 'PE80' }, { material: 'PE100', serie: 'SDR 11 (PN16)', dn: 'd63', texto: 'PE100' }, { material: 'PVC-U', serie: 'PN10', dn: 'd63', texto: 'PVC-U' },
+            { material: 'CPVC', texto: 'CPVC' }, { material: 'PP-R', texto: 'PP-R' }, { material: 'PP-H', texto: 'PP-H' }, { material: 'PVDF', texto: 'PVDF' },
+            { material: 'Cobre (Dint ref. Sch 40)', texto: 'Cobre' }, { material: 'Fundición (Dint ref. Sch 40)', texto: 'Fundición' }, { material: 'Hormigón (Dint ref. Sch 40)', texto: 'Hormigón' }
         ];
+        // schedule y medida por defecto de una tubería del panel (los que falten se toman del material)
+        function tuboPanel(t) {
+            const mt = CAT && CAT.materiales[t.material]; if (!mt) return null;
+            const serie = t.serie && mt.series.includes(t.serie) ? t.serie : (mt.serieDef || mt.series[0]);
+            const tam = mt.tamanos.find(x => x.clave === t.dn && x.e[serie] != null) || mt.tamanos.find(x => x.e[serie] != null && (x.clave === 'DN 50' || x.clave === 'd63')) || mt.tamanos.find(x => x.e[serie] != null);
+            return tam ? Object.assign({}, t, { serie, dn: tam.clave }) : null;
+        }
         function iconoLibreria(tipo, extra) {
             const P = { base: '#2563eb', relleno: '#ffffff', flecha: '#16a34a' };
             const el = Object.assign({ subtype: tipo, type: (TIPOS[tipo] || {}).type }, extra || {});
@@ -4286,14 +4293,34 @@
         // demás. Dentro de Accesorios, sus tres grupos siguen el mismo criterio. Al seleccionar o insertar
         // un elemento se despliega su categoría (y su grupo).
         let libAbierta = null, libSubAbierta = null;
-        const SUBGRUPOS_LIB = () => [...SUBGRUPOS_ACCESORIOS, ['accesorios', 'Accesorios de tubería']].sort((a, b) => a[1].localeCompare(b[1], 'es'));
+        // Accesorios del panel lateral, por familias. Con un solo elemento la familia es el propio elemento; con varios, un grupo desplegable.
+        const BRIDAS_PANEL = ['bridaunion', 'bridawn', 'bridaplana', 'bridaroscada', 'bridaloca', 'bridaplastica'];
+        const FAMILIAS_PANEL = [
+            { id: 'bridas', titulo: 'Bridas', subtipos: BRIDAS_PANEL },
+            { id: 'codos', titulo: 'Codos', subtipos: ['codo45', 'codo60', 'codo90'] },
+            { id: 'intercambiadores', titulo: 'Intercambiadores (buques)', cat: 'intercambiadores' },
+            { id: 'machones', titulo: 'Machones', subtipos: ['machon'] },
+            { id: 'manguitos', titulo: 'Manguitos de unión', subtipos: ['manguito'] },
+            { id: 'racord', titulo: 'Racord', subtipos: ['racor'] },
+            { id: 'redconc', titulo: 'Reducciones concéntricas', subtipos: ['reduccion'], excentrica: false },
+            { id: 'redexc', titulo: 'Reducciones excéntricas', subtipos: ['reduccion'], excentrica: true },
+            { id: 'tanques', titulo: 'Tanques y depósitos', cat: 'tanques' },
+            { id: 'tes', titulo: 'Tes', subtipos: ['tee', 'cruce'] },
+            { id: 'tuercas', titulo: 'Tuercas de unión', subtipos: ['tuerca'] }
+        ];
+        const subtiposFamilia = f => (f.subtipos || Object.keys(TIPOS).filter(k => TIPOS[k].cat === f.cat)).filter(k => TIPOS[k]);
+        const SUBTIPOS_COMPENSADORES = ['filtro', 'strainer', 'injerto', 'junta', 'antivibratorio'];
+        const SUBGRUPOS_LIB = () => FAMILIAS_PANEL.map(f => [f.id, f.titulo]).sort((a, b) => a[1].localeCompare(b[1], 'es'));
         function construirLibreria() {
             const cont = document.getElementById('libreria');
             if (!cont) return;
             const item = (attrs, texto, icono) => `<div draggable="true" ondragstart="drag(event)" onclick="cogerDelPanel(this)" title="Arrastra para insertar uno · clic para insertar varios seguidos" ${attrs} class="bg-slate-50 hover:bg-blue-50 border border-slate-200 px-1 py-0.5 rounded cursor-grab flex items-center gap-1.5">${icono || ''}<span class="flex-1">${texto}</span><i class="fa-solid fa-plus text-blue-600 text-[9px]"></i></div>`;
+            const itemTipo = (st, texto) => { const t = TIPOS[st]; return item(`data-type="${t.type}" data-subtype="${st}" data-name="${t.nombre}"`, `${texto || t.nombre}<span class="text-slate-400"> · ${t.codigo}</span>`, iconoLibreria(st)); };
+            const itemRed = (exc, texto) => item(`data-type="accesorio" data-subtype="reduccion" data-excentrica="${exc}" data-name="Reducción ${exc ? 'excéntrica' : 'concéntrica'}"`, `${texto}<span class="text-slate-400"> · ${exc ? 'RE' : 'RC'}</span>`, iconoLibreria('reduccion', exc ? { excentrica: true } : null));
+            const porNombre = l => l.filter(st => TIPOS[st]).sort((a, b) => TIPOS[a].nombre.localeCompare(TIPOS[b].nombre, 'es'));
             const itemsDe = cat => {
                 let items = '';
-                Object.entries(TIPOS).filter(([, t]) => t.cat === cat).sort((a, b) => a[1].nombre.localeCompare(b[1].nombre, 'es')).forEach(([st, t]) => {
+                Object.entries(TIPOS).filter(([st, t]) => t.cat === cat && !(cat === 'accesorios' && st === 'continuacion')).sort((a, b) => a[1].nombre.localeCompare(b[1].nombre, 'es')).forEach(([st, t]) => {
                     if (st === 'reduccion') {
                         items += item(`data-type="accesorio" data-subtype="reduccion" data-excentrica="false" data-name="Reducción concéntrica"`, 'Reducción concéntrica<span class="text-slate-400"> · RC</span>', iconoLibreria('reduccion'));
                         items += item(`data-type="accesorio" data-subtype="reduccion" data-excentrica="true" data-name="Reducción excéntrica"`, 'Reducción excéntrica<span class="text-slate-400"> · RE</span>', iconoLibreria('reduccion', { excentrica: true }));
@@ -4305,15 +4332,20 @@
             let h = '';
             CATEGORIAS.slice().sort((a, b) => a[1].localeCompare(b[1], 'es')).forEach(([id, titulo]) => {
                 let items = '';
-                if (id === 'tuberias') items = TUBERIAS_LIBRERIA.slice().sort((a, b) => a.texto.localeCompare(b.texto, 'es')).map(t => item(`data-type="tuberia" data-material="${t.material}" data-serie="${t.serie}" data-dn="${t.dn}" data-longitud="3000" data-name="Tubería"`, `${t.texto}<span class="text-slate-400"> · ${CODIGO_MATERIAL[t.material]}</span>`, `<svg viewBox="0 0 42 40" width="26" height="20" style="flex:none"><line x1="2" y1="20" x2="40" y2="20" stroke="#2563eb" stroke-width="2.5"/><polygon points="24,12 30,15 24,18" fill="#16a34a"/></svg>`)).join('');
+                if (id === 'tuberias') items = TUBERIAS_LIBRERIA.map(tuboPanel).filter(Boolean).sort((a, b) => a.texto.localeCompare(b.texto, 'es')).map(t => item(`data-type="tuberia" data-material="${t.material}" data-serie="${t.serie}" data-dn="${t.dn}" data-longitud="3000" data-name="Tubería"`, `${t.texto}<span class="text-slate-400"> · ${t.acero ? 'TAC / TAI' : CODIGO_MATERIAL[t.material]}</span>`, `<svg viewBox="0 0 42 40" width="26" height="20" style="flex:none"><line x1="2" y1="20" x2="40" y2="20" stroke="#2563eb" stroke-width="2.5"/><polygon points="24,12 30,15 24,18" fill="#16a34a"/></svg>`)).join('');
                 else if (id === 'bombas') items = item(`data-type="bomba" data-name="Bomba centrífuga" data-caudal="50" data-presion="3.5" data-npsh="2500"`, 'Bomba centrífuga<span class="text-slate-400"> · BO</span>', `<svg viewBox="0 0 50 50" width="26" height="20" style="flex:none">${simboloBomba('#2563eb', { relleno: '#fff' })}</svg>`);
                 else if (id === 'accesorios') {
-                    SUBGRUPOS_LIB().forEach(([sg, tit]) => {
-                        const ab = libSubAbierta === sg;
-                        items += `<div class="border border-slate-100 rounded"><button type="button" onclick="toggleSubgrupo('${sg}')" class="w-full flex items-center justify-between px-1 py-0.5 hover:bg-slate-50 text-left"><span class="text-[9px] font-bold text-slate-500 uppercase">${tit}</span><i id="chevron-sg-${sg}" class="fa-solid fa-chevron-down text-slate-400 text-[8px] transition-transform duration-150" ${chev(ab)}></i></button>
-                            <div id="lista-sg-${sg}" class="grid grid-cols-1 gap-0.5 p-0.5" style="${ab ? '' : 'display:none'}">${itemsDe(sg)}</div></div>`;
+                    FAMILIAS_PANEL.slice().sort((x, y) => x.titulo.localeCompare(y.titulo, 'es')).forEach(f => {
+                        const sts = porNombre(subtiposFamilia(f));
+                        if (f.excentrica != null) { items += itemRed(f.excentrica, f.titulo); return; }
+                        if (sts.length === 1) { items += itemTipo(sts[0], f.titulo); return; }
+                        const sg = f.id, ab = libSubAbierta === sg;
+                        items += `<div class="border border-slate-100 rounded"><button type="button" onclick="toggleSubgrupo('${sg}')" class="w-full flex items-center justify-between px-1 py-0.5 hover:bg-slate-50 text-left"><span class="text-[9px] font-bold text-slate-500 uppercase">${f.titulo}</span><i id="chevron-sg-${sg}" class="fa-solid fa-chevron-down text-slate-400 text-[8px] transition-transform duration-150" ${chev(ab)}></i></button>
+                            <div id="lista-sg-${sg}" class="grid grid-cols-1 gap-0.5 p-0.5" style="${ab ? '' : 'display:none'}">${sts.map(st => itemTipo(st)).join('')}</div></div>`;
                     });
-                } else items = itemsDe(id);
+                } else if (id === 'compensadores') items = porNombre(SUBTIPOS_COMPENSADORES).map(st => itemTipo(st)).join('');
+                else if (id === 'anotaciones') items = itemsDe(id) + (TIPOS.continuacion ? itemTipo('continuacion') : '');
+                else items = itemsDe(id);
                 const ab = libAbierta === id;
                 h += `<div class="border border-slate-200 rounded">
                     <button type="button" onclick="toggleCategoria('${id}')" class="w-full flex items-center justify-between px-1.5 py-1 bg-white hover:bg-slate-50 rounded text-left">
@@ -4344,7 +4376,9 @@
             if (el.type === 'tuberia') return ['tuberias', null];
             if (el.type === 'bomba') return ['bombas', null];
             const c = (TIPOS[el.subtype] || {}).cat;
-            if (c === 'tanques' || c === 'intercambiadores' || c === 'accesorios' || c === 'uniones') return ['accesorios', c];
+            if (el.subtype === 'continuacion') return ['anotaciones', null];
+            if (SUBTIPOS_COMPENSADORES.includes(el.subtype)) return ['compensadores', null];
+            if (c === 'tanques' || c === 'intercambiadores' || c === 'accesorios' || c === 'uniones') { const f = FAMILIAS_PANEL.find(x => x.excentrica == null && subtiposFamilia(x).includes(el.subtype)); return ['accesorios', f ? f.id : null]; }
             return [c, null];
         }
         function expandirCategoriaDe(el) {
@@ -4680,10 +4714,11 @@
                 if (sb || S) S_ADM[n] = { S: S || sb.S, Tmax: +p.Tmax > 0 ? +p.Tmax : (sb ? sb.Tmax : 150), mat: i.material || (sb ? sb.mat : ''), c: p.c !== '' && p.c != null && !isNaN(+p.c) ? +p.c : (sb ? sb.c : 0) };
             });
             // tuberías del panel derecho: las del programa y una por cada material nuevo
-            TUBERIAS_LIBRERIA.length = TUBERIAS_BASE.length; TUBERIAS_BASE.forEach((t, k) => TUBERIAS_LIBRERIA[k] = t);
-            Object.keys(CAT.materiales).filter(m => CAT.materiales[m].base && !LIB.ocultos.includes(m)).forEach(m => {
+            TUBERIAS_LIBRERIA.length = 0;
+            TUBERIAS_BASE.forEach(t => { const r = tuboPanel(t); if (r) TUBERIAS_LIBRERIA.push(r); });
+            Object.keys(CAT.materiales).filter(m => CAT.materiales[m].base && m !== TUBO_EN && !LIB.ocultos.includes(m)).forEach(m => {
                 const mt = CAT.materiales[m], serie = mt.serieDef || mt.series[0], t = mt.tamanos.find(x => x.clave === 'DN 50' && x.e[serie] != null) || mt.tamanos.find(x => x.e[serie] != null);
-                if (t) TUBERIAS_LIBRERIA.push({ material: m, serie, dn: t.clave, texto: m === 'Acero al carbono EN' ? 'Acero EN 10220 DN 50 × 2,9' : m });
+                if (t) TUBERIAS_LIBRERIA.push({ material: m, serie, dn: t.clave, texto: m });
             });
         }
         // Aplica un modelo de la librería a un elemento del dibujo
@@ -4722,9 +4757,17 @@
 
         // ---------- Ventana de la librería ----------
         let libVista = { grupo: null, subtipo: null, id: null, borrador: null };
-        function abrirLibreria(grupo, subtipo) {
-            const subs = subtiposGrupo(grupo);
-            libVista = { grupo, subtipo: subtipo && subs.includes(subtipo) ? subtipo : subs[0], id: null, borrador: null, filtroTipo: '', q: '', tab: 'modelos' };
+        // familias de la librería de accesorios (Librerías > Accesorios > Codos, Tes, Reducciones...)
+        const FAM_ACC = {
+            codos: { titulo: 'Codos', subs: ['codo45', 'codo60', 'codo90'] },
+            tes: { titulo: 'Tes', subs: ['tee', 'cruce'] },
+            redconc: { titulo: 'Reducciones concéntricas', subs: ['reduccion'], f: i => !/exc/i.test(((i.props || {}).variante || '') + ' ' + (i.nombre || '')) },
+            redexc: { titulo: 'Reducciones excéntricas', subs: ['reduccion'], f: i => /exc/i.test(((i.props || {}).variante || '') + ' ' + (i.nombre || '')) }
+        };
+        const famLib = () => libVista && libVista.grupo === 'accesorios' && FAM_ACC[libVista.fam] || null;
+        function abrirLibreria(grupo, subtipo, fam) {
+            const subs = grupo === 'accesorios' && FAM_ACC[fam] ? FAM_ACC[fam].subs : subtiposGrupo(grupo);
+            libVista = { grupo, fam: grupo === 'accesorios' && FAM_ACC[fam] ? fam : '', subtipo: subtipo && subs.includes(subtipo) ? subtipo : subs[0], id: null, borrador: null, filtroTipo: '', q: '', tab: 'modelos' };
             document.getElementById('modal-libreria').style.display = 'flex';
             document.getElementById('lib-caja').style.width = esGrupoTablas(grupo) ? 'min(1500px, 97vw)' : 'min(1150px, 96vw)';
             if (esGrupoTablas(grupo) && (!ACC_ORIGEN || (ACC_ORIGEN === 'local' && claveSupabase()))) {
@@ -4818,9 +4861,9 @@
         }
         function restaurarOcultosLib() { if (!LIB.ocultos.length) return; if (!confirm(`¿Recuperar los ${LIB.ocultos.length} elementos del catálogo eliminados?`)) return; LIB.ocultos = []; guardarLib(); aplicarLibreria(); pintarLibreria(); }
         function pintarLibreria() {
-            const V = libVista, G = GRUPOS_LIB[V.grupo], subs = subtiposGrupo(V.grupo), lista = libTodos() ? [] : itemsLib(V.subtipo);
+            const V = libVista, G = GRUPOS_LIB[V.grupo], F = famLib(), subs = F ? F.subs : subtiposGrupo(V.grupo), lista = libTodos() ? [] : itemsLib(V.subtipo);
             const b = V.borrador, admin = libTodos();
-            document.getElementById('lib-titulo').innerHTML = `<i class="fa-solid fa-book text-blue-600 mr-1.5"></i>Librería · ${esc(G.titulo)}`;
+            document.getElementById('lib-titulo').innerHTML = `<i class="fa-solid fa-book text-blue-600 mr-1.5"></i>Librería · ${esc(G.titulo)}${F ? ' · ' + esc(F.titulo) : ''}`;
             let izq = subs.length > 1 ? `<select onchange="libVista.subtipo = this.value; libVista.id = null; libVista.borrador = null; pintarLibreria()" class="w-full border rounded p-1.5 mb-2">${subs.map(s => `<option value="${esc(s)}" ${s === V.subtipo ? 'selected' : ''}>${esc(nombreSubtipo(s))}</option>`).join('')}</select>` : `<p class="font-bold text-slate-600 mb-2">${esc(nombreSubtipo(V.subtipo))}</p>`;
             izq += `<div class="border rounded divide-y overflow-y-auto" style="max-height:52vh">${lista.map(i => `<button type="button" onclick="seleccionarItemLib('${esc(i.id)}')" class="block w-full text-left px-2 py-1 hover:bg-blue-50 ${i.id === V.id ? 'bg-amber-50' : ''}"><b>${esc(i.nombre)}</b><br><span class="text-[10px] text-slate-400">${esc([i.fabricante, i.material, i.pn].filter(Boolean).join(' · ') || (i.origen === 'catálogo' ? 'catálogo del programa' : 'usuario'))}</span></button>`).join('') || '<p class="p-2 text-slate-400 italic">Sin elementos: pulsa «Nuevo».</p>'}</div>`;
             izq += `<div class="flex flex-wrap gap-1 mt-2"><button onclick="nuevoItemLib()" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded"><i class="fa-solid fa-plus mr-1"></i>Nuevo</button><button onclick="if (libVista.borrador) nuevoItemLib(leerFormLib())" class="px-2 py-1 border rounded hover:bg-slate-50" ${b ? '' : 'disabled'}><i class="fa-solid fa-copy mr-1"></i>Copiar</button><button onclick="eliminarItemLib()" class="px-2 py-1 border rounded hover:bg-rose-50 text-rose-600" ${b ? '' : 'disabled'}><i class="fa-solid fa-trash-can mr-1"></i>Eliminar</button>${LIB.ocultos.length ? `<button onclick="restaurarOcultosLib()" class="px-2 py-1 border rounded hover:bg-slate-50 text-[10px]">Recuperar eliminados (${LIB.ocultos.length})</button>` : ''}</div>`;
@@ -4865,7 +4908,7 @@
                 // administrador: arriba, todos los accesorios con todos sus datos; debajo, la ficha del marcado
                 const edita = tienePermiso('compartido'), tab = V.tab || 'modelos';
                 const tub = V.grupo === 'tubosAcero';
-                const TABS = [['modelos', tub ? 'Tuberías' : 'Accesorios'], ['medidas', 'Medidas nominales'], ['espesores', 'Espesores / schedule'], ['materiales', 'Materiales'], ['ratings', 'Rating / PN'], ...(tub ? [] : [['cotas', 'Cotas']])];
+                const TABS = [['modelos', tub ? 'Tuberías' : F ? F.titulo : 'Accesorios'], ['medidas', 'Medidas nominales'], ['espesores', 'Espesores / schedule'], ['materiales', 'Materiales'], ['ratings', 'Rating / PN'], ...(tub ? [] : [['cotas', 'Cotas']])];
                 const pest = `<div class="flex flex-wrap gap-1 mb-2 border-b">${TABS.map(([k, t]) => `<button onclick="libVista.tab = '${k}'; libVista.q = ''; pintarLibreria()" class="px-3 py-1.5 -mb-px border-b-2 ${k === tab ? 'border-blue-600 text-blue-700 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}">${t}${ACC_T ? ` <span class="text-[10px] font-normal text-slate-400">${k === 'modelos' ? itemsGrupoLib(V.grupo).length : filasTablaAcc(k, V.grupo).length}</span>` : ''}</button>`).join('')}</div>`;
                 const estado = `<p class="text-[10px] mb-2 ${ACC_ORIGEN === 'supabase' ? 'text-emerald-700' : 'text-amber-700'}"><i class="fa-solid ${ACC_ORIGEN === 'supabase' ? 'fa-database' : 'fa-hard-drive'} mr-1"></i>${ACC_ORIGEN === 'supabase' ? (accEnBD() ? 'Tablas leídas de la base de datos (Supabase): los modelos que guardes o elimines los ven todos los usuarios.' : 'Tablas leídas de la base de datos (Supabase).' + (edita ? ' Tu sesión no es de un administrador de Supabase: los modelos que cambies se guardan solo en este navegador.' : '')) : 'Tablas locales (datos/accesorios_tablas.js). Para usar la base de datos, ejecuta supabase/07_accesorios.sql.' + (edita ? ' Los modelos que cambies se guardan solo en este navegador.' : '')}</p>`;
                 if (tab !== 'modelos') {
@@ -4888,12 +4931,12 @@
         }
         // vista completa de un grupo: accesorios de tubería, para todos los roles (solo modifica quien tiene permiso)
         function libTodos() { return esGrupoTablas(libVista.grupo); }
-        function itemsGrupoLib(g) { return subtiposGrupo(g).flatMap(st => itemsLib(st)); }
+        function itemsGrupoLib(g) { const F = g === 'accesorios' ? famLib() : null; return (F ? F.subs : subtiposGrupo(g)).flatMap(st => itemsLib(st)).filter(i => !F || !F.f || F.f(i)); }
         const MAX_FILAS_LIB = 500;
         function pintarTablaLibTodos() {
             const c = document.getElementById('lib-tabla-todos'); if (!c) return;
             const V = libVista, q = String(V.q || '').toLowerCase().trim().split(/\s+/).filter(Boolean), todos = elementosRed.concat(elementosOtrasHojas());
-            const lista = (V.filtroTipo ? itemsLib(V.filtroTipo) : itemsGrupoLib(V.grupo)).filter(i => { const p = i.props || {};
+            const lista = (V.filtroTipo ? itemsLib(V.filtroTipo).filter(i => !famLib() || !famLib().f || famLib().f(i)) : itemsGrupoLib(V.grupo)).filter(i => { const p = i.props || {};
                 return !q.length || (t => q.every(w => t.includes(w)))([i.id, p.cod, nombreSubtipo(i.subtipo), i.nombre, i.norma, p.variante, p.conexion, p.craneTipo, i.notas, i.fabricante].join(' ').toLowerCase()); })
                 .sort((a, b) => ((a.props || {}).orden ?? 1e9) - ((b.props || {}).orden ?? 1e9) || String(a.nombre).localeCompare(String(b.nombre), 'es', { numeric: true }));
             const usos = {}; todos.forEach(e => { const k = e.accModelo || (e.type === 'tuberia' && /^TUB-/.test(tipoTubo(e)) ? tipoTubo(e) : null); if (k) usos[k] = (usos[k] || 0) + 1; });
@@ -5009,15 +5052,22 @@
             const porGrupo = g => subtiposGrupo(g).map(st => it(g, st));
             return [
                 { icono: 'fa-shapes', texto: 'Accesorios', sub: () => [
-                    { icono: 'fa-grip-lines', texto: 'Accesorios de tubería...', accion: () => abrirLibreria('accesorios') },
-                    { icono: 'fa-arrows-left-right-to-line', texto: 'Filtros, injertos, juntas y manguitos...', accion: () => abrirLibreria('compensadores') },
-                    { icono: 'fa-fire-flame-simple', texto: 'Intercambiadores...', accion: () => abrirLibreria('intercambiadores') },
-                    { icono: 'fa-database', texto: 'Tanques y depósitos...', accion: () => abrirLibreria('tanques') },
-                    { icono: 'fa-ring', texto: 'Uniones y bridas', sub: () => porGrupo('uniones') }] },
+                    { icono: 'fa-ring', texto: 'Bridas', sub: () => BRIDAS_PANEL.filter(st => TIPOS[st]).sort((x, y) => nombreSubtipo(x).localeCompare(nombreSubtipo(y), 'es')).map(st => it('uniones', st)) },
+                    { icono: 'fa-grip-lines', texto: 'Codos...', accion: () => abrirLibreria('accesorios', null, 'codos') },
+                    { icono: 'fa-circle', texto: 'Machones...', accion: () => abrirLibreria('uniones', 'machon') },
+                    { icono: 'fa-circle', texto: 'Manguitos de unión...', accion: () => abrirLibreria('uniones', 'manguito') },
+                    { icono: 'fa-circle', texto: 'Racord...', accion: () => abrirLibreria('uniones', 'racor') },
+                    { icono: 'fa-grip-lines', texto: 'Reducciones concéntricas...', accion: () => abrirLibreria('accesorios', null, 'redconc') },
+                    { icono: 'fa-grip-lines', texto: 'Reducciones excéntricas...', accion: () => abrirLibreria('accesorios', null, 'redexc') },
+                    { icono: 'fa-grip-lines', texto: 'Tes...', accion: () => abrirLibreria('accesorios', null, 'tes') },
+                    { icono: 'fa-circle', texto: 'Tuercas de unión...', accion: () => abrirLibreria('uniones', 'tuerca') }] },
                 { icono: 'fa-fan', texto: 'Bombas...', accion: () => abrirLibreria('bombas', 'bomba') },
                 { icono: 'fa-industry', texto: 'Equipos', sub: () => porGrupo('equipos') },
+                { icono: 'fa-arrows-left-right-to-line', texto: 'Filtros, injertos, juntas y manguitos...', accion: () => abrirLibreria('compensadores') },
                 { icono: 'fa-gauge', texto: 'Instrumentos', sub: () => porGrupo('instrumentos') },
-                { icono: 'fa-grip-lines', texto: 'Tuberías', sub: () => [{ icono: 'fa-grip-lines', texto: 'Tuberías de acero (ASME / EN)...', accion: () => abrirLibreria('tubosAcero', 'tuberia') }, ...subtiposGrupo('tuberias').filter(m => m !== 'Acero al carbono' && m !== 'Acero inoxidable').map(m => it('tuberias', m, m))] },
+                { icono: 'fa-fire-flame-simple', texto: 'Intercambiadores...', accion: () => abrirLibreria('intercambiadores') },
+                { icono: 'fa-database', texto: 'Tanques y depósitos...', accion: () => abrirLibreria('tanques') },
+                { icono: 'fa-grip-lines', texto: 'Tuberías', sub: () => [{ icono: 'fa-grip-lines', texto: 'Acero ASME / EN...', accion: () => abrirLibreria('tubosAcero', 'tuberia') }, ...subtiposGrupo('tuberias').filter(m => m !== 'Acero al carbono' && m !== 'Acero inoxidable').map(m => it('tuberias', m, m.replace(/ \(Dint ref\. Sch 40\)/, '')))].sort((x, y) => x.texto.localeCompare(y.texto, 'es')) },
                 { icono: 'fa-circle-half-stroke', texto: 'Válvulas', sub: () => porGrupo('valvulas') },
                 'sep',
                 { icono: 'fa-shapes', texto: 'Mostrar accesorios en el panel', accion: () => mostrarLibreriaAccesorios() },
@@ -5194,7 +5244,7 @@
             if (!elementosRed.some(e => !esAnotacion(e))) { lineas = []; condicionesContorno = {}; }
             // tipo de tubería: la del elemento de partida, la última usada o la primera de la librería
             const refT = inicio ? (inicio.el.type === 'tuberia' ? inicio.el : tuberiaReferencia(inicio.el, inicio.el.linea)) : null;
-            const ult = refT || [...elementosRed].reverse().find(e => e.type === 'tuberia') || TUBERIAS_LIBRERIA[0];
+            const ult = refT || [...elementosRed].reverse().find(e => e.type === 'tuberia') || tuboPanel(TUBERIAS_LIBRERIA[0]) || TUBERIAS_LIBRERIA[0];
             const nuevaTub = (i) => {
                 const t = { id: 'sym_' + Date.now() + '_t' + i, type: 'tuberia', subtype: '', name: 'Tubería', x: 0, y: screenAMundoY(0), scale: 1, rotation: dirs[i], material: ult.material || MATERIAL_DEF, serie: ult.serie || '40', dn: ult.dn || 'DN 50', longitud: Math.max(10, Math.round(tramos[i] * 30)) };
                 if (ult.pn) t.pn = ult.pn; if (ult.gradoMaterial) t.gradoMaterial = ult.gradoMaterial;
@@ -5335,7 +5385,7 @@
             out.push({ texto: 'Trazar tubería', icono: 'fa-pen-ruler', grupo: 'Dibujo', accion: () => iniciarTrazado() });
             out.push({ texto: 'Tabla de propiedades', icono: 'fa-table-cells-large', grupo: 'Edición', accion: () => abrirTablaPropiedades() });
             out.push({ texto: 'Panel de avisos del cálculo', icono: 'fa-triangle-exclamation', grupo: 'Cálculo', accion: () => alternarPanelAvisos(true) });
-            TUBERIAS_LIBRERIA.forEach(t => out.push({ texto: 'Insertar tubería · ' + t.texto, icono: 'fa-grip-lines', grupo: 'Insertar', accion: () => insertarEnCentro({ type: 'tuberia', material: t.material, serie: t.serie, dn: t.dn, longitud: '3000', name: 'Tubería' }) }));
+            TUBERIAS_LIBRERIA.map(tuboPanel).filter(Boolean).forEach(t => out.push({ texto: 'Insertar tubería · ' + t.texto, icono: 'fa-grip-lines', grupo: 'Insertar', accion: () => insertarEnCentro({ type: 'tuberia', material: t.material, serie: t.serie, dn: t.dn, longitud: '3000', name: 'Tubería' }) }));
             out.push({ texto: 'Insertar · Bomba centrífuga', icono: 'fa-fan', grupo: 'Insertar', accion: () => insertarEnCentro({ type: 'bomba', name: 'Bomba centrífuga', caudal: '50', presion: '3.5', npsh: '2500' }) });
             Object.entries(TIPOS).filter(([k, t]) => t.cat !== 'ninguna' && t.type !== 'anotacion').forEach(([k, t]) => {
                 if (k === 'reduccion') { ['false', 'true'].forEach(ex => out.push({ texto: `Insertar · Reducción ${ex === 'true' ? 'excéntrica' : 'concéntrica'} (${ex === 'true' ? 'RE' : 'RC'})`, icono: 'fa-shapes', grupo: 'Insertar', accion: () => insertarEnCentro({ type: 'accesorio', subtype: 'reduccion', excentrica: ex, name: 'Reducción' }) })); return; }
@@ -7317,7 +7367,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.11';
+        const VERSION_WEB = '8.12';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -9282,6 +9332,18 @@
         // ATAJOS DE TECLADO DE LOS MENÚS
         // Se capturan antes que los del navegador (Ctrl+P imprimir, Ctrl+R recargar, Ctrl+G, Ctrl+O...).
         // ==================================================================================
+        // Escape cierra la ventana que está encima: devuelve la función que la cierra (o null si no hay ninguna abierta)
+        function ventanaSuperior() {
+            const V = [['modal-dialogo', () => { const b = document.querySelector('#dialogo-botones [data-esc]'); if (b) b.click(); }],
+                ['modal-proyecto', cerrarDatosProyecto], ['modal-libreria', cerrarLibreria], ['modal-nuevo', cancelarModalNuevo], ['modal-creditos', cerrarCreditos],
+                ['modal-masivo', cerrarTablaPropiedades], ['modal-red', cerrarModalRed], ['paleta', cerrarPaleta], ['panel-buscar', cerrarBuscarReemplazar], ['modal-edicion', cerrarModal]];
+            // trazando, con la mano o en zoom ventana, Escape cancela eso y no cierra las ventanas flotantes
+            let ocupado = false; try { ocupado = !!traza || !!enMano || !!modoZoomVentana; } catch (e) { }
+            let mejor = null, zMax = -1;
+            V.forEach(([id, fn]) => { const d = document.getElementById(id); if (!d || (ocupado && (id === 'modal-edicion' || id === 'panel-buscar'))) return; const cs = getComputedStyle(d); if (cs.display === 'none' || cs.visibility === 'hidden') return;
+                const z = +cs.zIndex || 0; if (z > zMax) { zMax = z; mejor = fn; } });
+            return mejor;
+        }
         function atajosMenu(e) {
             const activo = document.activeElement;
             const enCampo = activo && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activo.tagName) || activo.isContentEditable);
@@ -9290,7 +9352,9 @@
             let accion = null;
 
             if (e.key === 'Escape') {
+                const sup = ventanaSuperior();
                 if (menuAbierto) accion = () => {};
+                else if (sup) accion = sup;
                 else if (document.getElementById('modal-creditos').style.display === 'flex') accion = cerrarCreditos;
                 else if (document.getElementById('modal-masivo').style.display === 'flex') accion = cerrarTablaPropiedades;
                 else if (panelAvisosAbierto && !enCampo && !seleccion.size) accion = () => alternarPanelAvisos(false);
