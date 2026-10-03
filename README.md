@@ -608,3 +608,48 @@ José: «las tuberías, reducciones, tes, codos no tienen rating». Correcto par
 ## Pruebas
 
 `t_14.js`, `t_f.js` (ficha oculta), `t_tab.js` (base de datos), `t_tub.js`, `t_br.js`, `t_br3.js`, `t_esc.js`, `t_m.js` y regresión test10–test23 sin errores. Cambio esperado en la regresión: las tuberías ya no admiten rating propio.
+
+# PIPING v8.19 · Ficha de bomba desde un PDF con IA (fase 1)
+
+Fecha: 2026-10-03. Versión anterior: 8.18.1 (copia en `copias\v8181\`).
+
+## Qué hace
+`Librerías > Bombas... > Nuevo` (o una bomba existente) > botón **«Rellenar desde PDF (IA)...»**.
+- Se elige la ficha técnica (PDF, PNG o JPG; máx. 12 MB).
+- La IA (Google Gemini) devuelve los datos de la ficha y la aplicación rellena el formulario: fabricante, modelo, tipo, fluido, caudal, altura, altura a caudal cero, NPSHr, rpm, potencia, rendimiento, tensión, frecuencia, IP, impulsor, bridas (DN, norma, PN / Rating), plan de sellado y datos volumétricos.
+- Los campos escritos por la IA quedan **marcados en ámbar** hasta que se tocan o se guarda; encima del formulario aparece un aviso con las conversiones de unidades hechas y las dudas de la IA.
+- **Nada se guarda solo**: el usuario revisa y pulsa Guardar.
+- La **curva no se lee de la gráfica** (poco fiable): solo se rellena si el documento trae una tabla numérica; en otro caso se usa «Digitalizar desde una imagen...» (v8.18).
+- Si en «Referencia del fabricante» ya hay un modelo escrito, se envía como pista (catálogos con varios modelos).
+- Solo se escriben los datos que vienen en el documento; los demás campos se conservan.
+
+## Arquitectura
+Navegador → Edge Function de Supabase `piping-bomba-pdf` → Gemini.
+- La clave de Gemini es un **secreto de Supabase** (`GEMINI_API_KEY`); no está en el navegador ni en el repositorio.
+- La función valida la sesión de PIPING con `piping_ia_permiso(p_token, p_funcion)` (SQL `09_ia.sql`), que además limita el uso: 20 lecturas por usuario y día, 60 en total por día (constantes `c_usuario`, `c_total`). Uso registrado en `piping_ia_uso` (se purga a los 90 días).
+- Gemini: `POST https://generativelanguage.googleapis.com/v1beta/interactions`, modelo por defecto `gemini-3.8-flash` (secreto opcional `GEMINI_MODEL`), salida JSON con esquema.
+- Requiere sesión iniciada con un usuario de Supabase (cualquier rol). La sesión local sin base de datos no sirve.
+
+## Archivos
+- `supabase/09_ia.sql` — tabla `piping_ia_uso` y función `piping_ia_permiso`.
+- `supabase/functions/piping-bomba-pdf/index.ts` — Edge Function (Deno).
+- `js/piping.js` — `cabeceraIABomba`, `marcarCamposIA`, `aplicarDatosIABomba`, `llamarIABomba`, `rellenarBombaDesdePDF`, `leerFichaBombaIA`; estado en `libVista.ia` / `libVista.iaOcupado`.
+- `i18n/{en,pt,ko}.js` — bloque `// v8.19`.
+
+## Puesta en marcha (una vez)
+1. Google AI Studio (aistudio.google.com/apikey) > Create API key.
+2. Supabase > SQL Editor > ejecutar `09_ia.sql`.
+3. Supabase > Edge Functions > Secrets > añadir `GEMINI_API_KEY`.
+4. Supabase > Edge Functions > Deploy a new function > Via Editor > nombre `piping-bomba-pdf` > pegar `index.ts` > Deploy. En los ajustes de la función, desactivar «Verify JWT with legacy secret» (la sesión la valida la propia función).
+
+## Probado / no probado
+- Probado: SQL (sesión, límite diario) en PostgreSQL local; flujo completo del navegador con la función simulada (relleno, marcas, avisos, curva tabulada, bomba volumétrica, guardado en la base de datos, errores de cuota, función no desplegada, archivo grande, formato no admitido, sin sesión); carga normal y diferida; pruebas de regresión 10–23 sin cambios.
+- **No probado aquí**: la Edge Function real y la llamada real a Gemini (sin Deno ni clave en el entorno de trabajo). La función acepta varias formas de respuesta de la API por si el formato difiere.
+
+## Avisos
+- El documento se envía a Google. En el nivel gratuito de Gemini, Google puede usar los datos para mejorar sus modelos: no subir fichas confidenciales.
+- Los límites del nivel gratuito los fija Google y cambian; si se agota, la aplicación muestra «cuota agotada».
+
+## Pendiente (fases siguientes)
+- Fase 2: lectura asistida de la curva (la IA propone los ejes y el usuario confirma en el digitalizador).
+- Guardar el PDF origen junto a la bomba (Supabase Storage).
