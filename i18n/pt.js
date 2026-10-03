@@ -41,3 +41,6 @@ Object.assign(window.PIPING_I18N.pt.d, {"Brida ciega": "Flange cega", "Bridas de
 
 // v8.14
 Object.assign(window.PIPING_I18N.pt.d, {"Clase (forjados)": "Classe (forjados)", "Sin tabla cargada": "Sem tabela carregada", "Rating que admite (separados por comas; NO = sin rating; vacío = todos)": "Rating admitido (separado por vírgulas; NO = sem rating; vazio = todos)"});
+
+// v8.14.1
+Object.assign(window.PIPING_I18N.pt.d, {"Editar": "Editar", "Ver ficha": "Ver ficha"});

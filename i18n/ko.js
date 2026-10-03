@@ -41,3 +41,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Brida ciega": "블라인드 플랜지",
 
 // v8.14
 Object.assign(window.PIPING_I18N.ko.d, {"Clase (forjados)": "등급 (단조 피팅)", "Sin tabla cargada": "로드된 표 없음", "Rating que admite (separados por comas; NO = sin rating; vacío = todos)": "허용 등급 (쉼표로 구분, NO = 등급 없음, 비우면 전체)"});
+
+// v8.14.1
+Object.assign(window.PIPING_I18N.ko.d, {"Editar": "편집", "Ver ficha": "상세 보기"});

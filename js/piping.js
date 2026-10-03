@@ -4813,9 +4813,12 @@
             if (V.grupo === 'bridas') { base.props = base.props || {}; if (!copiaDe) Object.assign(base.props, { sistema: 'ASME', conexion: 'Soldar a tope (BW)', matGrupo: 'FORJ-ASME,BRIDA-ASME', espTabla: 'NO', ratings: '', caras: 'RF,FF,RTJ' }); }
             if (V.grupo === 'tubosAcero') { base.props = base.props || {}; if (!copiaDe) Object.assign(base.props, { cod: 'T', sistema: 'ASME', matGrupo: 'TUBO-ASME', espTabla: 'ASME' }); }
             if (V.grupo === 'tuberias') { base.props.base = base.props.base || (MATERIALES_BASE.has(V.subtipo) ? V.subtipo : 'Acero al carbono'); if (!copiaDe) base.nombre = base.props.base + ' '; }
-            V.id = base.id; V.borrador = base; pintarLibreria();
+            V.id = base.id; V.borrador = base; V.form = true; pintarLibreria();
         }
-        function seleccionarItemLib(id) { let it = itemsLib(libVista.subtipo).find(i => i.id === id); if (!it && libTodos()) { it = itemsGrupoLib(libVista.grupo).find(i => i.id === id); if (it) libVista.subtipo = it.subtipo; } libVista.id = id; libVista.borrador = it ? JSON.parse(JSON.stringify(it)) : null; pintarLibreria(); }
+        let _clicLib = { id: null, t: 0 };
+        function seleccionarItemLib(id) { const ahora = Date.now(), doble = libTodos() && _clicLib.id === id && ahora - _clicLib.t < 450; _clicLib = { id, t: ahora };   // la tabla se repinta en cada clic: el doble clic se detecta aquí
+            let it = itemsLib(libVista.subtipo).find(i => i.id === id); if (!it && libTodos()) { it = itemsGrupoLib(libVista.grupo).find(i => i.id === id); if (it) libVista.subtipo = it.subtipo; } libVista.id = id; libVista.borrador = it ? JSON.parse(JSON.stringify(it)) : null; libVista.form = doble && !!it; pintarLibreria(); }
+        function editarItemLib(id) { if (!libVista.borrador) return; libVista.form = true; pintarLibreria(); }
         function leerFormLib() {
             const b = libVista.borrador; if (!b) return null;
             document.querySelectorAll('#lib-form [data-lib]').forEach(x => { const k = x.dataset.lib, v = x.value; if (k.startsWith('p.')) { b.props = b.props || {}; b.props[k.slice(2)] = v; } else b[k] = v; });
@@ -4836,7 +4839,7 @@
             b.grupo = libVista.grupo; b.subtipo = b.subtipo || libVista.subtipo; b.fecha = new Date().toISOString();
             LIB.items = LIB.items.filter(i => i.id !== b.id).concat([JSON.parse(JSON.stringify(b))]);
             if (antes && antes.grupo === 'tuberias' && antes.nombre !== b.nombre) delete CAT.materiales[antes.nombre];
-            guardarLib(); aplicarLibreria(); construirLibreria(); libVista.id = b.id; pintarLibreria();
+            guardarLib(); aplicarLibreria(); construirLibreria(); libVista.id = b.id; if (libTodos()) libVista.form = false; pintarLibreria();
             aviso(`Guardado en la librería: ${b.nombre}`, 'ok');
         }
         function prepararAccesorio(b) {
@@ -4859,7 +4862,7 @@
                 ACC_BASE = ACC_BASE.filter(i => i.id !== r.id).concat([r]); indexarAccesorios();
                 if (ACC_T) { const m = modeloDeItemAcc(r); m.origen = r.origen; ACC_T.modelos = ACC_T.modelos.filter(x => x.id !== r.id).concat([m]); }
                 if (LIB.items.some(i => i.id === r.id)) { LIB.items = LIB.items.filter(i => i.id !== r.id); guardarLib(); }
-                libVista.id = r.id; libVista.subtipo = r.subtipo; libVista.borrador = JSON.parse(JSON.stringify(r)); pintarLibreria(); renderizarVectorial();
+                libVista.id = r.id; libVista.subtipo = r.subtipo; libVista.borrador = JSON.parse(JSON.stringify(r)); libVista.form = false; pintarLibreria(); renderizarVectorial();
                 aviso(`Guardado en la base de datos: ${r.nombre}`, 'ok');
             } catch (e) { aviso(e.sinFuncion ? 'Falta ejecutar supabase/07_accesorios.sql.' : 'No se ha guardado: ' + e.message, 'error'); }
         }
@@ -4945,12 +4948,14 @@
                     <select onchange="libVista.filtroTipo = this.value; pintarTablaLibTodos()" class="border rounded p-1.5 ${subs.length > 1 ? '' : 'hidden'}"><option value="">Todos los tipos</option>${subs.map(x => `<option value="${esc(x)}" ${x === V.filtroTipo ? 'selected' : ''}>${esc(nombreSubtipo(x))}</option>`).join('')}</select>
                     <input value="${esc(V.q || '')}" oninput="libVista.q = this.value; pintarTablaLibTodos()" placeholder="Buscar: código, nombre, norma..." class="border rounded p-1.5 flex-1" style="min-width:160px">
                     ${edita ? `<button onclick="if (libVista.filtroTipo) libVista.subtipo = libVista.filtroTipo; nuevoItemLib()" class="px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded"><i class="fa-solid fa-plus mr-1"></i>Nuevo</button>
-                    <button onclick="if (libVista.borrador) nuevoItemLib(leerFormLib())" class="px-2 py-1.5 border rounded hover:bg-slate-50" ${b ? '' : 'disabled'} title="Crea un modelo nuevo con los datos del marcado"><i class="fa-solid fa-copy mr-1"></i>Nuevo a partir del marcado</button>
+                    <button onclick="if (libVista.borrador) nuevoItemLib(libVista.form ? leerFormLib() : libVista.borrador)" class="px-2 py-1.5 border rounded hover:bg-slate-50" ${b ? '' : 'disabled'} title="Crea un modelo nuevo con los datos del marcado"><i class="fa-solid fa-copy mr-1"></i>Nuevo a partir del marcado</button>
+                    <button onclick="editarItemLib()" class="px-2 py-1.5 border rounded hover:bg-slate-50" ${b && !V.form ? '' : 'disabled'} title="Abre la ficha del marcado para modificarla (también con doble clic en la fila)"><i class="fa-solid fa-pen mr-1"></i>Editar</button>
                     <button onclick="eliminarItemLib()" class="px-2 py-1.5 border rounded hover:bg-rose-50 text-rose-600" ${b ? '' : 'disabled'}><i class="fa-solid fa-trash-can mr-1"></i>Eliminar</button>` : ''}
+                    ${edita ? '' : `<button onclick="editarItemLib()" class="px-2 py-1.5 border rounded hover:bg-slate-50" ${b && !V.form ? '' : 'disabled'} title="Muestra la ficha del marcado (también con doble clic en la fila)"><i class="fa-solid fa-eye mr-1"></i>Ver ficha</button>`}
                     ${edita && LIB.ocultos.length ? `<button onclick="restaurarOcultosLib()" class="px-2 py-1.5 border rounded hover:bg-slate-50 text-[10px]">Recuperar eliminados (${LIB.ocultos.length})</button>` : ''}
                     ${accEnBD() ? '<button onclick="recuperarAccesoriosBD()" class="px-2 py-1.5 border rounded hover:bg-slate-50 text-[10px]">Recuperar eliminados de la base de datos</button>' : ''}</div>${estado}
                     <p class="text-[10px] text-slate-500 mb-2">${tub ? 'Aquí están los tipos de tubería de acero, uno por norma. La medida nominal, el schedule y el material (al carbono o inoxidable) se eligen al insertar cada tubería en el plano, y con ellos se forma su código (p. ej. TAC-2"-S40-SA106B). La tubería no tiene rating: su presión la da el espesor. Las tuberías de plástico siguen en Librerías > Tuberías.' : V.grupo === 'bridas' ? 'Aquí están los tipos de brida de acero, por norma (ASME B16.5, ASME B16.47 serie A y B, EN 1092-1). La medida nominal, el rating o PN, la cara, el material (al carbono o inoxidable) y, en las de cuello, el schedule se eligen al insertar cada brida en el plano, y con ellos se forma su código (p. ej. WN-2"-S40-SA105N-150#-RF).' : 'Aquí están los tipos de accesorio. La medida nominal, el schedule y el material se eligen al insertar cada accesorio en el plano, y con ellos se forma su código (p. ej. C90LR-2"-S40-WPB). Los accesorios para soldar a tope (ASME B16.9, EN 10253) no tienen rating; los forjados socket weld y roscados (ASME B16.11) llevan clase (p. ej. C90SW-1"-S80-SA105N-3000#).'}</p>`;
-                document.getElementById('lib-cuerpo').innerHTML = `${barra}<div id="lib-tabla-todos"></div><div class="mt-3">${b ? `<p class="font-bold text-slate-600 mb-1">${LIB.items.some(i => i.id === b.id) || ACC_BASE.some(i => i.id === b.id) ? 'Editar' : 'Nuevo'} · ${esc(nombreSubtipo(b.subtipo || V.subtipo))}</p>${der}` : `<p class="text-slate-400 italic">${tienePermiso('compartido') ? 'Marca un accesorio de la tabla para editarlo, o pulsa «Nuevo» (o «Nuevo a partir del marcado» para partir de uno existente).' : 'Marca un accesorio de la tabla para ver su ficha.'}</p>`}</div>`;
+                document.getElementById('lib-cuerpo').innerHTML = `${barra}<div id="lib-tabla-todos"></div><div class="mt-3">${b && V.form ? `<p class="font-bold text-slate-600 mb-1">${LIB.items.some(i => i.id === b.id) || ACC_BASE.some(i => i.id === b.id) ? 'Editar' : 'Nuevo'} · ${esc(nombreSubtipo(b.subtipo || V.subtipo))}</p>${der}` : ''}</div>`;
                 pintarTablaLibTodos(); return;
             }
             document.getElementById('lib-cuerpo').innerHTML = `<div class="grid gap-4" style="grid-template-columns: 250px 1fr"><div>${izq}</div><div>${der}${tabla}</div></div>`;
@@ -4968,7 +4973,7 @@
             const usos = {}; todos.forEach(e => { const k = e.accModelo || (e.type === 'tuberia' && /^TUB-/.test(tipoTubo(e)) ? tipoTubo(e) : null); if (k) usos[k] = (usos[k] || 0) + 1; });
             const td = (v, cls = '') => `<td class="px-1 ${cls}" style="overflow:hidden;text-overflow:ellipsis" title="${esc(v == null ? '' : v)}">${esc(v == null ? '' : v)}</td>`;
             const gm = Object.fromEntries(GRUPOS_MAT_ACC_LISTA);
-            c.innerHTML = `<div class="border rounded overflow-auto" style="max-height:${V.borrador ? 32 : 60}vh"><table class="w-full text-[11px] whitespace-nowrap" style="table-layout:fixed"><colgroup>${[8, 8, 19, 9, 12, 9, 19, 14, 2].map(w => `<col style="width:${w}%">`).join('')}</colgroup><thead class="bg-slate-100 sticky top-0"><tr class="text-left text-slate-500">
+            c.innerHTML = `<div class="border rounded overflow-auto" style="max-height:${V.borrador && V.form ? 32 : 62}vh"><table class="w-full text-[11px] whitespace-nowrap" style="table-layout:fixed"><colgroup>${[8, 8, 19, 9, 12, 9, 19, 14, 2].map(w => `<col style="width:${w}%">`).join('')}</colgroup><thead class="bg-slate-100 sticky top-0"><tr class="text-left text-slate-500">
                 <th class="px-1 py-1" title="Código del tipo: es el que encabeza la etiqueta del accesorio">Código</th><th class="px-1">Tipo</th><th class="px-1">Nombre / modelo</th><th class="px-1">Norma</th><th class="px-1">Conexión</th><th class="px-1">Medidas</th><th class="px-1">${V.grupo === 'tubosAcero' ? 'Espesores' : V.grupo === 'bridas' ? 'Rating / PN' : 'Tipo (Crane)'}</th><th class="px-1">Materiales que admite</th><th class="px-1 text-center" title="Veces que se usa en el proyecto">Uso</th></tr></thead><tbody>
                 ${lista.map(i => { const p = i.props || {}, n = usos[i.id] || 0; return `<tr onclick="seleccionarItemLib('${esc(i.id)}')" class="border-t border-slate-100 cursor-pointer ${i.id === V.id ? 'bg-amber-50' : 'hover:bg-blue-50'}">${td(p.cod, 'py-0.5 font-mono font-bold')}${td(nombreSubtipo(i.subtipo), 'text-slate-500')}${td(i.nombre, 'font-bold')}${td(i.norma)}${td(p.conexion)}${td(p.sistema === 'EN' ? 'EN (DN)' : 'ASME (pulgadas)')}${td(i.subtipo === 'tuberia' ? ({ ASME: 'ASME B36.10M / B36.19M', EN10220: 'EN 10220' }[p.espTabla] || p.espTabla) : (V.grupo === 'bridas' ? (p.ratings || 'todos') : (p.craneTipo || (p.k !== '' && p.k != null ? 'K ' + p.k : ''))))}${td(gm[p.matGrupo] || p.matGrupo)}<td class="px-1 text-center ${n ? 'font-bold text-emerald-700' : 'text-slate-300'}">${n}</td></tr>`; }).join('') || '<tr><td colspan="9" class="p-2 text-slate-400 italic">Sin modelos con ese filtro.</td></tr>'}
                 </tbody></table></div>`;
@@ -7395,7 +7400,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.14';
+        const VERSION_WEB = '8.14.1';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
