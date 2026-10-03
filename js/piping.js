@@ -4999,7 +4999,7 @@
         function guardarItemLib() {
             const b = leerFormLib(); if (!b) return;
             if (!String(b.nombre || '').trim()) { alert('Indica el nombre del elemento.'); return; }
-            b.nombre = b.nombre.trim();
+            b.nombre = b.nombre.trim(); libVista.ia = null;
             if (libVista.grupo === 'tuberias' && b.id !== 'mat:' + libVista.subtipo) {
                 if (MATERIALES_BASE.has(b.nombre)) { alert('Ese nombre es el de un material del programa: usa otro (p. ej. «Acero al carbono SA-333 Gr. 6»).'); return; }
                 if (LIB.items.some(i => i.grupo === 'tuberias' && i.nombre === b.nombre && i.id !== b.id)) { alert('Ya hay una tubería con ese nombre.'); return; }
@@ -5078,7 +5078,7 @@
                 const grupoMat = V.grupo === 'tuberias' ? familiaMaterialTubo((b.props || {}).base || V.subtipo) : (stB === 'filtro' || stB === 'strainer' ? 'filtro' : G.mat);
                 const matSel = `<label class="block"><span class="text-slate-500">Material ${grupoMat === 'plastico' ? '' : '(ASME / EN)'}</span><select data-lib="material" class="w-full border rounded p-1 mt-0.5" onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) { const o = new Option(t, t, true, true); this.add(o, 0); } else this.value = ''; } const e = document.getElementById('lib-equiv'); if (e) e.textContent = equivalenteMaterial(this.value);">${opcionesMaterial(grupoMat, b.material || '')}</select><span id="lib-equiv" class="text-[10px] text-slate-400">${esc(equivalenteMaterial(b.material || ''))}</span></label>`;
                 const esTub = V.grupo === 'tuberias', esBase = esTub && b.id === 'mat:' + V.subtipo;
-                der = `<div id="lib-form" class="grid ${admin ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
+                der = `${V.grupo === 'bombas' ? cabeceraIABomba(b) : ''}<div id="lib-form" class="grid ${admin ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
                     ${admin ? `<label class="block col-span-2"><span class="text-slate-500">Tipo de accesorio *</span><select data-lib="subtipo" onchange="leerFormLib(); libVista.subtipo = this.value; pintarLibreria()" class="w-full border rounded p-1 mt-0.5">${subs.map(x => `<option value="${esc(x)}" ${x === stB ? 'selected' : ''}>${esc(nombreSubtipo(x))}</option>`).join('')}</select></label>` : ''}
                     ${f('nombre', esTub ? 'Nombre del tipo de tubería (aparece en Tuberías del panel derecho) *' : 'Nombre / modelo *', b.nombre, esBase ? 'readonly' : '')}
                     ${f('fabricante', 'Fabricante', b.fabricante)}${f('referencia', 'Referencia del fabricante', b.referencia)}
@@ -5134,6 +5134,7 @@
                 pintarTablaLibTodos(); return;
             }
             document.getElementById('lib-cuerpo').innerHTML = `<div class="grid gap-4" style="grid-template-columns: 250px 1fr"><div>${izq}</div><div>${der}${tabla}</div></div>`;
+            marcarCamposIA();
         }
         // vista completa de un grupo: accesorios de tubería, para todos los roles (solo modifica quien tiene permiso)
         function libTodos() { return esGrupoTablas(libVista.grupo); }
@@ -7583,7 +7584,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.18.1';
+        const VERSION_WEB = '8.19';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -9708,6 +9709,97 @@
             if (!confirm(`¿Eliminar «${it.nombre}» de la base de datos de bombas?\n\nSe eliminan también su curva y sus datos volumétricos. Las bombas ya colocadas en los planos conservan sus datos.`)) return;
             try { await rpcUsuarios('piping_pump_borrar', { p_token: sesionActual().token, p_id: it.id }); await asegurarBombas(true); libVista.id = null; libVista.borrador = null; pintarLibreria(); aviso('Bomba eliminada de la base de datos.', 'ok'); }
             catch (e) { alert('No se ha podido eliminar:\n' + e.message); }
+        }
+
+        // ==================================================================================
+        // v8.19 · Ficha de bomba desde un PDF con IA (Gemini, a través de la función de servidor «piping-bomba-pdf»)
+        // La IA rellena los campos de la ficha; el usuario los revisa antes de guardar. La curva no se lee de la gráfica: digitalizador.
+        // ==================================================================================
+        const FUNCION_IA_BOMBA = 'piping-bomba-pdf', MAX_MB_IA = 12;
+        function iaDeBorrador(b) { const i = libVista && libVista.ia; return i && b && i.id === b.id ? i : null; }
+        function cabeceraIABomba(b) {
+            const i = iaDeBorrador(b), ocupado = libVista.iaOcupado;
+            let h = `<div class="flex items-center gap-2 mb-2"><button type="button" onclick="rellenarBombaDesdePDF()" ${ocupado ? 'disabled' : ''} class="px-2 py-1.5 border border-blue-300 rounded text-blue-700 hover:bg-blue-50 whitespace-nowrap"><i class="fa-solid ${ocupado ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'} mr-1"></i>${ocupado ? 'Leyendo la ficha...' : 'Rellenar desde PDF (IA)...'}</button><span class="text-[10px] text-slate-400">Ficha técnica en PDF o imagen (máx. ${MAX_MB_IA} MB). El documento se envía a Google Gemini.</span></div>`;
+            if (i) h += `<div id="lib-ia-aviso" class="mb-2 p-2 rounded border text-[11px]" style="background:#fffbeb;border-color:#fcd34d;color:#78350f"><b><i class="fa-solid fa-triangle-exclamation mr-1"></i>Datos leídos por IA de «${esc(i.archivo)}»: revisa los ${i.campos.length} campos marcados antes de guardar.</b>${i.sinCurva ? '<br>La curva no se lee de la gráfica: usa «Digitalizar desde una imagen...».' : ''}${i.conversiones ? '<br>Conversiones: ' + esc(i.conversiones) : ''}${i.avisos.length ? '<ul class="list-disc ml-4 mt-1">' + i.avisos.map(a => `<li>${esc(a)}</li>`).join('') + '</ul>' : ''}</div>`;
+            return h;
+        }
+        function marcarCamposIA() {
+            const i = iaDeBorrador(libVista && libVista.borrador); if (!i) return;
+            document.querySelectorAll('#lib-form [data-lib]').forEach(x => {
+                if (!i.campos.includes(x.dataset.lib)) return;
+                x.style.background = '#fef3c7'; x.title = 'Leído por IA: revisar';
+                const quitar = () => { x.style.background = ''; x.title = ''; i.campos = i.campos.filter(k => k !== x.dataset.lib); };
+                x.addEventListener('change', quitar, { once: true });
+            });
+        }
+        // respuesta de la IA -> campos de la ficha; solo se escriben los datos que vienen (los demás se conservan)
+        function aplicarDatosIABomba(b, d, archivo) {
+            const campos = [], P = b.props = b.props || {};
+            const nn = v => typeof v === 'number' && isFinite(v) ? v : (typeof v === 'string' && v.trim() !== '' && isFinite(+v.replace(',', '.')) ? +v.replace(',', '.') : null);
+            const tt = v => v == null ? '' : String(v).trim();
+            const raiz = (k, v) => { v = tt(v); if (v) { b[k] = v; campos.push(k); } };
+            const prop = (k, v) => { if (v === '' || v == null) return; P[k] = v; campos.push('p.' + k); };
+            const red = v => { v = nn(v); return v == null ? null : +v.toPrecision(6); };
+            raiz('fabricante', d.fabricante); raiz('referencia', d.modelo);
+            const nombre = [tt(d.fabricante), tt(d.modelo)].filter(Boolean).join(' ');
+            if (nombre && (!tt(b.nombre) || libVista.ia0 === b.id)) { b.nombre = nombre; campos.push('nombre'); }
+            prop('tag', tt(d.tag)); prop('fluidoDiseno', tt(d.fluido));
+            if (TIPOS_BOMBA_LIB.some(t => t[0] === d.tipo)) prop('bombaTipo', d.tipo);
+            prop('caudal', red(d.caudal_m3h)); prop('altura', red(d.altura_m)); prop('alturaCero', red(d.altura_caudal_cero_m)); prop('npsh', red(d.npshr_m));
+            prop('rpm', red(d.rpm)); prop('potMotor', red(d.potencia_motor_kw));
+            const eta = red(d.rendimiento_pct); prop('eta', eta != null && eta > 0 && eta <= 1 ? +(eta * 100).toFixed(2) : eta);
+            prop('tension', tt(d.tension)); prop('frecuencia', tt(d.frecuencia)); prop('ip', tt(d.ip));
+            prop('impulsor', red(d.impulsor_mm)); prop('impulsorMax', red(d.impulsor_max_mm));
+            prop('volCilindrada', red(d.vol_cilindrada_cm3)); prop('volPmax', red(d.vol_pmax_bar)); prop('volCiclos', red(d.vol_ciclos_min)); prop('volCilindros', red(d.vol_cilindros)); prop('volMaterial', tt(d.vol_material));
+            const avisos = (Array.isArray(d.avisos) ? d.avisos : []).map(tt).filter(Boolean).slice(0, 8);
+            const dn = v => { v = nn(v); if (!(v > 0)) return ''; const c = LISTA_DN.map(k => [k, Math.abs(parseFloat(String(k).replace(/[^\d.]/g, '')) - v)]).sort((x, y) => x[1] - y[1])[0]; if (c && c[1] <= v * 0.08) return c[0]; avisos.push(`DN ${v} no está en la lista de tamaños: indícalo a mano.`); return ''; };
+            prop('dnAsp', dn(d.dn_aspiracion_mm)); prop('dnImp', dn(d.dn_impulsion_mm));
+            if (d.norma_bridas === 'ASME' || d.norma_bridas === 'EN') prop('normaBridas', d.norma_bridas);
+            const rt = tt(d.rating);
+            if (rt) {
+                const m = rt.replace(',', '.').match(/(\d+(?:\.\d+)?)/), esPN = /pn/i.test(rt), cand = m ? (esPN ? 'PN ' + m[1] : m[1] + '#') : '';
+                if (PN_LISTA_BRIDAS.includes(cand)) prop('rating', cand); else avisos.push(`PN / Rating «${rt}» no reconocido: indícalo a mano.`);
+            }
+            prop('apiPlan', tt(d.plan_sellado));
+            const pts = (Array.isArray(d.curva_tabulada) ? d.curva_tabulada : []).map(q => [nn(q.q_m3h), nn(q.h_m), nn(q.eta_pct), nn(q.npshr_m)]).filter(q => q[0] != null && q[0] >= 0 && q[1] > 0).sort((x, y) => x[0] - y[0]);
+            const vol = P.bombaTipo && P.bombaTipo !== 'centrifuga';
+            if (pts.length >= 2 && !vol) prop('curva', textoDeCurva(pts));
+            libVista.ia = { id: b.id, archivo, campos, avisos, conversiones: tt(d.conversiones), sinCurva: !vol && pts.length < 2 };
+            return campos.length;
+        }
+        function leerArchivoBase64(f) { return new Promise((ok, mal) => { const r = new FileReader(); r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, '')); r.onerror = () => mal(new Error('No se puede leer el archivo.')); r.readAsDataURL(f); }); }
+        async function llamarIABomba(f, pista) {
+            const s = sesionActual(), k = claveSupabase();
+            const r = await fetch(`${SUPABASE_URL}/functions/v1/${FUNCION_IA_BOMBA}`, { method: 'POST', headers: { apikey: k, Authorization: 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify({ token: s.token, mime: f.type || 'application/pdf', nombre: f.name, modelo: pista || '', datos: await leerArchivoBase64(f) }) });
+            const t = await r.text(); let d = null; try { d = JSON.parse(t); } catch (e) { }
+            if (r.status === 404 && !(d && d.error)) throw new Error('La función «' + FUNCION_IA_BOMBA + '» no está desplegada en Supabase (Edge Functions).');
+            if (!r.ok || !d || !d.datos) throw new Error((d && (d.error || d.message || d.msg)) || ('HTTP ' + r.status));
+            return d;
+        }
+        function rellenarBombaDesdePDF() {
+            const s = sesionActual();
+            if (!claveSupabase() || !s || !s.token) { alert('La lectura con IA necesita la conexión con Supabase y una sesión iniciada con un usuario de la base de datos.\n\nOpciones > Supabase > Configurar conexión · Archivo > Administración > Iniciar sesión'); return; }
+            if (libVista.iaOcupado) return;
+            const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf,image/png,image/jpeg,image/webp';
+            inp.onchange = () => { if (inp.files && inp.files[0]) leerFichaBombaIA(inp.files[0]); };
+            inp.click();
+        }
+        async function leerFichaBombaIA(f) {
+            const b = leerFormLib(); if (!b) return;
+            const mime = f.type || (/\.pdf$/i.test(f.name) ? 'application/pdf' : '');
+            if (!/^(application\/pdf|image\/(png|jpeg|webp))$/.test(mime)) { alert('Formato no admitido: usa un PDF o una imagen PNG / JPG.'); return; }
+            if (f.size > MAX_MB_IA * 1048576) { alert(`El archivo ocupa ${(f.size / 1048576).toFixed(1)} MB y el máximo es ${MAX_MB_IA} MB.\n\nSi es un catálogo completo, extrae a otro PDF solo las páginas de la bomba.`); return; }
+            const pista = String(b.referencia || '').trim();
+            libVista.ia0 = libVista.ia && libVista.ia.id === b.id ? b.id : (String(b.nombre || '').trim() ? null : b.id);   // el nombre solo se sustituye si estaba vacío o lo puso la IA
+            libVista.iaOcupado = true; pintarLibreria();
+            try {
+                const r = await llamarIABomba(f, pista);
+                libVista.iaOcupado = false;
+                if (!libVista.borrador || libVista.borrador.id !== b.id) return;            // se ha cambiado de elemento mientras tanto
+                const n = aplicarDatosIABomba(libVista.borrador, r.datos, f.name);
+                pintarLibreria();
+                aviso(n ? `IA: ${n} campos leídos de «${f.name}»${r.limite ? ` (${r.usadas_hoy}/${r.limite} lecturas de hoy)` : ''}. Revísalos antes de guardar.` : 'IA: no se ha encontrado ningún dato de bomba en el documento.', n ? 'ok' : 'error');
+            } catch (e) { libVista.iaOcupado = false; pintarLibreria(); alert('No se ha podido leer la ficha con IA:\n' + e.message); }
         }
 
         // ==================================================================================
