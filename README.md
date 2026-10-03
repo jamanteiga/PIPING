@@ -491,3 +491,61 @@ José: «las tuberías, reducciones, tes, codos no tienen rating». Correcto par
 ## Pruebas
 
 `t_14.js`, `t_f.js` (ficha oculta), `t_tab.js` (base de datos), `t_tub.js`, `t_br.js`, `t_br3.js`, `t_esc.js`, `t_m.js` y regresión test10–test23 sin errores. Cambio esperado en la regresión: las tuberías ya no admiten rating propio.
+
+# Versión 8.14 — Rating solo donde existe, socket weld, tes y reducciones EN inoxidables
+
+Fecha: 2026-10-03. Versión anterior: 8.13.1 (copia en `copias\v8131\`). Hay que ejecutar `supabase\07_accesorios.sql`.
+
+## 8.14.1 — Ficha oculta en las librerías de accesorios, bridas y tuberías de acero
+
+Petición de José: al abrir la ventana (Librerías > Accesorios > Codos, Tes, Reducciones, Bridas; Librerías > Tuberías > Acero ASME / EN) solo se ve la tabla; la ficha de datos queda oculta.
+
+- La ficha se despliega con **Nuevo**, **Nuevo a partir del marcado** o **Editar** (botón nuevo), o con doble clic en la fila.
+- Un clic en una fila solo la marca (habilita Nuevo a partir del marcado, Editar y Eliminar).
+- Tras **Guardar**, la ficha se vuelve a ocultar.
+- Quien no puede modificar tiene el botón **Ver ficha**.
+- Estado en `libVista.form`; funciones `seleccionarItemLib` (detecta el doble clic, porque la tabla se repinta en cada clic) y `editarItemLib`.
+- Sin cambios de base de datos. Copia de la 8.14 en `copias\v814\`. Ficheros: `index.html`, `js/piping.js`, `i18n/*.js`.
+
+## Rating
+
+José: «las tuberías, reducciones, tes, codos no tienen rating». Correcto para tubos y accesorios para soldar a tope; la excepción son los forjados ASME B16.11.
+
+| Componente | Rating | En el código |
+|---|---|---|
+| Tubería | No (su presión la da el espesor) | `TAC-2"-S40-SA106B` |
+| Accesorios para soldar a tope: ASME B16.9, EN 10253-1/-2/-3/-4 | No | `C90LR-2"-S40-WPB`, `RC-3"x2"-S40-WPB` |
+| Forjados ASME B16.11 socket weld | Clase 3000, 6000, 9000 | `C90SW-1"-S80-SA105N-3000#` |
+| Forjados ASME B16.11 roscados | Clase 2000, 3000, 6000 | |
+| Bridas | Clase / PN | `WN-2"-S40-SA105N-300#-RF` |
+
+- El campo Rating / PN desaparece del cuadro y de las propiedades de tuberías y accesorios para soldar a tope, y de la columna PN / clase del listado.
+- La tubería guarda internamente el rating de la línea (heredado del componente anterior) solo para pasarlo a las válvulas y bridas que se conecten después; no se ve ni va en su código.
+- En `piping_acc_modelos.ratings`: `NO` = sin rating; lista = clases admitidas; vacío = todas las de su sistema.
+- Librerías > Accesorios: la pestaña «Rating / PN» pasa a «Clase (forjados)»; en Librerías > Tuberías > Acero ASME / EN desaparece.
+
+## Socket weld
+
+«Enchufe y soldadura (SW)» pasa a «Socket weld (SW)» en nombres de modelo y conexión (accesorios B16.11 y brida SW de B16.5). El SQL actualiza los modelos de catálogo que nadie haya editado.
+
+## Reducciones y tes
+
+- El desplegable Modelo de una reducción solo muestra los de su variante (concéntrica o excéntrica).
+- Modelos nuevos EN inoxidable: `EN3-TE`, `EN3-RC`, `EN3-RE` (EN 10253-3, sin inspección específica) y `EN4-TE`, `EN4-RC`, `EN4-RE` (EN 10253-4, con inspección específica). Materiales (grupo `EN34`): 1.4301, 1.4306, 1.4401, 1.4404, 1.4541, 1.4550.
+- **Pendiente:** espesores y cotas de EN 10253-3 / -4 (y EN ISO 1127); mientras tanto el código de estos accesorios no lleva espesor. Tampoco hay codos EN inoxidables.
+- EN 10253-2: materiales P235GH / P265GH anotados como «tubo EN 10216-2 / chapa EN 10028-2».
+- ASME: sin cambios (SA-234 WPB / WPC, SA-420 WPL6, SA-403 WP304…WP347H, ASME II).
+
+## Dudas abiertas con José
+
+- Escribió «EN 10288» como norma de material: se ha tomado como EN 10028 (chapa para aparatos a presión). EN 10288 es de recubrimientos de polietileno. Pendiente de confirmar.
+- Código de diseño: para tubería el programa usa ASME B31.3 (PMA por espesor). ASME VIII Div. 1 es de recipientes; EN 13480-3 sería el equivalente europeo para tubería (espesor mínimo y tensiones admisibles EN). No implementado: pendiente de que José diga si quiere el cálculo de espesor por EN 13480-3 para las tuberías y accesorios EN.
+- Siguen pendientes: normas de bridas (ASME B16.5, B16.47, EN 1092-1), EN ISO 1127 y la decisión sobre fórmulas empíricas de pérdida de carga.
+
+## Ficheros entregados (8.14)
+
+`index.html`, `js/piping.js`, `i18n/*.js`, `datos/accesorios_tablas.js`, `supabase/07_accesorios.sql`, `accesorios_tablas.xlsx`.
+
+## Pruebas
+
+`t_14.js`, `t_f.js` (ficha oculta), `t_tab.js` (base de datos), `t_tub.js`, `t_br.js`, `t_br3.js`, `t_esc.js`, `t_m.js` y regresión test10–test23 sin errores. Cambio esperado en la regresión: las tuberías ya no admiten rating propio.
