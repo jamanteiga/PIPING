@@ -38,3 +38,6 @@ Object.assign(window.PIPING_I18N.pt.d, {"Bridas": "Flanges", "Codos": "Curvas", 
 
 // v8.13
 Object.assign(window.PIPING_I18N.pt.d, {"Brida ciega": "Flange cega", "Bridas de acero": "Flanges de aço", "Cara": "Face", "Schedule / espesor del cuello": "Schedule / espessura do pescoço", "Bridas": "Flanges", "Espesor del cuello / taladro": "Espessura do pescoço / furo", "Tipos de cara (separados por comas)": "Tipos de face (separados por vírgulas)", "Rating / PN que admite (separados por comas; vacío = todos)": "Rating / PN admitidos (separados por vírgulas; vazio = todos)", "DN mínimo": "DN mínimo", "DN máximo": "DN máximo", "No aplica": "Não aplicável"});
+
+// v8.14
+Object.assign(window.PIPING_I18N.pt.d, {"Clase (forjados)": "Classe (forjados)", "Sin tabla cargada": "Sem tabela carregada", "Rating que admite (separados por comas; NO = sin rating; vacío = todos)": "Rating admitido (separado por vírgulas; NO = sem rating; vazio = todos)"});

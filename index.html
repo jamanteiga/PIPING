@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PIPING - Diseño P&ID Vectorial Avanzado (mm)</title>
-    <link rel="stylesheet" href="css/piping.css?v=8.13.1">
+    <link rel="stylesheet" href="css/piping.css?v=8.14">
     <link rel="stylesheet" href="fa/css/fa.min.css?v=6.4.0">
     <!-- Datos de ingeniería (fluidos, tuberías, Crane, B16.9, válvulas). Debe estar junto a index.html -->
-    <script src="catalogo.js?v=8.13.1"></script>
+    <script src="catalogo.js?v=8.14"></script>
     <script>
         // diccionario del idioma de la interfaz antes de arrancar (i18n/<idioma>.js)
-        (function () { try { var l = localStorage.getItem('piping-idioma'); if (l === 'en' || l === 'pt' || l === 'ko') document.write('<script src="i18n/' + l + '.js?v=8.13.1"><\/script>'); } catch (e) { } })();
+        (function () { try { var l = localStorage.getItem('piping-idioma'); if (l === 'en' || l === 'pt' || l === 'ko') document.write('<script src="i18n/' + l + '.js?v=8.14"><\/script>'); } catch (e) { } })();
     </script>
     <script>
         // Catálogo descargado de Supabase (copia en el navegador): sustituye a catalogo.js si es igual o más
@@ -153,7 +153,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 8.13.1-bridas</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 8.14-accesorios</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -279,10 +279,10 @@
 
     </div>
 
-    <script src="js/piping.js?v=8.13.1"></script>
+    <script src="js/piping.js?v=8.14"></script>
     <script>
         // aviso si index.html y js/piping.js no son de la misma versión (subida incompleta o caché del navegador)
-        (function () { var esperada = '8.13.1', v = null; try { v = VERSION_WEB; } catch (e) { }
+        (function () { var esperada = '8.14', v = null; try { v = VERSION_WEB; } catch (e) { }
             if (v === esperada) return;
             var d = document.createElement('div'); d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;font:bold 13px sans-serif;padding:10px 14px;text-align:center';
             d.textContent = 'Versiones mezcladas: index.html es ' + esperada + ' y js/piping.js es ' + (v || 'anterior a la 8.4') + '. Sube también la carpeta js completa (js/piping.js y js/partes) y recarga con Ctrl+F5.';

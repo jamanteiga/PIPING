@@ -38,3 +38,6 @@ Object.assign(window.PIPING_I18N.en.d, {"Bridas": "Flanges", "Codos": "Elbows", 
 
 // v8.13
 Object.assign(window.PIPING_I18N.en.d, {"Brida ciega": "Blind flange", "Bridas de acero": "Steel flanges", "Cara": "Facing", "Schedule / espesor del cuello": "Hub schedule / thickness", "Bridas": "Flanges", "Espesor del cuello / taladro": "Hub / bore thickness", "Tipos de cara (separados por comas)": "Facing types (comma separated)", "Rating / PN que admite (separados por comas; vacío = todos)": "Allowed ratings / PN (comma separated; empty = all)", "DN mínimo": "Minimum DN", "DN máximo": "Maximum DN", "No aplica": "Not applicable"});
+
+// v8.14
+Object.assign(window.PIPING_I18N.en.d, {"Clase (forjados)": "Class (forged fittings)", "Sin tabla cargada": "No table loaded", "Rating que admite (separados por comas; NO = sin rating; vacío = todos)": "Allowed ratings (comma separated; NO = no rating; empty = all)"});

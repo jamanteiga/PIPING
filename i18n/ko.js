@@ -38,3 +38,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Bridas": "플랜지", "Codos": "엘보"
 
 // v8.13
 Object.assign(window.PIPING_I18N.ko.d, {"Brida ciega": "블라인드 플랜지", "Bridas de acero": "강제 플랜지", "Cara": "면 형식", "Schedule / espesor del cuello": "허브 스케줄 / 두께", "Bridas": "플랜지", "Espesor del cuello / taladro": "허브 / 보어 두께", "Tipos de cara (separados por comas)": "면 형식 (쉼표로 구분)", "Rating / PN que admite (separados por comas; vacío = todos)": "허용 등급 / PN (쉼표로 구분, 비우면 전체)", "DN mínimo": "최소 DN", "DN máximo": "최대 DN", "No aplica": "해당 없음"});
+
+// v8.14
+Object.assign(window.PIPING_I18N.ko.d, {"Clase (forjados)": "등급 (단조 피팅)", "Sin tabla cargada": "로드된 표 없음", "Rating que admite (separados por comas; NO = sin rating; vacío = todos)": "허용 등급 (쉼표로 구분, NO = 등급 없음, 비우면 전체)"});
