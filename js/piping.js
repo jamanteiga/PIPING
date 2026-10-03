@@ -3597,17 +3597,32 @@
             }));
             return { fijos, demandas, porNodo, puertoTerm, elementos: [...new Set(Object.values(porNodo))] };
         }
+        // Red sin bomba ni depósitos: la línea P01 parte con la presión y el caudal de diseño del proyecto.
+        // Devuelve el extremo de origen (el extremo abierto del primer elemento de la primera línea principal) y las demás salidas, o null.
+        function origenSinBomba(grafo, aristas, term) {
+            if (!(+proyecto.presionDiseno > 0)) return null;
+            if (aristas.some(a => a.el.type === 'bomba' && bombaEnMarcha(a.el))) return null;
+            if (term && Object.keys(term.fijos).length) return null;   // un depósito ya fija la presión de partida
+            const nodos = nodosContornoDe(grafo, aristas); if (!nodos.length) return null;
+            const lp = (lineas.find(l => l.tipo === 'principal') || {}).id;
+            const el = n => elementosRed.find(e => e.id === n.puertoContorno.elId) || {};
+            const peso = n => { const e = el(n); return (e.linea === lp ? 0 : 1e6) + (n.puertoContorno.portId === 'a' ? 0 : 1e3) + (e.num || 999); };
+            const origen = nodos.slice().sort((x, y) => peso(x) - peso(y))[0];
+            return { origen, clave: `${origen.puertoContorno.elId}:${origen.puertoContorno.portId}`, salidas: nodos.filter(n => n !== origen) };
+        }
         function mostrarModalContorno(grafo, aristas, nodosContorno) {
+            const sb = origenSinBomba(grafo, aristas, terminalesRed(grafo)), sinConsumos = sb && !elementosRed.some(e => e.subtype === 'consumo' && +e.qCons > 0);
             const zN = cotasNodos(grafo).z;
             let filas = nodosContorno.map(n => {
                 let p = n.puertoContorno;
                 let el = elementosRed.find(e => e.id === p.elId);
                 if (!el) return '';
                 let key = `${p.elId}:${p.portId}`;
-                let cond = condicionesContorno[key] || { elevacion: 0, presion: 0 };
+                let cond = condicionesContorno[key] || { elevacion: 0, presion: sb && sb.clave === key ? +proyecto.presionDiseno : 0 };
+                const esOrigen = sb && sb.clave === key, esSalidaQ = sinConsumos && !esOrigen;
                 return `
                 <tr data-key="${key}">
-                    <td class="pr-2 py-1">${esc(tagDe(el))} (${nombrePuerto(el, p.portId)})</td>
+                    <td class="pr-2 py-1">${esc(tagDe(el))} (${nombrePuerto(el, p.portId)})${esOrigen ? ' <b class="text-blue-700">· origen: presión de diseño</b>' : esSalidaQ ? ' <span class="text-slate-400">· salida: la presión es un resultado</span>' : ''}</td>
                     <td class="pr-2 text-slate-600" title="Se edita en la cota del elemento">${fmt(zN[n.id] * 1000, 0)}</td>
                     <td><input type="number" step="any" class="w-20 border rounded p-1 presion-input" value="${+aP(cond.presion || 0).toFixed(4)}"></td>
                 </tr>`;
@@ -3615,6 +3630,7 @@
 
             document.getElementById('red-content').innerHTML = `
                 <p class="text-xs text-slate-500 mb-3">Indica la presión manométrica en cada extremo abierto de la red (0 = descarga/aspiración atmosférica). La cota es la del elemento en ese extremo. Los depósitos y los puntos de consumo usan sus propios datos.</p>
+                ${sb ? `<p class="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded p-2 mb-3"><i class="fa-solid fa-circle-info mr-1"></i>Red sin bomba: la línea parte de <b>${esc(tagDe(elementosRed.find(e => e.id === sb.origen.puertoContorno.elId) || {}))}</b> con la presión de diseño (${fP(+proyecto.presionDiseno, 2)} ${lP()}) y el caudal de diseño (${fQ(+proyecto.caudalDiseno, 2)} ${lQ()}) del proyecto.${sinConsumos ? ' Como no hay puntos de consumo, ese caudal sale por ' + (sb.salidas.length > 1 ? 'las demás salidas, a partes iguales' : 'la otra salida') + ', y su presión es un resultado del cálculo.' : ' El reparto del caudal lo fijan los puntos de consumo.'}</p>` : ''}
                 ${filas ? `<table class="w-full text-xs mb-2">
                     <thead><tr class="text-left text-slate-500"><th class="pb-1">Extremo</th><th class="pb-1">Cota (mm)</th><th class="pb-1">Presión man. (${lP()})</th></tr></thead>
                     <tbody>${filas}</tbody>
@@ -3801,7 +3817,9 @@
                 if (!fuentes.length) Qf = elementosRed.filter(e => e.subtype === 'consumo' && ultimoResultado[e.id]).reduce((s, e) => s + (ultimoResultado[e.id].Q || 0), 0);
                 resultado.Qbombas = Qf; resultado.origenQ = fuentes.length ? 'fuentes' : 'consumos'; resultado.fuentesQ = fuentes.map(e => tagDe(e));
                 if (Qf < Qd * 0.999) fuentes.forEach(e => { ultimoResultado[e.id].motivos.push(`Q aportado por la alimentación ${Qf.toFixed(2)} m³/h < caudal de diseño ${Qd} m³/h`); e.estado = 'fallo'; });
-                if (Qf < Qd * 0.999 && !fuentes.length) resultado.avisosRed.push(`Red sin bombas ni depósitos de alimentación: la suma de consumos (${Qf.toFixed(2)} m³/h) no alcanza el caudal de diseño (${Qd} m³/h).`);
+                const impuesto = resultado.sinBomba && resultado.sinBomba.salidas.length;   // el caudal de diseño ya está impuesto en las salidas
+                if (impuesto) { resultado.Qbombas = Qd; resultado.origenQ = 'proyecto'; }
+                if (Qf < Qd * 0.999 && !fuentes.length && !impuesto) resultado.avisosRed.push(`Red sin bombas ni depósitos de alimentación: la suma de consumos (${Qf.toFixed(2)} m³/h) no alcanza el caudal de diseño (${Qd} m³/h).${+proyecto.presionDiseno > 0 ? '' : ' Indica la presión de diseño en Archivo > Datos del proyecto para que la línea P01 parta con esa presión y el caudal de diseño.'}`);
             }
             proponerAlternativas(resultado);
         }
@@ -4029,6 +4047,17 @@
                 condiciones[n.id] = { elevacion: zNodo[n.id], presion: c.presion || 0 };
             });
             Object.entries(term.fijos).forEach(([nid, c]) => { condiciones[nid] = { elevacion: c.elevacion, presion: c.presion, deposito: c.deposito.id }; });
+            // red sin bomba: P01 parte con la presión y el caudal de diseño del proyecto
+            const sb = origenSinBomba(grafo, aristas, term), Qd0 = +proyecto.caudalDiseno || 0;
+            let salidasQ = [];
+            if (sb) {
+                if (!condicionesContorno[sb.clave]) condiciones[sb.origen.id].presion = +proyecto.presionDiseno;
+                const hayConsumos = Object.values(term.demandas).some(q => q > 0);
+                if (!hayConsumos && Qd0 > 0 && sb.salidas.length) {
+                    salidasQ = sb.salidas;
+                    salidasQ.forEach(n => { delete condiciones[n.id]; term.demandas[n.id] = (term.demandas[n.id] || 0) + Qd0 / 3600 / salidasQ.length; });
+                }
+            }
 
             const fluido = fluidoSeleccionado();
             if (!fluido.ok) return { error: fluido.msg + '\nCambia la temperatura o el fluido.' };
@@ -4049,6 +4078,13 @@
             Object.keys(resultado.Hnodo).forEach(n => { const pa = (resultado.Hnodo[n] - (zNodo[n] || 0)) * fluido.rho * G; resultado.pAbs[n] = pa; resultado.pMan[n] = pa - PRESION_ATM; });
             resultado.terminales = term; resultado.condiciones = condiciones;
             resultado.avisosRed = incoherencias.slice();
+            if (sb) {
+                const tg = n => { const e = elementosRed.find(x => x.id === n.puertoContorno.elId); return e ? tagDe(e) : '?'; };
+                resultado.sinBomba = { origen: tg(sb.origen), presion: condiciones[sb.origen.id].presion, caudal: Qd0, salidas: salidasQ.map(n => ({ tag: tg(n), Q: Qd0 / salidasQ.length, p: resultado.pMan[n.id] / 1e5 })) };
+                resultado.avisosRed.push(`Red sin bomba: parte de ${resultado.sinBomba.origen} con ${fP(resultado.sinBomba.presion, 2)} ${lP()}${salidasQ.length ? ` y ${fQ(Qd0, 2)} ${lQ()}` : ''} (presión y caudal de diseño del proyecto).`);
+                resultado.sinBomba.salidas.forEach(x => resultado.avisosRed.push(`Salida ${x.tag}: ${fQ(x.Q, 2)} ${lQ()} a ${fP(x.p, 2)} ${lP()}${x.p < 0 ? ' — PRESIÓN INSUFICIENTE: la presión de diseño no vence las pérdidas de carga y el desnivel' : ''}.`));
+                if (salidasQ.length > 1) resultado.avisosRed.push(`El caudal de diseño se ha repartido a partes iguales entre las ${salidasQ.length} salidas. Para fijar otro reparto, coloca un punto de consumo en cada salida (panel lateral > Consumos).`);
+            }
             evaluarCriterios(resultado);
             try { clasificacionPED(resultado); } catch (e) { console.error(e); }
             try { termicaYSoportes(resultado); } catch (e) { console.error(e); }
@@ -7434,7 +7470,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.16';
+        const VERSION_WEB = '8.17';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -7835,7 +7871,7 @@
             esBuque: false,
             buque: { astillero: '', construccion: '', nombre: '', armador: '', tipo: '', imo: '', bandera: '', clasificacion: '', esloraTotal: '', esloraPP: '', manga: '', puntal: '', calado: '', peMuerto: '' },
             fluido: '', temperatura: '',
-            tipoInstalacion: '', caudalDiseno: '', vAsp: '', vImp: '', tCierre: '', tsMax: '', grupoPED: 'auto', criterioPrueba: 'PED', tAmbiente: '', tMontaje: '', exterior: false, horasAnuales: '', precioEnergia: '', etaMotor: ''
+            tipoInstalacion: '', caudalDiseno: '', presionDiseno: '', vAsp: '', vImp: '', tCierre: '', tsMax: '', grupoPED: 'auto', criterioPrueba: 'PED', tAmbiente: '', tMontaje: '', exterior: false, horasAnuales: '', precioEnergia: '', etaMotor: ''
         });
         let proyecto = PROYECTO_VACIO();
         const TIPOS_INSTALACION = { edificacion: 'Edificación (RITE/CTE)', industrial: 'Industrial / proceso', naval: 'Naval / buque' };
@@ -7926,6 +7962,7 @@
                     <div><label class="block text-slate-500 mb-0.5">Tipo de instalación *</label><select id="dp-tipoInstalacion" class="w-full border rounded p-1.5" onchange="actualizarVRecomendada(true)"><option value="" ${p.tipoInstalacion ? '' : 'selected'}>— elegir —</option>${Object.entries(TIPOS_INSTALACION).map(([k, t]) => `<option value="${k}" ${p.tipoInstalacion === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
                     ${campoHTML('tsMax', 'Temperatura máxima admisible TS (°C) *', 'number', p.tsMax, 'p')}
                     ${campoHTML('caudalDiseno', 'Caudal de diseño (m³/h) *', 'number', p.caudalDiseno, 'p')}
+                    ${campoHTML('presionDiseno', 'Presión de diseño (bar) * · presión con la que parte la línea P01', 'number', p.presionDiseno == null ? '' : p.presionDiseno, 'p')}
                     ${campoHTML('tCierre', 'Tiempo de cierre de válvulas (s) · golpe de ariete (vacío = instantáneo)', 'number', p.tCierre, 'p')}
                     ${campoHTML('vImp', `Velocidad máx. en impulsión (m/s) * · recomendada <span id="rec-imp">${rec[1]}</span>`, 'number', p.vImp, 'p')}
                     ${campoHTML('vAsp', `Velocidad máx. en aspiración de bombas (m/s) * · recomendada <span id="rec-asp">${rec[0]}</span>`, 'number', p.vAsp, 'p')}
@@ -7980,11 +8017,12 @@
             CAMPOS_BUQUE.forEach(([k]) => { copia.buque[k] = (v('dp-b-' + k) || '').trim(); });
             copia.tipoInstalacion = v('dp-tipoInstalacion');
             copia.fluido = v('dp-fluido');
-            ['temperatura', 'caudalDiseno', 'vAsp', 'vImp', 'tCierre', 'tsMax', 'tAmbiente', 'tMontaje', 'horasAnuales', 'precioEnergia', 'etaMotor'].forEach(k => { copia[k] = (v('dp-p-' + k) || '').trim(); });
+            ['temperatura', 'caudalDiseno', 'presionDiseno', 'vAsp', 'vImp', 'tCierre', 'tsMax', 'tAmbiente', 'tMontaje', 'horasAnuales', 'precioEnergia', 'etaMotor'].forEach(k => { copia[k] = (v('dp-p-' + k) || '').trim(); });
             copia.grupoPED = v('dp-grupoPED') || 'auto'; copia.criterioPrueba = v('dp-criterioPrueba') || 'PED';
             copia.salvaguardas = !!(document.getElementById('dp-salvaguardas') || {}).checked;
             copia.exterior = !!(document.getElementById('dp-exterior') || {}).checked;
             const falta = faltanObligatorios(copia);
+            if (!(+copia.presionDiseno > 0)) falta.push('Presión de diseño');
             if (falta.length) { alert('Faltan datos obligatorios:\n\n· ' + falta.join('\n· ')); return; }
             const neg = ['caudalDiseno', 'vAsp', 'vImp', 'tCierre'].filter(k => copia[k] !== '' && !(+copia[k] > 0));
             if (neg.length) { alert('El caudal, las velocidades y el tiempo de cierre deben ser números mayores que cero.'); return; }
@@ -8018,7 +8056,7 @@
         function actualizarPanelDiseno() {
             const d = document.getElementById('panel-diseno'); if (!d) return;
             const lim = limitesVelocidad(), fila = (k, v) => `<div class="flex justify-between gap-2"><span class="text-slate-400">${k}</span><b class="text-slate-700">${v}</b></div>`;
-            d.innerHTML = proyectoDefinido() ? fila('Caudal de proyecto', `${fQ(+proyecto.caudalDiseno, 2)} ${lQ()}`) + fila('V máx. impulsión', `${lim.imp} m/s`) + fila('V máx. aspiración', `${lim.asp} m/s`) + fila('TS máx.', `${proyecto.tsMax} °C`)
+            d.innerHTML = proyectoDefinido() ? fila('Caudal de proyecto', `${fQ(+proyecto.caudalDiseno, 2)} ${lQ()}`) + (+proyecto.presionDiseno > 0 ? fila('Presión de diseño', `${fP(+proyecto.presionDiseno, 2)} ${lP()}`) : '') + fila('V máx. impulsión', `${lim.imp} m/s`) + fila('V máx. aspiración', `${lim.asp} m/s`) + fila('TS máx.', `${proyecto.tsMax} °C`)
                 : '<span class="text-amber-600">Proyecto sin definir</span>';
         }
         

@@ -50,3 +50,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"PN / Rating": "PN / 등급", "PN / RATI
 
 // v8.16
 Object.assign(window.PIPING_I18N.ko.d, {"Cruces": "크로스", "Cruces...": "크로스...", "Manguitos de unión...": "커플링...", "Clase (forjados B16.11)": "등급 (B16.11 단조)", "Clase que admite (separadas por comas; NO = sin clase)": "허용 등급 (쉼표로 구분, NO = 등급 없음)", "Clase · Tipo (Crane)": "등급 · 유형 (Crane)"});
+
+// v8.17
+Object.assign(window.PIPING_I18N.ko.d, {"Presión de diseño": "설계 압력", "Presión de diseño (bar) * · presión con la que parte la línea P01": "설계 압력 (bar) * · P01 라인 시작 압력"});

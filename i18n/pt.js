@@ -50,3 +50,6 @@ Object.assign(window.PIPING_I18N.pt.d, {"PN / Rating": "PN / Rating", "PN / RATI
 
 // v8.16
 Object.assign(window.PIPING_I18N.pt.d, {"Cruces": "Cruzetas", "Cruces...": "Cruzetas...", "Manguitos de unión...": "Uniões de manga...", "Clase (forjados B16.11)": "Classe (forjados B16.11)", "Clase que admite (separadas por comas; NO = sin clase)": "Classes admitidas (separadas por vírgulas; NO = sem classe)", "Clase · Tipo (Crane)": "Classe · Tipo (Crane)"});
+
+// v8.17
+Object.assign(window.PIPING_I18N.pt.d, {"Presión de diseño": "Pressão de projeto", "Presión de diseño (bar) * · presión con la que parte la línea P01": "Pressão de projeto (bar) * · pressão com que parte a linha P01"});
