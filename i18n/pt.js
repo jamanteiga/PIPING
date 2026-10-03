@@ -59,3 +59,6 @@ Object.assign(window.PIPING_I18N.pt.d, {"Partir tubería...": "Dividir tubagem..
 
 // v8.19
 Object.assign(window.PIPING_I18N.pt.d, {"Rellenar desde PDF (IA)...": "Preencher a partir de PDF (IA)...", "Leyendo la ficha...": "A ler a ficha...", "La curva no se lee de la gráfica: usa «Digitalizar desde una imagen...».": "A curva não é lida do gráfico: use «Digitalizar a partir de uma imagem...».", "Leído por IA: revisar": "Lido por IA: rever"});
+
+// v8.19.1
+Object.assign(window.PIPING_I18N.pt.d, {"Curva característica: una fila por punto con caudal (m³/h), altura (m), rendimiento (%), NPSHr (m) y potencia en el eje (kW)": "Curva característica: uma linha por ponto com caudal (m³/h), altura (m), rendimento (%), NPSHr (m) e potência no veio (kW)", "2. Calibrar los ejes y capturar la curva": "2. Calibrar os eixos e capturar a curva", "Unidad del caudal": "Unidade do caudal", "Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes: se calibra por separado, con sus unidades.": "Cada gráfico (Q – H, Q – NPSHr, Q – P) tem os seus próprios eixos: calibra-se separadamente, com as suas unidades.", "Sin curva de η, el rendimiento se calcula con la potencia: η = ρ·g·Q·H / P.": "Sem curva de η, o rendimento calcula-se com a potência: η = ρ·g·Q·H / P."});

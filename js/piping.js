@@ -4668,7 +4668,7 @@
                 ['impulsor', 'Diámetro del impulsor (mm)', 'num', null, 'cen'], ['impulsorMax', 'Diámetro máximo del impulsor (mm)', 'num', null, 'cen'],
                 ['volCilindrada', 'Volumen por ciclo / revolución (cm³)', 'num', null, 'vol'], ['volPmax', 'Presión máxima de trabajo (bar) *', 'num', null, 'vol'], ['volCiclos', 'Ciclos o revoluciones por minuto', 'num', null, 'vol'], ['volCilindros', 'N.º de cilindros / pulsaciones por ciclo', 'num', null, 'vol'], ['volMaterial', 'Material de manguera, válvulas o sellos', 'txt', null, 'vol'],
                 ['dnAsp', 'Brida de aspiración', 'dn'], ['dnImp', 'Brida de impulsión', 'dn'], ['normaBridas', 'Norma de las bridas', 'sel', ['ASME', 'EN']], ['rating', 'PN / Rating', 'sel', PN_LISTA_BRIDAS], ['apiPlan', 'Plan de sellado (API 682)', 'txt'],
-                ['curva', 'Curva característica: una fila por punto con caudal (m³/h), altura (m), rendimiento (%) y NPSHr (m)', 'curva', null, 'cen']],
+                ['curva', 'Curva característica: una fila por punto con caudal (m³/h), altura (m), rendimiento (%), NPSHr (m) y potencia en el eje (kW)', 'curva', null, 'cen']],
             instrumentos: [['rango', 'Rango / escala', 'txt'], ['dnInstr', 'Conexión a proceso', 'dn'], ['precision', 'Clase de precisión', 'txt']],
             uniones: [['cara', 'Tipo de cara', 'sel', ['RF (resalte)', 'FF (plana)', 'RTJ (junta anular)', 'Roscada', 'Encolada / termofusión']], ['normaDim', 'Norma dimensional', 'sel', ['ASME B16.5', 'ASME B16.47', 'ASME B16.11', 'EN 1092-1', 'EN 1092-2', 'EN 1092-3', 'DIN / ISO (plásticos)']]],
             tuberias: [['base', 'Tabla de tamaños y espesores', 'base'], ['codigo', 'Código de etiqueta (p. ej. TAC)', 'txt'], ['rug', 'Rugosidad ε (mm)', 'num'], ['sAdm', 'Tensión admisible S (MPa; vacío = según grado)', 'num'], ['c', 'Sobreespesor de corrosión (mm)', 'num'], ['Tmax', 'Temperatura máxima (°C)', 'num']]
@@ -7584,7 +7584,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.19';
+        const VERSION_WEB = '8.19.1';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -9634,11 +9634,12 @@
             const pts = [];
             String(texto || '').split(/\r?\n/).forEach(l => {
                 const n = l.trim().replace(/(\d),(\d)/g, '$1.$2').split(/[\t;\s]+/).map(x => x === '' || x === '-' ? NaN : Number(x));
-                if (n.length >= 2 && isFinite(n[0]) && isFinite(n[1]) && n[0] >= 0 && n[1] > 0) pts.push([n[0], n[1], isFinite(n[2]) ? n[2] : null, isFinite(n[3]) ? n[3] : null]);
+                if (n.length >= 2 && isFinite(n[0]) && isFinite(n[1]) && n[0] >= 0 && n[1] > 0) pts.push([n[0], n[1], isFinite(n[2]) ? n[2] : null, isFinite(n[3]) ? n[3] : null, isFinite(n[4]) ? n[4] : null]);
             });
             return pts.sort((a, b) => a[0] - b[0]);
         }
-        const textoDeCurva = pts => (pts || []).map(p => [p[0], p[1], p[2] == null ? (p[3] == null ? null : '-') : p[2], p[3]].filter(x => x != null).join('\t')).join('\n');
+        // columnas: Q, H, η, NPSHr, P; los huecos intermedios se escriben «-» y los del final se omiten
+        const textoDeCurva = pts => (pts || []).map(p => { const f = [p[0], p[1], p[2], p[3], p[4]].map(x => x == null || x === '' ? null : x); while (f.length > 2 && f[f.length - 1] == null) f.pop(); return f.map(x => x == null ? '-' : x).join('\t'); }).join('\n');
         // datos de una bomba de la librería -> elemento del plano (la altura en m se pasa a bar con el fluido del proyecto)
         function aplicarBombaLib(el, p) {
             const num = v => v === '' || v == null || isNaN(+v) ? null : +v, rho = (fluidoActual().rho || 1000), aBar = m => m * rho * G / 1e5;
@@ -9654,7 +9655,7 @@
             if (p.rating) { el.pnAsp = p.rating; el.pnImp = p.rating; }
             const pts = leerTextoCurva(p.curva);
             if (pts.length >= 2 && !esVolumetrica(el)) {
-                el.curva = pts.map(q => [+q[0].toFixed(3), +aBar(q[1]).toFixed(4), q[2] == null ? null : q[2] / 100, q[3]]);
+                el.curva = pts.map(q => [+q[0].toFixed(3), +aBar(q[1]).toFixed(4), q[2] == null ? null : q[2] / 100, q[3], q[4]]);
                 el.curvaModo = 'puntos'; el.h0 = el.curva[0][1];
                 if (!(el.caudal > 0)) el.caudal = el.curva[Math.floor(el.curva.length / 2)][0];
                 if (num(p.altura) == null) el.presion = +interpolarCurva(el.curva, 1, el.caudal).toFixed(4);
@@ -9671,7 +9672,7 @@
                 props: { tag: r.tag_name || '', bombaTipo: tipoDeBD(r.pump_type), fluidoDiseno: r.design_fluid || '', caudal: r.design_flow_m3h, altura: r.design_head_m, alturaCero: r.shutoff_head_m == null ? '' : r.shutoff_head_m, npsh: r.npshr_m == null ? '' : r.npshr_m, rpm: r.operational_rpm == null ? '' : r.operational_rpm,
                     potMotor: r.motor_power_kw == null ? '' : r.motor_power_kw, eta: r.efficiency_pct == null ? '' : r.efficiency_pct, tension: r.voltage || '', frecuencia: r.frequency_hz || '', ip: r.ip_rating || '', impulsor: r.impeller_mm == null ? '' : r.impeller_mm, impulsorMax: r.impeller_max_mm == null ? '' : r.impeller_max_mm,
                     dnAsp: r.suction_size || '', dnImp: r.discharge_size || '', normaBridas: r.flange_standard || '', rating: r.pressure_rating || '', apiPlan: r.api_plan || '',
-                    curva: c.map(x => [x.flow_m3h, x.head_m, x.efficiency_pct == null ? (x.npshr_m == null ? null : '-') : x.efficiency_pct, x.npshr_m].filter(y => y != null).join('\t')).join('\n'),
+                    curva: textoDeCurva(c.map(x => [x.flow_m3h, x.head_m, x.efficiency_pct, x.npshr_m, x.power_kw])),
                     volCilindrada: v.displacement_per_stroke_cm3 == null ? '' : v.displacement_per_stroke_cm3, volPmax: v.max_discharge_pressure_bar == null ? '' : v.max_discharge_pressure_bar, volCiclos: v.strokes_per_minute == null ? '' : v.strokes_per_minute, volCilindros: v.cylinders == null ? '' : v.cylinders, volMaterial: v.internal_material || '' } };
         }
         function bombaBDDeItem(b) {
@@ -9679,7 +9680,7 @@
             return { pump_id: /^usr:/.test(b.id) ? '' : b.id, tag_name: p.tag || '', pump_type: TIPO_BD_BOMBA[p.bombaTipo || 'centrifuga'], manufacturer: b.fabricante || '', model: b.referencia || b.nombre || '', design_fluid: p.fluidoDiseno || '',
                 design_flow_m3h: n(p.caudal), design_head_m: n(p.altura), shutoff_head_m: n(p.alturaCero), npshr_m: n(p.npsh), operational_rpm: n(p.rpm), motor_power_kw: n(p.potMotor), efficiency_pct: n(p.eta) == null ? null : (n(p.eta) <= 1 ? n(p.eta) * 100 : n(p.eta)),
                 voltage: p.tension || '', frequency_hz: p.frecuencia || '', ip_rating: p.ip || '', impeller_mm: n(p.impulsor), impeller_max_mm: n(p.impulsorMax), suction_size: p.dnAsp || '', discharge_size: p.dnImp || '', flange_standard: p.normaBridas || '', pressure_rating: p.rating || '', api_plan: p.apiPlan || '', url: b.url || '', notes: b.notas || '',
-                curves: vol ? [] : leerTextoCurva(p.curva).map(q => ({ flow_m3h: q[0], head_m: q[1], efficiency_pct: q[2], npshr_m: q[3] })),
+                curves: vol ? [] : leerTextoCurva(p.curva).map(q => ({ flow_m3h: q[0], head_m: q[1], efficiency_pct: q[2], npshr_m: q[3], power_kw: q[4] })),
                 volumetric: vol ? { displacement_per_stroke_cm3: n(p.volCilindrada), max_discharge_pressure_bar: n(p.volPmax), strokes_per_minute: n(p.volCiclos), cylinders: n(p.volCilindros), internal_material: p.volMaterial || '' } : null };
         }
         function asegurarBombas(forzar) {
@@ -9805,13 +9806,16 @@
         // ==================================================================================
         // v8.18 · ASISTENTE DE DIGITALIZACIÓN de curvas de bomba: imagen -> calibración de ejes -> puntos (Q, H / η / NPSHr)
         // ==================================================================================
-        const SERIES_DIG = { H: { nombre: 'Q – H (altura)', unidad: 'm', color: '#2563eb' }, eta: { nombre: 'Q – η (rendimiento)', unidad: '%', color: '#16a34a' }, npsh: { nombre: 'Q – NPSHr', unidad: 'm', color: '#dc2626' } };
+        const SERIES_DIG = { H: { nombre: 'Q – H (altura)', y: 'H', uds: [['m', 'm c.l.'], ['bar', 'bar']], color: '#2563eb' }, npsh: { nombre: 'Q – NPSHr', y: 'NPSHr', uds: [['m', 'm']], color: '#dc2626' },
+            pot: { nombre: 'Q – P (potencia)', y: 'P', uds: [['kW', 'kW'], ['CV', 'CV'], ['HP', 'HP']], color: '#d97706' }, eta: { nombre: 'Q – η (rendimiento)', y: 'η', uds: [['%', '%']], color: '#16a34a' } };
+        const UDS_Q_DIG = [['m3h', 'm³/h'], ['m3s', 'm³/s'], ['lmin', 'l/min'], ['ls', 'l/s']], F_Q_DIG = { m3h: 1, m3s: 3600, lmin: 0.06, ls: 3.6 }, F_P_DIG = { kW: 1, CV: 0.73549875, HP: 0.74569987 };
+        const udQDig = s => (UDS_Q_DIG.find(u => u[0] === DIG.cal[s].uQ) || UDS_Q_DIG[0])[1], udYDig = s => (SERIES_DIG[s].uds.find(u => u[0] === DIG.cal[s].uY) || SERIES_DIG[s].uds[0])[1];
         let DIG = null;
         function abrirDigitalizador(alAplicar, previos) {
             let m = document.getElementById('modal-digit');
             if (!m) { m = document.createElement('div'); m.id = 'modal-digit'; m.className = 'fixed inset-0 bg-black/50 justify-center items-center'; m.style.cssText = 'display:none; z-index:3300'; document.body.appendChild(m); }
-            const cal = () => ({ p0: null, px: null, py: null, x0: 0, xmax: '', y0: 0, ymax: '', logX: false, logY: false });
-            DIG = { alAplicar, img: null, zoom: 1, ox: 0, oy: 0, modo: 'calibrar', paso: 0, serie: 'H', cal: { H: cal(), eta: cal(), npsh: cal() }, pts: { H: [], eta: [], npsh: [] }, uQ: 'm3h', uH: 'm', arrastre: null, previos: previos || null };
+            const cal = s => ({ p0: null, px: null, py: null, x0: '', xmax: '', y0: '', ymax: '', logX: false, logY: false, uQ: 'm3h', uY: SERIES_DIG[s].uds[0][0] });
+            DIG = { alAplicar, img: null, zoom: 1, ox: 0, oy: 0, modo: 'calibrar', paso: 0, serie: 'H', cal: { H: cal('H'), npsh: cal('npsh'), pot: cal('pot'), eta: cal('eta') }, pts: { H: [], npsh: [], pot: [], eta: [] }, arrastre: null, previos: previos || null };
             m.innerHTML = `<div class="bg-white rounded-lg shadow-2xl border border-slate-300 flex flex-col text-xs" style="width:min(1500px, 97vw); height:min(900px, 94vh)">
                 <h3 class="text-sm font-bold text-slate-700 border-b px-4 py-2 flex items-center justify-between"><span><i class="fa-solid fa-crosshairs text-blue-600 mr-1.5"></i>Digitalizar la curva de la bomba desde una imagen</span><button onclick="cerrarDigitalizador()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button></h3>
                 <div class="flex flex-1 min-h-0"><div id="dig-panel" class="w-[330px] flex-none border-r p-3 overflow-y-auto space-y-2"></div>
@@ -9824,7 +9828,7 @@
             L.addEventListener('wheel', ev => { if (!DIG.img) return; ev.preventDefault(); const r = L.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top, z = Math.min(40, Math.max(0.05, DIG.zoom * (ev.deltaY < 0 ? 1.2 : 1 / 1.2)));
                 DIG.ox = mx - (mx - DIG.ox) * z / DIG.zoom; DIG.oy = my - (my - DIG.oy) * z / DIG.zoom; DIG.zoom = z; pintarDig(); }, { passive: false });
             L.addEventListener('mousedown', ev => { if (!DIG.img) return; if (ev.button === 1 || ev.button === 2 || ev.shiftKey || DIG.modo === 'mover') { ev.preventDefault(); DIG.arrastre = { x: ev.clientX, y: ev.clientY, ox: DIG.ox, oy: DIG.oy, movido: false }; } });
-            L.addEventListener('mousemove', ev => { if (DIG && DIG.arrastre) { DIG.ox = DIG.arrastre.ox + ev.clientX - DIG.arrastre.x; DIG.oy = DIG.arrastre.oy + ev.clientY - DIG.arrastre.y; DIG.arrastre.movido = true; pintarDig(); } else if (DIG && DIG.img) { const p = alPunto(ev), v = valorDig(DIG.serie, p), e = document.getElementById('dig-cursor'); if (e) e.textContent = v ? `Q ${fmt(v[0], 2)} · ${DIG.serie === 'H' ? 'H' : DIG.serie === 'eta' ? 'η' : 'NPSHr'} ${fmt(v[1], 2)}` : `píxel ${Math.round(p.x)}, ${Math.round(p.y)}`; } });
+            L.addEventListener('mousemove', ev => { if (DIG && DIG.arrastre) { DIG.ox = DIG.arrastre.ox + ev.clientX - DIG.arrastre.x; DIG.oy = DIG.arrastre.oy + ev.clientY - DIG.arrastre.y; DIG.arrastre.movido = true; pintarDig(); } else if (DIG && DIG.img) { const p = alPunto(ev), v = valorDig(DIG.serie, p), e = document.getElementById('dig-cursor'); if (e) e.textContent = v ? `Q ${fmt(v[0], 2)} ${udQDig(DIG.serie)} · ${SERIES_DIG[DIG.serie].y} ${fmt(v[1], 2)} ${udYDig(DIG.serie)}` : `píxel ${Math.round(p.x)}, ${Math.round(p.y)}`; } });
             window.addEventListener('mouseup', () => { if (DIG) DIG.arrastre = null; });
             L.addEventListener('contextmenu', ev => ev.preventDefault());
             L.addEventListener('click', ev => { if (!DIG.img || ev.shiftKey || DIG.modo === 'mover') return; clicDig(alPunto(ev)); });
@@ -9851,23 +9855,35 @@
         }
         // píxel de la imagen -> valor real, con la calibración de la serie (lineal o logarítmica)
         function valorDig(serie, p) {
-            const c = DIG.cal[serie]; if (!c.p0 || !c.px || !c.py || c.xmax === '' || c.ymax === '') return null;
+            const c = DIG.cal[serie]; if (!c.p0 || !c.px || !c.py || c.x0 === '' || c.y0 === '' || c.xmax === '' || c.ymax === '') return null;
             const x0 = +c.x0, x1 = +c.xmax, y0 = +c.y0, y1 = +c.ymax, tx = (p.x - c.p0.x) / (c.px.x - c.p0.x), ty = (c.p0.y - p.y) / (c.p0.y - c.py.y);
             if (!isFinite(tx) || !isFinite(ty)) return null;
             const X = c.logX && x0 > 0 && x1 > 0 ? x0 * Math.pow(x1 / x0, tx) : x0 + tx * (x1 - x0), Y = c.logY && y0 > 0 && y1 > 0 ? y0 * Math.pow(y1 / y0, ty) : y0 + ty * (y1 - y0);
             return [X, Y];
         }
-        const calibradaDig = s => { const c = DIG.cal[s]; return !!(c.p0 && c.px && c.py && c.xmax !== '' && c.ymax !== '' && +c.xmax !== +c.x0 && +c.ymax !== +c.y0); };
+        const calibradaDig = s => { const c = DIG.cal[s]; return !!(c.p0 && c.px && c.py && c.x0 !== '' && c.y0 !== '' && c.xmax !== '' && c.ymax !== '' && +c.xmax !== +c.x0 && +c.ymax !== +c.y0); };
+        // valor de un eje, pedido en el momento de marcar el punto (también se puede corregir después en el panel)
+        function pedirValorDig(c, k, texto) {
+            const r = prompt(texto, c[k] === '' ? '' : String(c[k])); if (r == null) return;
+            const v = parseFloat(String(r).replace(',', '.')); if (isFinite(v)) c[k] = v;
+        }
         function clicDig(p) {
-            const c = DIG.cal[DIG.serie];
+            const s = DIG.serie, c = DIG.cal[s], d = SERIES_DIG[s];
             if (DIG.modo === 'calibrar') {
-                if (DIG.paso === 0) c.p0 = p; else if (DIG.paso === 1) c.px = p; else c.py = p;
+                if (DIG.paso === 0) { c.p0 = p; pintarDig(); pedirValorDig(c, 'x0', `${d.nombre}\nCaudal en el origen de los ejes (${udQDig(s)}):`); pedirValorDig(c, 'y0', `${d.nombre}\n${d.y} en el origen de los ejes (${udYDig(s)}):\n\nOjo: el eje vertical no siempre empieza en 0.`); }
+                else if (DIG.paso === 1) { c.px = p; pintarDig(); pedirValorDig(c, 'xmax', `${d.nombre}\nCaudal en el punto marcado del eje X (${udQDig(s)}):`); }
+                else { c.py = p; pintarDig(); pedirValorDig(c, 'ymax', `${d.nombre}\n${d.y} en el punto marcado del eje Y (${udYDig(s)}):`); }
                 DIG.paso++; if (DIG.paso > 2) { DIG.paso = 0; DIG.modo = 'capturar'; }
             } else if (DIG.modo === 'capturar') {
-                if (!calibradaDig(DIG.serie)) { aviso('Antes de capturar puntos, calibra los ejes e indica sus valores.', 'error'); return; }
-                DIG.pts[DIG.serie].push(p);
+                if (!calibradaDig(s)) { aviso('Antes de capturar puntos, calibra los ejes de este gráfico e indica sus valores.', 'error'); return; }
+                DIG.pts[s].push(p);
             }
             pintarDig(); pintarPanelDig();
+        }
+        function cambiarSerieDig(s) {
+            const ant = DIG.cal[DIG.serie], c = DIG.cal[s];
+            if (!c.p0 && !DIG.pts[s].length) c.uQ = ant.uQ;                      // un gráfico nuevo hereda la unidad de caudal del anterior
+            DIG.serie = s; DIG.paso = 0; DIG.modo = calibradaDig(s) ? 'capturar' : 'calibrar'; pintarDig(); pintarPanelDig();
         }
         function puntosDig(serie) { return DIG.pts[serie].map(p => valorDig(serie, p)).filter(Boolean).sort((a, b) => a[0] - b[0]); }
         function pintarDig() {
@@ -9885,38 +9901,47 @@
         }
         function pintarPanelDig() {
             const P = document.getElementById('dig-panel'); if (!P || !DIG) return;
-            const c = DIG.cal[DIG.serie], sd = SERIES_DIG[DIG.serie], nomY = DIG.serie === 'H' ? 'H' : DIG.serie === 'eta' ? 'η' : 'NPSHr', pasoTxt = ['1.º clic: origen de los ejes (Q mínimo, ' + nomY + ' mínimo)', '2.º clic: un punto conocido del eje X (caudal máximo)', '3.º clic: un punto conocido del eje Y (' + nomY + ' máximo)'][DIG.paso];
+            const s = DIG.serie, c = DIG.cal[s], sd = SERIES_DIG[s], nomY = sd.y, uq = udQDig(s), uy = udYDig(s);
+            const pasoTxt = [`1.º clic: origen de los ejes de este gráfico; se piden el caudal y ${nomY} en ese punto`, '2.º clic: un punto conocido del eje X (caudal máximo); se pide su valor', `3.º clic: un punto conocido del eje Y (${nomY} máximo); se pide su valor`][DIG.paso];
             const btn = (modo, ic, t) => `<button onclick="DIG.modo = '${modo}'; ${modo === 'calibrar' ? "DIG.paso = 0; const k = DIG.cal[DIG.serie]; k.p0 = k.px = k.py = null; DIG.pts[DIG.serie] = [];" : ''} pintarDig(); pintarPanelDig()" class="flex-1 px-2 py-1.5 rounded border ${DIG.modo === modo ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-slate-50'}"><i class="fa-solid ${ic} mr-1"></i>${t}</button>`;
             const inp = (k, et) => `<label class="block">${et}<input type="number" step="any" value="${c[k]}" oninput="DIG.cal[DIG.serie].${k} = this.value; pintarTablaDig()" class="w-full border rounded p-1 mt-0.5"></label>`;
+            const selU = (k, ops) => `<select onchange="DIG.cal[DIG.serie].${k} = this.value; pintarPanelDig()" class="w-full border rounded p-1 mt-0.5" ${ops.length < 2 ? 'disabled' : ''}>${ops.map(o => `<option value="${o[0]}" ${o[0] === c[k] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>`;
+            const estado = k => calibradaDig(k) ? (DIG.pts[k].length ? ` · ${DIG.pts[k].length} puntos` : ' · calibrado') : '';
             P.innerHTML = `<div class="flex gap-1"><label class="flex-1 px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-center cursor-pointer"><i class="fa-solid fa-folder-open mr-1"></i>Cargar imagen<input type="file" accept="image/*,.pdf" class="hidden" onchange="cargarImagenDig(this.files[0])"></label></div>
-                <label class="block font-bold text-slate-600">Curva que se digitaliza<select onchange="DIG.serie = this.value; DIG.paso = 0; DIG.modo = calibradaDig(this.value) ? 'capturar' : 'calibrar'; pintarDig(); pintarPanelDig()" class="w-full border rounded p-1 mt-0.5 font-normal">${Object.entries(SERIES_DIG).map(([k, d]) => `<option value="${k}" ${k === DIG.serie ? 'selected' : ''}>${d.nombre}${DIG.pts[k].length ? ' · ' + DIG.pts[k].length + ' puntos' : ''}</option>`).join('')}</select></label>
+                <div class="border rounded p-2 space-y-1"><label class="block font-bold text-slate-600">1. Gráfico que se digitaliza<select id="dig-serie" onchange="cambiarSerieDig(this.value)" class="w-full border rounded p-1 mt-0.5 font-normal">${Object.entries(SERIES_DIG).map(([k, d]) => `<option value="${k}" ${k === s ? 'selected' : ''}>${d.nombre}${estado(k)}</option>`).join('')}</select></label>
+                    <div class="grid grid-cols-2 gap-1"><label class="block">Unidad del caudal${selU('uQ', UDS_Q_DIG)}</label><label class="block">Unidad de ${nomY}${selU('uY', sd.uds)}</label></div>
+                    <p class="text-[10px] text-slate-400">Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes: se calibra por separado, con sus unidades.</p></div>
+                <p class="font-bold text-slate-600">2. Calibrar los ejes y capturar la curva</p>
                 <div class="flex gap-1">${btn('calibrar', 'fa-ruler-combined', 'Calibrar')}${btn('capturar', 'fa-location-crosshairs', 'Capturar')}${btn('mover', 'fa-hand', 'Mover')}</div>
-                <p class="rounded p-2 ${DIG.modo === 'calibrar' ? 'bg-violet-50 text-violet-800 border border-violet-200' : 'bg-slate-50 text-slate-500 border'}">${!DIG.img ? 'Carga primero la imagen de la curva.' : DIG.modo === 'calibrar' ? '<b>Calibración.</b> ' + pasoTxt : DIG.modo === 'capturar' ? '<b>Captura.</b> Haz clic sobre la curva, de 5 a 15 puntos repartidos entre el caudal cero y el máximo.' : 'Arrastra para mover la imagen. La rueda del ratón acerca y aleja.'}</p>
+                <p class="rounded p-2 ${DIG.modo === 'calibrar' ? 'bg-violet-50 text-violet-800 border border-violet-200' : 'bg-slate-50 text-slate-500 border'}">${!DIG.img ? 'Carga primero la imagen de la curva.' : DIG.modo === 'calibrar' ? '<b>Calibración · ' + sd.nombre + '.</b> ' + pasoTxt : DIG.modo === 'capturar' ? '<b>Captura · ' + sd.nombre + '.</b> Haz clic sobre la curva, de 5 a 15 puntos repartidos entre el caudal mínimo y el máximo.' : 'Arrastra para mover la imagen. La rueda del ratón acerca y aleja.'}</p>
                 <div class="border rounded p-2 space-y-1"><p class="font-bold text-slate-600">Valores de los ejes · ${sd.nombre}</p>
-                    <div class="grid grid-cols-2 gap-1">${inp('x0', 'Q en el origen')}${inp('xmax', 'Q en el punto X máx')}${inp('y0', nomY + ' en el origen')}${inp('ymax', nomY + ' en el punto Y máx')}</div>
+                    <div class="grid grid-cols-2 gap-1">${inp('x0', `Q en el origen (${uq})`)}${inp('xmax', `Q en el punto X máx (${uq})`)}${inp('y0', `${nomY} en el origen (${uy})`)}${inp('ymax', `${nomY} en el punto Y máx (${uy})`)}</div>
                     <div class="flex gap-3"><label><input type="checkbox" ${c.logX ? 'checked' : ''} onchange="DIG.cal[DIG.serie].logX = this.checked; pintarTablaDig()"> Eje X logarítmico</label><label><input type="checkbox" ${c.logY ? 'checked' : ''} onchange="DIG.cal[DIG.serie].logY = this.checked; pintarTablaDig()"> Eje Y logarítmico</label></div>
-                    ${DIG.serie !== 'H' && calibradaDig('H') ? `<button onclick="const h = DIG.cal.H, k = DIG.cal[DIG.serie]; Object.assign(k, { p0: h.p0, px: h.px, py: h.py, x0: h.x0, xmax: h.xmax, logX: h.logX }); pintarDig(); pintarPanelDig()" class="px-2 py-1 border rounded hover:bg-slate-50 w-full">Usar los mismos puntos de ejes que Q – H</button>` : ''}
-                    <p class="text-[10px] ${calibradaDig(DIG.serie) ? 'text-emerald-700' : 'text-amber-700'}">${calibradaDig(DIG.serie) ? 'Ejes calibrados.' : 'Faltan: ' + [!c.p0 && 'clic en el origen', !c.px && 'clic en X máx', !c.py && 'clic en Y máx', c.xmax === '' && 'valor de Q máx', c.ymax === '' && 'valor de ' + nomY + ' máx'].filter(Boolean).join(', ') + '.'}</p></div>
-                <div class="grid grid-cols-2 gap-1"><label class="block">Unidad del caudal<select onchange="DIG.uQ = this.value; pintarTablaDig()" class="w-full border rounded p-1 mt-0.5"><option value="m3h" ${DIG.uQ === 'm3h' ? 'selected' : ''}>m³/h</option><option value="ls" ${DIG.uQ === 'ls' ? 'selected' : ''}>l/s</option><option value="lmin" ${DIG.uQ === 'lmin' ? 'selected' : ''}>l/min</option></select></label>
-                    <label class="block">Unidad de la altura<select onchange="DIG.uH = this.value; pintarTablaDig()" class="w-full border rounded p-1 mt-0.5"><option value="m" ${DIG.uH === 'm' ? 'selected' : ''}>m c.l.</option><option value="bar" ${DIG.uH === 'bar' ? 'selected' : ''}>bar</option></select></label></div>
+                    ${s === 'eta' && calibradaDig('H') ? `<button onclick="const h = DIG.cal.H, k = DIG.cal[DIG.serie]; Object.assign(k, { p0: h.p0, px: h.px, py: h.py, x0: h.x0, xmax: h.xmax, logX: h.logX, uQ: h.uQ }); pintarDig(); pintarPanelDig()" class="px-2 py-1 border rounded hover:bg-slate-50 w-full">Usar los mismos puntos de ejes que Q – H</button>` : ''}
+                    <p class="text-[10px] ${calibradaDig(s) ? 'text-emerald-700' : 'text-amber-700'}">${calibradaDig(s) ? 'Ejes calibrados.' : 'Faltan: ' + [!c.p0 && 'clic en el origen', !c.px && 'clic en X máx', !c.py && 'clic en Y máx', c.x0 === '' && 'valor de Q en el origen', c.y0 === '' && 'valor de ' + nomY + ' en el origen', c.xmax === '' && 'valor de Q máx', c.ymax === '' && 'valor de ' + nomY + ' máx'].filter(Boolean).join(', ') + '.'}</p></div>
                 <div id="dig-tabla"></div>
                 <p id="dig-cursor" class="text-[10px] text-slate-400 font-mono">&nbsp;</p>
+                ${DIG.pts.pot.length && !DIG.pts.eta.length ? '<p class="text-[10px] text-slate-400">Sin curva de η, el rendimiento se calcula con la potencia: η = ρ·g·Q·H / P.</p>' : ''}
                 <div class="flex gap-1 pt-1 border-t"><button onclick="DIG.pts[DIG.serie].pop(); pintarDig(); pintarPanelDig()" class="px-2 py-1.5 border rounded hover:bg-slate-50"><i class="fa-solid fa-rotate-left mr-1"></i>Deshacer punto</button><span class="flex-1"></span>
                     <button onclick="cerrarDigitalizador()" class="px-2 py-1.5 border rounded">Cancelar</button><button onclick="aplicarDigitalizador()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Aplicar</button></div>`;
             pintarTablaDig();
         }
-        const aM3h = q => DIG.uQ === 'ls' ? q * 3.6 : DIG.uQ === 'lmin' ? q * 0.06 : q;
         function pintarTablaDig() {
             const T = document.getElementById('dig-tabla'); if (!T || !DIG) return;
             T.innerHTML = Object.entries(SERIES_DIG).filter(([s]) => DIG.pts[s].length).map(([s, d]) => { const pts = puntosDig(s);
-                return `<div class="border rounded"><p class="px-2 py-1 font-bold" style="color:${d.color}">${d.nombre} · ${pts.length} puntos</p><div style="max-height:150px; overflow-y:auto"><table class="w-full font-mono text-[11px]"><tbody>${pts.map(p => `<tr class="border-t"><td class="px-2">${fmt(p[0], 2)}</td><td class="px-2">${fmt(p[1], 2)} ${s === 'H' ? (DIG.uH === 'bar' ? 'bar' : 'm') : d.unidad}</td></tr>`).join('')}</tbody></table></div></div>`; }).join('') || '<p class="text-slate-400 italic">Sin puntos capturados.</p>';
+                return `<div class="border rounded"><p class="px-2 py-1 font-bold" style="color:${d.color}">${d.nombre} · ${pts.length} puntos</p><div style="max-height:130px; overflow-y:auto"><table class="w-full font-mono text-[11px]"><tbody>${pts.map(p => `<tr class="border-t"><td class="px-2">${fmt(p[0], 2)} ${udQDig(s)}</td><td class="px-2">${fmt(p[1], 2)} ${udYDig(s)}</td></tr>`).join('')}</tbody></table></div></div>`; }).join('') || '<p class="text-slate-400 italic">Sin puntos capturados.</p>';
         }
         function aplicarDigitalizador() {
-            const H = puntosDig('H'), E = puntosDig('eta'), N = puntosDig('npsh');
+            // cada serie, en unidades de trabajo: Q en m³/h; H en m; NPSHr en m; P en kW; η en %
+            const rho = fluidoActual().rho || 1000, enBar = DIG.cal.H.uY === 'bar';
+            const conv = s => puntosDig(s).map(p => [p[0] * F_Q_DIG[DIG.cal[s].uQ], s === 'H' && enBar ? p[1] * 1e5 / (rho * G) : s === 'pot' ? p[1] * F_P_DIG[DIG.cal.pot.uY] : p[1]]).sort((a, b) => a[0] - b[0]);
+            const H = conv('H'), E = conv('eta'), N = conv('npsh'), W = conv('pot');
             if (H.length < 2) { alert('Captura al menos dos puntos de la curva Q – H.'); return; }
-            const rho = fluidoActual().rho || 1000, hM = h => DIG.uH === 'bar' ? h * 1e5 / (rho * G) : h, int = (S, q) => S.length ? interpolarCurva(S.map(p => [aM3h(p[0]), p[1]]), 1, q) : null;
-            // normalización: puntos ordenados por caudal; η y NPSHr interpolados en los caudales de la curva Q – H
-            const filas = H.map(p => { const q = +aM3h(p[0]).toFixed(3); return [q, +hM(p[1]).toFixed(3), E.length ? +int(E, q).toFixed(2) : null, N.length ? +int(N, q).toFixed(2) : null]; });
+            const int = (S, q) => S.length ? interpolarCurva(S, 1, q) : null, rhoP = enBar ? rho : 1000;   // curvas de catálogo en m: agua
+            // normalización: η, NPSHr y P interpolados en los caudales de la curva Q – H
+            const filas = H.map(p => { const q = +p[0].toFixed(3), h = +p[1].toFixed(3), w = W.length ? int(W, q) : null;
+                let e = E.length ? int(E, q) : null; if (e == null && w > 0 && q > 0) { e = 100 * rhoP * G * q * h / 3.6e6 / w; if (!(e > 0 && e < 100)) e = null; }
+                return [q, h, e == null ? null : +e.toFixed(2), N.length ? +int(N, q).toFixed(2) : null, w == null ? null : +w.toFixed(3)]; });
             const f = DIG.alAplicar; cerrarDigitalizador(); if (f) f(filas);
         }
         // Escape cierra la ventana que está encima: devuelve la función que la cierra (o null si no hay ninguna abierta)

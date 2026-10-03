@@ -59,3 +59,6 @@ Object.assign(window.PIPING_I18N.en.d, {"Partir tubería...": "Split pipe...", "
 
 // v8.19
 Object.assign(window.PIPING_I18N.en.d, {"Rellenar desde PDF (IA)...": "Fill in from PDF (AI)...", "Leyendo la ficha...": "Reading the datasheet...", "La curva no se lee de la gráfica: usa «Digitalizar desde una imagen...».": "The curve is not read from the chart: use “Digitise from an image...”.", "Leído por IA: revisar": "Read by AI: check"});
+
+// v8.19.1
+Object.assign(window.PIPING_I18N.en.d, {"Curva característica: una fila por punto con caudal (m³/h), altura (m), rendimiento (%), NPSHr (m) y potencia en el eje (kW)": "Performance curve: one row per point with flow (m³/h), head (m), efficiency (%), NPSHr (m) and shaft power (kW)", "2. Calibrar los ejes y capturar la curva": "2. Calibrate the axes and capture the curve", "Unidad del caudal": "Flow unit", "Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes: se calibra por separado, con sus unidades.": "Each chart (Q – H, Q – NPSHr, Q – P) has its own axes: it is calibrated separately, with its own units.", "Sin curva de η, el rendimiento se calcula con la potencia: η = ρ·g·Q·H / P.": "Without an η curve, efficiency is computed from power: η = ρ·g·Q·H / P."});

@@ -59,3 +59,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Partir tubería...": "배관 분할..."
 
 // v8.19
 Object.assign(window.PIPING_I18N.ko.d, {"Rellenar desde PDF (IA)...": "PDF에서 채우기 (AI)...", "Leyendo la ficha...": "데이터시트 읽는 중...", "La curva no se lee de la gráfica: usa «Digitalizar desde una imagen...».": "곡선은 그래프에서 읽지 않습니다: «이미지에서 디지타이징...»을 사용하세요.", "Leído por IA: revisar": "AI가 읽음: 확인 필요"});
+
+// v8.19.1
+Object.assign(window.PIPING_I18N.ko.d, {"Curva característica: una fila por punto con caudal (m³/h), altura (m), rendimiento (%), NPSHr (m) y potencia en el eje (kW)": "성능 곡선: 점마다 한 줄 — 유량 (m³/h), 양정 (m), 효율 (%), NPSHr (m), 축동력 (kW)", "2. Calibrar los ejes y capturar la curva": "2. 축 보정 및 곡선 캡처", "Unidad del caudal": "유량 단위", "Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes: se calibra por separado, con sus unidades.": "각 그래프(Q – H, Q – NPSHr, Q – P)는 자체 축을 가지므로 단위와 함께 따로 보정합니다.", "Sin curva de η, el rendimiento se calcula con la potencia: η = ρ·g·Q·H / P.": "η 곡선이 없으면 효율은 동력으로 계산합니다: η = ρ·g·Q·H / P."});
