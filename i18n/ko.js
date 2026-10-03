@@ -35,3 +35,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Tipo de tubería": "배관 종류", "Tu
 
 // v8.12
 Object.assign(window.PIPING_I18N.ko.d, {"Bridas": "플랜지", "Codos": "엘보", "Codos...": "엘보...", "Machones": "니플", "Machones...": "니플...", "Manguitos de unión": "커플링", "Manguitos de unión...": "커플링...", "Racord": "유니언 피팅", "Racord...": "유니언 피팅...", "Reducciones concéntricas": "동심 리듀서", "Reducciones concéntricas...": "동심 리듀서...", "Reducciones excéntricas": "편심 리듀서", "Reducciones excéntricas...": "편심 리듀서...", "Tes": "티", "Tes...": "티...", "Tuercas de unión": "유니언 너트", "Tuercas de unión...": "유니언 너트...", "Filtros, injertos y juntas": "스트레이너, 분기 및 조인트", "Acero ASME / EN": "강관 ASME / EN", "Acero ASME / EN...": "강관 ASME / EN...", "Cobre": "구리", "Fundición": "주철", "Hormigón": "콘크리트"});
+
+// v8.13
+Object.assign(window.PIPING_I18N.ko.d, {"Brida ciega": "블라인드 플랜지", "Bridas de acero": "강제 플랜지", "Cara": "면 형식", "Schedule / espesor del cuello": "허브 스케줄 / 두께", "Bridas": "플랜지", "Espesor del cuello / taladro": "허브 / 보어 두께", "Tipos de cara (separados por comas)": "면 형식 (쉼표로 구분)", "Rating / PN que admite (separados por comas; vacío = todos)": "허용 등급 / PN (쉼표로 구분, 비우면 전체)", "DN mínimo": "최소 DN", "DN máximo": "최대 DN", "No aplica": "해당 없음"});

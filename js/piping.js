@@ -459,6 +459,7 @@
             bridaroscada:  { type: 'accesorio', codigo: 'BR', nombre: 'Brida roscada', cat: 'uniones', calc: 'cero', puertos: [PBR, PB] },
             bridaloca:     { type: 'accesorio', codigo: 'BL', nombre: 'Brida loca', cat: 'uniones', calc: 'cero', puertos: [PBR, PB] },
             bridaplastica: { type: 'accesorio', codigo: 'BPL', nombre: 'Brida plástica', cat: 'uniones', calc: 'cero', puertos: [PBR, PB] },
+            bridaciega:    { type: 'accesorio', codigo: 'BC', nombre: 'Brida ciega', cat: 'uniones', calc: 'sinflujo', puertos: [PBR] },
             // --- válvulas ---
             bola:          { type: 'valvula', codigo: 'VB', nombre: 'Válvula de bola', cat: 'valvulas', calc: 'crane', puertos: [PA, PB] },
             compuerta:     { type: 'valvula', codigo: 'VC', nombre: 'Válvula de compuerta', cat: 'valvulas', calc: 'crane', puertos: [PA, PB] },
@@ -534,18 +535,19 @@
         // EN 1092-1: PN a ≤ 50 °C, reducción lineal hasta 0,9·PN a 100 °C y 0,8·PN a 150 °C.
         // ASME B16.5: grupo 1.1 (acero al carbono A105/WCB) y 2.2 (inox 316), a 38/50/100/150/200 °C.
         const TIPOS_CONEXION = ['Brida', 'Roscada', 'Soldada a tope', 'Soldada con manguito (socket)', 'Manguito / racor'];
-        const PN_LISTA = ['PN 6', 'PN 10', 'PN 16', 'PN 25', 'PN 40', 'PN 63', 'PN 100', '150#', '300#', '600#', '900#', '1500#', '2500#', '2000#', '3000#', '6000#', '9000#'];
+        const PN_LISTA = ['PN 2.5', 'PN 6', 'PN 10', 'PN 16', 'PN 25', 'PN 40', 'PN 63', 'PN 100', 'PN 160', 'PN 250', 'PN 320', 'PN 400', '75#', '150#', '300#', '400#', '600#', '900#', '1500#', '2500#', '2000#', '3000#', '6000#', '9000#'];
         // clases ASME: "150#" (antes "Clase 150")
         const PN_NUEVO = pn => typeof pn === 'string' ? pn.replace(/^\s*Clase\s*(\d+)\s*$/i, '$1#') : pn;
         const B165 = { T: [38, 50, 100, 150, 200],
             '1.1': { 150: [19.6, 19.2, 17.7, 15.8, 13.8], 300: [51.1, 50.1, 46.6, 45.1, 43.8], 600: [102.1, 100.2, 93.2, 90.2, 87.6], 900: [153.2, 150.4, 139.8, 135.2, 131.4] },
             '2.2': { 150: [19.0, 18.4, 16.2, 14.8, 13.7], 300: [49.6, 48.1, 42.2, 38.5, 35.7], 600: [99.3, 96.2, 84.4, 77.0, 71.3], 900: [148.9, 144.3, 126.6, 115.5, 107.0] } };
         function presionAdmisiblePN(pn, T, inox) {
-            const t = PN_NUEVO(String(pn || '')), mp = t.match(/^PN\s*(\d+)/), mc = t.match(/^(\d+)\s*#$/);
+            const t = PN_NUEVO(String(pn || '')), mp = t.match(/^PN\s*(\d+(?:\.\d+)?)/), mc = t.match(/^(\d+)\s*#$/);
             if (!mp && !mc) return null;
             const v = +(mp || mc)[1];
             if (mp) return v * (T <= 50 ? 1 : T <= 100 ? 1 - 0.1 * (T - 50) / 50 : T <= 150 ? 0.9 - 0.1 * (T - 100) / 50 : 0.8);
-            const tab = B165[inox ? '2.2' : '1.1'][v]; if (!tab) return null;
+            // clases 400, 1500 y 2500: proporcionales a la clase 300 (así las tabula B16.5 a partir de la clase 300)
+            const G = B165[inox ? '2.2' : '1.1'], tab = G[v] || ([400, 1500, 2500].includes(v) ? G[300].map(x => x * v / 300) : null); if (!tab) return null;
             const Ts = B165.T; if (T <= Ts[0]) return tab[0];
             for (let i = 1; i < Ts.length; i++) if (T <= Ts[i]) return tab[i - 1] + (tab[i] - tab[i - 1]) * (T - Ts[i - 1]) / (Ts[i] - Ts[i - 1]);
             return tab[tab.length - 1];
@@ -1175,7 +1177,9 @@
                     if (mAcc) {
                         const mats = materialesAcc(mAcc), sch = schedulesAcc(el, mAcc);
                         h += `<label class="flex items-center justify-between gap-2">Material<select id="nd-materialComp" data-campo="materialComp" class="border rounded p-1" style="max-width:270px" onchange="nuevoRefrescar()"><option value="">— sin indicar —</option>${FAMILIAS_ACC.map(f => { const g = mats.filter(x => x.familia === f); return g.length ? `<optgroup label="${f}">${g.map(x => `<option value="${esc(x.designacion)}" ${x.designacion === el.materialComp ? 'selected' : ''}>${esc(x.designacion)}</option>`).join('')}</optgroup>` : ''; }).join('')}</select></label>`;
-                        h += `<label class="flex items-center justify-between gap-2">Schedule / espesor<select id="nd-accSch" data-campo="accSch" class="border rounded p-1" style="max-width:270px" onchange="nuevoRefrescar()"><option value="">— sin definir —</option>${sch.map(x => `<option value="${esc(x.schedule)}" ${x.schedule === el.accSch ? 'selected' : ''}>${esc(x.schedule)}${/mm$/.test(x.schedule) ? '' : ' · ' + x.espesor + ' mm'}</option>`).join('')}</select></label>`;
+                        const carasM = carasAcc(mAcc);
+                        if (carasM.length) h += `<label class="flex items-center justify-between gap-2">Cara<select id="nd-cara" data-campo="cara" class="border rounded p-1" style="max-width:270px" onchange="nuevoRefrescar()"><option value="">— sin indicar —</option>${carasM.map(x => `<option value="${esc(x)}" ${x === el.cara ? 'selected' : ''}>${esc(NOMBRE_CARA[x] || x)}</option>`).join('')}</select></label>`;
+                        if (!sinEspesorAcc(mAcc)) h += `<label class="flex items-center justify-between gap-2">${SUBTIPOS_BRIDA.includes(el.subtype) ? 'Schedule / espesor del cuello' : 'Schedule / espesor'}<select id="nd-accSch" data-campo="accSch" class="border rounded p-1" style="max-width:270px" onchange="nuevoRefrescar()"><option value="">— sin definir —</option>${sch.map(x => `<option value="${esc(x.schedule)}" ${x.schedule === el.accSch ? 'selected' : ''}>${esc(x.schedule)}${/mm$/.test(x.schedule) ? '' : ' · ' + x.espesor + ' mm'}</option>`).join('')}</select></label>`;
                         const md = medidaAcc(el, mAcc), e = espesorAcc(el, mAcc), co = cotasAcc(el, mAcc);
                         h += `<p class="text-[10px] text-slate-500">Código: <b class="text-slate-700">${esc(codigoAccesorio(el))}</b>${md ? ` · OD ${md.od} mm` : ' · <span class="text-amber-600">medida fuera de la norma</span>'}${e != null ? ` · e ${e} mm` : ''}${co ? ` · ${esc(co)}` : ''}</p>`;
                     }
@@ -1248,12 +1252,12 @@
                 h += `<p class="font-bold text-slate-600">${el.type === 'valvula' ? 'Válvula' : 'Accesorio'}</p>`;
                 const refr = el.accModelo ? 'onchange="nuevoRefrescar()"' : '';
                 if (esRed) h += nSel('nd-dnMayor', 'dn', 'DN mayor (puerto a)', listaDN, el.dn, refr) + nSel('nd-dnMenor', 'dnMenor', 'DN menor (puerto b)', listaDN, el.dnMenor, refr) + nSel('nd-excentrica', 'excentrica', 'Tipo', [['false', 'Concéntrica'], ['true', 'Excéntrica']], String(!!el.excentrica));
-                else h += nSel('nd-dnc', 'dn', el.accModelo ? 'Medida nominal' : 'Tamaño', listaDN, el.dn, refr);
+                else { const mR = el.accModelo ? modeloAcc(el) : null, lDN = mR ? listaDN.filter(d => dnEnRangoAcc(mR, d[0]) || d[0] === el.dn) : listaDN; h += nSel('nd-dnc', 'dn', el.accModelo ? 'Medida nominal' : 'Tamaño', lDN.length ? lDN : listaDN, el.dn, refr); }
                 const esCtrl = el.subtype === 'control';
                 const ops = calcDe(el) === 'crane' && !esCtrl ? opcionesCrane(claveCrane(el)) : [];
                 if (ops.length > 1) h += nSel('nv-tipo', 'craneTipo', el.type === 'valvula' ? 'Subtipo' : 'Tipo', ops.map(o => o[0]), el.craneTipo);
                 h += el.accModelo && modeloAcc(el) ? nSel('nv-pn', 'pn', 'Rating / PN', [['', '— sin indicar —'], ...ratingsAcc(modeloAcc(el))], el.pn || '', 'onchange="nuevoRefrescar()"') : nSel('nv-pn', 'pn', 'Presión nominal / clase', PN_LISTA, el.pn);
-                if (sinFlujo(el)) h += nNum('nd-pTarado', 'pTarado', `Presión de tarado (${lP()})`, mostrarCampo('pTarado', el.pTarado || ''));
+                if (sinFlujo(el) && el.type === 'valvula') h += nNum('nd-pTarado', 'pTarado', `Presión de tarado (${lP()})`, mostrarCampo('pTarado', el.pTarado || ''));
                 if (extra.pedirValv && calcDe(el) === 'crane' && !esCtrl) h += nNum('nv-cv', 'cvUsuario', 'Cv del fabricante (opcional; obligatorio en doble clapeta)', el.modoK === 'cv' ? el.cvUsuario : '');
                 if (esCtrl) h += nNum('nv-kvs', 'kvs', 'Kvs (m³/h)', el.kvs || '') + nSel('nv-car', 'caracteristica', 'Característica', [['iso', 'Isoporcentual'], ['lineal', 'Lineal']], el.caracteristica || 'iso') + nNum('nv-ap', 'apertura', 'Apertura de cálculo (%)', el.apertura || 70, '1');
                 h += nNum('nd-cota', 'cota', 'Cota (m)', el.cota, '0.01');
@@ -1270,7 +1274,7 @@
             }
             document.getElementById('modal-nuevo-body').innerHTML = h;
         }
-        const CAMPOS_TEXTO_NUEVO = ['accSch', 'dn', 'dnMenor', 'pn', 'craneTipo', 'caracteristica', 'reservaDe', 'tipoConexion', 'dnConexion', 'dnInstr', 'rango', 'materialComp', 'gradoMaterial', 'url', 'dnAsp', 'pnAsp', 'dnImp', 'pnImp'];
+        const CAMPOS_TEXTO_NUEVO = ['accSch', 'cara', 'dn', 'dnMenor', 'pn', 'craneTipo', 'caracteristica', 'reservaDe', 'tipoConexion', 'dnConexion', 'dnInstr', 'rango', 'materialComp', 'gradoMaterial', 'url', 'dnAsp', 'pnAsp', 'dnImp', 'pnImp'];
         function nuevoAplicarModelo(id) { const { el } = nuevoPendiente; leerModalNuevo(false); aplicarModeloAcc(el, id); pintarModalNuevo(); }
         function nuevoRefrescar() { const { el } = nuevoPendiente; leerModalNuevo(false); if (el.accModelo) ajustarScheduleAcc(el); pintarModalNuevo(); }
         function nuevoAplicarItem(id) { const { el } = nuevoPendiente; leerModalNuevo(false); aplicarItemLib(el, id ? itemPorId(id) : null); pintarModalNuevo(); }
@@ -1405,7 +1409,7 @@
             if (el.gradoMaterial) el.gradoMaterial = GRADO_NUEVO(el.gradoMaterial);
             el.esLineaCritica = false; // se recalcula en el próximo "Calcular Red"
             el.estado = null;
-            if ((el.type === 'valvula' || el.type === 'accesorio' || el.type === 'equipo') && !PN_LISTA.includes(el.pn)) el.pn = 'PN 16';
+            if ((el.type === 'valvula' || el.type === 'accesorio' || el.type === 'equipo') && !PN_LISTA.includes(el.pn) && !(el.accModelo && !el.pn)) el.pn = 'PN 16';   // con modelo, el rating puede quedar sin indicar
             if (el.subtype === 'control' && !el._kvsIni) { el._kvsIni = true; el.modoK = 'kvs'; if (el.apertura == null) el.apertura = 70; if (!el.caracteristica) el.caracteristica = 'iso'; }
             // Cotas (m): tuberías en cada extremo; el resto, una cota única en sus puertos
             if (el.type === 'tuberia') { if (el.cotaA == null || isNaN(+el.cotaA)) el.cotaA = 0; if (el.cotaB == null || isNaN(+el.cotaB)) el.cotaB = +el.cotaA; if (el.pn && !PN_LISTA.includes(el.pn)) delete el.pn; }
@@ -1650,6 +1654,8 @@
                     return ln(10, 25, 17, 25, 2) + ln(33, 25, 40, 25, 2) + `<polygon points="19,19 31,19 34,25 31,31 19,31 16,25" ${st}/>`;
                 case 'racor':
                     return ln(10, 25, 18, 25, 2) + ln(32, 25, 40, 25, 2) + `<circle cx="21" cy="25" r="4" ${st}/><circle cx="29" cy="25" r="4" ${st}/>`;
+                case 'bridaciega':   // brida ciega: disco macizo, sin tubería detrás
+                    return `<rect x="25.8" y="14" width="3.4" height="22" fill="${c}" stroke="${c}" stroke-width="1"/>`;
                 case 'bridaunion': case 'bridawn': case 'bridaplana': case 'bridaroscada': case 'bridaloca': case 'bridaplastica': {
                     // brida simple (una sola): cara a la izquierda (puerto a, junto al centro) y tubería a la derecha (puerto b)
                     const cuello = el.subtype === 'bridawn' ? `<polygon points="34,22 28,19 28,31 34,28" ${st}/>` : '';
@@ -4294,7 +4300,7 @@
         // un elemento se despliega su categoría (y su grupo).
         let libAbierta = null, libSubAbierta = null;
         // Accesorios del panel lateral, por familias. Con un solo elemento la familia es el propio elemento; con varios, un grupo desplegable.
-        const BRIDAS_PANEL = ['bridaunion', 'bridawn', 'bridaplana', 'bridaroscada', 'bridaloca', 'bridaplastica'];
+        const BRIDAS_PANEL = ['bridaunion', 'bridawn', 'bridaplana', 'bridaroscada', 'bridaloca', 'bridaplastica', 'bridaciega'];
         const FAMILIAS_PANEL = [
             { id: 'bridas', titulo: 'Bridas', subtipos: BRIDAS_PANEL },
             { id: 'codos', titulo: 'Codos', subtipos: ['codo45', 'codo60', 'codo90'] },
@@ -4457,8 +4463,9 @@
             return `<div>${etiqueta}: <select onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) ${fn}('${campo}', t); else this.value = ''; } else ${fn}('${campo}', this.value)" class="${CLS_CTRL}">${opcionesMaterial(grupo, valor)}</select></div>`;
         }
         // Grupos de la librería y sus tipos
-        const GRUPOS_MAT_ACC_LISTA = [['BW-ASME', 'Accesorios para soldar a tope ASME (SA-234, SA-420, SA-403)'], ['FORJ-ASME', 'Forjados ASME (SA-105, SA-350, SA-182)'], ['EN1', 'EN 10253-1 (S235, S265)'], ['EN2', 'EN 10253-2 (P235GH, P265GH...)'], ['TUBO-ASME', 'Tubos ASME (SA-53, SA-106, SA-333, SA-312...)'], ['TUBO-EN', 'Tubos EN (P235TR2, P235GH, P265GH...)']];
-        const esGrupoTablas = g => g === 'accesorios' || g === 'tubosAcero';
+        const GRUPOS_MAT_ACC_LISTA = [['BW-ASME', 'Accesorios para soldar a tope ASME (SA-234, SA-420, SA-403)'], ['FORJ-ASME', 'Forjados ASME (SA-105, SA-350, SA-182)'], ['EN1', 'EN 10253-1 (S235, S265)'], ['EN2', 'EN 10253-2 (P235GH, P265GH...)'], ['TUBO-ASME', 'Tubos ASME (SA-53, SA-106, SA-333, SA-312...)'], ['TUBO-EN', 'Tubos EN (P235TR2, P235GH, P265GH...)'], ['FORJ-ASME,BRIDA-ASME', 'Bridas ASME (SA-105, SA-350, SA-181, SA-182...)'], ['BRIDA-ASME', 'Bridas ASME, además de los forjados (SA-181, SA-216, SA-351...)'], ['BRIDA-EN', 'Bridas EN (EN 10222-2 / -3 / -5, EN 10213)']];
+        const SUBTIPOS_BRIDA = ['bridawn', 'bridaplana', 'bridaroscada', 'bridaloca', 'bridaciega'];   // bridas de acero con modelo por norma (ASME B16.5 / B16.47, EN 1092-1)
+        const esGrupoTablas = g => g === 'accesorios' || g === 'tubosAcero' || g === 'bridas';
         const GRUPOS_LIB = {
             accesorios: { titulo: 'Accesorios de tubería', cat: 'accesorios', mat: 'accesorio', excluir: ['continuacion', 'junta', 'antivibratorio', 'filtro', 'strainer', 'injerto'] },
             compensadores: { titulo: 'Filtros, injertos, juntas de expansión y manguitos', subtipos: ['filtro', 'strainer', 'injerto', 'junta', 'antivibratorio'], mat: 'accesorio' },
@@ -4467,7 +4474,8 @@
             bombas: { titulo: 'Bombas', subtipos: ['bomba'], mat: 'bomba' },
             equipos: { titulo: 'Equipos', cat: 'equipos', mat: 'equipo' },
             instrumentos: { titulo: 'Instrumentos', cat: 'instrumentos', mat: 'instrumento' },
-            uniones: { titulo: 'Uniones y bridas', cat: 'uniones', mat: 'brida' },
+            bridas: { titulo: 'Bridas de acero', subtipos: SUBTIPOS_BRIDA, mat: 'brida' },
+            uniones: { titulo: 'Uniones y bridas', cat: 'uniones', mat: 'brida', excluir: SUBTIPOS_BRIDA },
             valvulas: { titulo: 'Válvulas', cat: 'valvulas', mat: 'valvula' },
             tuberias: { titulo: 'Tuberías', subtipos: ['Acero al carbono', 'Acero inoxidable', 'PE100', 'PVC-U'], mat: 'tubo' },
             tubosAcero: { titulo: 'Tuberías de acero', subtipos: ['tuberia'], mat: 'tubo' }
@@ -4486,6 +4494,10 @@
             accesorios: [['cod', 'Código del tipo (va en la etiqueta: C90LR, TE, RC...) *', 'txt'], ['variante', 'Variante (LR, SR, 3D, concéntrica, excéntrica, SW...)', 'txt'], ['sistema', 'Medidas', 'sel', [['ASME', 'ASME (pulgadas)'], ['EN', 'EN (DN)']]],
                 ['conexion', 'Conexión', 'sel', ['Soldar a tope (BW)', 'Enchufe y soldadura (SW)', 'Roscado (NPT)']], ['matGrupo', 'Materiales que admite', 'sel', GRUPOS_MAT_ACC_LISTA], ['espTabla', 'Tabla de espesores', 'sel', [['ASME', 'ASME B36.10 / B36.19 según el material'], ['EN1', 'EN 10253-1 (un espesor por DN)'], ['EN2', 'EN 10253-2 (series 1 a 8)']]],
                 ['craneTipo', 'Tipo (pérdida de carga Crane)', 'crane'], ['k', 'K del fabricante (vacío = Crane)', 'num']],
+            bridas: [['cod', 'Código del tipo (va en la etiqueta: WN, SO, BL, T11...) *', 'txt'], ['variante', 'Variante (WN, SO, tipo 11, serie A...)', 'txt'], ['sistema', 'Medidas', 'sel', [['ASME', 'ASME (pulgadas)'], ['EN', 'EN (DN)']]],
+                ['conexion', 'Conexión', 'sel', ['Soldar a tope (BW)', 'Soldadura en ángulo', 'Enchufe y soldadura (SW)', 'Roscado (NPT)', 'Roscado', 'Loca con stub end', 'Loca con collarín', 'Ciega']], ['matGrupo', 'Materiales que admite', 'sel', GRUPOS_MAT_ACC_LISTA],
+                ['espTabla', 'Espesor del cuello / taladro', 'sel', [['NO', 'No aplica'], ['ASME', 'ASME B36.10M / B36.19M según el material'], ['EN10220', 'EN 10220']]], ['ratings', 'Rating / PN que admite (separados por comas; vacío = todos)', 'txt'], ['caras', 'Tipos de cara (separados por comas)', 'txt'],
+                ['dnMin', 'DN mínimo', 'num'], ['dnMax', 'DN máximo', 'num']],
             tubosAcero: [['sistema', 'Medidas', 'sel', [['ASME', 'ASME (pulgadas)'], ['EN', 'EN (DN)']]], ['matGrupo', 'Materiales que admite', 'sel', GRUPOS_MAT_ACC_LISTA], ['espTabla', 'Tabla de espesores', 'sel', [['ASME', 'ASME B36.10M / B36.19M según el material'], ['EN10220', 'EN 10220']]]],
             compensadores: [['serie', 'Serie / espesor (Sch)', 'txt'], ['k', 'K del fabricante', 'num']],
             intercambiadores: [['qNom', 'Primario: caudal nominal (m³/h)', 'num'], ['dpNom', 'Primario: Δp a caudal nominal (kPa)', 'num'], ['qNom2', 'Secundario: caudal nominal (m³/h)', 'num'], ['dpNom2', 'Secundario: Δp (kPa)', 'num'], ['volumen', 'Volumen interior (l)', 'num'], ['potencia', 'Potencia térmica (kW)', 'num']],
@@ -4510,17 +4522,17 @@
         // El accesorio concreto se compone en el plano: modelo + medida + schedule + material (+ rating), con su código.
         // Origen: tablas piping_acc_* de Supabase; si no se pueden leer, datos/accesorios_tablas.js (mismo contenido).
         var ACC_T = null, ACC_BASE = [], ACC_POR_TIPO = {}, ACC_ORIGEN = null, CARGA_ACC = null;
-        const SUBTIPOS_ACC = new Set(subtiposGrupo('accesorios'));
+        const SUBTIPOS_ACC = new Set([...subtiposGrupo('accesorios'), ...SUBTIPOS_BRIDA]);
         const esSubtipoAccesorio = st => SUBTIPOS_ACC.has(st);
         const FAMILIAS_ACC = ['Acero al carbono', 'Acero inoxidable'];
         const campoLibAplica = () => true;
         // administrador con sesión de Supabase y tablas leídas de la base de datos: sus cambios van a la base de datos
         function accEnBD() { const s = typeof sesionActual === 'function' ? sesionActual() : null; return ACC_ORIGEN === 'supabase' && !!s && s.origen === 'supabase' && s.rol === 'admin'; }
         function itemDeModeloAcc(m) {
-            return { id: m.id, subtipo: m.subtipo, grupo: 'accesorios', origen: m.origen || 'catálogo', nombre: m.nombre, fabricante: m.fabricante || '', referencia: m.referencia || '', material: '', norma: m.norma || '', pn: '', url: m.url || '', notas: m.notas || '',
-                modificado_por: m.modificado_por || '', props: { cod: m.cod, variante: m.variante || '', sistema: m.sistema || 'ASME', conexion: m.conexion || '', craneTipo: m.tipo_crane || '', matGrupo: m.mat_grupo || '', espTabla: m.esp_tabla || 'ASME', k: m.k == null ? '' : m.k, orden: m.orden } };
+            return { id: m.id, subtipo: m.subtipo, grupo: SUBTIPOS_BRIDA.includes(m.subtipo) ? 'bridas' : m.subtipo === 'tuberia' ? 'tubosAcero' : 'accesorios', origen: m.origen || 'catálogo', nombre: m.nombre, fabricante: m.fabricante || '', referencia: m.referencia || '', material: '', norma: m.norma || '', pn: '', url: m.url || '', notas: m.notas || '',
+                modificado_por: m.modificado_por || '', props: { cod: m.cod, variante: m.variante || '', sistema: m.sistema || 'ASME', conexion: m.conexion || '', craneTipo: m.tipo_crane || '', matGrupo: m.mat_grupo || '', espTabla: m.esp_tabla || 'ASME', k: m.k == null ? '' : m.k, orden: m.orden, ratings: m.ratings || '', caras: m.caras || '', dnMin: m.dn_min == null ? '' : m.dn_min, dnMax: m.dn_max == null ? '' : m.dn_max } };
         }
-        function modeloDeItemAcc(b) { const p = b.props || {}; return { id: b.id, cod: String(p.cod || '').trim().toUpperCase(), subtipo: b.subtipo, tipo: nombreSubtipo(b.subtipo), variante: p.variante || '', nombre: b.nombre, sistema: p.sistema || 'ASME', norma: b.norma || '', conexion: p.conexion || '', tipo_crane: p.craneTipo || '', mat_grupo: p.matGrupo || '', esp_tabla: p.espTabla || 'ASME', k: p.k === '' || p.k == null ? '' : p.k, notas: b.notas || '', fabricante: b.fabricante || '', referencia: b.referencia || '', url: b.url || '' }; }
+        function modeloDeItemAcc(b) { const p = b.props || {}; return { id: b.id, cod: String(p.cod || '').trim().toUpperCase(), subtipo: b.subtipo, tipo: nombreSubtipo(b.subtipo), variante: p.variante || '', nombre: b.nombre, sistema: p.sistema || 'ASME', norma: b.norma || '', conexion: p.conexion || '', tipo_crane: p.craneTipo || '', mat_grupo: p.matGrupo || '', esp_tabla: p.espTabla || 'ASME', k: p.k === '' || p.k == null ? '' : p.k, notas: b.notas || '', fabricante: b.fabricante || '', referencia: b.referencia || '', url: b.url || '', ratings: String(p.ratings || '').trim(), caras: String(p.caras || '').trim(), dn_min: p.dnMin === '' || p.dnMin == null ? '' : p.dnMin, dn_max: p.dnMax === '' || p.dnMax == null ? '' : p.dnMax }; }
         function indexarAccesorios() { ACC_POR_TIPO = {}; ACC_BASE.forEach(i => (ACC_POR_TIPO[i.subtipo] = ACC_POR_TIPO[i.subtipo] || []).push(i)); }
         function asegurarAccesorios(forzar) {
             if (CARGA_ACC && !forzar) return CARGA_ACC;
@@ -4545,14 +4557,20 @@
         // modelo elegido para un accesorio del plano (o null)
         function modeloAcc(el) { if (!el || !el.accModelo) return null; return (ACC_POR_TIPO[el.subtype] || []).concat(typeof LIB !== 'undefined' ? LIB.items : []).find(i => i.id === el.accModelo) || ACC_BASE.find(i => i.id === el.accModelo) || null; }
         function modelosAcc(subtipo) { try { return itemsLib(subtipo); } catch (e) { return ACC_POR_TIPO[subtipo] || []; } }
-        function materialesAcc(m) { const g = m && m.props.matGrupo; return ACC_T ? ACC_T.materiales.filter(x => !g || x.grupo === g) : []; }
+        function materialesAcc(m) { const g = m && m.props.matGrupo ? String(m.props.matGrupo).split(',') : null; return ACC_T ? ACC_T.materiales.filter(x => !g || g.includes(x.grupo)) : []; }
         function materialAcc(designacion) { return ACC_T && designacion ? ACC_T.materiales.find(x => x.designacion === designacion) || null : null; }
         function familiaAcc(el, m) { const mt = materialAcc(el.materialComp); if (mt) return mt.familia; const tv = tuboVecino(el), b = tv && ((CAT.materiales[tv.material] || {}).base || tv.material); return FAMILIAS_ACC.includes(b) ? b : 'Acero al carbono'; }
         function tablaEspAcc(el, m) { const t = m.props.espTabla || 'ASME'; return t === 'ASME' ? (familiaAcc(el, m) === 'Acero inoxidable' ? 'B36.19' : 'B36.10') : t; }
-        function schedulesAcc(el, m, dnClave) { if (!ACC_T || !m) return []; const t = tablaEspAcc(el, m), dn = dnNum(dnClave || el.dn); return ACC_T.espesores.filter(x => x.tabla === t && x.dn === dn); }
-        function ratingsAcc(m) { const l = ACC_T ? ACC_T.ratings.filter(r => !m || r.sistema === (m.props.sistema || 'ASME')).map(r => r.rating) : []; return l.length ? l : PN_LISTA; }
+        function schedulesAcc(el, m, dnClave) { if (!ACC_T || !m || sinEspesorAcc(m)) return []; const t = tablaEspAcc(el, m), dn = dnNum(dnClave || el.dn); return ACC_T.espesores.filter(x => x.tabla === t && x.dn === dn); }
+        function ratingsAcc(m) { const lim = m && m.props.ratings ? String(m.props.ratings).split(',').map(x => x.trim()).filter(Boolean) : null; if (lim && lim.length) return lim;
+            // sin lista propia: los de su sistema; las clases de forjado (2000 a 9000) solo en accesorios y 75 / 400 solo en bridas
+            const br = m && SUBTIPOS_BRIDA.includes(m.subtipo), l = ACC_T ? ACC_T.ratings.filter(r => !m || r.sistema === (m.props.sistema || 'ASME')).map(r => r.rating).filter(r => !m || (br ? !/^(2000|3000|6000|9000)#$/.test(r) : !/^(75#|400#|PN 2\.5|PN 160|PN 250|PN 320|PN 400)$/.test(r))) : []; return l.length ? l : PN_LISTA; }
+        const carasAcc = m => m && m.props.caras ? String(m.props.caras).split(',').map(x => x.trim()).filter(Boolean) : [];
+        const NOMBRE_CARA = { RF: 'RF · resalte', FF: 'FF · plana', RTJ: 'RTJ · junta anular', A: 'A · plana', B1: 'B1 · resalte', B2: 'B2 · resalte (acabado fino)', C: 'C · macho (lengüeta)', D: 'D · hembra (ranura)', E: 'E · macho (espiga)', F: 'F · hembra (alojamiento)', G: 'G · alojamiento con junta tórica', H: 'H · ranura para junta tórica' };
+        const sinEspesorAcc = m => !!m && m.props.espTabla === 'NO';
+        const dnEnRangoAcc = (m, dnClave) => { const d = dnNum(dnClave), a = +m.props.dnMin || 0, b = +m.props.dnMax || 1e9; return d >= a && d <= b; };
         function espesorAcc(el, m) { const x = schedulesAcc(el, m).find(s => s.schedule === el.accSch); return x ? x.espesor : null; }
-        function medidaAcc(el, m) { if (!ACC_T || !m) return null; return ACC_T.medidas.find(x => x.sistema === (m.props.sistema || 'ASME') && x.dn === dnNum(el.dn)) || null; }
+        function medidaAcc(el, m) { if (!ACC_T || !m || !dnEnRangoAcc(m, el.dn)) return null; return ACC_T.medidas.find(x => x.sistema === (m.props.sistema || 'ASME') && x.dn === dnNum(el.dn)) || null; }
         function cotasAcc(el, m) { if (!ACC_T || !m) return ''; const dn = dnNum(el.dn), dn2 = el.subtype === 'reduccion' ? dnNum(el.dnMenor) : null; const c = ACC_T.cotas.filter(x => x.modelo === m.id && x.dn === dn && (dn2 == null || x.dn2 === dn2)); const r = c.find(x => x.rating && x.rating === el.pn) || c.find(x => !x.dn2 || dn2 != null) || c[0]; return r ? r.cotas : ''; }
         const schCortoAcc = (sch, e) => { const s = String(sch || ''); if (!s) return ''; if (/^Sch /.test(s)) return 'S' + s.slice(4).replace(/\s+/g, ''); if (/^Serie |mm$/.test(s)) return e != null ? 'E' + e : s.replace(/\s+/g, ''); return s.replace(/\s+/g, ''); };
         // partes del código de un accesorio: medida, schedule, material y rating (lo que el usuario haya definido)
@@ -4561,9 +4579,9 @@
             const pul = c => { const n = npsDeDN(c); return n ? pulgadas(n) + '"' : String(c).replace(/\s+/g, ''); };
             const medida = en ? 'DN' + dn + (d2 ? 'x' + d2 : '') : pul(el.dn) + (d2 ? 'x' + pul(el.dnMenor) : '');
             const mt = materialAcc(el.materialComp), mat = mt ? mt.codigo : String(el.materialComp || '').replace(/\s*\(.*$/, '').replace(/^SA-\d+\s*Gr\./, '').replace(/[\s\/]+/g, '');
-            return [medida, schCortoAcc(el.accSch, espesorAcc(el, m)), mat, el.pn ? String(el.pn).replace(/\s+/g, '') : ''].filter(Boolean);
+            return [medida, schCortoAcc(el.accSch, espesorAcc(el, m)), mat, el.pn ? String(el.pn).replace(/\s+/g, '') : '', el.cara && carasAcc(m).includes(el.cara) ? el.cara : ''].filter(Boolean);
         }
-        // código del accesorio: TIPO-MEDIDA-SCHEDULE-MATERIAL(-RATING), p. ej. C90LR-2"-S40-WPB
+        // código del accesorio: TIPO-MEDIDA-SCHEDULE-MATERIAL(-RATING), p. ej. C90LR-2"-S40-WPB; en bridas, además la cara: WN-2"-S40-SA105N-150#-RF
         function codigoAccesorio(el) { const m = modeloAcc(el); return m ? [m.props.cod || el.codigo || codigoDe(el), ...partesCodigoAcc(el, m)].join('-') : ''; }
         // al elegir el modelo: tipo de pérdida de carga, variante de la reducción y valores por defecto de la tubería conectada
         function aplicarModeloAcc(el, id) {
@@ -4576,6 +4594,7 @@
             if (!mats.some(x => x.designacion === el.materialComp)) { const fam = familiaAcc(Object.assign({}, el, { materialComp: '' }), m), d = mats.find(x => x.familia === fam) || mats[0]; if (d) el.materialComp = d.designacion; }
             ajustarScheduleAcc(el, tv);
             if (el.pn && !ratingsAcc(m).includes(el.pn)) delete el.pn;
+            const cs = carasAcc(m); if (!cs.length) delete el.cara; else if (!cs.includes(el.cara)) el.cara = cs.includes('RF') ? 'RF' : cs.includes('B1') ? 'B1' : cs[0];
         }
         // el schedule tiene que existir para la medida y la familia: si no, el de la tubería conectada o ninguno
         function ajustarScheduleAcc(el, tv) {
@@ -4584,11 +4603,11 @@
             tv = tv || tuboVecino(el); const st = tv ? (/^[0-9]+S?$/.test(tv.serie) ? 'Sch ' + tv.serie : tv.serie) : '';
             if (ops.includes(st)) el.accSch = st; else if (ops.length === 1) el.accSch = ops[0]; else delete el.accSch;
         }
-        { const _ac = aplicarCambio; aplicarCambio = function (obj, campo, valor) { if (obj && obj.type === 'tuberia' && campo === 'tuboTipo') { aplicarTipoTubo(obj, valor); return true; } if (obj && esTuboAceroNorma(obj) && campo === 'gradoMaterial') { aplicarGradoTubo(obj, String(valor).trim()); return true; } if (obj && obj.accModelo && campo === 'pn' && String(valor).trim() === '') { delete obj.pn; return true; } const r = _ac.apply(this, arguments); try { if (obj && obj.accModelo && ['materialComp', 'dn', 'dnMenor'].includes(campo)) ajustarScheduleAcc(obj); } catch (e) { } return r; }; }
+        { const _ac = aplicarCambio; aplicarCambio = function (obj, campo, valor) { if (obj && obj.type === 'tuberia' && campo === 'tuboTipo') { aplicarTipoTubo(obj, valor); return true; } if (obj && esTuboAceroNorma(obj) && campo === 'gradoMaterial') { aplicarGradoTubo(obj, String(valor).trim()); return true; } if (obj && obj.accModelo && campo === 'pn' && String(valor).trim() === '') { delete obj.pn; return true; } if (obj && obj.accModelo && campo === 'cara') { if (valor) obj.cara = valor; else delete obj.cara; return true; } const r = _ac.apply(this, arguments); try { if (obj && obj.accModelo && ['materialComp', 'dn', 'dnMenor'].includes(campo)) ajustarScheduleAcc(obj); } catch (e) { } return r; }; }
         // ---------- tuberías de acero (v8.11): un modelo por norma (ASME, EN); la familia la da el material ----------
         const TUBO_EN = 'Acero al carbono EN';
-        const MAT_CORTO_TUBO = { 'SA-53 Gr.B': 'A53B', 'SA-106 Gr.B': 'A106B', 'SA-333 Gr.6': 'A333-6', 'SA-671': 'A671', 'SA-672': 'A672', 'SA-312 Gr.Tp304': 'TP304', 'SA-312 Gr.Tp304L': 'TP304L', 'SA-312 Gr.Tp316': 'TP316', 'SA-312 Gr.Tp316L': 'TP316L',
-            'SA-312 Gr.Tp321': 'TP321', 'SA-312 Gr.Tp321H': 'TP321H', 'SA-312 Gr.Tp347': 'TP347', 'SA-312 Gr.Tp347H': 'TP347H', 'SA-358': 'A358' };
+        const MAT_CORTO_TUBO = { 'SA-53 Gr.B': 'SA53B', 'SA-106 Gr.B': 'SA106B', 'SA-333 Gr.6': 'SA333-6', 'SA-671': 'SA671', 'SA-672': 'SA672', 'SA-312 Gr.Tp304': 'TP304', 'SA-312 Gr.Tp304L': 'TP304L', 'SA-312 Gr.Tp316': 'TP316', 'SA-312 Gr.Tp316L': 'TP316L',
+            'SA-312 Gr.Tp321': 'TP321', 'SA-312 Gr.Tp321H': 'TP321H', 'SA-312 Gr.Tp347': 'TP347', 'SA-312 Gr.Tp347H': 'TP347H', 'SA-358': 'SA358' };
         // tipo de tubería: TUB-ASME, TUB-EN o el nombre del material (plásticos y tuberías creadas por el usuario)
         function tipoTubo(el) { const m = el.material; return m === TUBO_EN ? 'TUB-EN' : (m === 'Acero al carbono' || m === 'Acero inoxidable') ? 'TUB-ASME' : m; }
         const esTuboAceroNorma = el => el && el.type === 'tuberia' && /^TUB-/.test(tipoTubo(el));
@@ -4605,7 +4624,7 @@
             return tipo === 'TUB-EN' ? f(MATERIALES.tuboAC.EN, 'Acero al carbono') : f(MATERIALES.tuboAC.ASME, 'Acero al carbono').concat(f(MATERIALES.tuboInox.ASME, 'Acero inoxidable'));
         }
         function gradoTubo(el) { return el.gradoMaterial ? gradosTubo(tipoTubo(el)).find(x => x.designacion === el.gradoMaterial) || null : null; }
-        function matCortoTubo(el) { const g = gradoTubo(el); return g ? g.codigo : String(el.gradoMaterial || '').replace(/^SA-/, 'A').replace(/\s*Gr\./, '').replace(/[\s\/(].*$/, ''); }
+        function matCortoTubo(el) { const g = gradoTubo(el); return g ? g.codigo : String(el.gradoMaterial || '').replace(/^SA-/, 'SA').replace(/\s*Gr\./, '').replace(/[\s\/(].*$/, ''); }
         // partes del código de una tubería de acero: medida, schedule, material y rating
         function partesCodigoTubo(el) {
             const dt = datosTuberia(el), en = el.material === TUBO_EN;
@@ -4613,7 +4632,7 @@
             const sch = serieTexto(el);
             return [medida, sch, matCortoTubo(el), el.pn ? String(el.pn).replace(/\s+/g, '') : ''].filter(Boolean);
         }
-        // código: TIPO-MEDIDA-SCHEDULE-MATERIAL(-RATING), p. ej. TAC-2"-S40-A106B; solo cuando la tubería de acero tiene material
+        // código: TIPO-MEDIDA-SCHEDULE-MATERIAL(-RATING), p. ej. TAC-2"-S40-SA106B; solo cuando la tubería de acero tiene material
         function codigoTubo(el) { return esTuboAceroNorma(el) && el.gradoMaterial ? [el.codigo || codigoDe(el), ...partesCodigoTubo(el)].join('-') : ''; }
         // cambia el tipo de tubería (o el material, en plásticos) dejando coherentes grado, schedule y medida
         function aplicarTipoTubo(el, tipo) {
@@ -4666,7 +4685,9 @@
             if (!m) return h + ctrlMaterial(fn, 'materialComp', obj.materialComp || '', grupoMaterial(obj));
             const mats = materialesAcc(m), sch = schedulesAcc(obj, m);
             h += `<div>Material: <select onchange="${fn}('materialComp', this.value)" class="${CLS_CTRL}"><option value="">— sin indicar —</option>${FAMILIAS_ACC.map(f => { const g = mats.filter(x => x.familia === f); return g.length ? `<optgroup label="${f}">${g.map(x => `<option value="${esc(x.designacion)}" ${x.designacion === obj.materialComp ? 'selected' : ''}>${esc(x.designacion)}</option>`).join('')}</optgroup>` : ''; }).join('')}${obj.materialComp && !mats.some(x => x.designacion === obj.materialComp) ? `<option selected>${esc(obj.materialComp)}</option>` : ''}</select></div>`;
-            h += `<div>Schedule / espesor: <select onchange="${fn}('accSch', this.value)" class="${CLS_CTRL}"><option value="">— sin definir —</option>${sch.map(x => `<option value="${esc(x.schedule)}" ${x.schedule === obj.accSch ? 'selected' : ''}>${esc(x.schedule)}${/mm$/.test(x.schedule) ? '' : ' · ' + x.espesor + ' mm'}</option>`).join('')}</select></div>`;
+            const caras = carasAcc(m);
+            if (caras.length) h += `<div>Cara: <select onchange="${fn}('cara', this.value)" class="${CLS_CTRL}"><option value="">— sin indicar —</option>${caras.map(x => `<option value="${esc(x)}" ${x === obj.cara ? 'selected' : ''}>${esc(NOMBRE_CARA[x] || x)}</option>`).join('')}</select></div>`;
+            if (!sinEspesorAcc(m)) h += `<div>${SUBTIPOS_BRIDA.includes(obj.subtype) ? 'Schedule / espesor del cuello' : 'Schedule / espesor'}: <select onchange="${fn}('accSch', this.value)" class="${CLS_CTRL}"><option value="">— sin definir —</option>${sch.map(x => `<option value="${esc(x.schedule)}" ${x.schedule === obj.accSch ? 'selected' : ''}>${esc(x.schedule)}${/mm$/.test(x.schedule) ? '' : ' · ' + x.espesor + ' mm'}</option>`).join('')}</select></div>`;
             const md = medidaAcc(obj, m), e = espesorAcc(obj, m), co = cotasAcc(obj, m), mt = materialAcc(obj.materialComp);
             h += info(`Código: <b class="text-slate-700">${esc(codigoAccesorio(obj))}</b><br>${esc(m.norma)}${md ? ` · OD ${md.od} mm` : ' · <span class="text-amber-600">medida fuera de la norma</span>'}${e != null ? ` · e ${e} mm` : ''}${co ? ` · ${esc(co)}` : ''}${mt && mt.equivalente ? `<br>Equivalente: ${esc(mt.equivalente)}` : ''}`);
             return h;
@@ -4785,6 +4806,7 @@
             base.subtipo = V.subtipo; base.grupo = V.grupo; base.origen = 'usuario';
             if (copiaDe) base.nombre = (copiaDe.nombre || '') + ' (copia)';
             if (V.grupo === 'accesorios') { base.props = base.props || {}; if (!copiaDe) Object.assign(base.props, { sistema: 'ASME', conexion: 'Soldar a tope (BW)', matGrupo: 'BW-ASME', espTabla: 'ASME' }); }
+            if (V.grupo === 'bridas') { base.props = base.props || {}; if (!copiaDe) Object.assign(base.props, { sistema: 'ASME', conexion: 'Soldar a tope (BW)', matGrupo: 'FORJ-ASME,BRIDA-ASME', espTabla: 'NO', ratings: '', caras: 'RF,FF,RTJ' }); }
             if (V.grupo === 'tubosAcero') { base.props = base.props || {}; if (!copiaDe) Object.assign(base.props, { cod: 'T', sistema: 'ASME', matGrupo: 'TUBO-ASME', espTabla: 'ASME' }); }
             if (V.grupo === 'tuberias') { base.props.base = base.props.base || (MATERIALES_BASE.has(V.subtipo) ? V.subtipo : 'Acero al carbono'); if (!copiaDe) base.nombre = base.props.base + ' '; }
             V.id = base.id; V.borrador = base; pintarLibreria();
@@ -4908,7 +4930,7 @@
                 // administrador: arriba, todos los accesorios con todos sus datos; debajo, la ficha del marcado
                 const edita = tienePermiso('compartido'), tab = V.tab || 'modelos';
                 const tub = V.grupo === 'tubosAcero';
-                const TABS = [['modelos', tub ? 'Tuberías' : F ? F.titulo : 'Accesorios'], ['medidas', 'Medidas nominales'], ['espesores', 'Espesores / schedule'], ['materiales', 'Materiales'], ['ratings', 'Rating / PN'], ...(tub ? [] : [['cotas', 'Cotas']])];
+                const TABS = [['modelos', tub ? 'Tuberías' : V.grupo === 'bridas' ? 'Bridas' : F ? F.titulo : 'Accesorios'], ['medidas', 'Medidas nominales'], ['espesores', 'Espesores / schedule'], ['materiales', 'Materiales'], ['ratings', 'Rating / PN'], ...(tub ? [] : [['cotas', 'Cotas']])];
                 const pest = `<div class="flex flex-wrap gap-1 mb-2 border-b">${TABS.map(([k, t]) => `<button onclick="libVista.tab = '${k}'; libVista.q = ''; pintarLibreria()" class="px-3 py-1.5 -mb-px border-b-2 ${k === tab ? 'border-blue-600 text-blue-700 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}">${t}${ACC_T ? ` <span class="text-[10px] font-normal text-slate-400">${k === 'modelos' ? itemsGrupoLib(V.grupo).length : filasTablaAcc(k, V.grupo).length}</span>` : ''}</button>`).join('')}</div>`;
                 const estado = `<p class="text-[10px] mb-2 ${ACC_ORIGEN === 'supabase' ? 'text-emerald-700' : 'text-amber-700'}"><i class="fa-solid ${ACC_ORIGEN === 'supabase' ? 'fa-database' : 'fa-hard-drive'} mr-1"></i>${ACC_ORIGEN === 'supabase' ? (accEnBD() ? 'Tablas leídas de la base de datos (Supabase): los modelos que guardes o elimines los ven todos los usuarios.' : 'Tablas leídas de la base de datos (Supabase).' + (edita ? ' Tu sesión no es de un administrador de Supabase: los modelos que cambies se guardan solo en este navegador.' : '')) : 'Tablas locales (datos/accesorios_tablas.js). Para usar la base de datos, ejecuta supabase/07_accesorios.sql.' + (edita ? ' Los modelos que cambies se guardan solo en este navegador.' : '')}</p>`;
                 if (tab !== 'modelos') {
@@ -4923,7 +4945,7 @@
                     <button onclick="eliminarItemLib()" class="px-2 py-1.5 border rounded hover:bg-rose-50 text-rose-600" ${b ? '' : 'disabled'}><i class="fa-solid fa-trash-can mr-1"></i>Eliminar</button>` : ''}
                     ${edita && LIB.ocultos.length ? `<button onclick="restaurarOcultosLib()" class="px-2 py-1.5 border rounded hover:bg-slate-50 text-[10px]">Recuperar eliminados (${LIB.ocultos.length})</button>` : ''}
                     ${accEnBD() ? '<button onclick="recuperarAccesoriosBD()" class="px-2 py-1.5 border rounded hover:bg-slate-50 text-[10px]">Recuperar eliminados de la base de datos</button>' : ''}</div>${estado}
-                    <p class="text-[10px] text-slate-500 mb-2">${tub ? 'Aquí están los tipos de tubería de acero, uno por norma. La medida nominal, el schedule, el material (al carbono o inoxidable) y el rating se eligen al insertar cada tubería en el plano, y con ellos se forma su código (p. ej. TAC-2"-S40-A106B). Las tuberías de plástico siguen en Librerías > Tuberías.' : 'Aquí están los tipos de accesorio. La medida nominal, el schedule, el material y el rating se eligen al insertar cada accesorio en el plano, y con ellos se forma su código (p. ej. C90LR-2"-S40-WPB).'}</p>`;
+                    <p class="text-[10px] text-slate-500 mb-2">${tub ? 'Aquí están los tipos de tubería de acero, uno por norma. La medida nominal, el schedule, el material (al carbono o inoxidable) y el rating se eligen al insertar cada tubería en el plano, y con ellos se forma su código (p. ej. TAC-2"-S40-SA106B). Las tuberías de plástico siguen en Librerías > Tuberías.' : V.grupo === 'bridas' ? 'Aquí están los tipos de brida de acero, por norma (ASME B16.5, ASME B16.47 serie A y B, EN 1092-1). La medida nominal, el rating o PN, la cara, el material (al carbono o inoxidable) y, en las de cuello, el schedule se eligen al insertar cada brida en el plano, y con ellos se forma su código (p. ej. WN-2"-S40-SA105N-150#-RF).' : 'Aquí están los tipos de accesorio. La medida nominal, el schedule, el material y el rating se eligen al insertar cada accesorio en el plano, y con ellos se forma su código (p. ej. C90LR-2"-S40-WPB).'}</p>`;
                 document.getElementById('lib-cuerpo').innerHTML = `${barra}<div id="lib-tabla-todos"></div><div class="mt-3">${b ? `<p class="font-bold text-slate-600 mb-1">${LIB.items.some(i => i.id === b.id) || ACC_BASE.some(i => i.id === b.id) ? 'Editar' : 'Nuevo'} · ${esc(nombreSubtipo(b.subtipo || V.subtipo))}</p>${der}` : `<p class="text-slate-400 italic">${tienePermiso('compartido') ? 'Marca un accesorio de la tabla para editarlo, o pulsa «Nuevo» (o «Nuevo a partir del marcado» para partir de uno existente).' : 'Marca un accesorio de la tabla para ver su ficha.'}</p>`}</div>`;
                 pintarTablaLibTodos(); return;
             }
@@ -4943,15 +4965,17 @@
             const td = (v, cls = '') => `<td class="px-1 ${cls}" style="overflow:hidden;text-overflow:ellipsis" title="${esc(v == null ? '' : v)}">${esc(v == null ? '' : v)}</td>`;
             const gm = Object.fromEntries(GRUPOS_MAT_ACC_LISTA);
             c.innerHTML = `<div class="border rounded overflow-auto" style="max-height:${V.borrador ? 32 : 60}vh"><table class="w-full text-[11px] whitespace-nowrap" style="table-layout:fixed"><colgroup>${[8, 8, 19, 9, 12, 9, 19, 14, 2].map(w => `<col style="width:${w}%">`).join('')}</colgroup><thead class="bg-slate-100 sticky top-0"><tr class="text-left text-slate-500">
-                <th class="px-1 py-1" title="Código del tipo: es el que encabeza la etiqueta del accesorio">Código</th><th class="px-1">Tipo</th><th class="px-1">Nombre / modelo</th><th class="px-1">Norma</th><th class="px-1">Conexión</th><th class="px-1">Medidas</th><th class="px-1">${V.grupo === 'tubosAcero' ? 'Espesores' : 'Tipo (Crane)'}</th><th class="px-1">Materiales que admite</th><th class="px-1 text-center" title="Veces que se usa en el proyecto">Uso</th></tr></thead><tbody>
-                ${lista.map(i => { const p = i.props || {}, n = usos[i.id] || 0; return `<tr onclick="seleccionarItemLib('${esc(i.id)}')" class="border-t border-slate-100 cursor-pointer ${i.id === V.id ? 'bg-amber-50' : 'hover:bg-blue-50'}">${td(p.cod, 'py-0.5 font-mono font-bold')}${td(nombreSubtipo(i.subtipo), 'text-slate-500')}${td(i.nombre, 'font-bold')}${td(i.norma)}${td(p.conexion)}${td(p.sistema === 'EN' ? 'EN (DN)' : 'ASME (pulgadas)')}${td(i.subtipo === 'tuberia' ? ({ ASME: 'ASME B36.10M / B36.19M', EN10220: 'EN 10220' }[p.espTabla] || p.espTabla) : (p.craneTipo || (p.k !== '' && p.k != null ? 'K ' + p.k : '')))}${td(gm[p.matGrupo] || p.matGrupo)}<td class="px-1 text-center ${n ? 'font-bold text-emerald-700' : 'text-slate-300'}">${n}</td></tr>`; }).join('') || '<tr><td colspan="9" class="p-2 text-slate-400 italic">Sin modelos con ese filtro.</td></tr>'}
+                <th class="px-1 py-1" title="Código del tipo: es el que encabeza la etiqueta del accesorio">Código</th><th class="px-1">Tipo</th><th class="px-1">Nombre / modelo</th><th class="px-1">Norma</th><th class="px-1">Conexión</th><th class="px-1">Medidas</th><th class="px-1">${V.grupo === 'tubosAcero' ? 'Espesores' : V.grupo === 'bridas' ? 'Rating / PN' : 'Tipo (Crane)'}</th><th class="px-1">Materiales que admite</th><th class="px-1 text-center" title="Veces que se usa en el proyecto">Uso</th></tr></thead><tbody>
+                ${lista.map(i => { const p = i.props || {}, n = usos[i.id] || 0; return `<tr onclick="seleccionarItemLib('${esc(i.id)}')" class="border-t border-slate-100 cursor-pointer ${i.id === V.id ? 'bg-amber-50' : 'hover:bg-blue-50'}">${td(p.cod, 'py-0.5 font-mono font-bold')}${td(nombreSubtipo(i.subtipo), 'text-slate-500')}${td(i.nombre, 'font-bold')}${td(i.norma)}${td(p.conexion)}${td(p.sistema === 'EN' ? 'EN (DN)' : 'ASME (pulgadas)')}${td(i.subtipo === 'tuberia' ? ({ ASME: 'ASME B36.10M / B36.19M', EN10220: 'EN 10220' }[p.espTabla] || p.espTabla) : (V.grupo === 'bridas' ? (p.ratings || 'todos') : (p.craneTipo || (p.k !== '' && p.k != null ? 'K ' + p.k : ''))))}${td(gm[p.matGrupo] || p.matGrupo)}<td class="px-1 text-center ${n ? 'font-bold text-emerald-700' : 'text-slate-300'}">${n}</td></tr>`; }).join('') || '<tr><td colspan="9" class="p-2 text-slate-400 italic">Sin modelos con ese filtro.</td></tr>'}
                 </tbody></table></div>`;
         }
         // filas de una tabla de consulta que aplican a un grupo: tuberías de acero o accesorios
         function filasTablaAcc(tab, grupo) {
-            const t = (ACC_T && ACC_T[tab]) || [], tub = grupo === 'tubosAcero';
-            if (tab === 'espesores') return t.filter(r => tub ? ['B36.10', 'B36.19', 'EN10220'].includes(r.tabla) : r.tabla !== 'EN10220');
-            if (tab === 'materiales') return t.filter(r => /^TUBO-/.test(r.grupo) === tub);
+            const t = (ACC_T && ACC_T[tab]) || [], tub = grupo === 'tubosAcero', bri = grupo === 'bridas';
+            if (tab === 'espesores') return t.filter(r => tub || bri ? ['B36.10', 'B36.19', 'EN10220'].includes(r.tabla) : r.tabla !== 'EN10220');
+            if (tab === 'materiales') return t.filter(r => tub ? /^TUBO-/.test(r.grupo) : bri ? ['FORJ-ASME', 'BRIDA-ASME', 'BRIDA-EN'].includes(r.grupo) : !/^(TUBO|BRIDA)-/.test(r.grupo));
+            if (tab === 'ratings') return t.filter(r => bri ? !/^(2000|3000|6000|9000)#$/.test(r.rating) : !/^(75#|400#|PN 2\.5|PN 160|PN 250|PN 320|PN 400)$/.test(r.rating));
+            if (tab === 'cotas') return t.filter(r => { const m = ACC_BASE.find(i => i.id === r.modelo); return bri ? !!m && m.grupo === 'bridas' : !m || m.grupo !== 'bridas'; });
             return t;
         }
         // tablas de consulta: medidas, espesores, materiales, rating / PN y cotas
@@ -5052,7 +5076,7 @@
             const porGrupo = g => subtiposGrupo(g).map(st => it(g, st));
             return [
                 { icono: 'fa-shapes', texto: 'Accesorios', sub: () => [
-                    { icono: 'fa-ring', texto: 'Bridas', sub: () => BRIDAS_PANEL.filter(st => TIPOS[st]).sort((x, y) => nombreSubtipo(x).localeCompare(nombreSubtipo(y), 'es')).map(st => it('uniones', st)) },
+                    { icono: 'fa-ring', texto: 'Bridas', sub: () => [{ icono: 'fa-ring', texto: 'Acero ASME / EN...', accion: () => abrirLibreria('bridas') }, it('uniones', 'bridaplastica'), it('uniones', 'bridaunion')] },
                     { icono: 'fa-grip-lines', texto: 'Codos...', accion: () => abrirLibreria('accesorios', null, 'codos') },
                     { icono: 'fa-circle', texto: 'Machones...', accion: () => abrirLibreria('uniones', 'machon') },
                     { icono: 'fa-circle', texto: 'Manguitos de unión...', accion: () => abrirLibreria('uniones', 'manguito') },
@@ -7367,7 +7391,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.12';
+        const VERSION_WEB = '8.13.1';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
