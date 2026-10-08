@@ -856,3 +856,38 @@ Además: ida y vuelta en la base de datos, diálogo validar/cancelar, cálculo c
 - La curva de catálogo no suele empezar en Q = 0: la ecuación solo vale entre inicio y fin; fuera se avisa. La altura a caudal cero de la ficha se usa como punto Q = 0.
 - La curva NPSHr tiene un mínimo y sube rápido al final: grado 3 (o 4) y más puntos en el tramo final.
 - Pendiente: leyes de afinidad (rpm / diámetro de impulsor), potencia en la ventana «Curva Q-H» y en el informe, validación en el informe.
+# PIPING v8.21 · Componentes que no cumplen, en rojo
+
+Fecha: 2026-10-08. Versión anterior: 8.20.2 (copia en `copias\v8202\`).
+
+## Petición (José)
+Si algún componente no cumple en los cálculos las condiciones iniciales de diseño, debe verse en rojo, para saber de un vistazo qué hay que redimensionar.
+
+## Cambios
+- `colorElemento`: el rojo (no cumple) tiene prioridad sobre el violeta de la ruta crítica. Antes, un fallo en la ruta crítica se dibujaba violeta con una pequeña marca roja «!». Ahora el símbolo y la etiqueta salen en rojo. Violeta = ruta crítica que cumple; verde = cumple; azul = sin calcular.
+- Marca roja «!» en todos los componentes que no cumplen (antes solo en los de la ruta crítica).
+- Nueva comprobación frente a la **presión de diseño del proyecto** (`proyecto.presionDiseno`), además de la presión de servicio calculada:
+  - tuberías: `PMA < presión de diseño` → no cumple;
+  - válvulas, accesorios y equipos con PN / Rating: `PN (bar admisibles a T) < presión de diseño` → no cumple.
+- Las alternativas propuestas (serie de tubo, PN) se buscan para la mayor de las dos presiones: la de servicio y la de diseño.
+
+## Condiciones que ya ponían el componente como «no cumple» (y por tanto en rojo)
+- Velocidad mayor que la máxima de aspiración o de impulsión.
+- Velocidad menor que la de apertura total de las retenciones.
+- Presión de servicio mayor que la PMA del tubo o que el PN.
+- NPSHd < NPSHr + margen.
+- Caudal de funcionamiento menor que el de diseño.
+- Presión mínima en consumos.
+- Vaporización.
+- Cavitación en válvulas de control.
+- Volumétricas por encima de su presión máxima.
+- Punto de funcionamiento fuera de la curva del fabricante.
+
+## Funciones tocadas
+`colorElemento`, `marcaFallo` (en el dibujo), `comprobacionesPresion` (PMA y PN), `proponerAlternativas`.
+
+## Pruebas
+- Red tanque → bomba → tubos → válvula de globo:
+  - con un DN 15 de impulsión, el tubo y la válvula (ruta crítica) salen en #dc2626 (rojo);
+  - con presión de diseño 30 bar, la válvula PN 16 no cumple, con la alternativa «PN 40 (40 bar ≥ 30 bar)»; los tubos Sch 40 de 2" cumplen por PMA.
+- Regresión 10–23 sin cambios.
