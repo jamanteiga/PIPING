@@ -1585,11 +1585,11 @@
             marcoA3.style.backgroundColor = f.hoja;
             marcoA3.style.backgroundImage = 'none'; // la rejilla se dibuja en el SVG (capa de formato)
         }
-        // Color de un elemento: rojo si no cumple; violeta si es de la ruta crítica; verde si cumple;
-        // azul (según fondo) si todavía no se ha calculado.
+        // Color de un elemento: rojo si no cumple (también en la ruta crítica); violeta si es de la ruta crítica y cumple;
+        // verde si cumple; azul (según fondo) si todavía no se ha calculado.
         function colorElemento(el, P) {
-            if (el.esLineaCritica) return P.critica; // la ruta crítica siempre en violeta (un fallo en ella lleva la marca roja «!»)
-            if (el.estado === 'fallo') return P.fallo;
+            if (el.estado === 'fallo') return P.fallo;   // v8.21: lo que no cumple se ve siempre en rojo, para redimensionarlo
+            if (el.esLineaCritica) return P.critica;
             if (el.estado === 'ok') return P.ok;
             return P.base;
         }
@@ -2188,7 +2188,7 @@
                 const c = isSelected ? P.sel : colorElemento(el, P);
                 // Flecha verde del sentido de referencia del flujo, por encima de la línea para que no la tape
                 const flecha = (y) => `<polygon points="42,${y - 3} 48,${y} 42,${y + 3}" fill="${P.flecha}"/>`;
-                const marcaFallo = (x, y) => el.estado === 'fallo' && el.esLineaCritica ? `<circle cx="${x}" cy="${y}" r="3.6" fill="${P.fallo}"/><text x="${x}" y="${y + 2.4}" font-family="sans-serif" font-size="6" font-weight="bold" fill="#fff" text-anchor="middle">!</text>` : '';
+                const marcaFallo = (x, y) => el.estado === 'fallo' ? `<circle cx="${x}" cy="${y}" r="3.6" fill="${P.fallo}"/><text x="${x}" y="${y + 2.4}" font-family="sans-serif" font-size="6" font-weight="bold" fill="#fff" text-anchor="middle">!</text>` : '';
                 let d = '';
                 if (esAnotacion(el)) {
                     d = dibujoAnotacion(el, isSelected ? P.sel : P.texto, P);
@@ -3934,16 +3934,16 @@
                     }
                     if (/PMA/.test(txt)) {
                         const t = m.tamanos.find(x => x.clave === el.dn);
-                        const ok = m.series.filter(sr => t && t.e[sr] != null && sr !== el.serie).map(sr => ({ sr, p: pmaTuberia(Object.assign({}, el, { serie: sr, pmaManual: null }), fluido.T).pma })).filter(x => x.p != null && x.p >= r.pmax).sort((x, y) => x.p - y.p)[0];
-                        if (ok) altA(`Serie: ${/^[0-9]+S?$/.test(ok.sr) ? 'Sch ' + ok.sr : ok.sr} (PMA ${ok.p.toFixed(1)} bar ≥ ${r.pmax.toFixed(2)} bar)`, `Serie ${/^[0-9]+S?$/.test(ok.sr) ? 'Sch ' + ok.sr : ok.sr}`, [['serie', ok.sr]]);
+                        const ok = m.series.filter(sr => t && t.e[sr] != null && sr !== el.serie).map(sr => ({ sr, p: pmaTuberia(Object.assign({}, el, { serie: sr, pmaManual: null }), fluido.T).pma })).filter(x => x.p != null && x.p >= (r.preq || r.pmax)).sort((x, y) => x.p - y.p)[0];
+                        if (ok) altA(`Serie: ${/^[0-9]+S?$/.test(ok.sr) ? 'Sch ' + ok.sr : ok.sr} (PMA ${ok.p.toFixed(1)} bar ≥ ${(r.preq || r.pmax).toFixed(2)} bar)`, `Serie ${/^[0-9]+S?$/.test(ok.sr) ? 'Sch ' + ok.sr : ok.sr}`, [['serie', ok.sr]]);
                         else alt.push('Ninguna serie de este material alcanza la presión: cambia de material (p. ej. acero) o reduce la presión de servicio.');
                     }
                 }
                 if ((el.type === 'valvula' || el.type === 'accesorio' || el.type === 'equipo') && a) {
                     if (r.fallaPN) {
                         const esPN = /^PN/.test(el.pn);
-                        const sig = PN_LISTA.filter(x => esPN ? x.startsWith('PN') : x.endsWith('#')).find(x => (presionAdmisiblePN(x, fluido.T, r.pnInox) || 0) >= r.pmaxComp);
-                        if (sig) altA(`Presión nominal: ${sig} (${presionAdmisiblePN(sig, fluido.T, r.pnInox).toFixed(1)} bar ≥ ${r.pmaxComp.toFixed(2)} bar)`, `Cambiar a ${sig}`, [['pn', sig]]);
+                        const sig = PN_LISTA.filter(x => esPN ? x.startsWith('PN') : x.endsWith('#')).find(x => (presionAdmisiblePN(x, fluido.T, r.pnInox) || 0) >= Math.max(r.pmaxComp, +proyecto.presionDiseno || 0));
+                        if (sig) altA(`Presión nominal: ${sig} (${presionAdmisiblePN(sig, fluido.T, r.pnInox).toFixed(1)} bar ≥ ${Math.max(r.pmaxComp, +proyecto.presionDiseno || 0).toFixed(2)} bar)`, `Cambiar a ${sig}`, [['pn', sig]]);
                         else alt.push('Ninguna presión nominal de la serie alcanza la presión de servicio.');
                     }
                     const Q = Math.abs(a.Qprev), vl = a.lado === 'asp' ? lim.asp : lim.imp;
@@ -4016,7 +4016,9 @@
                 a.ariete = arieteTuberia(a, fluido, Llinea[el.linea || '?'], tc);
                 Object.assign(r, { pma: pm.pma, pmaOrigen: pm.origen, pmax, pCierre: a.pCierre, ariete: a.ariete });
                 if (pm.pma == null) { avisos.push(`${tag}: sin presión máxima admisible (${pm.origen}).`); return; }
+                const pDis = +proyecto.presionDiseno > 0 ? +proyecto.presionDiseno : 0; r.preq = Math.max(pmax, pDis);
                 if (pmax > pm.pma) fallo(el, `p ${pmax.toFixed(2)} bar > PMA ${pm.pma.toFixed(1)} bar`);
+                else if (pDis > pm.pma + 1e-6) fallo(el, `PMA ${pm.pma.toFixed(1)} bar < presión de diseño ${pDis.toFixed(2)} bar`);
                 if (a.pCierre != null && a.pCierre > pm.pma) avisos.push(`${tag}: a caudal nulo (bomba contra válvula cerrada) p = ${a.pCierre.toFixed(2)} bar > PMA ${pm.pma.toFixed(1)} bar.`);
                 const pAriete = pmax + bar(a.ariete.dp);
                 if (pAriete > pm.pma) avisos.push(`${tag}: golpe de ariete Δp = ${bar(a.ariete.dp).toFixed(2)} bar (${a.ariete.rapido ? 'Joukowsky' : 'Michaud'}); p + Δp = ${pAriete.toFixed(2)} bar > PMA ${pm.pma.toFixed(1)} bar → prever cierre lento, calderín o antiariete.`);
@@ -4032,7 +4034,9 @@
                 const inox = tubs.some(t => matBase(t.el.material) === 'Acero inoxidable');
                 const adm = presionAdmisiblePN(el.pn, fluido.T, inox);
                 r.pnAdm = adm; r.pnInox = inox;
+                const pDisC = +proyecto.presionDiseno > 0 ? +proyecto.presionDiseno : 0;
                 if (adm != null && r.pmaxComp > adm + 1e-6) { vistosPN.add(el.id); fallo(el, `p ${r.pmaxComp.toFixed(2)} bar > ${el.pn} (${adm.toFixed(1)} bar a ${fluido.T} °C)`); r.fallaPN = true; }
+                else if (adm != null && pDisC > adm + 1e-6) { vistosPN.add(el.id); fallo(el, `${el.pn} (${adm.toFixed(1)} bar a ${fluido.T} °C) < presión de diseño ${pDisC.toFixed(2)} bar`); r.fallaPN = true; }
                 if (adm != null && Hcierre != null && a.lado === 'imp') {
                     const pc = Math.max(...[a.nodoA, a.nodoB].map(n => bar((Hcierre - z[n]) * fluido.rho * G - PRESION_ATM)));
                     if (pc > adm) avisos.push(`${tagDe(el)}: a caudal nulo p = ${pc.toFixed(2)} bar > ${el.pn} (${adm.toFixed(1)} bar).`);
@@ -7645,7 +7649,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.20.2';
+        const VERSION_WEB = '8.21';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
