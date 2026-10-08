@@ -62,3 +62,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Rellenar desde PDF (IA)...": "PDF에서
 
 // v8.19.1
 Object.assign(window.PIPING_I18N.ko.d, {"Curva característica: una fila por punto con caudal (m³/h), altura (m), rendimiento (%), NPSHr (m) y potencia en el eje (kW)": "성능 곡선: 점마다 한 줄 — 유량 (m³/h), 양정 (m), 효율 (%), NPSHr (m), 축동력 (kW)", "2. Calibrar los ejes y capturar la curva": "2. 축 보정 및 곡선 캡처", "Unidad del caudal": "유량 단위", "Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes: se calibra por separado, con sus unidades.": "각 그래프(Q – H, Q – NPSHr, Q – P)는 자체 축을 가지므로 단위와 함께 따로 보정합니다.", "Sin curva de η, el rendimiento se calcula con la potencia: η = ρ·g·Q·H / P.": "η 곡선이 없으면 효율은 동력으로 계산합니다: η = ρ·g·Q·H / P."});
+
+// v8.20
+Object.assign(window.PIPING_I18N.ko.d, {"Calcular ecuaciones de la tabla": "표에서 방정식 계산", "Quitar ecuaciones": "방정식 제거", "Validar la bomba": "펌프 검증", "Validar y asignar": "검증 후 지정", "Grado del polinomio": "다항식 차수", "Línea discontinua: la ecuación sobre la imagen.": "점선: 이미지 위의 방정식.", "Revisa los datos de la bomba antes de asignarla. Al validar, queda registrado quién la validó y cuándo.": "지정하기 전에 펌프 데이터를 확인하세요. 검증하면 검증자와 일시가 기록됩니다.", "Sin incoherencias detectadas.": "불일치 없음."});
