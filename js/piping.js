@@ -7645,7 +7645,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.20.1';
+        const VERSION_WEB = '8.20.2';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -9920,11 +9920,11 @@
             let m = document.getElementById('modal-digit');
             if (!m) { m = document.createElement('div'); m.id = 'modal-digit'; m.className = 'fixed inset-0 bg-black/50 justify-center items-center'; m.style.cssText = 'display:none; z-index:3300'; document.body.appendChild(m); }
             const cal = s => ({ p0: null, px: null, py: null, x0: '', xmax: '', y0: '', ymax: '', logX: false, logY: false, uQ: 'm3h', uY: SERIES_DIG[s].uds[0][0] });
-            DIG = { alAplicar, img: null, zoom: 1, ox: 0, oy: 0, modo: 'calibrar', paso: 0, serie: 'H', cal: { H: cal('H'), npsh: cal('npsh'), pot: cal('pot'), eta: cal('eta') }, pts: { H: [], npsh: [], pot: [], eta: [] }, grado: { H: 2, npsh: 3, pot: 2, eta: 2 }, arrastre: null, previos: previos || null };
+            DIG = { alAplicar, img: null, zoom: 1, ox: 0, oy: 0, modo: 'calibrar', paso: 0, serie: 'H', cal: { H: cal('H'), npsh: cal('npsh'), pot: cal('pot'), eta: cal('eta') }, pts: { H: [], npsh: [], pot: [], eta: [] }, grado: { H: 2, npsh: 3, pot: 2, eta: 2 }, vistas: {}, arrastre: null, previos: previos || null };
             m.innerHTML = `<div class="bg-white rounded-lg shadow-2xl border border-slate-300 flex flex-col text-xs" style="width:min(1500px, 97vw); height:min(900px, 94vh)">
                 <h3 class="text-sm font-bold text-slate-700 border-b px-4 py-2 flex items-center justify-between"><span><i class="fa-solid fa-crosshairs text-blue-600 mr-1.5"></i>Digitalizar la curva de la bomba desde una imagen</span><button onclick="cerrarDigitalizador()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button></h3>
                 <div class="flex flex-1" style="min-height:0"><div id="dig-panel" class="border-r p-3 space-y-2" style="width:340px; flex:none; overflow-y:auto; min-height:0"></div>
-                <div id="dig-lienzo" class="flex-1 relative bg-slate-100 overflow-hidden" style="cursor:crosshair"><canvas id="dig-canvas" style="position:absolute; left:0; top:0"></canvas><div id="dig-vacio" class="absolute inset-0 flex items-center justify-center text-slate-400 text-center pointer-events-none"><div><i class="fa-solid fa-image text-4xl mb-2"></i><br>Arrastra aquí la imagen de la curva (PNG, JPG o PDF),<br>pégala con Ctrl+V o usa «Cargar imagen».</div></div></div></div></div>`;
+                <div id="dig-lienzo" class="flex-1 relative bg-slate-100 overflow-hidden" style="cursor:crosshair"><canvas id="dig-canvas" style="position:absolute; left:0; top:0"></canvas><div id="dig-vacio" class="absolute inset-0 flex items-center justify-center text-slate-400 text-center pointer-events-none"><div><i class="fa-solid fa-image text-4xl mb-2"></i><br>Arrastra aquí la imagen de la curva <b id="dig-vacio-curva">Q – H (altura)</b> (PNG, JPG o PDF),<br>pégala con Ctrl+V o usa «Cargar imagen».</div></div></div></div></div>`;
             m.style.display = 'flex';
             const L = document.getElementById('dig-lienzo'), C = document.getElementById('dig-canvas');
             const alPunto = ev => { const r = L.getBoundingClientRect(); return { x: (ev.clientX - r.left - DIG.ox) / DIG.zoom, y: (ev.clientY - r.top - DIG.oy) / DIG.zoom }; };
@@ -9944,7 +9944,13 @@
         function cerrarDigitalizador() { const m = document.getElementById('modal-digit'); if (m) m.style.display = 'none'; if (DIG && DIG.pegar) window.removeEventListener('paste', DIG.pegar); DIG = null; }
         async function cargarImagenDig(file) {
             if (!file) return;
-            const poner = img => { DIG.img = img; const L = document.getElementById('dig-lienzo'), z = Math.min(L.clientWidth / img.width, L.clientHeight / img.height) * 0.96; DIG.zoom = z; DIG.ox = (L.clientWidth - img.width * z) / 2; DIG.oy = (L.clientHeight - img.height * z) / 2; document.getElementById('dig-vacio').style.display = 'none'; pintarDig(); pintarPanelDig(); };
+            const poner = img => {
+                const s = DIG.serie, c = DIG.cal[s];
+                if (DIG.img && DIG.img !== img && (c.p0 || DIG.pts[s].length)) {   // otra imagen para la misma curva: su calibración y sus puntos ya no valen
+                    if (!confirm(`La curva ${SERIES_DIG[s].nombre} ya tiene calibración o puntos sobre la imagen anterior.\n\n¿Cargar la nueva imagen y empezar esta curva de nuevo?`)) return;
+                    c.p0 = c.px = c.py = null; c.x0 = c.xmax = c.y0 = c.ymax = ''; DIG.pts[s] = []; DIG.modo = 'calibrar'; DIG.paso = 0;
+                }
+                DIG.img = img; const L = document.getElementById('dig-lienzo'), z = Math.min(L.clientWidth / img.width, L.clientHeight / img.height) * 0.96; DIG.zoom = z; DIG.ox = (L.clientWidth - img.width * z) / 2; DIG.oy = (L.clientHeight - img.height * z) / 2; document.getElementById('dig-vacio').style.display = 'none'; pintarDig(); pintarPanelDig(); };
             if (/pdf$/i.test(file.type) || /\.pdf$/i.test(file.name || '')) {
                 try {
                     if (!window.pdfjsLib) await new Promise((ok, mal) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'; s.onload = ok; s.onerror = mal; document.head.appendChild(s); });
@@ -9991,11 +9997,17 @@
         }
         function cambiarSerieDig(s) {
             const ant = DIG.cal[DIG.serie], c = DIG.cal[s];
+            // cada curva tiene su imagen y su vista; en pantalla solo se ve la curva activa
+            DIG.vistas[DIG.serie] = DIG.img ? { img: DIG.img, zoom: DIG.zoom, ox: DIG.ox, oy: DIG.oy } : null;
+            const v = DIG.vistas[s]; if (v) Object.assign(DIG, { img: v.img, zoom: v.zoom, ox: v.ox, oy: v.oy }); else DIG.img = null;
+            const vacio = document.getElementById('dig-vacio'); if (vacio) vacio.style.display = DIG.img ? 'none' : 'flex';
+            const nv = document.getElementById('dig-vacio-curva'); if (nv) nv.textContent = SERIES_DIG[s].nombre;
             if (!c.p0 && !DIG.pts[s].length) c.uQ = ant.uQ;                      // un gráfico nuevo hereda la unidad de caudal del anterior
             if (DIG.grado[s] == null) DIG.grado[s] = CURVAS_EC[s].grado;
             DIG.serie = s; DIG.paso = 0; DIG.modo = calibradaDig(s) ? 'capturar' : 'calibrar'; pintarDig(); pintarPanelDig();
-            if (DIG.img && DIG.modo === 'calibrar') aviso(`${SERIES_DIG[s].nombre}: elige las unidades y calibra sus ejes (1.º clic en el origen de este gráfico).`, 'info');
+            if (DIG.modo === 'calibrar') aviso(DIG.img ? `${SERIES_DIG[s].nombre}: elige las unidades y calibra sus ejes (1.º clic en el origen de este gráfico).` : `${SERIES_DIG[s].nombre}: pega o carga la imagen de esta curva (o usa la de otra curva si está en la misma hoja).`, 'info');
         }
+        function usarImagenDig(k) { const v = DIG.vistas[k]; if (!v) return; Object.assign(DIG, { img: v.img, zoom: v.zoom, ox: v.ox, oy: v.oy }); const vacio = document.getElementById('dig-vacio'); if (vacio) vacio.style.display = 'none'; pintarDig(); pintarPanelDig(); }
         // [Q, Y] en las unidades del gráfico <-> unidades de trabajo (m³/h; m; kW; %)
         function aTrabajoDig(s, q, y) { const c = DIG.cal[s], rho = fluidoActual().rho || 1000; return [q * F_Q_DIG[c.uQ], s === 'H' && c.uY === 'bar' ? y * 1e5 / (rho * G) : s === 'pot' ? y * F_P_DIG[c.uY] : y]; }
         function deTrabajoDig(s, q, y) { const c = DIG.cal[s], rho = fluidoActual().rho || 1000; return [q / F_Q_DIG[c.uQ], s === 'H' && c.uY === 'bar' ? y * rho * G / 1e5 : s === 'pot' ? y / F_P_DIG[c.uY] : y]; }
@@ -10015,9 +10027,8 @@
             g.drawImage(DIG.img, DIG.ox, DIG.oy, DIG.img.width * DIG.zoom, DIG.img.height * DIG.zoom);
             const S = p => [DIG.ox + p.x * DIG.zoom, DIG.oy + p.y * DIG.zoom];
             const cruz = (p, color, txt) => { const [x, y] = S(p); g.strokeStyle = color; g.lineWidth = 2; g.beginPath(); g.moveTo(x - 9, y); g.lineTo(x + 9, y); g.moveTo(x, y - 9); g.lineTo(x, y + 9); g.stroke(); g.fillStyle = color; g.font = 'bold 11px sans-serif'; g.fillText(txt, x + 7, y - 7); };
-            Object.keys(SERIES_DIG).forEach(s => { const c = DIG.cal[s], col = s === DIG.serie ? '#7c3aed' : '#a78bfa'; if (s !== DIG.serie && !DIG.pts[s].length) return;
-                if (c.p0) cruz(c.p0, col, 'origen'); if (c.px) cruz(c.px, col, 'X máx'); if (c.py) cruz(c.py, col, 'Y máx'); });
-            Object.entries(SERIES_DIG).forEach(([s, d]) => { const pts = DIG.pts[s].slice().sort((a, b) => a.x - b.x); if (!pts.length) return;
+            { const c = DIG.cal[DIG.serie], col = '#7c3aed'; if (c.p0) cruz(c.p0, col, 'origen'); if (c.px) cruz(c.px, col, 'X máx'); if (c.py) cruz(c.py, col, 'Y máx'); }
+            Object.entries(SERIES_DIG).filter(([s]) => s === DIG.serie).forEach(([s, d]) => { const pts = DIG.pts[s].slice().sort((a, b) => a.x - b.x); if (!pts.length) return;
                 g.strokeStyle = d.color; g.lineWidth = 1.5; g.beginPath(); pts.forEach((p, i) => { const [x, y] = S(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.stroke();
                 pts.forEach(p => { const [x, y] = S(p); g.beginPath(); g.arc(x, y, 4.5, 0, 6.2832); g.fillStyle = d.color; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); });
                 const L = DIG.pts[s]; g.font = 'bold 11px sans-serif'; g.fillStyle = d.color; if (L[0]) { const [x, y] = S(L[0]); g.fillText('inicio', x + 6, y - 6); } if (L[1]) { const [x, y] = S(L[1]); g.fillText('fin', x + 6, y - 6); }
@@ -10036,7 +10047,8 @@
                 <div class="border rounded p-2 space-y-1"><p class="font-bold text-slate-600">1. Curva que se digitaliza</p>
                     <div id="dig-curvas" class="grid grid-cols-2 gap-1">${Object.entries(SERIES_DIG).map(([k, d], i) => { const hecha = puntosDig(k).length >= 3, act = k === s; return `<button type="button" data-serie="${k}" onclick="cambiarSerieDig('${k}')" class="text-left px-1.5 py-1 rounded border ${act ? 'border-blue-600 bg-blue-50 font-bold' : 'hover:bg-slate-50'}"><i class="fa-solid ${hecha ? 'fa-circle-check text-emerald-600' : calibradaDig(k) ? 'fa-circle-half-stroke text-amber-500' : 'fa-circle text-slate-300'} mr-1"></i>${i + 1}. ${d.nombre}${k === 'eta' ? ' <span class="font-normal text-slate-400">(opcional)</span>' : ''}<br><span class="font-normal text-[10px] text-slate-400">${hecha ? puntosDig(k).length + ' puntos' : calibradaDig(k) ? 'calibrada, sin curva' : 'pendiente'}</span></button>`; }).join('')}</div>
                     <div class="grid grid-cols-2 gap-1"><label class="block">Unidad del caudal${selU('uQ', UDS_Q_DIG)}</label><label class="block">Unidad de ${nomY}${selU('uY', sd.uds)}</label></div>
-                    <p class="text-[10px] text-slate-400">Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes: se calibra por separado, con sus unidades.</p></div>
+                    <p class="text-[10px] text-slate-400">Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes y su imagen: se calibra por separado, con sus unidades.</p>
+                    ${!DIG.img ? Object.keys(DIG.vistas).filter(k => k !== s && DIG.vistas[k]).map(k => `<button type="button" onclick="usarImagenDig('${k}')" class="w-full px-2 py-1 border rounded hover:bg-slate-50"><i class="fa-solid fa-copy mr-1"></i>Usar la misma imagen que ${SERIES_DIG[k].nombre}</button>`).join('') : ''}</div>
                 <p class="font-bold text-slate-600">2. Calibrar los ejes y capturar la curva</p>
                 <div class="flex gap-1">${btn('calibrar', 'fa-ruler-combined', 'Calibrar')}${btn('capturar', 'fa-location-crosshairs', 'Capturar')}${btn('mover', 'fa-hand', 'Mover')}</div>
                 <p class="rounded p-2 ${DIG.modo === 'calibrar' ? 'bg-violet-50 text-violet-800 border border-violet-200' : 'bg-slate-50 text-slate-500 border'}">${!DIG.img ? 'Carga primero la imagen de la curva.' : DIG.modo === 'calibrar' ? '<b>Calibración · ' + sd.nombre + '.</b> ' + pasoTxt : DIG.modo === 'capturar' ? '<b>Captura · ' + sd.nombre + '.</b> ' + (DIG.pts[s].length === 0 ? '4. Clic en el <b>punto inicial</b> de la curva (menor caudal).' : DIG.pts[s].length === 1 ? '5. Clic en el <b>punto final</b> de la curva (mayor caudal).' : `6. Clic en <b>puntos intermedios</b> entre el inicial y el final: ${DIG.pts[s].length - 2} capturados. Cuantos más, mejor (al menos ${Math.max(4, DIG.grado[s] + 2)}).`) : 'Arrastra para mover la imagen. La rueda del ratón acerca y aleja.'}</p>

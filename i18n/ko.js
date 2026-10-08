@@ -65,3 +65,9 @@ Object.assign(window.PIPING_I18N.ko.d, {"Curva característica: una fila por pun
 
 // v8.20
 Object.assign(window.PIPING_I18N.ko.d, {"Calcular ecuaciones de la tabla": "표에서 방정식 계산", "Quitar ecuaciones": "방정식 제거", "Validar la bomba": "펌프 검증", "Validar y asignar": "검증 후 지정", "Grado del polinomio": "다항식 차수", "Línea discontinua: la ecuación sobre la imagen.": "점선: 이미지 위의 방정식.", "Revisa los datos de la bomba antes de asignarla. Al validar, queda registrado quién la validó y cuándo.": "지정하기 전에 펌프 데이터를 확인하세요. 검증하면 검증자와 일시가 기록됩니다.", "Sin incoherencias detectadas.": "불일치 없음."});
+
+// v8.20.1
+Object.assign(window.PIPING_I18N.ko.d, {"1. Curva que se digitaliza": "1. 디지타이징할 곡선", "Siguiente curva:": "다음 곡선:", "(opcional)": "(선택)", "pendiente": "대기", "calibrada, sin curva": "보정됨, 곡선 없음"});
+
+// v8.20.2
+Object.assign(window.PIPING_I18N.ko.d, {"Usar la misma imagen que": "다음과 같은 이미지 사용:", "Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes y su imagen: se calibra por separado, con sus unidades.": "각 그래프(Q – H, Q – NPSHr, Q – P)는 자체 축과 이미지를 가지므로 단위와 함께 따로 보정합니다."});

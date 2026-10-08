@@ -65,3 +65,9 @@ Object.assign(window.PIPING_I18N.pt.d, {"Curva característica: una fila por pun
 
 // v8.20
 Object.assign(window.PIPING_I18N.pt.d, {"Calcular ecuaciones de la tabla": "Calcular equações da tabela", "Quitar ecuaciones": "Remover equações", "Validar la bomba": "Validar a bomba", "Validar y asignar": "Validar e atribuir", "Grado del polinomio": "Grau do polinómio", "Línea discontinua: la ecuación sobre la imagen.": "Linha tracejada: a equação sobre a imagem.", "Revisa los datos de la bomba antes de asignarla. Al validar, queda registrado quién la validó y cuándo.": "Reveja os dados da bomba antes de a atribuir. Ao validar, fica registado quem a validou e quando.", "Sin incoherencias detectadas.": "Sem incoerências detetadas."});
+
+// v8.20.1
+Object.assign(window.PIPING_I18N.pt.d, {"1. Curva que se digitaliza": "1. Curva a digitalizar", "Siguiente curva:": "Curva seguinte:", "(opcional)": "(opcional)", "pendiente": "pendente", "calibrada, sin curva": "calibrada, sem curva"});
+
+// v8.20.2
+Object.assign(window.PIPING_I18N.pt.d, {"Usar la misma imagen que": "Usar a mesma imagem que", "Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes y su imagen: se calibra por separado, con sus unidades.": "Cada gráfico (Q – H, Q – NPSHr, Q – P) tem os seus próprios eixos e imagem: calibra-se separadamente, com as suas unidades."});

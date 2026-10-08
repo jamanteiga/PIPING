@@ -65,3 +65,9 @@ Object.assign(window.PIPING_I18N.en.d, {"Curva característica: una fila por pun
 
 // v8.20
 Object.assign(window.PIPING_I18N.en.d, {"Calcular ecuaciones de la tabla": "Fit equations from the table", "Quitar ecuaciones": "Remove equations", "Validar la bomba": "Validate the pump", "Validar y asignar": "Validate and assign", "Grado del polinomio": "Polynomial degree", "Línea discontinua: la ecuación sobre la imagen.": "Dashed line: the equation over the image.", "Revisa los datos de la bomba antes de asignarla. Al validar, queda registrado quién la validó y cuándo.": "Check the pump data before assigning it. On validation, who validated it and when is recorded.", "Sin incoherencias detectadas.": "No inconsistencies found."});
+
+// v8.20.1
+Object.assign(window.PIPING_I18N.en.d, {"1. Curva que se digitaliza": "1. Curve being digitised", "Siguiente curva:": "Next curve:", "(opcional)": "(optional)", "pendiente": "pending", "calibrada, sin curva": "calibrated, no curve"});
+
+// v8.20.2
+Object.assign(window.PIPING_I18N.en.d, {"Usar la misma imagen que": "Use the same image as", "Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes y su imagen: se calibra por separado, con sus unidades.": "Each chart (Q – H, Q – NPSHr, Q – P) has its own axes and image: it is calibrated separately, with its own units."});
