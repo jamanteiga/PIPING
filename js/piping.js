@@ -7645,7 +7645,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.20';
+        const VERSION_WEB = '8.20.1';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -9923,7 +9923,7 @@
             DIG = { alAplicar, img: null, zoom: 1, ox: 0, oy: 0, modo: 'calibrar', paso: 0, serie: 'H', cal: { H: cal('H'), npsh: cal('npsh'), pot: cal('pot'), eta: cal('eta') }, pts: { H: [], npsh: [], pot: [], eta: [] }, grado: { H: 2, npsh: 3, pot: 2, eta: 2 }, arrastre: null, previos: previos || null };
             m.innerHTML = `<div class="bg-white rounded-lg shadow-2xl border border-slate-300 flex flex-col text-xs" style="width:min(1500px, 97vw); height:min(900px, 94vh)">
                 <h3 class="text-sm font-bold text-slate-700 border-b px-4 py-2 flex items-center justify-between"><span><i class="fa-solid fa-crosshairs text-blue-600 mr-1.5"></i>Digitalizar la curva de la bomba desde una imagen</span><button onclick="cerrarDigitalizador()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button></h3>
-                <div class="flex flex-1 min-h-0"><div id="dig-panel" class="w-[330px] flex-none border-r p-3 overflow-y-auto space-y-2"></div>
+                <div class="flex flex-1" style="min-height:0"><div id="dig-panel" class="border-r p-3 space-y-2" style="width:340px; flex:none; overflow-y:auto; min-height:0"></div>
                 <div id="dig-lienzo" class="flex-1 relative bg-slate-100 overflow-hidden" style="cursor:crosshair"><canvas id="dig-canvas" style="position:absolute; left:0; top:0"></canvas><div id="dig-vacio" class="absolute inset-0 flex items-center justify-center text-slate-400 text-center pointer-events-none"><div><i class="fa-solid fa-image text-4xl mb-2"></i><br>Arrastra aquí la imagen de la curva (PNG, JPG o PDF),<br>pégala con Ctrl+V o usa «Cargar imagen».</div></div></div></div></div>`;
             m.style.display = 'flex';
             const L = document.getElementById('dig-lienzo'), C = document.getElementById('dig-canvas');
@@ -9994,6 +9994,7 @@
             if (!c.p0 && !DIG.pts[s].length) c.uQ = ant.uQ;                      // un gráfico nuevo hereda la unidad de caudal del anterior
             if (DIG.grado[s] == null) DIG.grado[s] = CURVAS_EC[s].grado;
             DIG.serie = s; DIG.paso = 0; DIG.modo = calibradaDig(s) ? 'capturar' : 'calibrar'; pintarDig(); pintarPanelDig();
+            if (DIG.img && DIG.modo === 'calibrar') aviso(`${SERIES_DIG[s].nombre}: elige las unidades y calibra sus ejes (1.º clic en el origen de este gráfico).`, 'info');
         }
         // [Q, Y] en las unidades del gráfico <-> unidades de trabajo (m³/h; m; kW; %)
         function aTrabajoDig(s, q, y) { const c = DIG.cal[s], rho = fluidoActual().rho || 1000; return [q * F_Q_DIG[c.uQ], s === 'H' && c.uY === 'bar' ? y * 1e5 / (rho * G) : s === 'pot' ? y * F_P_DIG[c.uY] : y]; }
@@ -10032,7 +10033,8 @@
             const selU = (k, ops) => `<select onchange="DIG.cal[DIG.serie].${k} = this.value; pintarPanelDig()" class="w-full border rounded p-1 mt-0.5" ${ops.length < 2 ? 'disabled' : ''}>${ops.map(o => `<option value="${o[0]}" ${o[0] === c[k] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>`;
             const estado = k => calibradaDig(k) ? (DIG.pts[k].length ? ` · ${DIG.pts[k].length} puntos` : ' · calibrado') : '';
             P.innerHTML = `<div class="flex gap-1"><label class="flex-1 px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-center cursor-pointer"><i class="fa-solid fa-folder-open mr-1"></i>Cargar imagen<input type="file" accept="image/*,.pdf" class="hidden" onchange="cargarImagenDig(this.files[0])"></label></div>
-                <div class="border rounded p-2 space-y-1"><label class="block font-bold text-slate-600">1. Gráfico que se digitaliza<select id="dig-serie" onchange="cambiarSerieDig(this.value)" class="w-full border rounded p-1 mt-0.5 font-normal">${Object.entries(SERIES_DIG).map(([k, d]) => `<option value="${k}" ${k === s ? 'selected' : ''}>${d.nombre}${estado(k)}</option>`).join('')}</select></label>
+                <div class="border rounded p-2 space-y-1"><p class="font-bold text-slate-600">1. Curva que se digitaliza</p>
+                    <div id="dig-curvas" class="grid grid-cols-2 gap-1">${Object.entries(SERIES_DIG).map(([k, d], i) => { const hecha = puntosDig(k).length >= 3, act = k === s; return `<button type="button" data-serie="${k}" onclick="cambiarSerieDig('${k}')" class="text-left px-1.5 py-1 rounded border ${act ? 'border-blue-600 bg-blue-50 font-bold' : 'hover:bg-slate-50'}"><i class="fa-solid ${hecha ? 'fa-circle-check text-emerald-600' : calibradaDig(k) ? 'fa-circle-half-stroke text-amber-500' : 'fa-circle text-slate-300'} mr-1"></i>${i + 1}. ${d.nombre}${k === 'eta' ? ' <span class="font-normal text-slate-400">(opcional)</span>' : ''}<br><span class="font-normal text-[10px] text-slate-400">${hecha ? puntosDig(k).length + ' puntos' : calibradaDig(k) ? 'calibrada, sin curva' : 'pendiente'}</span></button>`; }).join('')}</div>
                     <div class="grid grid-cols-2 gap-1"><label class="block">Unidad del caudal${selU('uQ', UDS_Q_DIG)}</label><label class="block">Unidad de ${nomY}${selU('uY', sd.uds)}</label></div>
                     <p class="text-[10px] text-slate-400">Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes: se calibra por separado, con sus unidades.</p></div>
                 <p class="font-bold text-slate-600">2. Calibrar los ejes y capturar la curva</p>
@@ -10043,11 +10045,12 @@
                     <div class="flex gap-3"><label><input type="checkbox" ${c.logX ? 'checked' : ''} onchange="DIG.cal[DIG.serie].logX = this.checked; pintarTablaDig()"> Eje X logarítmico</label><label><input type="checkbox" ${c.logY ? 'checked' : ''} onchange="DIG.cal[DIG.serie].logY = this.checked; pintarTablaDig()"> Eje Y logarítmico</label></div>
                     ${s === 'eta' && calibradaDig('H') ? `<button onclick="const h = DIG.cal.H, k = DIG.cal[DIG.serie]; Object.assign(k, { p0: h.p0, px: h.px, py: h.py, x0: h.x0, xmax: h.xmax, logX: h.logX, uQ: h.uQ }); pintarDig(); pintarPanelDig()" class="px-2 py-1 border rounded hover:bg-slate-50 w-full">Usar los mismos puntos de ejes que Q – H</button>` : ''}
                     <p class="text-[10px] ${calibradaDig(s) ? 'text-emerald-700' : 'text-amber-700'}">${calibradaDig(s) ? 'Ejes calibrados.' : 'Faltan: ' + [!c.p0 && 'clic en el origen', !c.px && 'clic en X máx', !c.py && 'clic en Y máx', c.x0 === '' && 'valor de Q en el origen', c.y0 === '' && 'valor de ' + nomY + ' en el origen', c.xmax === '' && 'valor de Q máx', c.ymax === '' && 'valor de ' + nomY + ' máx'].filter(Boolean).join(', ') + '.'}</p></div>
+                ${siguienteDig(s) && puntosDig(s).length >= 3 ? `<button type="button" onclick="cambiarSerieDig('${siguienteDig(s)}')" class="w-full px-2 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-medium">Siguiente curva: ${SERIES_DIG[siguienteDig(s)].nombre} <i class="fa-solid fa-arrow-right ml-1"></i></button>` : ''}
                 ${ecuacionPanelDig(s)}
                 <div id="dig-tabla"></div>
                 <p id="dig-cursor" class="text-[10px] text-slate-400 font-mono">&nbsp;</p>
                 ${DIG.pts.pot.length && !DIG.pts.eta.length ? '<p class="text-[10px] text-slate-400">Sin curva de η, el rendimiento se calcula con la potencia: η = ρ·g·Q·H / P.</p>' : ''}
-                <div class="flex gap-1 pt-1 border-t"><button onclick="DIG.pts[DIG.serie].pop(); pintarDig(); pintarPanelDig()" class="px-2 py-1.5 border rounded hover:bg-slate-50"><i class="fa-solid fa-rotate-left mr-1"></i>Deshacer punto</button><span class="flex-1"></span>
+                <div class="flex gap-1 pt-2 pb-1 border-t" style="position:sticky; bottom:-12px; background:#fff"><button onclick="DIG.pts[DIG.serie].pop(); pintarDig(); pintarPanelDig()" class="px-2 py-1.5 border rounded hover:bg-slate-50"><i class="fa-solid fa-rotate-left mr-1"></i>Deshacer punto</button><span class="flex-1"></span>
                     <button onclick="cerrarDigitalizador()" class="px-2 py-1.5 border rounded">Cancelar</button><button onclick="aplicarDigitalizador()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Aplicar</button></div>`;
             pintarTablaDig();
         }
@@ -10059,6 +10062,9 @@
                 ${a ? `<p class="font-mono text-[11px] break-all">${esc(textoEcuacion(a, d.y))}</p><p class="text-[10px] ${a.r2 >= 0.99 ? 'text-emerald-700' : a.r2 >= 0.98 ? 'text-amber-700' : 'text-rose-600'}">Q en m³/h, ${d.y} en ${d.ud} · ${fmt(a.qmin, 2)}–${fmt(a.qmax, 2)} m³/h · R² ${a.r2.toFixed(4)} · error máx. ${fmt(a.emax, 2)} ${d.ud}${n < a.grado + 2 ? ' · pocos puntos para este grado' : ''}</p><p class="text-[10px] text-slate-400">Línea discontinua: la ecuación sobre la imagen.</p>` : `<p class="text-[10px] text-slate-400">${n < 3 ? 'Hacen falta al menos 3 puntos (inicio, fin y uno intermedio).' : 'Calibra los ejes.'}</p>`}</div>`;
         }
         const sd_ = s => SERIES_DIG[s].nombre;
+        // orden guiado: Q – H, Q – NPSHr, Q – P (Q – η es opcional)
+        const ORDEN_DIG = ['H', 'npsh', 'pot'];
+        const siguienteDig = s => ORDEN_DIG.find(k => k !== s && puntosDig(k).length < 3) || null;
         function pintarTablaDig() {
             const T = document.getElementById('dig-tabla'); if (!T || !DIG) return;
             T.innerHTML = Object.entries(SERIES_DIG).filter(([s]) => DIG.pts[s].length).map(([s, d]) => { const pts = puntosDig(s);
@@ -10068,6 +10074,8 @@
             // cada serie, en unidades de trabajo: Q en m³/h; H en m; NPSHr en m; P en kW; η en %
             const H = puntosTrabajoDig('H').sort((a, b) => a[0] - b[0]);
             if (H.length < 3) { alert('Captura en la curva Q – H al menos el punto inicial, el final y uno intermedio.'); return; }
+            const faltan = ORDEN_DIG.filter(k => puntosDig(k).length < 3);
+            if (faltan.length && !confirm(`Faltan por digitalizar: ${faltan.map(k => SERIES_DIG[k].nombre).join(' y ')}.\n\nAceptar: aplicar sin ${faltan.length > 1 ? 'ellas' : 'ella'}.\nCancelar: digitalizar${faltan.length > 1 ? 'las' : 'la'} ahora.`)) { cambiarSerieDig(faltan[0]); return; }
             const ec = { unidades: { Q: 'm³/h', H: 'm', npsh: 'm', pot: 'kW', eta: '%' }, origen: 'digitalizador', fecha: new Date().toISOString() };
             Object.keys(SERIES_DIG).forEach(s => { const a = calibradaDig(s) ? ajusteDig(s) : null; if (a) ec[s] = a; });
             if (!ec.H) { alert('No se ha podido ajustar la ecuación de la curva Q – H: revisa los puntos.'); return; }
