@@ -758,3 +758,52 @@ Incidencias de la puesta en marcha (2026-10-03): función creada con nombre auto
 - Fase 2: lectura asistida de la curva (la IA propone los ejes y el usuario confirma en el digitalizador).
 - Guardar el PDF origen junto a la bomba (Supabase Storage).
 - Mostrar la potencia en la ventana «Curva Q-H» y en el informe.
+
+# PIPING v8.20 · Ecuaciones de las curvas de bomba y validación por el diseñador
+
+Fecha: 2026-10-08. Versión anterior: 8.19.1 (copia en `copias\v8191\`).
+
+## Petición (José)
+Por cada curva de la hoja del fabricante (Q – H, Q – NPSHr, Q – P): 1) origen con sus valores, 2) X máx, 3) Y máx, 4) punto inicial de la curva, 5) punto final, 6) puntos intermedios (cuantos más, mejor). Obtener la ecuación de cada curva, guardarla en la base de datos y usarla en el diseño; el diseñador valida los datos al elegir la bomba.
+
+## Digitalizador (`Librerías > Bombas... > ficha > Digitalizar desde una imagen...`)
+- Por gráfico: elegir gráfico y unidades (Q: m³/h, m³/s, l/min, l/s; H: m o bar; P: kW, CV, HP).
+- Calibración: 1.º clic origen (se piden Q y Y del origen), 2.º clic X máx (se pide su valor), 3.º clic Y máx (se pide su valor).
+- Captura: 4.º clic **punto inicial**, 5.º clic **punto final** (si se marcan al revés se reordenan: inicio = menor caudal), después **puntos intermedios**, que se rechazan si quedan fuera del tramo inicio–fin.
+- Bloque «3. Ecuación de la curva»: polinomio por mínimos cuadrados, grado elegible 1–4 (por defecto Q – H y Q – P de grado 2, Q – NPSHr de grado 3). Se muestran la ecuación, el rango de validez, R² y el error máximo, y la ecuación se dibuja en línea discontinua sobre la imagen.
+- Al aplicar: aviso si R² < 0,98; la tabla de la curva se rellena con los puntos Q – H y los valores de NPSHr, P y η sacados de las ecuaciones en esos caudales.
+
+## Ecuaciones
+- Unidades de trabajo: Q en m³/h; H y NPSHr en m; P en kW; η en %. Forma: Y = c0 + c1·Q + c2·Q² + …
+- Objeto guardado: `{ unidades, origen ('digitalizador' | 'tabla'), fecha, H: {c, grado, n, qmin, qmax, r2, emax}, npsh, pot, eta }`.
+- Sin curva de η, el rendimiento se calcula como η = ρ·g·Q·H / P (agua, 1000 kg/m³).
+- Botón «Calcular ecuaciones de la tabla»: ajusta las ecuaciones a partir de la tabla de puntos (sirve para tablas del fabricante o leídas por la IA).
+- En la ficha: resumen con las ecuaciones, «Quitar ecuaciones» y aviso si la tabla ya no coincide con las ecuaciones.
+- Base de datos: `piping_pumps.curve_equations jsonb` (en `08_bombas.sql`, que hay que volver a ejecutar).
+
+## Uso en el cálculo
+- Al asignar el modelo, la curva del cálculo se genera con las ecuaciones (26 puntos en el rango ajustado); si la ficha trae altura a caudal cero, se añade el punto Q = 0. `el.curvaEc` guarda las ecuaciones.
+- Nuevo aviso del cálculo: punto de funcionamiento fuera del rango de la curva del fabricante (resultado extrapolado).
+
+## Validación por el diseñador
+- Al elegir el modelo de bomba (propiedades o inserción), se abre «Validar la bomba»: modelo, punto de diseño de la ficha, ecuaciones con su rango y R², valores en el caudal de diseño del proyecto (H, NPSHr, P, η) y un gráfico H, NPSHr y P con el caudal de diseño.
+- Comprobaciones: caudal de diseño fuera del rango de la curva; H de la ecuación frente a la de la ficha (> 5 %); potencia en el eje mayor que la del motor; ajustes pobres (R² < 0,98); bomba sin ecuaciones o sin curva.
+- «Validar y asignar» guarda `el.validacionCurva = {usuario, fecha, modelo}`; «Cancelar» deja el modelo anterior. En propiedades se ve «Validada por … el …» o el aviso «Bomba sin validar». Si se quita el modelo, se borran la validación y las ecuaciones.
+
+## Funciones
+`CURVAS_EC`, `ajustarPolinomio`, `evalPoli`, `textoEcuacion`, `ecuacionesDe`, `ecuacionesDeTabla`, `evalCurvasEc`, `puntosDeEcuaciones`, `validarSeleccionBomba`, `dialogoValidarBomba`, `graficoValidarBomba`, `ecuacionesDesdeTablaLib`, `resumenEcuacionesLib`, `aTrabajoDig`, `deTrabajoDig`, `ajusteDig`, `pixelDig`, `ecuacionPanelDig`.
+
+## Pruebas
+Datos de la Pedrollo CP 200-ST (l/min, m, kW):
+- H = 43,32 − 0,0373·Q − 0,0926·Q², R² 0,9991.
+- NPSHr: grado 2 da R² 0,967 y grado 3 da 0,998.
+- P = 0,694 + 0,132·Q − 0,00233·Q², R² 0,9999.
+- En 9 m³/h: H 35,5 m y η 51 % (catálogo 53 %).
+
+Además: ida y vuelta en la base de datos, diálogo validar/cancelar, cálculo con la ecuación y aviso de extrapolación, y regresión 10–23 sin cambios salvo fechas.
+
+## Avisos / mejoras propuestas
+- Los ejes de catálogo no siempre empiezan en 0 (H empieza en 10 m en Pedrollo): se pide siempre el valor del origen.
+- La curva de catálogo no suele empezar en Q = 0: la ecuación solo vale entre inicio y fin; fuera se avisa. La altura a caudal cero de la ficha se usa como punto Q = 0.
+- La curva NPSHr tiene un mínimo y sube rápido al final: grado 3 (o 4) y más puntos en el tramo final.
+- Pendiente: leyes de afinidad (rpm / diámetro de impulsor), potencia en la ventana «Curva Q-H» y en el informe, validación en el informe.
