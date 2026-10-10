@@ -71,3 +71,6 @@ Object.assign(window.PIPING_I18N.pt.d, {"1. Curva que se digitaliza": "1. Curva 
 
 // v8.20.2
 Object.assign(window.PIPING_I18N.pt.d, {"Usar la misma imagen que": "Usar a mesma imagem que", "Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes y su imagen: se calibra por separado, con sus unidades.": "Cada gráfico (Q – H, Q – NPSHr, Q – P) tem os seus próprios eixos e imagem: calibra-se separadamente, com as suas unidades."});
+
+// v8.23
+Object.assign(window.PIPING_I18N.pt.d, {"Punto de trabajo y límites": "Ponto de trabalho e limites", "Velocidad de trabajo con variador (rpm; vacío = nominal)": "Velocidade de trabalho com variador (rpm; vazio = nominal)", "Impulsor recortado (mm; vacío = el de la curva)": "Impulsor cortado (mm; vazio = o da curva)", "Caudal mínimo continuo (m³/h)": "Caudal mínimo contínuo (m³/h)", "Presión máxima del cuerpo (bar)": "Pressão máxima do corpo (bar)"});

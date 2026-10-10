@@ -258,6 +258,8 @@
         //    ec. (3a) P = 2·S·E·W·t/(D − 2·Y·t), E = 1, W = 1, Y = 0,4, t = 0,875·e − c (c = sobreespesor).
         //  - Resto de materiales: sin dato (lo introduce el usuario).
         const S_ADM = { 'Acero al carbono': { S: 137.9, Tmax: 204, mat: 'ASTM A106 Gr. B', c: 1.0 }, 'Acero al carbono EN': { S: 150, Tmax: 204, mat: 'P235GH', c: 1.0 }, 'Acero inoxidable': { S: 115.1, Tmax: 150, mat: 'ASTM A312 TP316L', c: 0 } };
+        // v8.22 · temperatura con la que se reducen PMA y PN: la de diseño TS del proyecto (PED: par PS/TS), nunca menor que la de servicio
+        function tempDiseno(Tservicio) { const ts = +proyecto.tsMax; return isFinite(ts) && proyecto.tsMax !== '' && proyecto.tsMax != null ? Math.max(ts, +Tservicio || 0) : +Tservicio; }
         function pmaTuberia(el, T) {
             if (+el.pmaManual > 0) return { pma: +el.pmaManual, origen: 'dato del usuario' };
             const dt = datosTuberia(el);
@@ -2528,7 +2530,7 @@
         // Tras cada cambio se redibujan los campos, porque unos dependen de otros (material -> serie
         // -> tamaño; modo de K -> tipo Crane / serie de catálogo / K manual).
         // ==================================================================================
-        const CAMPOS_NUMERICOS = ['rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros', 'scale', 'rotation', 'longitud', 'caudal', 'presion', 'h0', 'npsh', 'cota', 'k', 'kRun', 'kBranch', 'theta', 'cvUsuario',
+        const CAMPOS_NUMERICOS = ['rpmTrabajo', 'impulsorTrabajo', 'qMin', 'pCuerpo', 'rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros', 'scale', 'rotation', 'longitud', 'caudal', 'presion', 'h0', 'npsh', 'cota', 'k', 'kRun', 'kBranch', 'theta', 'cvUsuario',
             'cotaA', 'cotaB', 'qNom', 'dpNom', 'qNom2', 'dpNom2', 'cotaEntrada', 'aislamiento', 'lambdaAisl', 'volumen', 'kvs', 'apertura', 'FL', 'eta', 'tamTexto', 'qCons', 'pMin', 'cotaLamina', 'presionDep', 'pmaManual', 'sobreespesor', 'cotaFondo', 'hB', 'hC', 'hLamina', 'pTarado', 'ox', 'oy', 'psRecipiente'];
         const CLS_CTRL = 'w-full bg-white border border-slate-300 rounded p-1 mt-0.5';
         const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -2620,12 +2622,12 @@
                 h += ctrlSelect(fn, 'dn', tams, obj.dn, 'Medida nominal');
                 h += ctrlNum(fn, 'longitud', obj.longitud, 'Longitud (mm)', '1');
                 h += ctrlNum(fn, 'cotaA', mostrarCampo('cotaA', obj.cotaA), 'Cota extremo a (mm)', '1') + ctrlNum(fn, 'cotaB', mostrarCampo('cotaB', obj.cotaB), 'Cota extremo b (mm)', '1');
-                const T = parseFloat(document.getElementById('temp-fluido').value) || 20, pm = pmaTuberia(obj, T);
+                const Tsv = parseFloat(document.getElementById('temp-fluido').value) || 20, T = tempDiseno(Tsv), pm = pmaTuberia(obj, T);
                 if (S_ADM[obj.material]) h += ctrlNum(fn, 'sobreespesor', obj.sobreespesor != null ? obj.sobreespesor : S_ADM[obj.material].c, 'Sobreespesor de corrosión c (mm)', '0.1');
                 h += ctrlMag(fn, 'pmaManual', obj.pmaManual || '', 'PMA manual', '; vacío = automática');
                 h += ctrlNum(fn, 'aislamiento', obj.aislamiento || '', 'Aislamiento, espesor (mm; vacío = sin aislar)', '1') + ctrlNum(fn, 'lambdaAisl', obj.lambdaAisl || 0.040, 'λ del aislamiento (W/m·K)', '0.001');
-                { const eR = aislamientoRITE(dt.od, T, !!proyecto.exterior); if (eR) h += info(`Mínimo RITE a ${T} °C: ${Math.ceil(espesorPorLambda(dt.od, eR, +obj.lambdaAisl > 0 ? +obj.lambdaAisl : 0.04))} mm (λ ${obj.lambdaAisl || 0.040})`); }
-                h += info(`PMA a ${T} °C: <b>${pm.pma != null ? fP(pm.pma, 1) + ' ' + lP() : '<span class="text-amber-600">sin dato</span>'}</b><br>${esc(pm.origen)}`);
+                { const eR = aislamientoRITE(dt.od, Tsv, !!proyecto.exterior); if (eR) h += info(`Mínimo RITE a ${Tsv} °C: ${Math.ceil(espesorPorLambda(dt.od, eR, +obj.lambdaAisl > 0 ? +obj.lambdaAisl : 0.04))} mm (λ ${obj.lambdaAisl || 0.040})`); }
+                h += info(`PMA a ${T} °C${T !== Tsv ? ' (TS de diseño)' : ''}: <b>${pm.pma != null ? fP(pm.pma, 1) + ' ' + lP() : '<span class="text-amber-600">sin dato</span>'}</b><br>${esc(pm.origen)}`);
                 h += info(`${dt.norma}${dt.ref ? ' (sin tabla propia)' : ''}<br>OD ${fmt(dt.od, 1)} · e ${fmt(dt.e, 2)} · <b>Dint ${fmt(dt.Dint, 1)} mm</b><br>Rugosidad ε ${dt.rug} mm`);
             } else if (obj.type === 'valvula' || obj.type === 'accesorio') {
                 const esRed = obj.subtype === 'reduccion', esTee = esNodo(obj);
@@ -2708,6 +2710,12 @@
                 h += ctrlNum(fn, 'rpm', obj.rpm == null ? '' : obj.rpm, 'Velocidad de rotación (rpm)', '1') + ctrlNum(fn, 'potMotor', obj.potMotor == null ? '' : obj.potMotor, 'Potencia del motor (kW)');
                 h += ctrlTexto(fn, 'tension', obj.tension || '', 'Tensión (V)') + ctrlTexto(fn, 'frecuencia', obj.frecuencia || '', 'Frecuencia (Hz)') + ctrlTexto(fn, 'ip', obj.ip || '', 'Grado de protección (IP)');
                 if (!vol) h += ctrlNum(fn, 'impulsor', obj.impulsor == null ? '' : obj.impulsor, 'Diámetro del impulsor (mm)') + ctrlNum(fn, 'impulsorMax', obj.impulsorMax == null ? '' : obj.impulsorMax, 'Diámetro máximo del impulsor (mm)');
+                if (!vol) { h += `<p class="font-bold text-slate-600 pt-1 text-[11px]">Punto de trabajo y límites</p>` + ctrlNum(fn, 'rpmTrabajo', obj.rpmTrabajo == null ? '' : obj.rpmTrabajo, 'Velocidad de trabajo con variador (rpm; vacío = nominal)', '1') + ctrlNum(fn, 'impulsorTrabajo', obj.impulsorTrabajo == null ? '' : obj.impulsorTrabajo, 'Impulsor recortado (mm; vacío = el de la curva)') + ctrlNum(fn, 'qMin', obj.qMin == null ? '' : obj.qMin, 'Caudal mínimo continuo (m³/h)');
+                    const fA = afinidadBomba(obj), bep = bepBomba(obj), rr = ultimoResultado && ultimoResultado[obj.id];
+                    if (fA.activo) h += info(`Leyes de afinidad: n/n₀ = ${fmt(fA.rs, 3)} · D/D₀ = ${fmt(fA.rd, 3)} → Q × ${fmt(fA.r, 3)}, H × ${fmt(fA.r * fA.r, 3)}, P × ${fmt(fA.r ** 3, 3)}${fA.avisos.length ? `<br><span class="text-amber-700">${esc(fA.avisos.join('; '))}</span>` : ''}`);
+                    else if (fA.avisos.length) h += info(`<span class="text-amber-700">${esc(fA.avisos.join('; '))}</span>`);
+                    if (bep) h += info(`BEP: ${fmt(bep.Q, 2)} m³/h · η ${fmt(bep.eta, 1)} % (${esc(bep.origen)})${rr && rr.qBep != null ? ` · trabaja al <b class="${rr.qBep < 0.7 || rr.qBep > 1.2 ? 'text-amber-700' : 'text-emerald-700'}">${fmt(rr.qBep * 100, 0)} %</b> del BEP (zona preferente 70–120 %)` : ''}`); }
+                h += ctrlNum(fn, 'pCuerpo', obj.pCuerpo == null ? '' : obj.pCuerpo, 'Presión máxima del cuerpo (bar)');
                 h += ctrlTexto(fn, 'apiPlan', obj.apiPlan || '', 'Plan de sellado (API 682)');
                 { const dns = [['', '—'], ...LISTA_DN.map(d => [d, etiquetaDN(d)])], pns = [['', '—'], ...PN_LISTA.filter(x => !/^(2000|3000|6000|9000)#$/.test(x))];
                   h += `<p class="font-bold text-slate-600 pt-1 text-[11px]">Conexiones</p>` + ctrlSelect(fn, 'dnAsp', dns, obj.dnAsp || '', 'Entrada (aspiración) · tamaño') + ctrlSelect(fn, 'pnAsp', pns, obj.pnAsp || '', 'Entrada · rating') +
@@ -3388,6 +3396,7 @@
                 a.Qd = (el.caudal || 50) / 3600; // m³/s
                 a.Hd_bar = el.presion != null ? el.presion : 3.5;
                 a.H0_bar = el.h0 != null ? el.h0 : a.Hd_bar * 1.2;
+                { const f = afinidadBomba(el); if (f.activo) { a.Qd *= f.r; a.Hd_bar *= f.r * f.r; a.H0_bar *= f.r * f.r; a.afinidad = f; } }
                 aplicarModeloBomba(a, el);
             }
         }
@@ -3451,10 +3460,37 @@
             let i = 0; while (i < P.length - 2 && Q > P[i + 1][0]) i++;
             return P[i][1] + (P[i + 1][1] - P[i][1]) * (Q - P[i][0]) / Math.max(P[i + 1][0] - P[i][0], 1e-12);
         }
+        // v8.23 · leyes de afinidad: variador (n/n₀) y recorte de impulsor (D/D₀): Q ∝ r, H ∝ r², P ∝ r³; NPSHr ∝ (n/n₀)²
+        function afinidadBomba(el) {
+            if (!el || esVolumetrica(el)) return { rs: 1, rd: 1, r: 1, activo: false, avisos: [] };
+            const av = [], rs = +el.rpmTrabajo > 0 && +el.rpm > 0 ? +el.rpmTrabajo / +el.rpm : 1;
+            let rd = +el.impulsorTrabajo > 0 && +el.impulsor > 0 ? +el.impulsorTrabajo / +el.impulsor : 1;
+            if (+el.rpmTrabajo > 0 && !(+el.rpm > 0)) av.push('falta la velocidad nominal de la curva (rpm) para aplicar el variador');
+            if (+el.impulsorTrabajo > 0 && !(+el.impulsor > 0)) av.push('falta el diámetro de impulsor de la curva para aplicar el recorte');
+            if (+el.impulsorMax > 0 && +el.impulsorTrabajo > +el.impulsorMax) av.push(`impulsor ${el.impulsorTrabajo} mm > máximo ${el.impulsorMax} mm`);
+            if (rd < 0.85) av.push(`recorte del impulsor del ${((1 - rd) * 100).toFixed(0)} % (> 15 %): las leyes de afinidad dejan de ser fiables`);
+            if (rd > 1.0001) av.push('impulsor mayor que el de la curva: la curva se extrapola');
+            if (rs > 1.1) av.push(`velocidad ${((rs - 1) * 100).toFixed(0)} % por encima de la nominal: comprueba motor y fabricante`);
+            if (rs < 0.3) av.push('velocidad por debajo del 30 % de la nominal');
+            return { rs, rd, r: rs * rd, activo: Math.abs(rs * rd - 1) > 1e-9, avisos: av };
+        }
+        // curva del fabricante corregida con las leyes de afinidad: [Q m³/h, H bar, η, NPSHr m, P kW]
+        function curvaEfectiva(el) {
+            const c = el && el.curva; if (!Array.isArray(c)) return c; const f = afinidadBomba(el); if (!f.activo) return c;
+            return c.map(p => [p[0] * f.r, p[1] * f.r * f.r, p[2], p[3] == null ? p[3] : p[3] * f.rs * f.rs, p[4] == null ? p[4] : p[4] * f.r ** 3]);
+        }
+        // punto de mejor rendimiento (BEP), ya corregido con las leyes de afinidad: { Q m³/h, eta %, origen }
+        function bepBomba(el) {
+            if (!el || esVolumetrica(el)) return null; const f = afinidadBomba(el), ec = el.curvaEc;
+            if (ec && ec.H && (ec.eta || ec.pot)) { let best = null; for (let i = 0; i <= 80; i++) { const q = ec.H.qmin + (ec.H.qmax - ec.H.qmin) * i / 80, v = evalCurvasEc(ec, q); if (v.eta != null && (!best || v.eta > best.eta)) best = { Q: q, eta: v.eta }; }
+                if (best && best.Q > ec.H.qmin + 1e-6 && best.Q < ec.H.qmax - 1e-6) return { Q: best.Q * f.r, eta: best.eta, origen: 'ecuaciones de la curva' }; }
+            const c = (el.curva || []).filter(p => p[2] != null && p[2] > 0); if (c.length >= 3) { const m = c.reduce((x, y) => y[2] > x[2] ? y : x); if (m !== c[0] && m !== c[c.length - 1]) return { Q: m[0] * f.r, eta: m[2] * 100, origen: 'puntos de la curva' }; }
+            return null;
+        }
         function aplicarModeloBomba(a, el) {
             a.vol = esVolumetrica(el); a.pts = null;
             if (a.vol) { a.Qvol = caudalVolumetrica(el) / 3600; if (a.Qvol > 0) a.Qd = a.Qvol; if (+el.volPmax > 0) a.H0_bar = +el.volPmax; }
-            else if (el.curvaModo === 'puntos' && Array.isArray(el.curva) && el.curva.length >= 2) a.pts = el.curva.map(p => [p[0] / 3600, +p[1]]).sort((x, y) => x[0] - y[0]);
+            else if (el.curvaModo === 'puntos' && Array.isArray(el.curva) && el.curva.length >= 2) a.pts = curvaEfectiva(el).map(p => [p[0] / 3600, +p[1]]).sort((x, y) => x[0] - y[0]);
         }
         function actualizarResistencia(a, fluido) {
             if (a.esBomba && a.pts) {
@@ -3857,8 +3893,8 @@
                     const Hop = Hnodo[a.nodoB] - Hnodo[a.nodoA];
                     Object.assign(r, { Q: Math.abs(a.Qprev) * 3600, H: Hop, npshd, potencia: fluido.rho * G * a.Qprev * Hop / 1000 });
                     // rendimiento y NPSHr del punto de funcionamiento, si la curva del fabricante los trae
-                    const etaC = interpolarCurva(el.curva, 2, r.Q), npshC = interpolarCurva(el.curva, 3, r.Q);
-                    r.npshr = npshC != null ? npshC : el.npsh; r.etaOp = etaC != null && etaC > 0 ? etaC : null; r.tipoBomba = el.bombaTipo || 'centrifuga';
+                    const cE = curvaEfectiva(el), fA = afinidadBomba(el), etaC = interpolarCurva(cE, 2, r.Q), npshC = interpolarCurva(cE, 3, r.Q), potC = interpolarCurva(cE, 4, r.Q);
+                    r.npshr = npshC != null ? npshC : (+el.npsh || 0) * fA.rs * fA.rs; r.potEje = potC; r.afinidad = fA.activo ? { rs: fA.rs, rd: fA.rd, r: fA.r } : null; r.etaOp = etaC != null && etaC > 0 ? etaC : null; r.tipoBomba = el.bombaTipo || 'centrifuga';
                     if (a.vol) {
                         r.dp = Hop * fluido.rho * G / 1e5;
                         if (+el.volPmax > 0 && r.dp > +el.volPmax) motivos.push(`Presión de descarga necesaria ${r.dp.toFixed(2)} bar > presión máxima de trabajo ${(+el.volPmax).toFixed(2)} bar (bomba volumétrica: hace falta válvula de alivio)`);
@@ -3867,7 +3903,15 @@
                     }
                     { const etaB = r.etaOp || (+el.eta > 0 ? +el.eta : 0.70), etaM = +proyecto.etaMotor > 0 ? +proyecto.etaMotor : 0.90, horas = +proyecto.horasAnuales > 0 ? +proyecto.horasAnuales : 4000, precio = +proyecto.precioEnergia > 0 ? +proyecto.precioEnergia : 0.15;
                       const Pe = Math.max(r.potencia, 0) / etaB / etaM; r.energia = { etaB, etaM, horas, precio, Pe, kWh: Pe * horas, eur: Pe * horas * precio }; }
-                    if (el.curvaEc && el.curvaEc.H && !a.vol && (r.Q > el.curvaEc.H.qmax * 1.001 || r.Q < el.curvaEc.H.qmin * 0.999 - 1e-6)) motivos.push(`Punto de funcionamiento (${r.Q.toFixed(2)} m³/h) fuera del rango de la curva del fabricante (${el.curvaEc.H.qmin.toFixed(2)} – ${el.curvaEc.H.qmax.toFixed(2)} m³/h): resultado extrapolado`);
+                    if (el.curvaEc && el.curvaEc.H && !a.vol && (r.Q > el.curvaEc.H.qmax * fA.r * 1.001 || r.Q < el.curvaEc.H.qmin * fA.r * 0.999 - 1e-6)) motivos.push(`Punto de funcionamiento (${r.Q.toFixed(2)} m³/h) fuera del rango de la curva del fabricante (${(el.curvaEc.H.qmin * fA.r).toFixed(2)} – ${(el.curvaEc.H.qmax * fA.r).toFixed(2)} m³/h): resultado extrapolado`);
+                    if (!a.vol) {
+                        fA.avisos.forEach(x => resultado.avisosRed.push(`${tagDe(el)}: leyes de afinidad: ${x}.`));
+                        // caudal mínimo continuo (fallo) y zona preferente de operación 70–120 % del BEP (aviso, ANSI/HI 9.6.3)
+                        if (+el.qMin > 0 && r.Q < +el.qMin * fA.r - 1e-6) motivos.push(`Q de funcionamiento ${r.Q.toFixed(2)} m³/h < caudal mínimo continuo ${(+el.qMin * fA.r).toFixed(2)} m³/h`);
+                        const bep = bepBomba(el); r.bep = bep;
+                        if (bep && bep.Q > 0) { r.qBep = r.Q / bep.Q; if (r.qBep < 0.7 || r.qBep > 1.2) resultado.avisosRed.push(`${tagDe(el)}: trabaja al ${(r.qBep * 100).toFixed(0)} % del caudal de mejor rendimiento (BEP ${bep.Q.toFixed(2)} m³/h, η ${bep.eta.toFixed(0)} %), fuera de la zona preferente 70–120 % (ANSI/HI 9.6.3): más vibración, recirculación y desgaste.`); }
+                        if (r.potEje != null && +el.potMotor > 0 && r.potEje > +el.potMotor * 1.0001) motivos.push(`Potencia en el eje ${r.potEje.toFixed(2)} kW > potencia del motor ${(+el.potMotor).toFixed(2)} kW`);
+                    }
                     if (npshd != null && npshd - r.npshr < opciones.margenNPSH) motivos.push(`NPSHd ${npshd.toFixed(2)} m < NPSHr + margen (${(r.npshr + opciones.margenNPSH).toFixed(2)} m)`);
                 } else {
                     const hf = hfDeArista(a);
@@ -3934,7 +3978,7 @@
                     }
                     if (/PMA/.test(txt)) {
                         const t = m.tamanos.find(x => x.clave === el.dn);
-                        const ok = m.series.filter(sr => t && t.e[sr] != null && sr !== el.serie).map(sr => ({ sr, p: pmaTuberia(Object.assign({}, el, { serie: sr, pmaManual: null }), fluido.T).pma })).filter(x => x.p != null && x.p >= (r.preq || r.pmax)).sort((x, y) => x.p - y.p)[0];
+                        const ok = m.series.filter(sr => t && t.e[sr] != null && sr !== el.serie).map(sr => ({ sr, p: pmaTuberia(Object.assign({}, el, { serie: sr, pmaManual: null }), tempDiseno(fluido.T)).pma })).filter(x => x.p != null && x.p >= (r.preq || r.pmax)).sort((x, y) => x.p - y.p)[0];
                         if (ok) altA(`Serie: ${/^[0-9]+S?$/.test(ok.sr) ? 'Sch ' + ok.sr : ok.sr} (PMA ${ok.p.toFixed(1)} bar ≥ ${(r.preq || r.pmax).toFixed(2)} bar)`, `Serie ${/^[0-9]+S?$/.test(ok.sr) ? 'Sch ' + ok.sr : ok.sr}`, [['serie', ok.sr]]);
                         else alt.push('Ninguna serie de este material alcanza la presión: cambia de material (p. ej. acero) o reduce la presión de servicio.');
                     }
@@ -3942,8 +3986,8 @@
                 if ((el.type === 'valvula' || el.type === 'accesorio' || el.type === 'equipo') && a) {
                     if (r.fallaPN) {
                         const esPN = /^PN/.test(el.pn);
-                        const sig = PN_LISTA.filter(x => esPN ? x.startsWith('PN') : x.endsWith('#')).find(x => (presionAdmisiblePN(x, fluido.T, r.pnInox) || 0) >= Math.max(r.pmaxComp, +proyecto.presionDiseno || 0));
-                        if (sig) altA(`Presión nominal: ${sig} (${presionAdmisiblePN(sig, fluido.T, r.pnInox).toFixed(1)} bar ≥ ${Math.max(r.pmaxComp, +proyecto.presionDiseno || 0).toFixed(2)} bar)`, `Cambiar a ${sig}`, [['pn', sig]]);
+                        const sig = PN_LISTA.filter(x => esPN ? x.startsWith('PN') : x.endsWith('#')).find(x => (presionAdmisiblePN(x, tempDiseno(fluido.T), r.pnInox) || 0) >= Math.max(r.pmaxComp, +proyecto.presionDiseno || 0));
+                        if (sig) altA(`Presión nominal: ${sig} (${presionAdmisiblePN(sig, tempDiseno(fluido.T), r.pnInox).toFixed(1)} bar ≥ ${Math.max(r.pmaxComp, +proyecto.presionDiseno || 0).toFixed(2)} bar)`, `Cambiar a ${sig}`, [['pn', sig]]);
                         else alt.push('Ninguna presión nominal de la serie alcanza la presión de servicio.');
                     }
                     const Q = Math.abs(a.Qprev), vl = a.lado === 'asp' ? lim.asp : lim.imp;
@@ -3967,6 +4011,9 @@
                 if (el.type === 'bomba') {
                     if (/NPSHd/.test(txt)) alt.push(`NPSH: sube el nivel de aspiración o baja la bomba ${Math.max(0, (el.npsh + opciones.margenNPSH) - (r.npshd || 0)).toFixed(2)} m, aumenta el DN de aspiración o elige una bomba con NPSHr ≤ ${Math.max(0, (r.npshd || 0) - opciones.margenNPSH).toFixed(2)} m.`);
                     if (/caudal de diseño/.test(txt)) alt.push('Caudal: usa Herramientas > Dimensionar bomba para obtener el punto Q-H necesario.');
+                    if (/cuerpo/.test(txt)) alt.push('Cuerpo: elige una bomba con mayor presión de cuerpo (PN de la carcasa) o reduce la presión de aspiración / de diseño.');
+                    if (/caudal mínimo continuo/.test(txt)) alt.push('Caudal mínimo: recirculación de caudal mínimo (by-pass con orificio o válvula automática), variador o una bomba más pequeña.');
+                    if (/Potencia en el eje/.test(txt)) alt.push('Motor: elige un motor mayor (con margen sobre la potencia en el fin de curva) o limita el caudal (variador, válvula de regulación).');
                 }
                 if (el.subtype === 'consumo' && /p mín/.test(txt)) alt.push(`Falta ${((+el.pMin || 0) - r.p).toFixed(2)} bar (${(((+el.pMin || 0) - r.p) * 1e5 / (fluido.rho * G)).toFixed(2)} m c.l.): aumenta la altura de la bomba (Herramientas > Dimensionar bomba) o reduce pérdidas en su ruta.`);
                 if (/vaporización/.test(txt)) alt.push('Vaporización: aumenta la presión en ese punto (más altura de aspiración o de bomba) o reduce la cota del tramo.');
@@ -4010,7 +4057,7 @@
             const tc = +proyecto.tCierre > 0 ? +proyecto.tCierre : 0;
             aristas.filter(a => a.el.type === 'tuberia').forEach(a => {
                 const el = a.el, tag = tagDe(el), r = ultimoResultado[el.id];
-                const pm = pmaTuberia(el, fluido.T), pmax = Math.max(a.pA, a.pB);
+                const pm = pmaTuberia(el, tempDiseno(fluido.T)), pmax = Math.max(a.pA, a.pB);
                 a.pma = pm.pma; a.pmaOrigen = pm.origen; a.pmax = pmax;
                 a.pCierre = (Hcierre != null && a.lado === 'imp') ? Math.max(...[a.nodoA, a.nodoB].map(n => bar((Hcierre - z[n]) * fluido.rho * G - PRESION_ATM))) : null;
                 a.ariete = arieteTuberia(a, fluido, Llinea[el.linea || '?'], tc);
@@ -4032,15 +4079,23 @@
                 if (vistosPN.has(el.id)) return;
                 const tubs = aristas.filter(t => t.el.type === 'tuberia' && [t.nodoA, t.nodoB].some(n => n === a.nodoA || n === a.nodoB));
                 const inox = tubs.some(t => matBase(t.el.material) === 'Acero inoxidable');
-                const adm = presionAdmisiblePN(el.pn, fluido.T, inox);
+                const Td = tempDiseno(fluido.T), adm = presionAdmisiblePN(el.pn, Td, inox);
                 r.pnAdm = adm; r.pnInox = inox;
                 const pDisC = +proyecto.presionDiseno > 0 ? +proyecto.presionDiseno : 0;
-                if (adm != null && r.pmaxComp > adm + 1e-6) { vistosPN.add(el.id); fallo(el, `p ${r.pmaxComp.toFixed(2)} bar > ${el.pn} (${adm.toFixed(1)} bar a ${fluido.T} °C)`); r.fallaPN = true; }
-                else if (adm != null && pDisC > adm + 1e-6) { vistosPN.add(el.id); fallo(el, `${el.pn} (${adm.toFixed(1)} bar a ${fluido.T} °C) < presión de diseño ${pDisC.toFixed(2)} bar`); r.fallaPN = true; }
+                if (adm != null && r.pmaxComp > adm + 1e-6) { vistosPN.add(el.id); fallo(el, `p ${r.pmaxComp.toFixed(2)} bar > ${el.pn} (${adm.toFixed(1)} bar a ${Td} °C)`); r.fallaPN = true; }
+                else if (adm != null && pDisC > adm + 1e-6) { vistosPN.add(el.id); fallo(el, `${el.pn} (${adm.toFixed(1)} bar a ${Td} °C) < presión de diseño ${pDisC.toFixed(2)} bar`); r.fallaPN = true; }
                 if (adm != null && Hcierre != null && a.lado === 'imp') {
                     const pc = Math.max(...[a.nodoA, a.nodoB].map(n => bar((Hcierre - z[n]) * fluido.rho * G - PRESION_ATM)));
                     if (pc > adm) avisos.push(`${tagDe(el)}: a caudal nulo p = ${pc.toFixed(2)} bar > ${el.pn} (${adm.toFixed(1)} bar).`);
                 }
+            });
+            // v8.23 · presión máxima del cuerpo de la bomba frente a la de descarga, la de diseño y la de cierre
+            aristas.filter(a => a.esBomba && +a.el.pCuerpo > 0).forEach(a => {
+                const el = a.el, pc = +el.pCuerpo, pmaxB = Math.max(a.pA, a.pB), pDis = +proyecto.presionDiseno > 0 ? +proyecto.presionDiseno : 0, r = ultimoResultado[el.id];
+                const pCierreB = bar((Hnodo[a.nodoA] + (a.H0cierre != null ? a.H0cierre : a.H0m) - z[a.nodoB]) * fluido.rho * G - PRESION_ATM); if (r) r.pCierreBomba = pCierreB;
+                if (pmaxB > pc + 1e-6) fallo(el, `p descarga ${pmaxB.toFixed(2)} bar > presión máxima del cuerpo ${pc.toFixed(2)} bar`);
+                else if (pDis > pc + 1e-6) fallo(el, `presión máxima del cuerpo ${pc.toFixed(2)} bar < presión de diseño ${pDis.toFixed(2)} bar`);
+                else if (isFinite(pCierreB) && pCierreB > pc + 1e-6) avisos.push(`${tagDe(el)}: a caudal nulo (válvula de impulsión cerrada) p = ${pCierreB.toFixed(2)} bar > presión máxima del cuerpo ${pc.toFixed(2)} bar.`);
             });
             // válvulas de control: cavitación (IEC 60534): Δp estrangulado = FL²·(p1 − FF·pv), FF = 0,96 − 0,28·√(pv/pc)
             aristas.filter(a => a.el.type === 'valvula' && a.el.modoK === 'kvs' && Math.abs(a.Qprev) > 1e-7).forEach(a => {
@@ -4672,7 +4727,7 @@
                 ['potMotor', 'Potencia del motor (kW)', 'num'], ['eta', 'Rendimiento en el punto de diseño (%)', 'num'], ['tension', 'Tensión (V)', 'txt'], ['frecuencia', 'Frecuencia (Hz)', 'txt'], ['ip', 'Grado de protección (IP)', 'txt'],
                 ['impulsor', 'Diámetro del impulsor (mm)', 'num', null, 'cen'], ['impulsorMax', 'Diámetro máximo del impulsor (mm)', 'num', null, 'cen'],
                 ['volCilindrada', 'Volumen por ciclo / revolución (cm³)', 'num', null, 'vol'], ['volPmax', 'Presión máxima de trabajo (bar) *', 'num', null, 'vol'], ['volCiclos', 'Ciclos o revoluciones por minuto', 'num', null, 'vol'], ['volCilindros', 'N.º de cilindros / pulsaciones por ciclo', 'num', null, 'vol'], ['volMaterial', 'Material de manguera, válvulas o sellos', 'txt', null, 'vol'],
-                ['dnAsp', 'Brida de aspiración', 'dn'], ['dnImp', 'Brida de impulsión', 'dn'], ['normaBridas', 'Norma de las bridas', 'sel', ['ASME', 'EN']], ['rating', 'PN / Rating', 'sel', PN_LISTA_BRIDAS], ['apiPlan', 'Plan de sellado (API 682)', 'txt'],
+                ['dnAsp', 'Brida de aspiración', 'dn'], ['dnImp', 'Brida de impulsión', 'dn'], ['normaBridas', 'Norma de las bridas', 'sel', ['ASME', 'EN']], ['rating', 'PN / Rating', 'sel', PN_LISTA_BRIDAS], ['apiPlan', 'Plan de sellado (API 682)', 'txt'], ['qMin', 'Caudal mínimo continuo (m³/h)', 'num', null, 'cen'], ['pCuerpo', 'Presión máxima del cuerpo (bar)', 'num'],
                 ['curva', 'Curva característica: una fila por punto con caudal (m³/h), altura (m), rendimiento (%), NPSHr (m) y potencia en el eje (kW)', 'curva', null, 'cen']],
             instrumentos: [['rango', 'Rango / escala', 'txt'], ['dnInstr', 'Conexión a proceso', 'dn'], ['precision', 'Clase de precisión', 'txt']],
             uniones: [['cara', 'Tipo de cara', 'sel', ['RF (resalte)', 'FF (plana)', 'RTJ (junta anular)', 'Roscada', 'Encolada / termofusión']], ['normaDim', 'Norma dimensional', 'sel', ['ASME B16.5', 'ASME B16.47', 'ASME B16.11', 'EN 1092-1', 'EN 1092-2', 'EN 1092-3', 'DIN / ISO (plásticos)']]],
@@ -4967,8 +5022,12 @@
                 if (n(p.caudal) > 0 && n(p.altura) > 0) { const h = evalCurvasEc(ec, n(p.caudal), rho).H; if (h != null && Math.abs(h - n(p.altura)) > 0.05 * n(p.altura)) av.push(`La ecuación da ${fmt(h, 2)} m en el caudal de la ficha y la ficha dice ${fmt(n(p.altura), 2)} m (diferencia > 5 %).`); }
                 if (ec.pot && n(p.potMotor) > 0) { const pm = Math.max(evalPoli(ec.pot.c, ec.pot.qmin), evalPoli(ec.pot.c, ec.pot.qmax)); if (pm > n(p.potMotor) * 1.001) av.push(`La potencia en el eje llega a ${fmt(pm, 2)} kW y el motor es de ${fmt(n(p.potMotor), 2)} kW.`); }
                 Object.entries(CURVAS_EC).forEach(([k, d]) => { const e = ec[k]; if (e && e.r2 < 0.98) av.push(`Ajuste pobre de la curva ${d.nombre} (R² ${e.r2.toFixed(3)}): revisa los puntos o el grado.`); });
+                { const bep = bepBomba({ curvaEc: ec, curva: [] }); if (bep) { t += fila('BEP', `${fmt(bep.Q, 2)} m³/h · η ${fmt(bep.eta, 1)} %${Qd > 0 ? ` · el caudal de diseño es el ${fmt(Qd / bep.Q * 100, 0)} % del BEP` : ''}`); if (Qd > 0 && (Qd / bep.Q < 0.7 || Qd / bep.Q > 1.2)) av.push(`El caudal de diseño queda al ${fmt(Qd / bep.Q * 100, 0)} % del BEP, fuera de la zona preferente 70–120 % (ANSI/HI 9.6.3).`); } }
             } else if (pts.length >= 2) { t += fila('Curva', `${pts.length} puntos (interpolación lineal, sin ecuación) · ${fmt(pts[0][0], 2)} – ${fmt(pts[pts.length - 1][0], 2)} m³/h`); av.push('La bomba no tiene ecuaciones de curva: en la librería, «Calcular ecuaciones» o digitaliza la curva.'); }
             else { t += fila('Curva', 'sin curva: se usa la parábola por el punto de diseño y la altura a caudal cero'); av.push('Sin curva del fabricante: el cálculo es aproximado.'); }
+            if (n(p.qMin) > 0) { t += fila('Caudal mínimo continuo', `${fmt(n(p.qMin), 2)} m³/h`); if (Qd > 0 && Qd < n(p.qMin)) av.push(`El caudal de diseño (${fmt(Qd, 2)} m³/h) es menor que el caudal mínimo continuo (${fmt(n(p.qMin), 2)} m³/h).`); }
+            if (n(p.pCuerpo) > 0) { t += fila('Presión máxima del cuerpo', `${fmt(n(p.pCuerpo), 2)} bar`); if (+proyecto.presionDiseno > n(p.pCuerpo)) av.push(`La presión de diseño (${fmt(+proyecto.presionDiseno, 2)} bar) supera la presión máxima del cuerpo (${fmt(n(p.pCuerpo), 2)} bar).`); }
+            else if (!vol) av.push('Falta la presión máxima del cuerpo de la bomba: no se puede comprobar frente a la presión de diseño.');
             const html = `<p class="text-xs text-slate-600 mb-2">Revisa los datos de la bomba antes de asignarla. Al validar, queda registrado quién la validó y cuándo.</p><table class="w-full text-xs mb-2"><tbody>${t}</tbody></table>${graficoValidarBomba(ec, pts, Qd)}${av.length ? `<div class="mt-2 p-2 rounded text-xs" style="background:#fffbeb;border:1px solid #fcd34d;color:#78350f"><b>Revisar:</b><ul class="list-disc ml-4">${av.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div>` : '<p class="mt-2 text-xs text-emerald-700"><i class="fa-solid fa-circle-check mr-1"></i>Sin incoherencias detectadas.</p>'}`;
             return dialogo('<i class="fa-solid fa-clipboard-check text-blue-600 mr-1.5"></i>Validar la bomba', html, [{ texto: 'Cancelar', valor: null }, { texto: 'Validar y asignar', valor: true, clase: 'bg-blue-600 hover:bg-blue-700 text-white' }]);
         }
@@ -7649,7 +7708,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.21';
+        const VERSION_WEB = '8.23';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -9714,7 +9773,7 @@
             if (num(p.alturaCero) != null) el.h0 = +aBar(num(p.alturaCero)).toFixed(4); else if (num(p.h0) != null) el.h0 = num(p.h0); else if (num(p.altura) != null) el.h0 = +(el.presion * 1.2).toFixed(4);
             if (num(p.npsh) != null) el.npsh = num(p.npsh);
             if (num(p.eta) != null) el.eta = num(p.eta) > 1 ? num(p.eta) / 100 : num(p.eta);
-            ['rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros'].forEach(k => { if (num(p[k]) != null) el[k] = num(p[k]); else delete el[k]; });
+            ['rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros', 'qMin', 'pCuerpo'].forEach(k => { if (num(p[k]) != null) el[k] = num(p[k]); else delete el[k]; });
             ['tension', 'frecuencia', 'ip', 'volMaterial', 'apiPlan', 'fluidoDiseno'].forEach(k => { if (p[k]) el[k] = p[k]; else delete el[k]; });
             if (p.dnAsp) el.dnAsp = p.dnAsp; if (p.dnImp) el.dnImp = p.dnImp;
             if (p.rating) { el.pnAsp = p.rating; el.pnImp = p.rating; }
@@ -9781,14 +9840,14 @@
                 props: { tag: r.tag_name || '', bombaTipo: tipoDeBD(r.pump_type), fluidoDiseno: r.design_fluid || '', caudal: r.design_flow_m3h, altura: r.design_head_m, alturaCero: r.shutoff_head_m == null ? '' : r.shutoff_head_m, npsh: r.npshr_m == null ? '' : r.npshr_m, rpm: r.operational_rpm == null ? '' : r.operational_rpm,
                     potMotor: r.motor_power_kw == null ? '' : r.motor_power_kw, eta: r.efficiency_pct == null ? '' : r.efficiency_pct, tension: r.voltage || '', frecuencia: r.frequency_hz || '', ip: r.ip_rating || '', impulsor: r.impeller_mm == null ? '' : r.impeller_mm, impulsorMax: r.impeller_max_mm == null ? '' : r.impeller_max_mm,
                     dnAsp: r.suction_size || '', dnImp: r.discharge_size || '', normaBridas: r.flange_standard || '', rating: r.pressure_rating || '', apiPlan: r.api_plan || '',
-                    curva: textoDeCurva(c.map(x => [x.flow_m3h, x.head_m, x.efficiency_pct, x.npshr_m, x.power_kw])), ecuaciones: r.curve_equations && r.curve_equations.H ? JSON.stringify(r.curve_equations) : '',
+                    curva: textoDeCurva(c.map(x => [x.flow_m3h, x.head_m, x.efficiency_pct, x.npshr_m, x.power_kw])), ecuaciones: r.curve_equations && r.curve_equations.H ? JSON.stringify(r.curve_equations) : '', qMin: r.min_flow_m3h == null ? '' : r.min_flow_m3h, pCuerpo: r.casing_max_pressure_bar == null ? '' : r.casing_max_pressure_bar,
                     volCilindrada: v.displacement_per_stroke_cm3 == null ? '' : v.displacement_per_stroke_cm3, volPmax: v.max_discharge_pressure_bar == null ? '' : v.max_discharge_pressure_bar, volCiclos: v.strokes_per_minute == null ? '' : v.strokes_per_minute, volCilindros: v.cylinders == null ? '' : v.cylinders, volMaterial: v.internal_material || '' } };
         }
         function bombaBDDeItem(b) {
             const p = b.props || {}, n = v => v === '' || v == null || isNaN(+String(v).replace(',', '.')) ? null : +String(v).replace(',', '.'), vol = p.bombaTipo && p.bombaTipo !== 'centrifuga';
             return { pump_id: /^usr:/.test(b.id) ? '' : b.id, tag_name: p.tag || '', pump_type: TIPO_BD_BOMBA[p.bombaTipo || 'centrifuga'], manufacturer: b.fabricante || '', model: b.referencia || b.nombre || '', design_fluid: p.fluidoDiseno || '',
                 design_flow_m3h: n(p.caudal), design_head_m: n(p.altura), shutoff_head_m: n(p.alturaCero), npshr_m: n(p.npsh), operational_rpm: n(p.rpm), motor_power_kw: n(p.potMotor), efficiency_pct: n(p.eta) == null ? null : (n(p.eta) <= 1 ? n(p.eta) * 100 : n(p.eta)),
-                voltage: p.tension || '', frequency_hz: p.frecuencia || '', ip_rating: p.ip || '', impeller_mm: n(p.impulsor), impeller_max_mm: n(p.impulsorMax), suction_size: p.dnAsp || '', discharge_size: p.dnImp || '', flange_standard: p.normaBridas || '', pressure_rating: p.rating || '', api_plan: p.apiPlan || '', url: b.url || '', notes: b.notas || '', curve_equations: vol ? null : ecuacionesDe(p),
+                voltage: p.tension || '', frequency_hz: p.frecuencia || '', ip_rating: p.ip || '', impeller_mm: n(p.impulsor), impeller_max_mm: n(p.impulsorMax), suction_size: p.dnAsp || '', discharge_size: p.dnImp || '', flange_standard: p.normaBridas || '', pressure_rating: p.rating || '', api_plan: p.apiPlan || '', min_flow_m3h: n(p.qMin), casing_max_pressure_bar: n(p.pCuerpo), url: b.url || '', notes: b.notas || '', curve_equations: vol ? null : ecuacionesDe(p),
                 curves: vol ? [] : leerTextoCurva(p.curva).map(q => ({ flow_m3h: q[0], head_m: q[1], efficiency_pct: q[2], npshr_m: q[3], power_kw: q[4] })),
                 volumetric: vol ? { displacement_per_stroke_cm3: n(p.volCilindrada), max_discharge_pressure_bar: n(p.volPmax), strokes_per_minute: n(p.volCiclos), cylinders: n(p.volCilindros), internal_material: p.volMaterial || '' } : null };
         }
@@ -9870,7 +9929,7 @@
                 const m = rt.replace(',', '.').match(/(\d+(?:\.\d+)?)/), esPN = /pn/i.test(rt), cand = m ? (esPN ? 'PN ' + m[1] : m[1] + '#') : '';
                 if (PN_LISTA_BRIDAS.includes(cand)) prop('rating', cand); else avisos.push(`PN / Rating «${rt}» no reconocido: indícalo a mano.`);
             }
-            prop('apiPlan', tt(d.plan_sellado));
+            prop('apiPlan', tt(d.plan_sellado)); prop('qMin', red(d.caudal_minimo_m3h)); prop('pCuerpo', red(d.presion_max_cuerpo_bar));
             const pts = (Array.isArray(d.curva_tabulada) ? d.curva_tabulada : []).map(q => [nn(q.q_m3h), nn(q.h_m), nn(q.eta_pct), nn(q.npshr_m)]).filter(q => q[0] != null && q[0] >= 0 && q[1] > 0).sort((x, y) => x[0] - y[0]);
             const vol = P.bombaTipo && P.bombaTipo !== 'centrifuga';
             if (pts.length >= 2 && !vol) prop('curva', textoDeCurva(pts));

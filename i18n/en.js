@@ -71,3 +71,6 @@ Object.assign(window.PIPING_I18N.en.d, {"1. Curva que se digitaliza": "1. Curve 
 
 // v8.20.2
 Object.assign(window.PIPING_I18N.en.d, {"Usar la misma imagen que": "Use the same image as", "Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes y su imagen: se calibra por separado, con sus unidades.": "Each chart (Q – H, Q – NPSHr, Q – P) has its own axes and image: it is calibrated separately, with its own units."});
+
+// v8.23
+Object.assign(window.PIPING_I18N.en.d, {"Punto de trabajo y límites": "Operating point and limits", "Velocidad de trabajo con variador (rpm; vacío = nominal)": "Operating speed with VFD (rpm; empty = rated)", "Impulsor recortado (mm; vacío = el de la curva)": "Trimmed impeller (mm; empty = curve diameter)", "Caudal mínimo continuo (m³/h)": "Minimum continuous flow (m³/h)", "Presión máxima del cuerpo (bar)": "Maximum casing pressure (bar)"});

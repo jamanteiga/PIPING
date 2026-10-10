@@ -351,9 +351,9 @@ function justificacion(el, ars) {
                 F.push(['Cotas de los extremos', 'z a, z b', '', `${nf(el.cotaA, 2)} / ${nf(el.cotaB, 2)} m`]);
                 F.push(['Presión manométrica en los extremos', 'p = (H − z)·ρ·g − p_atm', `H = ${nf(res.Hnodo[a.nodoA], 3)} / ${nf(res.Hnodo[a.nodoB], 3)} m`, `${nf(a.pA, 3)} / ${nf(a.pB, 3)} bar`]);
                 F.push(['Presión mínima (vaporización)', 'p abs ≥ pv', `${nf(Math.min(res.pAbs[a.nodoA], res.pAbs[a.nodoB]) / 1000, 2)} ≥ ${nf(fl.pv / 1000, 3)} kPa`, 'CUMPLE']);
-                const pm = pmaTuberia(el, fl.T);
-                if (pm.t != null) F.push(['Presión máxima admisible', 'PMA = 2·S·E·W·t/(D − 2·Y·t);  t = 0,875·e − c', `S = ${nf(pm.S, 1)} MPa; E = W = 1; Y = 0,4; t = 0,875 × ${nf(dt.e, 2)} − ${nf(pm.c, 1)} = ${nf(pm.t, 3)} mm; D = ${nf(dt.od, 1)} mm`, `${nf(pm.pma, 1)} bar`]);
-                else if (pm.PN != null) F.push(['Presión máxima admisible', 'PMA = PN·fT', `${nf(pm.PN, 0)} × ${nf(pm.fT, 2)}  (${pm.origen.replace(/^.*\(/, '').replace(/\)$/, '')})`, `${nf(pm.pma, 1)} bar`]);
+                const pm = pmaTuberia(el, tempDiseno(fl.T));
+                if (pm.t != null) F.push([`Presión máxima admisible (a ${tempDiseno(fl.T)} °C)`, 'PMA = 2·S·E·W·t/(D − 2·Y·t);  t = 0,875·e − c', `S = ${nf(pm.S, 1)} MPa; E = W = 1; Y = 0,4; t = 0,875 × ${nf(dt.e, 2)} − ${nf(pm.c, 1)} = ${nf(pm.t, 3)} mm; D = ${nf(dt.od, 1)} mm`, `${nf(pm.pma, 1)} bar`]);
+                else if (pm.PN != null) F.push([`Presión máxima admisible (a ${tempDiseno(fl.T)} °C)`, 'PMA = PN·fT', `${nf(pm.PN, 0)} × ${nf(pm.fT, 2)}  (${pm.origen.replace(/^.*\(/, '').replace(/\)$/, '')})`, `${nf(pm.pma, 1)} bar`]);
                 else F.push(['Presión máxima admisible', 'Dato del usuario', '', pm.pma != null ? `${nf(pm.pma, 1)} bar` : '—']);
                 if (pm.pma != null) {
                     F.push(['Comprobación de presión de servicio', 'p máx ≤ PMA', `${nf(a.pmax, 3)} ≤ ${nf(pm.pma, 1)} bar`, a.pmax <= pm.pma ? 'CUMPLE' : 'NO CUMPLE']);

@@ -71,3 +71,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"1. Curva que se digitaliza": "1. 디지
 
 // v8.20.2
 Object.assign(window.PIPING_I18N.ko.d, {"Usar la misma imagen que": "다음과 같은 이미지 사용:", "Cada gráfico (Q – H, Q – NPSHr, Q – P) tiene sus propios ejes y su imagen: se calibra por separado, con sus unidades.": "각 그래프(Q – H, Q – NPSHr, Q – P)는 자체 축과 이미지를 가지므로 단위와 함께 따로 보정합니다."});
+
+// v8.23
+Object.assign(window.PIPING_I18N.ko.d, {"Punto de trabajo y límites": "운전점 및 한계", "Velocidad de trabajo con variador (rpm; vacío = nominal)": "인버터 운전 속도 (rpm; 비우면 정격)", "Impulsor recortado (mm; vacío = el de la curva)": "트림 임펠러 (mm; 비우면 곡선 직경)", "Caudal mínimo continuo (m³/h)": "최소 연속 유량 (m³/h)", "Presión máxima del cuerpo (bar)": "케이싱 최대 압력 (bar)"});
