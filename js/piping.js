@@ -4347,6 +4347,194 @@
             });
         }
 
+        // ==================================================================================
+        // v8.27 · CÁLCULO > REDIMENSIONAR: lista de todos los componentes en el orden del árbol (P01 y sus ramales),
+        // con lo que cumple y lo que no; para cada fallo, opciones que SÍ cumplen (probadas recalculando la red) y una
+        // propuesta automática que recorre el árbol desde P01 recalculando tras cada cambio. El diseñador acepta o no.
+        // ==================================================================================
+        let REDIM = { abiertos: {}, opciones: {}, propuesta: null, filtro: 'todos' };
+        function calculoSilencioso() {
+            const g = construirGrafoRed(), a = construirAristas(g); if (!a.length) return { error: 'sin red' };
+            const r = calcularResultado(g, a); if (r.error) return r;
+            ultimoCalculo = { resultado: r.resultado, condiciones: r.condiciones, huella: huellaRed() }; return r;
+        }
+        const fallosActuales = () => new Set(elementosRed.filter(e => e.estado === 'fallo').map(e => e.id));
+        // elementos en el orden del árbol: P01, sus ramales en profundidad, y lo que no tiene línea al final
+        function ordenRedim() {
+            const out = [], vistos = new Set();
+            lineasEnOrden().forEach(x => x.orden.forEach(id => { const e = elementosRed.find(q => q.id === id); if (e && !vistos.has(id) && !esAnotacion(e)) { vistos.add(id); out.push({ e, linea: x.linea.id, nivel: x.nivel }); } }));
+            elementosRed.filter(e => !esAnotacion(e) && !vistos.has(e.id) && !sinFlujo(e)).forEach(e => out.push({ e, linea: e.linea || '—', nivel: 0 }));
+            return out;
+        }
+        const medidaDe = e => e.type === 'tuberia' ? `${tamanoTexto(e)}" ${serieTexto(e)}` : e.type === 'bomba' ? [e.dnAsp, e.dnImp].filter(Boolean).map(d => etiquetaDN(d)).join(' × ') : e.subtype === 'reduccion' ? `${etiquetaDN(e.dn)} × ${etiquetaDN(e.dnMenor)}` : e.dn ? etiquetaDN(e.dn) : '';
+        // ¿coincide la medida con la de los componentes contiguos?
+        function desajusteMedida(e) {
+            if (!e.dn || e.subtype === 'reduccion' || e.type === 'bomba' || esEquipo(e) || esTerminal(e) || sinFlujo(e)) return '';
+            const mio = e.type === 'tuberia' ? dnEquivalente(e) : e.dn; if (!mio) return '';
+            const otros = vecinosDe(e).map(v => v.otro).filter(o => o.dn && !sinFlujo(o) && o.type !== 'bomba' && !esEquipo(o) && !esTerminal(o)).map(o => {
+                const d = o.type === 'tuberia' ? dnEquivalente(o) : o.subtype === 'reduccion' ? null : o.dn; return d && d !== mio ? `${tagDe(o)} (${etiquetaDN(d)})` : ''; }).filter(Boolean);
+            return otros.length ? 'medida distinta de ' + otros.join(', ') : '';
+        }
+        // DN en el tramo contiguo de la misma línea con la misma medida (tuberías y componentes; corta en reducciones, bombas y equipos)
+        function cambiarDNTramo(el, dnNuevo) {
+            const antes = el.type === 'tuberia' ? dnEquivalente(el) : el.dn; if (!antes) return 0;
+            const vistos = new Set(), cola = [el], cambia = []; vistos.add(el.id);
+            while (cola.length) { const x = cola.shift(); cambia.push(x);
+                vecinosDe(x).forEach(v => { const o = v.otro; if (vistos.has(o.id) || o.linea !== el.linea || o.type === 'bomba' || esEquipo(o) || esTerminal(o) || sinFlujo(o) || o.subtype === 'reduccion' || esNodo(o)) return;
+                    const d = o.type === 'tuberia' ? dnEquivalente(o) : o.dn; if (d !== antes) return; vistos.add(o.id); cola.push(o); }); }
+            let n = 0;
+            cambia.forEach(x => { if (x.type === 'tuberia') { const c = tamanoTuboDeDN(x.material, x.serie, dnNuevo); if (c) { aplicarCambio(x, 'dn', c); n++; } } else { aplicarCambio(x, 'dn', dnNuevo); n++; } });
+            return n;
+        }
+        function aplicarCandidato(id, c) {
+            const el = elementosRed.find(e => e.id === id); if (!el) return false;
+            if (c.tipo === 'combo') { c.partes.forEach(x => aplicarCandidato(id, x)); return true; }
+            if (c.tipo === 'dnTramo') cambiarDNTramo(el, c.dn);
+            else if (c.tipo === 'lib') { const it = itemPorId(c.lib) || itemsLib(el.type === 'bomba' ? 'bomba' : el.subtype).find(i => i.id === c.lib); if (!it) return false;
+                if (el.type === 'bomba') { const s = typeof sesionActual === 'function' ? sesionActual() : null; VALIDACION_BOMBA = { usuario: s ? nombreSesion(s) : 'invitado', fecha: new Date().toISOString(), modelo: it.nombre, origen: 'Redimensionar' }; }
+                try { aplicarItemLib(el, it); } finally { VALIDACION_BOMBA = null; } }
+            else (c.cambios || []).forEach(([k, v]) => aplicarCambio(el, k, v));
+            return true;
+        }
+        // posibles cambios de un elemento que no cumple (se prueban después recalculando)
+        function candidatosRedim(el) {
+            const r = (ultimoResultado || {})[el.id] || { motivos: [] }, txt = (r.motivos || []).join(' '), out = [], fl = fluidoActual(), Td = tempDiseno(fl.T || 20);
+            const add = c => { if (!out.some(x => x.texto === c.texto)) out.push(c); };
+            const dnMayores = (d, n) => LISTA_DN.filter(x => dnNum(x) > dnNum(d)).slice(0, n), dnMenores = (d, n) => LISTA_DN.filter(x => dnNum(x) < dnNum(d)).reverse().slice(0, n);
+            (r.acciones || []).forEach(a => { if (!(a.cambios || []).some(c => c[0] === 'dn')) add({ tipo: 'campos', texto: a.texto, cambios: a.cambios }); });
+            if (el.type === 'tuberia') {
+                const de = dnEquivalente(el);
+                if (/Vmax/.test(txt) && de) dnMayores(de, 4).forEach(d => { const c = tamanoTuboDeDN(el.material, el.serie, d); if (c) add({ tipo: 'dnTramo', dn: d, texto: `${etiquetaDN(d)} en el tramo (tubería y componentes contiguos de ${el.linea || 'la línea'})` }); });
+                if (/PMA/.test(txt)) { const m = materialDe(el), t = m.tamanos.find(x => x.clave === el.dn); (m.series || []).filter(s => t && t.e[s] != null && s !== el.serie).forEach(s => add({ tipo: 'campos', texto: `Serie ${/^[0-9]+S?$/.test(s) ? 'Sch ' + s : s}`, cambios: [['serie', s]] })); }
+                if (/no apto|admisible \(|asiento/.test(txt)) {
+                    const clase = claseFluido(proyecto.fluido);
+                    [...MATERIALES_BASE].filter(m => m !== el.material && CAT.materiales[m] && !/Hormig/.test(m)).forEach(m => { const c = compatMaterialFluido(m, clase, Td, null); if (!c || c.r === 'X') return;
+                        const M = CAT.materiales[m], s = M.serieDef || (M.series || [])[0], dn = s && de ? tamanoTuboDeDN(m, s, de) : null; if (dn) add({ tipo: 'campos', texto: `Material ${m} (${/^[0-9]+S?$/.test(s) ? 'Sch ' + s : s})`, cambios: [['material', m], ['serie', s], ['dn', dn]] }); });
+                }
+            }
+            if ((el.type === 'valvula' || el.type === 'accesorio') && el.dn && el.subtype !== 'reduccion' && !esNodo(el)) {
+                if (/Vmax/.test(txt)) dnMayores(el.dn, 3).forEach(d => { add({ tipo: 'dnTramo', dn: d, texto: `${etiquetaDN(d)} con el tramo contiguo (tuberías del mismo tamaño)` }); add({ tipo: 'campos', texto: `${etiquetaDN(d)} solo el componente (quedaría con medida distinta de la tubería)`, cambios: [['dn', d]] }); });
+                if (/apertura total/.test(txt)) { dnMenores(el.dn, 2).forEach(d => add({ tipo: 'campos', texto: `${etiquetaDN(d)} (con reducciones)`, cambios: [['dn', d]] })); opcionesCrane(claveCrane(el)).map(o => o[0]).filter(t => t !== el.craneTipo).forEach(t => add({ tipo: 'campos', texto: `Subtipo ${t}`, cambios: [['modoK', 'crane'], ['craneTipo', t]] })); }
+                if (/fabrica (desde|hasta)|temperatura|asiento|fire-safe/.test(txt) || /no apto|admisible \(/.test(txt)) {
+                    itemsLib(el.subtype).filter(i => i.id !== el.libItem).forEach(i => { const p = i.props || {}, d = dnNum(el.dn);
+                        if (p.dnMinV && d < dnNum(p.dnMinV)) return; if (p.dnMaxV && d > dnNum(p.dnMaxV)) return; if (p.tMaxV !== '' && p.tMaxV != null && Td > +p.tMaxV) return;
+                        add({ tipo: 'lib', lib: i.id, texto: `Modelo ${i.nombre}${p.asiento ? ' · asiento ' + p.asiento : ''}${i.material ? ' · ' + i.material : ''}` }); });
+                    if (el.type === 'valvula' && /asiento/.test(txt)) ASIENTOS_VALV.filter(a => a !== el.asiento).forEach(a => add({ tipo: 'campos', texto: `Asiento ${a}`, cambios: [['asiento', a]] }));
+                    if (/no apto|admisible \(/.test(txt) && !/asiento/.test(txt)) { const clase = claseFluido(proyecto.fluido);
+                        ['ASTM A351 CF8M', 'ASTM A351 CF3M', 'ASTM A216 WCB', 'ASTM A995 CD3MN (dúplex)', 'Hastelloy C-276', 'PVDF', 'Revestido PTFE / PFA'].forEach(m => { const c = compatMaterialFluido(m, clase, Td, null); if (c && c.r !== 'X') add({ tipo: 'campos', texto: `Material ${m}`, cambios: [['materialComp', m]] }); }); }
+                }
+            }
+            if (el.type === 'bomba') {
+                const rho = fl.rho || 1000, Q = +el.caudal > 0 ? +el.caudal : (+proyecto.caudalDiseno || 0), H = (+el.presion || 0) * 1e5 / (rho * G);
+                if (/conexión/.test(txt)) ['Asp', 'Imp'].forEach(l => { const c = conexBomba(el, l); if (!c.rating) return; const sig = PN_LISTA.filter(x => /^PN/.test(c.rating) === /^PN/.test(x) && (presionAdmisiblePN(x, Td, false) || 0) > (presionAdmisiblePN(c.rating, Td, false) || 0)).slice(0, 2); sig.forEach(x => add({ tipo: 'campos', texto: `${l === 'Asp' ? 'Aspiración' : 'Impulsión'} ${x}`, cambios: [['pn' + l, x]] })); });
+                itemsLib('bomba').filter(i => i.id !== el.libItem).map(i => evaluarBombaPresel(i, Q, H * 0.9, null, rho)).filter(x => x.est !== 'X' || x.ratio >= 1).sort((a, b) => a.score - b.score).slice(0, 6).forEach(x => add({ tipo: 'lib', lib: x.it.id, texto: `Bomba ${x.nombre}${x.Hq != null ? ` (H ${fmt(x.Hq, 1)} m a ${fmt(Q, 1)} m³/h)` : ''}` }));
+            }
+            return out.slice(0, 14);
+        }
+        // prueba cada candidato sobre una copia: lo deja si el elemento pasa a cumplir y no aparecen fallos nuevos
+        function probarCandidatos(id) {
+            const base = instantanea(), fa = fallosActuales(), el0 = elementosRed.find(e => e.id === id); if (!el0) return [];
+            const cands = candidatosRedim(el0), res = [];
+            const grupo = c => c.tipo === 'dnTramo' || (c.cambios || []).some(x => x[0] === 'dn') ? 'dn' : (c.cambios || []).some(x => /^pn/.test(x[0])) ? 'pn' : c.tipo === 'lib' || (c.cambios || []).some(x => /material|asiento|serie/.test(x[0])) ? 'mat' : 'otro';
+            const probar = c => {
+                try {
+                    aplicarCandidato(id, c); const r = calculoSilencioso(), e = elementosRed.find(x => x.id === id), f = fallosActuales();
+                    const nuevos = [...f].filter(x => !fa.has(x)), ok = !r.error && e && e.estado !== 'fallo' && !nuevos.length;
+                    res.push(Object.assign({}, c, { ok, quedan: f.size, nuevos: nuevos.map(x => tagDe(elementosRed.find(q => q.id === x))), motivo: e && e.estado === 'fallo' ? ((ultimoResultado[id] || {}).motivos || []).join('; ') : '', medida: e ? desajusteMedida(e) : '' }));
+                } catch (err) { console.error(err); }
+                const d = JSON.parse(base); elementosRed = d.e || []; lineas = d.l || [];
+            };
+            cands.forEach(probar);
+            // si ningún cambio aislado basta (p. ej. velocidad y PN a la vez), se prueban parejas de cambios de distinto tipo
+            if (!res.some(c => c.ok)) {
+                const g = {}; cands.forEach(c => (g[grupo(c)] = g[grupo(c)] || []).push(c)); const ks = Object.keys(g); let n = 0;
+                for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++) for (const a of g[ks[i]].slice(0, 4)) for (const b of g[ks[j]].slice(0, 3)) { if (n++ >= 24) break; probar({ tipo: 'combo', partes: [a, b], texto: a.texto + ' + ' + b.texto }); }
+            }
+            calculoSilencioso(); sincronizarHoja();
+            return res;
+        }
+        function abrirRedimensionar() {
+            cerrarMenus();
+            const r = calculoSilencioso(); if (r.error) { alert('Redimensionar: ' + r.error); return; }
+            REDIM = { abiertos: {}, opciones: {}, propuesta: null, filtro: REDIM.filtro || 'todos' };
+            const q = document.querySelector('#modal-red > div'); if (q) q.style.width = 'min(1250px, 97vw)';
+            const t = document.querySelector('#modal-red h3 span'); if (t) t.innerHTML = '<i class="fa-solid fa-up-right-and-down-left-from-center text-blue-600 mr-1.5"></i> Redimensionar la red';
+            pintarRedimensionar(); document.getElementById('modal-red').style.display = 'flex';
+        }
+        function pintarRedimensionar() {
+            const ord = ordenRedim(), nf = ord.filter(x => x.e.estado === 'fallo').length, P = REDIM.propuesta;
+            const col = e => e.estado === 'fallo' ? '#fee2e2' : e.estado === 'ok' ? '#f0fdf4' : '#f8fafc';
+            let h = `<div class="flex flex-wrap items-center gap-2 mb-2 text-[11px]"><span class="font-bold ${nf ? 'text-rose-700' : 'text-emerald-700'}">${ord.length} componentes · ${ord.length - nf} cumplen · ${nf} no cumplen</span>
+                <select onchange="REDIM.filtro = this.value; pintarRedimensionar()" class="border rounded p-1"><option value="todos" ${REDIM.filtro === 'todos' ? 'selected' : ''}>Todos</option><option value="fallo" ${REDIM.filtro === 'fallo' ? 'selected' : ''}>Solo los que no cumplen</option></select>
+                <button onclick="propuestaRedim()" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded" ${nf ? '' : 'disabled'}><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Propuesta automática (recorre el árbol desde P01)</button>
+                <button onclick="calculoSilencioso(); pintarRedimensionar(); renderizarVectorial()" class="px-2 py-1 border rounded hover:bg-slate-50"><i class="fa-solid fa-rotate mr-1"></i>Recalcular</button></div>`;
+            if (P) {
+                h += `<div class="border border-blue-300 rounded p-2 mb-2 bg-blue-50 text-[11px]"><p class="font-bold text-blue-800 mb-1">Propuesta automática · ${P.pasos.length} cambio(s) · quedarían ${P.quedan} fallo(s)${P.sinSolucion.length ? ` · sin solución automática: ${esc(P.sinSolucion.join(', '))}` : ''}</p>
+                    ${P.pasos.length ? `<table class="w-full"><thead><tr class="text-left text-slate-500"><th class="px-1">Aceptar</th><th class="px-1">Orden</th><th class="px-1">Componente</th><th class="px-1">Cambio propuesto</th><th class="px-1">Tras el cambio</th></tr></thead><tbody>
+                    ${P.pasos.map((p, i) => `<tr class="border-t border-blue-200"><td class="px-1"><input type="checkbox" ${p.acepta ? 'checked' : ''} onchange="REDIM.propuesta.pasos[${i}].acepta = this.checked"></td><td class="px-1">${i + 1} · ${esc(p.linea)}</td><td class="px-1 font-bold">${esc(p.tag)}</td><td class="px-1">${esc(p.texto)}</td><td class="px-1">${p.medida ? `<span class="text-amber-700">${esc(p.medida)}</span>` : '<span class="text-emerald-700">cumple</span>'}</td></tr>`).join('')}</tbody></table>
+                    <div class="mt-2 flex gap-2"><button onclick="aplicarPropuestaRedim()" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded"><i class="fa-solid fa-check mr-1"></i>Aplicar los aceptados</button><button onclick="REDIM.propuesta = null; pintarRedimensionar()" class="px-2 py-1 border rounded bg-white">Descartar</button></div>` : '<p>No se ha encontrado ningún cambio que cumpla.</p>'}</div>`;
+            }
+            let lin = null;
+            h += `<div class="border rounded overflow-auto" style="max-height:${P ? 42 : 62}vh"><table class="w-full text-[11px]"><thead class="bg-slate-100 sticky top-0 z-10"><tr class="text-left text-slate-500"><th class="px-1 py-1">Componente</th><th class="px-1">Tipo</th><th class="px-1">Medida</th><th class="px-1">PN</th><th class="px-1">Material</th><th class="px-1">Estado</th><th class="px-1"></th></tr></thead><tbody>`;
+            ord.filter(x => REDIM.filtro !== 'fallo' || x.e.estado === 'fallo').forEach(({ e, linea, nivel }) => {
+                if (linea !== lin) { lin = linea; const L = lineaPorId(linea); h += `<tr class="bg-slate-200"><td colspan="7" class="px-1 py-0.5 font-bold text-slate-700" style="padding-left:${4 + nivel * 14}px">${nivel ? '↳ ' : ''}${esc(linea)}${L && L.nombre ? ' · ' + esc(L.nombre) : ''}</td></tr>`; }
+                const r = (ultimoResultado || {})[e.id] || {}, mot = (r.motivos || []).join('; '), des = desajusteMedida(e), op = REDIM.opciones[e.id];
+                h += `<tr class="border-t" style="background:${col(e)}"><td class="px-1 py-0.5" style="padding-left:${8 + nivel * 14}px"><a href="#" onclick="event.preventDefault(); cerrarModalRed(); irAElemento('${e.id}')" class="font-bold text-blue-700 hover:underline">${esc(tagDe(e))}</a></td>
+                    <td class="px-1">${esc(nombreTipo(e))}</td><td class="px-1">${esc(medidaDe(e))}${des ? `<br><span class="text-amber-700 text-[10px]"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>${esc(des)}</span>` : ''}</td><td class="px-1">${esc(e.pn || e.pnImp || '')}</td>
+                    <td class="px-1">${esc([e.type === 'tuberia' ? e.material : e.materialComp, e.asiento ? 'asiento ' + e.asiento : ''].filter(Boolean).join(' · '))}</td>
+                    <td class="px-1">${e.estado === 'fallo' ? `<span class="text-rose-700"><i class="fa-solid fa-circle-xmark mr-1"></i>${esc(mot || 'no cumple')}</span>` : e.estado === 'ok' ? '<span class="text-emerald-700"><i class="fa-solid fa-circle-check mr-1"></i>cumple</span>' : '<span class="text-slate-400">sin cálculo</span>'}</td>
+                    <td class="px-1 whitespace-nowrap">${e.estado === 'fallo' ? `<button onclick="opcionesRedim('${e.id}')" class="px-1.5 py-0.5 rounded border border-blue-300 text-blue-700 hover:bg-blue-50">${REDIM.abiertos[e.id] ? 'Ocultar' : 'Opciones que cumplen'}</button>` : ''}</td></tr>`;
+                if (REDIM.abiertos[e.id]) {
+                    const ok = (op || []).filter(c => c.ok), no = (op || []).filter(c => !c.ok);
+                    h += `<tr><td colspan="7" class="px-2 py-1 bg-white" style="padding-left:${24 + nivel * 14}px">${!op ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Probando opciones...' : ok.length ? ok.map((c, k) => `<div class="flex items-center gap-2 py-0.5"><button onclick="aplicarOpcionRedim('${e.id}', ${op.indexOf(c)})" class="px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white">Aplicar</button><span>${esc(c.texto)}</span><span class="text-slate-400">· quedan ${c.quedan} fallo(s)</span>${c.medida ? `<span class="text-amber-700">· ${esc(c.medida)}</span>` : ''}</div>`).join('')
+                        : `<p class="text-amber-700">Ninguna opción automática cumple.${(r.alternativas || []).length ? ' Sugerencias: ' + esc(r.alternativas.join(' · ')) : ''}</p>`}
+                        ${no.length ? `<details class="mt-1"><summary class="text-slate-400 cursor-pointer">${no.length} opción(es) probadas que no cumplen</summary>${no.map(c => `<div class="text-slate-500">· ${esc(c.texto)}${c.motivo ? ' — ' + esc(c.motivo) : ''}${c.nuevos.length ? ' — fallan además: ' + esc(c.nuevos.join(', ')) : ''}</div>`).join('')}</details>` : ''}</td></tr>`;
+                }
+            });
+            h += '</tbody></table></div><p class="text-[10px] text-slate-400 mt-1">Cada opción se prueba recalculando toda la red: solo se ofrecen las que dejan el componente cumpliendo sin crear fallos nuevos. Los cambios se pueden deshacer (Ctrl+Z).</p>';
+            document.getElementById('red-content').innerHTML = h;
+            document.getElementById('red-footer').innerHTML = `<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cerrar</button>`;
+        }
+        function opcionesRedim(id) {
+            if (REDIM.abiertos[id]) { delete REDIM.abiertos[id]; pintarRedimensionar(); return; }
+            REDIM.abiertos[id] = true; delete REDIM.opciones[id]; pintarRedimensionar();
+            setTimeout(() => { REDIM.opciones[id] = probarCandidatos(id); pintarRedimensionar(); }, 20);
+        }
+        function aplicarOpcionRedim(id, k) {
+            const c = (REDIM.opciones[id] || [])[k]; if (!c) return;
+            guardarEstado(); aplicarCandidato(id, c); calculoSilencioso(); sincronizarHoja(); marcarCambios(true);
+            const el = elementosRed.find(e => e.id === id);
+            REDIM.opciones = {}; delete REDIM.abiertos[id]; REDIM.propuesta = null;
+            renderizarVectorial(); actualizarPanelAvisos(); pintarRedimensionar();
+            aviso(`${el ? tagDe(el) : id}: ${c.texto} → ${el && el.estado === 'fallo' ? 'sigue sin cumplir' : 'cumple'}`, el && el.estado === 'fallo' ? 'error' : 'ok');
+        }
+        // propuesta: recorre el árbol desde P01; en cada componente que no cumple prueba sus opciones, elige la que
+        // menos fallos deja y la aplica (sobre una copia) antes de pasar al siguiente, recalculando cada vez
+        function propuestaRedim() {
+            const base = instantanea(), pasos = [], sinSol = [];
+            calculoSilencioso();
+            ordenRedim().map(x => [x.e.id, x.linea]).forEach(([id, linea]) => {
+                const e = elementosRed.find(q => q.id === id); if (!e || e.estado !== 'fallo') return;
+                const tag = tagDe(e), ops = probarCandidatos(id).filter(c => c.ok);
+                if (!ops.length) { sinSol.push(tagDe(e)); return; }
+                const best = ops.slice().sort((a, b) => (a.medida ? 1 : 0) - (b.medida ? 1 : 0) || a.quedan - b.quedan)[0];
+                aplicarCandidato(id, best); calculoSilencioso();
+                pasos.push({ id, linea, tag, texto: best.texto, cand: best, medida: best.medida, acepta: true });
+            });
+            const quedan = fallosActuales().size;
+            const d = JSON.parse(base); elementosRed = d.e || []; lineas = d.l || []; calculoSilencioso(); sincronizarHoja();
+            REDIM.propuesta = { pasos, quedan, sinSolucion: sinSol }; pintarRedimensionar();
+        }
+        function aplicarPropuestaRedim() {
+            const P = REDIM.propuesta; if (!P) return;
+            const ac = P.pasos.filter(p => p.acepta); if (!ac.length) { aviso('No hay cambios aceptados.', 'error'); return; }
+            guardarEstado(); let n = 0;
+            ac.forEach(p => { const e = elementosRed.find(q => q.id === p.id); if (!e) return; if (e.estado !== 'fallo' && n) return; aplicarCandidato(p.id, p.cand); calculoSilencioso(); n++; });   // en orden del árbol, recalculando tras cada uno
+            sincronizarHoja(); marcarCambios(true); REDIM.propuesta = null; REDIM.opciones = {}; REDIM.abiertos = {};
+            renderizarVectorial(); actualizarPanelAvisos(); pintarRedimensionar();
+            const nf = fallosActuales().size; aviso(`Aplicados ${n} cambio(s). ${nf ? nf + ' componente(s) siguen sin cumplir.' : 'Toda la red cumple.'}`, nf ? 'error' : 'ok');
+        }
+
         // Módulo de elasticidad del material de la tubería (MPa), para la celeridad de la onda (orientativo)
         const E_MATERIAL = { 'Acero al carbono': 207000, 'Acero al carbono EN': 207000, 'Acero inoxidable': 193000, 'PVC-U': 3000, 'PE100': 1100, 'PE80': 900, 'CPVC': 2900,
             'PP-R': 900, 'PVDF': 1800, 'PP-H': 1300, 'Cobre (Dint ref. Sch 40)': 117000, 'Fundición (Dint ref. Sch 40)': 170000, 'Hormigón (Dint ref. Sch 40)': 30000 };
@@ -8171,7 +8359,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.26';
+        const VERSION_WEB = '8.27';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -9766,6 +9954,7 @@
             { titulo: 'Cálculo', items: [
                 { icono: 'fa-calculator', texto: 'Calcular red...', accion: () => calcularRed() },
                 { icono: 'fa-layer-group', texto: 'Calcular proyecto completo (todas las hojas)', accion: () => calcularProyectoCompleto() },
+                { icono: 'fa-up-right-and-down-left-from-center', texto: 'Redimensionar (componentes que cumplen y que no)...', accion: () => abrirRedimensionar() },
                 { icono: 'fa-scale-balanced', texto: 'Escenarios A / B', sub: () => [
                     { icono: 'fa-a', texto: 'Guardar el cálculo como escenario A' + (proyecto.escenarios && proyecto.escenarios.A ? ' (' + proyecto.escenarios.A.nombre + ')' : ''), accion: () => guardarEscenario('A') },
                     { icono: 'fa-b', texto: 'Guardar el cálculo como escenario B' + (proyecto.escenarios && proyecto.escenarios.B ? ' (' + proyecto.escenarios.B.nombre + ')' : ''), accion: () => guardarEscenario('B') },
