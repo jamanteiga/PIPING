@@ -98,3 +98,6 @@ Object.assign(window.PIPING_I18N.pt.d, {"Vista 3D (ejes navales, consulta)": "Vi
 
 // v8.31
 Object.assign(window.PIPING_I18N.pt.d, {"Ratón 3D": "Rato 3D", "Fondo": "Fundo", "Rejilla": "Grelha", "Referencia 3D": "Referência 3D", "Norte (° desde +X)": "Norte (° desde +X)", "Separación de cuadernas (mm)": "Espaçamento de balizas (mm)"});
+
+// v8.32
+Object.assign(window.PIPING_I18N.pt.d, {"Centrar aquí el giro de la vista": "Centrar aqui a rotação da vista", "Encajar toda la red": "Enquadrar toda a rede", "Vista isométrica": "Vista isométrica", "Volver al 2D": "Voltar ao 2D", "Mover / Desconectar (en el 2D)": "Mover / Desligar (no 2D)", "Suelta el componente sobre un extremo libre (esfera azul) o sobre una tubería.": "Solte o componente sobre uma extremidade livre (esfera azul) ou sobre um tubo.", "Selecciona un componente para girarlo en 3D (las tuberías siguen al componente al que se unen).": "Selecione um componente para o rodar em 3D (os tubos seguem o componente a que se ligam).", "Mover (2D)": "Mover (2D)"});

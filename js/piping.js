@@ -2621,6 +2621,7 @@
         function itemsMenuElemento(el) {
             const enGrupo = seleccion.size > 1 && seleccion.has(el.id);
             const giro = inc => () => {
+                if (vista3d && V3) { if (!enGrupo) { seleccion.clear(); idSeleccionado = el.id; } girar3D(inc); return; }
                 if (enGrupo) { girarSeleccion(inc); return; }
                 guardarEstado(); invalidarResultados(); girarElemento(el, inc); renderizarVectorial(); seleccionarElemento(el.id);
             };
@@ -8043,7 +8044,7 @@
                     <label><input id="v3d-inv" type="checkbox" onchange="guardarCfg3DLocal({ invertirGiros: this.checked })"> Invertir giros</label>
                     <label title="Muestra en la barra inferior lo que envía el ratón 3D"><input id="v3d-smdiag" type="checkbox"> Diagnóstico</label></div>
                     <div id="v3d-lienzo" style="flex:1;position:relative;overflow:hidden"></div>
-                    <div id="v3d-estado" style="padding:3px 8px;background:#1e293b;color:#cbd5e1;font:11px sans-serif;min-height:18px">Arrastrar: girar · botón derecho o Mayús: desplazar · rueda: zoom · clic: seleccionar</div>`;
+                    <div id="v3d-estado" style="padding:3px 8px;background:#1e293b;color:#cbd5e1;font:11px sans-serif;min-height:18px">Arrastrar: girar · botón derecho o Mayús: desplazar · rueda: zoom · clic: seleccionar · doble clic: pivote · Ctrl+doble clic: propiedades · R / Mayús+R: girar 45° · botón derecho: menú</div>`;
                 cont.appendChild(ov);
                 ['ox', 'oy', 'oz', 'cu', 'norte'].forEach(k => document.getElementById('v3d-' + k).addEventListener('change', e => { const { o } = cfg3D(), v = +e.target.value || 0; if (k === 'cu') { if (v > 0) proyecto.cuaderna = v; } else if (k === 'norte') proyecto.norte = v; else o[k[1]] = v; marcarCambios(true); construirEscena3D(); }));
             }
@@ -8068,10 +8069,16 @@
             V3.ajustarTam = ajustarTam; if (window.ResizeObserver) new ResizeObserver(ajustarTam).observe(cont); ajustarTam();
             let arr = null; const el = renderer.domElement;
             el.addEventListener('contextmenu', e => e.preventDefault());
-            el.addEventListener('mousedown', e => { arr = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, mov: false }; });
-            window.addEventListener('mouseup', e => { if (arr && !arr.mov && arr.b === 0 && e.target === el) elegir3D(e, true); arr = null; });
+            el.addEventListener('mousedown', e => { arr = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, mov: false }; cerrarMenus(); ocultarTooltip(); V3.tt = null; });
+            window.addEventListener('mouseup', e => {
+                const a = arr; arr = null; if (!a || a.mov || e.target !== el) return;
+                if (a.b === 0) { if (enMano) clicManoEn3D(e); else elegir3D(e, true); }
+                else if (a.b === 2) { if (enMano) soltarMano(true); else menu3D(e); }
+            });
+            el.addEventListener('dblclick', e => { e.preventDefault(); const r = picar3D(e); if (!r) return; if (e.ctrlKey || e.metaKey) { ocultarTooltip(); abrirVentanaElemento(r.el.id, e.clientX, e.clientY); } else pivote3D(r.el.id); });
             el.addEventListener('mousemove', e => {
-                if (!arr) { elegir3D(e, false); return; }
+                if (V3.tt && Math.hypot(e.clientX - V3.tt.x, e.clientY - V3.tt.y) > 3) { ocultarTooltip(); V3.tt = null; }   // el tooltip de la selección se va al mover el ratón
+                if (!arr) { elegir3D(e, false); if (enMano) pistaDestino3D(destino3D(e)); return; }
                 const dx = e.clientX - arr.x, dy = e.clientY - arr.y; if (Math.abs(dx) + Math.abs(dy) > 2) arr.mov = true; arr.x = e.clientX; arr.y = e.clientY;
                 if (arr.b === 2 || arr.sh) { const k = V3.r * 0.0016, cam = V3.camera, der = new T.Vector3().subVectors(cam.position, V3.target).cross(cam.up).normalize(), arriba = new T.Vector3().crossVectors(der, new T.Vector3().subVectors(V3.target, cam.position)).normalize();
                     V3.target.addScaledVector(der, dx * k).addScaledVector(arriba, dy * k); }
@@ -8079,6 +8086,10 @@
                 pintar3D();
             });
             el.addEventListener('wheel', e => { e.preventDefault(); V3.r *= e.deltaY > 0 ? 1.12 : 1 / 1.12; pintar3D(); }, { passive: false });
+            // v8.32 · insertar desde el 3D: se arrastra un componente de la librería a un extremo libre (esfera azul) o sobre una tubería
+            el.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; pistaDestino3D(destino3D(e)); });
+            el.addEventListener('dragleave', () => pistaDestino3D(null));
+            el.addEventListener('drop', e => { e.preventDefault(); pistaDestino3D(null); let data = null; try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch (x) { } if (data) insertar3D(data, e); });
         }
         function pintar3D() {
             if (!V3) return; const { camera, target, r, th, ph } = V3;
@@ -8143,6 +8154,8 @@
             const th = Math.acos(c), cs = Math.cos(th), sn = Math.sin(th);
             return x => v3.sum(v3.sum(v3.mul(x, cs), v3.mul(v3.cross(k, x), sn)), v3.mul(k, v3.dot(k, x) * (1 - cs)));
         }
+        // v8.32 · giro de ángulo th alrededor del eje unitario k (Rodrigues); th > 0 = horario mirando en el sentido de k
+        const rotarEje3D = (k, th) => { k = v3.norm(k); const c = Math.cos(th), s = Math.sin(th); return v => v3.sum(v3.sum(v3.mul(v, c), v3.mul(v3.cross(k, v), s)), v3.mul(k, v3.dot(k, v) * (1 - c))); };
         function geometria3DReal() {
             const g = construirGrafoRed(), por = Object.fromEntries(elementosRed.map(e => [e.id, e])), es3 = e => e && !esAnotacion(e) && e.subtype !== 'continuacion';
             const pts = {}; g.puertosTodos.forEach(p => { (pts[p.elId] = pts[p.elId] || {})[p.portId] = p; });
@@ -8150,24 +8163,25 @@
             const esq = (el, pid) => { const p = pts[el.id][pid]; if (el.type === 'tuberia') { const o = pts[el.id][pid === 'a' ? 'b' : 'a']; return v3.norm([p.x - o.x, -(p.y - o.y), 0]); }
                 const c = el.subtype === 'codo90' ? aPantalla(el, 15, 15) : centroElemento(el); let v = [p.x - c.x, -(p.y - c.y), 0];   /* codo de 90°: vértice en la esquina del símbolo */ if (v3.len(v) < 2) { const otro = Object.values(pts[el.id]).find(q => q.portId !== pid); v = otro ? [c.x - otro.x, -(c.y - otro.y), 0] : [1, 0, 0]; } return v3.norm(v); };
             const geo = {}, { o } = cfg3D(), buque = !!proyecto.esBuque, O = buque ? [(+o.x || 0) / 1000, (+o.y || 0) / 1000, (+o.z || 0) / 1000] : [0, 0, 0];
-            const colocar = (el, pe, P, u) => {
+            const colocar = (el, pe, P, u, trasComp) => {
                 if (geo[el.id]) return;
                 if (el.type === 'tuberia') {
                     const otro = pe === 'a' ? 'b' : 'a', L = (+el.longitud || 0) / 1000, zE = +(pe === 'a' ? el.cotaA : el.cotaB) || 0, zO = +(pe === 'a' ? el.cotaB : el.cotaA) || 0, dz = Math.max(-L, Math.min(L, zO - zE));
                     const t = v3.mul(u, -1); let dir;
                     if (Math.abs(dz) >= 0.98 * L && L > 0) dir = [0, 0, Math.sign(dz)];
+                    else if (trasComp && !dz && Math.abs(t[2]) > 0.05) dir = v3.norm(t);   // v8.32 · sin cotas, la tubería sigue la boca del componente (girado en 3D)
                     else { const pl = Math.abs(t[2]) < 0.5 ? v3.norm([t[0], t[1], 0]) : v3.mul(esq(el, pe), -1), h = Math.sqrt(Math.max(0, L * L - dz * dz)); dir = v3.norm(v3.sum(v3.mul(pl, h), [0, 0, dz])); }
                     const Pb = v3.sum(P, v3.mul(dir, L || 0.001));
                     geo[el.id] = { el, tubo: true, ports: { [pe]: { p: P, d: v3.mul(dir, -1) }, [otro]: { p: Pb, d: dir } } };
                     return;
                 }
-                const m = medidas3D(el), R = giroDe(esq(el, pe), u), Lp = q => (q === 'c' && m.c != null ? m.c : m[q] != null ? m[q] : m.def) / 1000;
+                const m = medidas3D(el), R0 = giroDe(esq(el, pe), u), g3 = (+el.giro3D || 0) * Math.PI / 180, Rg = g3 ? rotarEje3D(v3.mul(u, -1), g3) : null, R = Rg ? x => Rg(R0(x)) : R0, Lp = q => (q === 'c' && m.c != null ? m.c : m[q] != null ? m[q] : m.def) / 1000;
                 const C = v3.sum(P, v3.mul(u, -Lp(pe))), ports = {};
-                Object.keys(pts[el.id] || {}).forEach(q => { const d = q === pe ? u : v3.norm(R(esq(el, q))); ports[q] = { p: q === pe ? P : v3.sum(C, v3.mul(d, Lp(q))), d }; });
-                geo[el.id] = { el, C, ports, m, R };
+                const d0 = {}; Object.keys(pts[el.id] || {}).forEach(q => { d0[q] = q === pe ? u : v3.norm(R0(esq(el, q))); const d = q === pe ? u : v3.norm(R(esq(el, q))); ports[q] = { p: q === pe ? P : v3.sum(C, v3.mul(d, Lp(q))), d }; });
+                geo[el.id] = { el, C, ports, m, R, Rg, d0 };
             };
-            const cola = [], encolar = id => { const gg = geo[id]; Object.entries(gg.ports).forEach(([q, x]) => { const p = pts[id][q]; (enNodo[p.nodo] || []).forEach(w => { if (w.elId === id) return; const e2 = por[w.elId]; if (es3(e2) && !geo[e2.id]) cola.push([e2, w.portId, x.p, v3.mul(x.d, -1)]); }); }); };
-            const correr = () => { while (cola.length) { const [e, pe, P, u] = cola.shift(); if (geo[e.id]) continue; colocar(e, pe, P, u); encolar(e.id); } };
+            const cola = [], encolar = id => { const gg = geo[id]; Object.entries(gg.ports).forEach(([q, x]) => { const p = pts[id][q]; (enNodo[p.nodo] || []).forEach(w => { if (w.elId === id) return; const e2 = por[w.elId]; if (es3(e2) && !geo[e2.id]) cola.push([e2, w.portId, x.p, v3.mul(x.d, -1), !gg.tubo]); }); }); };
+            const correr = () => { while (cola.length) { const [e, pe, P, u, tc] = cola.shift(); if (geo[e.id]) continue; colocar(e, pe, P, u, tc); encolar(e.id); } };
             // inicio: primer elemento de la línea principal (si es una bomba, su impulsión) en el punto de origen
             const pr = lineaPorId('P01') || lineas.find(l => l.tipo === 'principal');
             const orden = pr ? ordenarLinea(pr.id, mapaVecinos()).map(id => por[id]).filter(es3) : [];
@@ -8207,7 +8221,7 @@
                     return;
                 }
                 const C = gg.C, ports = gg.ports, od = mm(odMm(el.dn || el.dnImp || 'DN 50')), r = od / 2, pa = ports.a || ports.succion, pb = ports.b || ports.descarga;
-                const eje = pa && pb ? v3.norm(v3.sum(pb.p, v3.mul(pa.p, -1))) : (pa || pb || { d: [1, 0, 0] }).d, arriba = perp(eje);
+                const eje = pa && pb ? v3.norm(v3.sum(pb.p, v3.mul(pa.p, -1))) : (pa || pb || { d: [1, 0, 0] }).d, arriba = gg.Rg ? v3.norm(gg.Rg(perp(gg.d0 && pa && pb && gg.d0.a && gg.d0.b ? v3.norm(v3.sum(gg.d0.b, v3.mul(gg.d0.a, -1))) : eje))) : perp(eje);
                 if (el.type === 'valvula') {
                     const L = mm(gg.m.L), b2 = r * 1.6, mar = st === 'mariposa', bola = st === 'bola' || st === 'macho';
                     if (pa && pb) {
@@ -8238,7 +8252,7 @@
                 if ((st === 'junta' || st === 'antivibratorio') && pa && pb) { for (let i = 0; i <= 4; i++) { const t = new T.Mesh(new T.TorusGeometry(r * 1.1, r * 0.22, 8, 24), M); t.position.copy(V(v3.sum(pa.p, v3.mul(v3.sum(pb.p, v3.mul(pa.p, -1)), i / 4)))); t.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), V(eje)); add(t); } add(cil(pa.p, pb.p, r * 0.95, r * 0.95, M)); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, r * 3]), 0.09, '#fde68a'); return; }
                 if ((st === 'filtro' || st === 'strainer') && pa && pb) { add(cil(pa.p, pb.p, r * 1.2, r * 1.2, M)); const y = v3.sum(C, v3.mul(v3.norm(v3.sum(v3.mul(arriba, -1), v3.mul(eje, 0.6))), r * 4)); add(cil(C, y, r * 1.1, r * 1.1, M)); reg(grp, el); etq(tagDe(el), v3.sum(C, v3.mul(arriba, r * 3)), 0.09, '#fde68a'); return; }
                 if (el.type === 'bomba') {
-                    const R = mm(gg.m.R), asp = ports.succion, imp = ports.descarga, ejeB = asp ? v3.mul(asp.d, -1) : [1, 0, 0], arr = perp(ejeB), lado = v3.norm(v3.cross(ejeB, arr));
+                    const R = mm(gg.m.R), asp = ports.succion, imp = ports.descarga, ejeB = asp ? v3.mul(asp.d, -1) : [1, 0, 0], arr = gg.Rg && gg.d0 && gg.d0.succion ? v3.norm(gg.Rg(perp(v3.mul(gg.d0.succion, -1)))) : perp(ejeB), lado = v3.norm(v3.cross(ejeB, arr));
                     const vol = disco(C, lado, R, R * 0.7, M); add(vol);   // bomba en línea: voluta con eje horizontal y motor vertical encima
                     if (asp) add(cil(asp.p, C, r * 1.1, r * 1.1, M)); if (imp) add(cil(C, imp.p, mm(odMm(el.dnImp || el.dn || 'DN 50')) / 2, mm(odMm(el.dnImp || el.dn || 'DN 50')) / 2, M));
                     const mo0 = v3.sum(C, v3.mul(arr, R * 0.9)), mo1 = v3.sum(C, v3.mul(arr, R * 3.2)); add(cil(mo0, mo1, R * 0.62, R * 0.62, matDe(el, { color: new T.Color('#2563eb') }), 24)); add(cil(C, mo0, R * 0.3, R * 0.3, gris(el), 16));
@@ -8252,6 +8266,14 @@
                 if (el.type === 'instrumento') { const p = Object.values(ports)[0]; const top = v3.sum(p.p, [0, 0, 0.12]); add(cil(p.p, top, 0.008, 0.008, gris(el), 8)); add(disco(top, [0, -1, 0], 0.04, 0.02, M)); reg(grp, el); etq(tagDe(el), v3.sum(top, [0, 0, 0.08]), 0.07, '#fde68a'); return; }
                 Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); const s = new T.Mesh(new T.SphereGeometry(r * 1.2, 16, 12), M); s.position.copy(V(C)); add(s); reg(grp, el);
             });
+            // v8.32 · extremos libres (esferas azules): ahí se suelta un componente de la librería para insertarlo desde el 3D
+            V3.libres = [];
+            try { const mLib = new T.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.75, depthTest: false });
+                puertosLibres().forEach(p => { const gg = geo[p.el.id], q = gg && gg.ports[p.id]; if (!q) return;
+                    const od = (p.el.type === 'tuberia' ? (datosTuberia(p.el).od || 60) : odMm(p.el.dn || p.el.dnImp || 'DN 50')) / 1000, s = new T.Mesh(new T.SphereGeometry(Math.max(0.015, od * 0.45), 14, 10), mLib);
+                    s.position.copy(V(q.p)); s.renderOrder = 5; G.add(s); V3.libres.push({ el: p.el, id: p.id, x: p.x, y: p.y, p: q.p }); }); } catch (e) { console.warn(e); }
+            // v8.32 · tuberías cuyo desnivel en 3D (por un giro en el espacio) no coincide con sus cotas: el cálculo usa las cotas
+            V3.desfases = Object.values(geo).filter(gg => gg.tubo && gg.ports.a && gg.ports.b).map(gg => ({ el: gg.el, dz: gg.ports.b.p[2] - gg.ports.a.p[2] })).filter(x => Math.abs(x.dz - ((+x.el.cotaB || 0) - (+x.el.cotaA || 0))) > 0.005);
             G.updateMatrixWorld(true); const caja = new T.Box3(); V3.objetos.forEach(o => caja.expandByObject(o)); if (caja.isEmpty()) caja.set(new T.Vector3(-1, -1, 0), new T.Vector3(1, 1, 1));
             caja.expandByPoint(V(O)); if (buque) caja.expandByPoint(new T.Vector3(0, 0, 0)); V3.caja = caja.clone();
             const ejeL = Math.max(0.6, caja.getSize(new T.Vector3()).length() * 0.1), ori = buque ? new T.Vector3(0, 0, 0) : V(O);
@@ -8314,14 +8336,87 @@
                 if (!SM.escucha) { SM.escucha = true; navigator.hid.addEventListener('connect', () => { if (vista3d) conectarSpaceMouse(false); }); navigator.hid.addEventListener('disconnect', e => { SM.devs = SM.devs.filter(x => x !== e.device); const s2 = document.getElementById('v3d-sm'); if (s2 && !SM.devs.length) { s2.textContent = 'desconectado'; s2.style.color = '#94a3b8'; } }); }
             } catch (e) { if (pedir) alert('No se ha podido conectar el ratón 3D: ' + e.message + '\n\nSi el driver 3DxWare lo tiene en uso exclusivo, ciérralo (icono de la bandeja > Salir) y vuelve a pulsar «Ratón 3D».'); }
         }
-        function elegir3D(e, clic) {
-            if (!V3) return; const rc = V3.renderer.domElement.getBoundingClientRect();
+        function picar3D(e) {
+            if (!V3) return null; const rc = V3.renderer.domElement.getBoundingClientRect();
             V3.raton.set(((e.clientX - rc.left) / rc.width) * 2 - 1, -((e.clientY - rc.top) / rc.height) * 2 + 1); V3.ray.setFromCamera(V3.raton, V3.camera);
-            const h = V3.ray.intersectObjects(V3.objetos, false)[0], est = document.getElementById('v3d-estado');
-            if (!h) { if (!clic && est) est.textContent = 'Arrastrar: girar · botón derecho o Mayús: desplazar · rueda: zoom · clic: seleccionar'; return; }
-            const el = elementosRed.find(x => x.id === h.object.userData.id); if (!el) return;
+            const h = V3.ray.intersectObjects(V3.objetos, false)[0]; if (!h) return null;
+            const el = elementosRed.find(x => x.id === h.object.userData.id); return el ? { el, h } : null;
+        }
+        const ayuda3D = () => 'Arrastrar: girar · botón derecho o Mayús: desplazar · rueda: zoom · clic: seleccionar · doble clic: pivote · Ctrl+doble clic: propiedades · R / Mayús+R: girar 45° · botón derecho: menú' + (V3 && V3.desfases && V3.desfases.length ? ` · ⚠ ${V3.desfases.length} tubería(s) con desnivel en 3D distinto de sus cotas: ${V3.desfases.slice(0, 4).map(x => tagDe(x.el) + ' ' + (x.dz >= 0 ? '+' : '') + Math.round(x.dz * 1000) + ' mm').join(', ')}${V3.desfases.length > 4 ? '…' : ''} (el cálculo usa las cotas)` : '');
+        function elegir3D(e, clic) {
+            if (!V3) return; const r = picar3D(e), est = document.getElementById('v3d-estado');
+            if (!r) { if (est) est.textContent = ayuda3D(); if (clic && (idSeleccionado || seleccion.size)) { seleccion.clear(); idSeleccionado = null; construirEscena3D(); } return; }
+            const { el, h } = r;
             if (est) est.textContent = `${tagDe(el)} · ${nombreTipo(el)} · ${proyecto.esBuque ? textoNaval(h.point.x * 1000, h.point.y * 1000, h.point.z * 1000) : `X ${Math.round(h.point.x * 1000)} · Y ${Math.round(h.point.y * 1000)} · Z ${Math.round(h.point.z * 1000)} mm`}`;
-            if (clic) { seleccionarElemento(el.id); construirEscena3D(); }
+            if (clic) { seleccion.clear(); seleccionarElemento(el.id); construirEscena3D(); mostrarTooltip(el.id, e.clientX, e.clientY); V3.tt = { x: e.clientX, y: e.clientY }; }
+        }
+        // ---------- v8.32 · operaciones sobre los componentes en el 3D ----------
+        // R / Mayús+R (y Girar del menú): gira el componente alrededor del eje de la tubería por la que se une, de 45° en 45°,
+        // horario mirando desde la tubería hacia el componente (como el giro sobre un eje en Inventor / SolidWorks). Lo que cuelga
+        // aguas abajo gira con él. Es un giro solo espacial (el.giro3D): el P&ID 2D no cambia.
+        function girar3D(inc) {
+            const els = idsSeleccion().map(id => elementosRed.find(e => e.id === id)).filter(e => e && !esAnotacion(e) && e.type !== 'tuberia');
+            if (!els.length) { aviso('Selecciona un componente para girarlo en 3D (las tuberías siguen al componente al que se unen).'); return; }
+            guardarEstado();
+            els.forEach(e => { const g = ((((+e.giro3D || 0) + inc) % 360) + 360) % 360; if (g) e.giro3D = g; else delete e.giro3D; });
+            marcarCambios(true); construirEscena3D();
+            const est = document.getElementById('v3d-estado'); if (est) est.textContent = `${els.map(tagDe).join(', ')} · giro en 3D ${els.length === 1 ? (els[0].giro3D || 0) + '°' : (inc > 0 ? '+' : '') + inc + '°'} alrededor del eje de su tubería` + (V3.desfases && V3.desfases.length ? ` · ⚠ ${V3.desfases.length} tubería(s) suben o bajan en 3D sin cambiar sus cotas: revísalas para el cálculo` : '');
+        }
+        // doble clic: el componente pasa a ser el centro de giro de la vista
+        function pivote3D(id) {
+            const gg = V3 && V3.geo && V3.geo[id]; if (!gg) return;
+            const c = gg.tubo ? v3.mul(v3.sum(gg.ports.a.p, gg.ports.b.p), 0.5) : gg.C; V3.target.set(c[0], c[1], c[2]); V3.pivote = id; pintar3D();
+            const est = document.getElementById('v3d-estado'); if (est) est.textContent = `Centro de giro: ${tagDe(gg.el)} · ${nombreTipo(gg.el)}`;
+        }
+        // botón derecho: el mismo menú que en el 2D (con las órdenes alrededor del cursor)
+        function menu3D(e) {
+            const r = picar3D(e);
+            if (!r) { mostrarMenuContextual(e.clientX, e.clientY, [
+                { icono: 'fa-calculator', texto: 'Calcular red', accion: () => calcularRed() },
+                { icono: 'fa-expand', texto: 'Encajar toda la red', accion: () => { V3.pivote = null; vista3dCamara('ajustar'); } },
+                { icono: 'fa-cube', texto: 'Vista isométrica', accion: () => vista3dCamara('iso') },
+                { icono: 'fa-border-all', texto: 'Planta', accion: () => vista3dCamara('planta') },
+                'sep',
+                { icono: 'fa-pen-ruler', texto: 'Volver al 2D', accion: () => ponerVista('normal') }]); return; }
+            const el = r.el; if (!seleccion.has(el.id)) { seleccion.clear(); seleccionarElemento(el.id); construirEscena3D(); }
+            const items = itemsMenuElemento(el).map(it => it && it.texto && /^Mover/.test(it.texto) ? Object.assign({}, it, { texto: it.texto + ' (en el 2D)', accion: () => { ponerVista('normal'); it.accion(); } }) : it);
+            items.splice(1, 0, { icono: 'fa-crosshairs', texto: 'Centrar aquí el giro de la vista', accion: () => pivote3D(el.id) });
+            const marcas = planoCongelado ? null : marcasElemento(el); if (marcas && marcas.E) { const m0 = marcas.E.accion; marcas.E = Object.assign({}, marcas.E, { texto: 'Mover (2D)', accion: () => { ponerVista('normal'); m0(); } }); }
+            mostrarMenuContextual(e.clientX, e.clientY, items, marcas);
+        }
+        // destino de una inserción desde el 3D: el extremo libre más cercano en pantalla o el punto equivalente sobre una tubería
+        function destino3D(e) {
+            if (!V3) return null; const T = V3.T, rc = V3.renderer.domElement.getBoundingClientRect(), mx = e.clientX - rc.left, my = e.clientY - rc.top;
+            let mejor = null;
+            (V3.libres || []).forEach(l => { const v = new T.Vector3(l.p[0], l.p[1], l.p[2]).project(V3.camera); if (v.z > 1) return; const sx = (v.x + 1) / 2 * rc.width, sy = (1 - v.y) / 2 * rc.height, d = Math.hypot(sx - mx, sy - my);
+                if (d < 40 && (!mejor || d < mejor.d)) mejor = { x: l.x, y: l.y, d, sx: sx + rc.left, sy: sy + rc.top, texto: `extremo ${l.id} de ${tagDe(l.el)}` }; });
+            if (mejor) return mejor;
+            const r = picar3D(e); if (!r || r.el.type !== 'tuberia') return null;
+            const gg = V3.geo[r.el.id], a = gg.ports.a.p, ab = v3.sum(gg.ports.b.p, v3.mul(a, -1)), L2 = v3.dot(ab, ab) || 1, f = Math.max(0.1, Math.min(0.9, v3.dot(v3.sum([r.h.point.x, r.h.point.y, r.h.point.z], v3.mul(a, -1)), ab) / L2));
+            const pp = obtenerPuertosConexion(r.el), pa = pp.find(q => q.id === 'a'), pb = pp.find(q => q.id === 'b'); if (!pa || !pb) return null;
+            return { x: pa.x + (pb.x - pa.x) * f, y: pa.y + (pb.y - pa.y) * f, sx: e.clientX, sy: e.clientY, texto: `sobre ${tagDe(r.el)} (se parte la tubería)` };
+        }
+        function pistaDestino3D(d) {
+            let c = document.getElementById('v3d-pista'); if (!d) { if (c) c.remove(); return; }
+            if (!c) { c = document.createElement('div'); c.id = 'v3d-pista'; c.style.cssText = 'position:fixed;width:16px;height:16px;margin:-8px 0 0 -8px;border:2px solid #f59e0b;border-radius:50%;background:rgba(245,158,11,.3);pointer-events:none;z-index:40'; document.body.appendChild(c); }
+            c.style.left = d.sx + 'px'; c.style.top = d.sy + 'px'; c.title = d.texto;
+            const est = document.getElementById('v3d-estado'); if (est) est.textContent = 'Soltar: ' + d.texto;
+        }
+        function insertar3D(data, e) {
+            if (planoCongelado) { avisarCongelado(); return false; }
+            const d = destino3D(e); if (!d) { aviso('Suelta el componente sobre un extremo libre (esfera azul) o sobre una tubería.', 'error'); return false; }
+            const n0 = elementosRed.length; desenganchado = false;
+            insertarComponente(data, d.x, d.y);
+            const nuevo = elementosRed.length > n0 ? elementosRed[elementosRed.length - 1] : null;
+            if (nuevo && !esAnotacion(nuevo)) { seleccion.clear(); idSeleccionado = nuevo.id; }
+            if (vista3d) construirEscena3D();
+            const est = document.getElementById('v3d-estado'); if (est && nuevo) est.textContent = `${tagDe(nuevo)} insertado ${d.texto.replace(/^extremo/, 'en el extremo')} · R / Mayús+R: girarlo 45° alrededor del eje de la tubería`;
+            return true;
+        }
+        function clicManoEn3D(e) {
+            if (nuevoPendiente) return;
+            enMano.n++; if (!insertar3D(Object.assign({}, enMano.data), e)) { enMano.n--; return; }
+            if (enMano && enMano.n > 1 && nuevoPendiente && !nuevoPendiente.propuesta && !nuevoPendiente.necesitaK) confirmarModalNuevo();
         }
         let tempo3D = null;
         function refrescar3D() { if (!vista3d || !V3) return; clearTimeout(tempo3D); tempo3D = setTimeout(() => { try { construirEscena3D(); } catch (e) { console.error(e); } }, 250); }
@@ -8807,7 +8902,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.31.1';
+        const VERSION_WEB = '8.32';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -10141,6 +10236,7 @@
         let contadorPegado = 0;
         // R: gira la selección 45° en sentido horario; Mayús+R, 45° en sentido antihorario
         function girar45(inc) {
+            if (vista3d && V3) { girar3D(inc); return; }   // v8.32 · en 3D gira alrededor del eje de la tubería a la que se une
             const ids = idsSeleccion().filter(id => !esTablaHoja(elementosRed.find(e => e.id === id)));
             if (!ids.length) return;
             if (ids.length > 1) { girarSeleccion(inc); renderizarVectorial(); return; }

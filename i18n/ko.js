@@ -98,3 +98,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Vista 3D (ejes navales, consulta)": "3D
 
 // v8.31
 Object.assign(window.PIPING_I18N.ko.d, {"Ratón 3D": "3D 마우스", "Fondo": "배경", "Rejilla": "격자", "Referencia 3D": "3D 기준", "Norte (° desde +X)": "북쪽 (+X 기준 °)", "Separación de cuadernas (mm)": "늑골 간격 (mm)"});
+
+// v8.32
+Object.assign(window.PIPING_I18N.ko.d, {"Centrar aquí el giro de la vista": "여기를 회전 중심으로", "Encajar toda la red": "전체 네트워크 맞추기", "Vista isométrica": "등각 뷰", "Volver al 2D": "2D로 돌아가기", "Mover / Desconectar (en el 2D)": "이동 / 분리 (2D에서)", "Suelta el componente sobre un extremo libre (esfera azul) o sobre una tubería.": "부품을 빈 끝단(파란 구) 또는 배관 위에 놓으십시오.", "Selecciona un componente para girarlo en 3D (las tuberías siguen al componente al que se unen).": "3D에서 회전할 부품을 선택하십시오 (배관은 연결된 부품을 따릅니다).", "Mover (2D)": "이동 (2D)"});
