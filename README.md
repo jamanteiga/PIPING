@@ -1,21 +1,21 @@
-# PIPING v8.30 · K/Cv de válvulas (a–d) y vista 3D fase F1
+# PIPING v8.31 · 3D con medidas reales, ramales, ratón 3D, fondo y referencia del proyecto
 
-Fecha: 2026-10-10 · Copia de la 8.29 en `copias\v829\`.
+Fecha: 2026-10-10 · Copia de la 8.30 en `copias\v830\`.
 
-## Punto 5 · K y Cv
-- (a) Curvas típicas Cv/Cv100 frente a apertura por tipo (CURVAS_TIPICAS_APERTURA): mariposa (Crane Center Line S200), bola y macho, compuerta y tajadera (K 0,15 / 0,26 / 2,1 / 17 a 100/75/50/25 %), globo y aguja (lineal), membrana (apertura rápida). En modo Crane, campo «Apertura (%)» en el panel: K = K100/(Cv/Cv100)². Ej.: compuerta DN 80 al 50 % → K × 14.
-- (b) Librerías > Válvulas > Tabla de Cv: columna «Cv Crane (ref.)» y botón «Completar los tamaños que faltan (escalado Crane con fT)»: n = K/fT en los tamaños conocidos, interpolado en log(D); estimados en naranja y anotados en Notas.
-- (c) Válvulas de control: autoridad N = Δp válvula / Δp del recorrido de mayor pérdida (aprox.) y característica instalada Q/Q100 = 1/√((1−N) + N/f²) a 10/25/50/75/90/100 %; aviso si N < 0,25.
-- (d) Aviso en el cálculo si el Cv de catálogo difiere más del ±50 % del equivalente de Crane para el mismo subtipo y DN.
+## Geometría 3D (geometria3DReal)
+- Recorrido por puertos desde el inicio de P01: cada componente ocupa su longitud real y sus puertos salen en la dirección del esquema (derecha = +X, arriba = +Y), girada para quedar coaxial con el tubo que llega (p. ej. tras un tramo vertical). Así salen los ramales de tes y cruces, los codos y los injertos.
+- Medidas orientativas si el modelo no da otras: válvulas cara a cara EN 558 serie 1 (mariposa/tajadera/wafer: serie 20) o «Distancia entre caras (mm)» del modelo; codos B16.9 (LR 1,5·NPS, 45° 0,625·NPS); tes B16.9 (C); reducciones B16.9 (H); bridas B16.5 cl. 150 (Ø exterior, espesor, longitud WN); bombas en línea; depósitos por volumen y altura.
+- Codo de 90°: vértice en la esquina del símbolo. Las tuberías: longitud y cotas a/b (vertical si el desnivel ≈ longitud).
+- Formas: tubo con Ø exterior real; válvula «pajarita» (como el P&ID), bola con esfera y palanca, mariposa como disco, compuerta/globo con volante, control/neumática con actuador, retención sin vástago, bridas propias si la conexión es «Bridada»; codos curvos; tes; reducciones cónicas; bridas con disco y cuello (WN); machón hexagonal; juntas de expansión; filtros en Y; bomba en línea con voluta, motor vertical y bancada; depósitos; consumos; instrumentos.
+- Etiquetas de tamaño constante en pantalla.
 
-## Vista 3D · F1 (botón «3D» junto a Normal / Isométrico, o Vista > Vista 3D)
-- Three.js 0.147 (cdn.jsdelivr.net, se carga al abrir). Ejes navales dextrógiros: origen en el eje del timón (cuaderna 0), +X proa, +Y babor, −Y estribor, +Z arriba.
-- Toolbar: Planta, Perfil (desde estribor, proa a la derecha), Desde proa, Isométrica, Ajustar; «Inicio de P01 respecto al eje del timón» X/Y/Z en mm (proyecto.origen3D); «Cuaderna (mm)» (proyecto.cuaderna, 750 por defecto); etiquetas y cuadernas activables (líneas cada cuaderna, marcadas cada 5, crujía discontinua, eje del timón).
-- Geometría desde el P&ID (dirección del esquema, longitud y cotas a/b): tubos con su Ø exterior real, válvulas, bombas, depósitos (por volumen y altura), consumos, equipos. Colores: rojo fallo, naranja seleccionado.
-- Ratón: arrastrar gira, botón derecho o Mayús desplaza, rueda zoom; al pasar: tag + coordenadas navales (cuaderna + mm, babor/estribor de crujía, Z); clic selecciona (panel de propiedades).
-- Funciones: abrirVista3D, iniciarMotor3D, construirEscena3D, vista3dCamara, elegir3D, textoNaval, refrescar3D.
+## Proyecto (Archivo > Datos del proyecto > Referencia 3D)
+- Buque: origen 0,0,0 en el eje del timón (C0), +X proa, +Y babor, −Y estribor, +Z arriba; punto inicial de P01 (X, Y, Z en mm; si el primer elemento es una bomba, su conexión de impulsión) y separación de cuadernas (750 mm por defecto). En 3D: ejes PROA/BABOR, cuadernas cada 5, crujía y eje del timón.
+- Industrial: el primer elemento de P01 (o la impulsión de la bomba) en 0,0,0; «Norte (° desde +X, antihorario)», 90 por defecto; en 3D ejes X/Y/Z, flecha N y rejilla; sin proa/popa/babor/estribor.
+- Campos guardados en proyecto: origen3D {x,y,z}, cuaderna, norte.
 
-Archivos (md5): index.html 22adc39a · js/piping.js 0ce6fd01 · css/piping.css 678b46f2 · i18n en 7398b37a, pt ccc30742, ko 1bf841ef.
+## Vista 3D
+- Fondo: selector de color del sistema; se recuerda en el navegador (localStorage «piping-3d») junto con Etiquetas, Cuadernas/Rejilla y la sensibilidad del ratón 3D.
+- Ratón 3D 3Dconnexion (SpaceMouse) por WebHID (Chrome/Edge): botón «Ratón 3D» la primera vez; después se reconecta solo. Traslación: desplazar/zoom; giro: orbitar; botón 1: Ajustar; botón 2: Isométrica. Informes HID 1 (traslación, o 6 ejes en 12 bytes), 2 (giro), 3 (botones). Si 3DxWare lo bloquea, cerrar 3DxWare.
 
-## Siguiente (F2)
-Trazado en 3D desde puertos libres con direcciones ±X/±Y/±Z y longitud, codos automáticos, válvulas sobre tubo con su cara a cara, giro del vástago; posiciones 3D guardadas en cada elemento y relación biunívoca con el P&ID.
+Archivos (md5): index.html 1b9833a1 · js/piping.js f9baded0 · i18n en 422c817a, pt 59b1a52f, ko 854aada5.
