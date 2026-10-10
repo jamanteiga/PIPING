@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PIPING - Diseño P&ID Vectorial Avanzado (mm)</title>
-    <link rel="stylesheet" href="css/piping.css?v=8.24">
+    <link rel="stylesheet" href="css/piping.css?v=8.25">
     <link rel="stylesheet" href="fa/css/fa.min.css?v=6.4.0">
     <!-- Datos de ingeniería (fluidos, tuberías, Crane, B16.9, válvulas). Debe estar junto a index.html -->
-    <script src="catalogo.js?v=8.24"></script>
+    <script src="catalogo.js?v=8.25"></script>
     <script>
         // diccionario del idioma de la interfaz antes de arrancar (i18n/<idioma>.js)
-        (function () { try { var l = localStorage.getItem('piping-idioma'); if (l === 'en' || l === 'pt' || l === 'ko') document.write('<script src="i18n/' + l + '.js?v=8.24"><\/script>'); } catch (e) { } })();
+        (function () { try { var l = localStorage.getItem('piping-idioma'); if (l === 'en' || l === 'pt' || l === 'ko') document.write('<script src="i18n/' + l + '.js?v=8.25"><\/script>'); } catch (e) { } })();
     </script>
     <script>
         // Catálogo descargado de Supabase (copia en el navegador): sustituye a catalogo.js si es igual o más
@@ -153,7 +153,7 @@
             <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
             <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
             <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
-            <p class="mt-1"><span class="text-slate-400">Versión:</span> 8.24-crane-2009</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 8.25-iso-bombas-materiales</p>
             <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
             <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
             <p class="mt-3 text-slate-400">© 2026</p>
@@ -216,6 +216,11 @@
                 <div class="flex items-center space-x-1.5">
                     <button id="btn-deshacer" onclick="deshacer()" title="Deshacer (Ctrl+Z)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-left mr-1 text-blue-600"></i> Deshacer</button>
                     <button id="btn-rehacer" onclick="rehacer()" title="Rehacer (Ctrl+Y)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-right mr-1 text-blue-600"></i> Rehacer</button>
+                    <span class="w-px h-5 bg-slate-300 mx-1"></span>
+                    <!-- v8.25 · vista del lienzo sin crear hoja: Normal (P&ID) / Isométrico (consulta), y cálculo -->
+                    <button id="btn-vista-normal" onclick="ponerVista('normal')" title="Vista normal del esquema P&ID (Vista > Vista normal)" class="bg-blue-600 text-white border-blue-600 px-2.5 py-1 rounded-l font-medium border transition flex items-center"><i class="fa-solid fa-diagram-project mr-1"></i>Normal</button>
+                    <button id="btn-vista-iso" onclick="ponerVista('iso')" title="Vista isométrica de la red de esta hoja a partir de longitudes y cotas, sin crear hoja (Vista > Vista isométrica)" class="bg-white text-slate-700 border-slate-300 hover:bg-slate-50 px-2.5 py-1 rounded-r font-medium border transition flex items-center" style="margin-left:-1px"><i class="fa-solid fa-cube mr-1"></i>Isométrico</button>
+                    <button id="btn-calcular" onclick="calcularRed()" title="Calcular la red (Cálculo > Calcular red)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded shadow-sm flex items-center" style="margin-left:8px"><i class="fa-solid fa-calculator mr-1"></i>Calcular</button>
                 </div>
             </div>
 
@@ -269,7 +274,6 @@
         <!-- PANEL DERECHO: LIBRERÍA -->
         <aside id="panel-der" class="bg-white border-l border-slate-200 p-2.5 flex flex-col space-y-3 overflow-y-auto z-10" style="width: 220px; min-width: 160px; max-width: 400px;">
             <div class="border-b border-slate-100 pb-1.5 flex items-center gap-2">
-                <button id="btn-calcular" onclick="calcularRed()" title="Calcular la red (Cálculo > Calcular red)" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm flex items-center"><i class="fa-solid fa-calculator mr-1"></i>Calcular</button>
                 <h2 class="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex items-center whitespace-nowrap"><i class="fa-solid fa-shapes mr-1 text-blue-600"></i>Símbolos P&ID</h2>
             </div>
 
@@ -279,10 +283,10 @@
 
     </div>
 
-    <script src="js/piping.js?v=8.24"></script>
+    <script src="js/piping.js?v=8.25"></script>
     <script>
         // aviso si index.html y js/piping.js no son de la misma versión (subida incompleta o caché del navegador)
-        (function () { var esperada = '8.24', v = null; try { v = VERSION_WEB; } catch (e) { }
+        (function () { var esperada = '8.25', v = null; try { v = VERSION_WEB; } catch (e) { }
             if (v === esperada) return;
             var d = document.createElement('div'); d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;font:bold 13px sans-serif;padding:10px 14px;text-align:center';
             d.textContent = 'Versiones mezcladas: index.html es ' + esperada + ' y js/piping.js es ' + (v || 'anterior a la 8.4') + '. Sube también la carpeta js completa (js/piping.js y js/partes) y recarga con Ctrl+F5.';
