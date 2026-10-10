@@ -15,7 +15,13 @@ Fecha: 2026-10-10 · Copia de la 8.30 en `copias\v830\`.
 - Campos guardados en proyecto: origen3D {x,y,z}, cuaderna, norte.
 
 ## Vista 3D
-- Fondo: selector de color del sistema; se recuerda en el navegador (localStorage «piping-3d») junto con Etiquetas, Cuadernas/Rejilla y la sensibilidad del ratón 3D.
-- Ratón 3D 3Dconnexion (SpaceMouse) por WebHID (Chrome/Edge): botón «Ratón 3D» la primera vez; después se reconecta solo. Traslación: desplazar/zoom; giro: orbitar; botón 1: Ajustar; botón 2: Isométrica. Informes HID 1 (traslación, o 6 ejes en 12 bytes), 2 (giro), 3 (botones). Si 3DxWare lo bloquea, cerrar 3DxWare.
+- Fondo: selector de color del sistema; se recuerda en el navegador (localStorage «piping-3d») junto con Etiquetas, Cuadernas/Rejilla, sensibilidad, Horizonte fijo e Invertir giros.
+- Ratón 3D 3Dconnexion (SpaceMouse) por WebHID (Chrome/Edge): botón «Ratón 3D» la primera vez; después se reconecta solo.
 
-Archivos (md5): index.html 1b9833a1 · js/piping.js f9baded0 · i18n en 422c817a, pt 59b1a52f, ko 854aada5.
+## 8.31.1 · ratón 3D con 6 grados de libertad
+- Fallo de la 8.31: se abría la primera colección HID del dispositivo, que no es la de los ejes; solo funcionaba el zoom que el driver 3DxWare emula como rueda. Ahora se abre la colección del controlador multieje (usage page 1, usage 8) y se reconecta sola al enchufar.
+- Mapa: X/Y del capuchón (izquierda-derecha) desplazan; empujar/tirar (eje Y del ratón) acerca/aleja; subir/bajar (Z) desplaza en vertical; inclinar adelante/atrás (Rx) cabecea; girar (Rz) gira alrededor de la vertical; inclinar a los lados (Ry) alabea si «Horizonte fijo» está desactivado. Botón 1: Ajustar; botón 2: Isométrica.
+- Opciones en la barra 3D: Sens., Horizonte fijo, Invertir giros, Diagnóstico (muestra en la barra inferior el informe HID y los 6 valores).
+- Informes HID: 1 (traslación, o los 6 ejes si trae 12 bytes), 2 (giro), 3 (botones).
+
+Archivos (md5) 8.31.1: index.html d423804c · js/piping.js a4d370eb (8.31: index.html 1b9833a1 · js/piping.js f9baded0 · i18n en 422c817a, pt 59b1a52f, ko 854aada5). Copia de la 8.31 en `copias\v831\`.
