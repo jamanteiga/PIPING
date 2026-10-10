@@ -89,3 +89,9 @@ Object.assign(window.PIPING_I18N.en.d, {"Redimensionar (componentes que cumplen 
 
 // v8.28
 Object.assign(window.PIPING_I18N.en.d, {"Pérdida acumulada": "Cumulative head loss"});
+
+// v8.29
+Object.assign(window.PIPING_I18N.en.d, {"Líneas vacías": "Empty lines", "Mantenerlas": "Keep them", "Estas líneas no tienen ningún componente:": "These lines have no components:", "¿Las elimino?": "Delete them?"});
+
+// v8.30
+Object.assign(window.PIPING_I18N.en.d, {"Vista 3D (ejes navales, consulta)": "3D view (ship axes, read-only)", "Planta": "Plan", "Perfil (desde estribor)": "Profile (from starboard)", "Desde proa": "From bow", "Isométrica": "Isometric", "Ajustar": "Fit", "Etiquetas": "Labels", "Cuadernas": "Frames", "Cuaderna (mm)": "Frame spacing (mm)", "Inicio de P01 respecto al eje del timón (mm):": "Start of P01 from the rudder axis (mm):", "Completar los tamaños que faltan (escalado Crane con fT)": "Fill missing sizes (Crane fT scaling)", "Cv Crane (ref.)": "Crane Cv (ref.)"});

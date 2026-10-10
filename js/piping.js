@@ -16,7 +16,7 @@
         async function cargarTodasLasPartes() { if (typeof PARTES_LISTA === 'undefined') return; for (const g of PARTES_LISTA) { try { await cargarParte(g, true); } catch (e) { /* se reintenta al usarla */ } await new Promise(r => setTimeout(r, 250)); } }
         let elementosRed = [];
         let idioma = (() => { try { const l = localStorage.getItem('piping-idioma'); return ['es', 'en', 'pt', 'ko'].includes(l) ? l : 'es'; } catch (e) { return 'es'; } })(); // Opciones > Idioma
-        var vistaIso = false; // v8.25 · vista isométrica de consulta en el lienzo (botones Normal / Isométrico)
+        var vistaIso = false, vista3d = false; // v8.25 · vista isométrica de consulta en el lienzo (botones Normal / Isométrico)
         let planoCongelado = false; // hoja congelada (botón derecho en el lienzo > Congelar plano)
         let hojas = [{ id: '00' }], hojaActual = 0; // hojas del proyecto (ver HOJAS DEL PROYECTO)
         let idSeleccionado = null;
@@ -406,7 +406,13 @@
                 const r = kDeEntradaCrane(entradaCrane(el), dn, Dmm);
                 return { K: r.K, origen: r.origen, aviso: `${tagDe(el)}: la serie de catálogo no tiene ${el.dn}; se usa el K de Crane.` };
             }
-            return kDeEntradaCrane(entradaCrane(el), dn, Dmm);
+            const rc = kDeEntradaCrane(entradaCrane(el), dn, Dmm);
+            // v8.30 · válvula parcialmente abierta con K de Crane: K = K100 / (Cv/Cv100)², con la curva del modelo o la típica del tipo
+            if (el.type === 'valvula' && rc && el.apertura != null && el.apertura !== '' && +el.apertura < 100) {
+                const c = leerCurvaApertura(el.curvaApertura || CURVAS_TIPICAS_APERTURA[el.subtype] || '');
+                if (c.length) { const fr = Math.max(fraccionApertura(c, +el.apertura), 0.005); return Object.assign({}, rc, { K: rc.K / (fr * fr), origen: `${rc.origen} · apertura ${el.apertura} % → Cv ${(fr * 100).toFixed(1)} % (curva ${el.curvaApertura ? 'del modelo' : 'típica'})` }); }
+            }
+            return rc;
         }
         // Te, cruce e injerto: K de paso directo y de derivación. Se reparten en ramas desde un nodo
         // central: ramas a y b = K_run/2; ramas de derivación (c, d) = K_der − K_run/2.
@@ -698,6 +704,11 @@
         // mariposa de asiento elástico: Cv relativo según Crane / Center Line Series 200 (10°…90° → 11…100 % de la carrera)
         const CURVA_MARIPOSA_TIPICA = '11:0.05; 22:2.8; 33:6; 44:13; 56:23; 67:38; 78:61; 89:91; 100:100';
         const CURVA_BOLA_TIPICA = '10:1; 20:3; 30:6; 40:11; 50:19; 60:30; 70:45; 80:65; 90:86; 100:100';
+        // v8.30 · curvas típicas (orientativas) de capacidad relativa Cv/Cv100 frente a apertura, por tipo de válvula.
+        // Compuerta y tajadera: K = 0,15 / 0,26 / 2,1 / 17 a 100 / 75 / 50 / 25 % de apertura (valores clásicos de manual) → Cv ∝ 1/√K.
+        // Globo y aguja: característica lineal; membrana: apertura rápida (√h); macho: como la bola.
+        const CURVAS_TIPICAS_APERTURA = { mariposa: CURVA_MARIPOSA_TIPICA, bola: CURVA_BOLA_TIPICA, macho: CURVA_BOLA_TIPICA, compuerta: '25:9.4; 50:26.7; 75:76; 100:100', tajadera: '25:9.4; 50:26.7; 75:76; 100:100',
+            globo: '10:10; 30:30; 50:50; 70:70; 100:100', aguja: '10:10; 30:30; 50:50; 70:70; 100:100', membrana: '10:32; 25:50; 50:71; 75:87; 100:100' };
         // coherencia de la conexión de una válvula y de su rango de servicio
         function avisosValvula(el) {
             const av = [], c = el.conexValv || '', n = el.normaValv || '', d = el.dn ? dnNum(el.dn) : null;
@@ -1176,7 +1187,7 @@
             // "Mover/Desconectar" deja esta bandera en true para el siguiente arrastre manual; un
             // componente NUEVO desde la librería siempre debe intentar imantarse.
             desenganchado = false;
-            if (vistaIso) ponerVista('normal');   // en la vista isométrica no se dibuja: se vuelve a la normal
+            if (vistaIso || vista3d) ponerVista('normal');   // en las vistas de consulta no se dibuja: se vuelve a la normal
             const data = JSON.parse(ev.dataTransfer.getData("text/plain"));
             const rectMarco = marcoA3.getBoundingClientRect();
             const cx = (ev.clientX - rectMarco.left) / zoomScale, cy = (ev.clientY - rectMarco.top) / zoomScale;
@@ -1339,15 +1350,23 @@
                 }
                 else if (esNodo(o) && !sinFlujo(el) && v.puertoOtro !== (o.puertoEntrada || 'a') && !(o.subtype === 'injerto' && v.puertoOtro === 'b')) {
                     // cada salida de una te o de un cruce es un ramal nuevo: R01, R02 (R03 en el cruce)...
-                    const id = siguienteLinea('ramal', o.linea);
-                    lineas.push({ id, tipo: 'ramal', nombre: '', padre: o.linea, desde: o.id, puerto: v.puertoOtro });
+                    // si ya hay un ramal (vacío) desde esa salida, se reutiliza en vez de crear otro
+                    const prev = lineas.find(l => l.tipo === 'ramal' && l.desde === o.id && l.puerto === v.puertoOtro && !elementosRed.some(e => e.id !== el.id && e.linea === l.id));
+                    const id = prev ? prev.id : siguienteLinea('ramal', o.linea);
+                    if (!prev) lineas.push({ id, tipo: 'ramal', nombre: '', padre: o.linea, desde: o.id, puerto: v.puertoOtro });
                     el.linea = id; el.inicioLinea = true; necesitaLinea = false;
                     el._herencia = (el._herencia ? el._herencia + '. ' : '') + `Nuevo ramal ${id} desde ${tagDe(o)} (salida ${v.puertoOtro})`;
                 }
                 else { el.linea = o.linea; necesitaLinea = false; }
             }
             // elemento sin conexión: por defecto abre una línea principal nueva (se puede elegir otra)
-            if (necesitaLinea && !propuesta) propuesta = { tipo: 'principal', linea: lineas.length ? lineas[lineas.length - 1].id : null };
+            if (necesitaLinea && !propuesta) {
+                // v8.29 · sin conexión: si cae muy cerca (< 60 px) de un componente, se propone su línea; si no, una principal nueva
+                const c0 = centroElemento(el), cerca = elementosRed.filter(e => e.id !== el.id && e.linea && !esAnotacion(e) && lineaPorId(e.linea)).map(e => ({ e, d: Math.hypot(centroElemento(e).x - c0.x, centroElemento(e).y - c0.y) })).sort((a, b) => a.d - b.d)[0];
+                const sel = idSeleccionado && elementosRed.find(e => e.id === idSeleccionado && e.id !== el.id && e.linea && lineaPorId(e.linea));
+                const ref = cerca && cerca.d < 60 ? cerca.e : null; void sel;
+                propuesta = ref ? { tipo: 'existente', linea: ref.linea } : { tipo: 'principal', linea: lineas.length ? lineas[lineas.length - 1].id : null };
+            }
             const necesitaK = calcDe(el) === 'pedir';
             const conPN = el.type === 'valvula' || el.type === 'accesorio' || el.type === 'equipo';
             asignarNumero(el);
@@ -1571,6 +1590,8 @@
             invalidarResultados();
             renderizarVectorial();
             seleccionarElemento(el.id);
+            try { avisarUnionesDe(el); } catch (e) { console.error(e); }
+            setTimeout(() => { if (document.getElementById('modal-dialogo').style.display !== 'flex') revisarLineasVacias(el.linea); }, 60);
         }
         function cancelarModalNuevo() {
             // Cancelar la inserción: se deshace el componente recién soltado
@@ -2428,6 +2449,7 @@
                 }
             }
             if (!isDraggingSymbol) programarArbol();
+            if (vista3d) refrescar3D();
         }
         // Arrastre y doble clic de etiquetas (delegados en el lienzo)
         let arrastreEtq = null;
@@ -2846,6 +2868,7 @@
                 if (obj.subtype === 'control' || obj.subtype === 'neumatica') modos.push(['kvs', 'Regulación: Kvs, característica y apertura']);
                 modos.push(['manual', 'K manual']);
                 h += ctrlSelect(fn, 'modoK', modos, obj.modoK, 'Coeficiente K');
+                if (obj.type === 'valvula' && obj.modoK === 'crane' && (obj.curvaApertura || CURVAS_TIPICAS_APERTURA[obj.subtype])) h += ctrlNum(fn, 'apertura', obj.apertura == null || obj.apertura === '' ? 100 : obj.apertura, `Apertura (%; 100 = abierta; curva ${obj.curvaApertura ? 'del modelo' : 'típica'})`, '1');
                 if (esTee) {
                     if (obj.modoK === 'manual') {
                         h += ctrlNum(fn, 'kRun', obj.kRun, 'K paso directo', '0.01') + ctrlNum(fn, 'kBranch', obj.kBranch, 'K derivación', '0.01');
@@ -2861,6 +2884,7 @@
                     h += ctrlNum(fn, 'kvs', obj.kvs || '', 'Kvs (m³/h, 1 bar)', 'any') + ctrlSelect(fn, 'caracteristica', [['iso', 'Isoporcentual (R = 50)'], ['lineal', 'Lineal'], ['tabla', 'Curva del fabricante (apertura : Cv %)']], obj.caracteristica || 'iso', 'Característica') + (obj.caracteristica === 'tabla' ? ctrlTexto(fn, 'curvaApertura', obj.curvaApertura || '', 'Curva (apertura % : Kv %)') : '') +
                         ctrlNum(fn, 'apertura', obj.apertura != null ? obj.apertura : 70, 'Apertura (%)', '1') + ctrlNum(fn, 'FL', obj.FL || 0.9, 'Factor de recuperación FL (IEC 60534)', '0.01');
                     h += info(`Kv a la apertura: ${fmt(kvApertura(obj), 2)} m³/h. Se comprueba la cavitación (σ y Δp de estrangulamiento IEC 60534).`);
+                    { const rc = ultimoResultado && ultimoResultado[obj.id] && ultimoResultado[obj.id].control; if (rc && rc.autoridad != null) h += info(`Autoridad N = <b class="${rc.autoridad < 0.25 ? 'text-rose-600' : 'text-emerald-700'}">${fmt(rc.autoridad, 2)}</b> (Δp válvula / Δp del recorrido de mayor pérdida)<br>Característica instalada: ${rc.instalada.map(([h, q]) => `${h} % → ${fmt(q, 0)} %Q`).join(' · ')}`); }
                 } else if (obj.modoK === 'cv') {
                     h += ctrlNum(fn, 'cvUsuario', obj.cvUsuario, 'Cv (gpm/√psi)', 'any');
                     const kk = kElemento(obj, dintReferencia(obj.dn));
@@ -4625,6 +4649,7 @@
             // v8.25 · compatibilidad material – fluido (buenas prácticas; ver Herramientas > Compatibilidad material – fluido)
             comprobacionesMaterialFluido(resultado, fallo);
             comprobacionesValvulas(resultado, fallo);
+            comprobacionesUniones(resultado, fallo);
             // válvulas de control: cavitación (IEC 60534): Δp estrangulado = FL²·(p1 − FF·pv), FF = 0,96 − 0,28·√(pv/pc)
             aristas.filter(a => a.el.type === 'valvula' && a.el.modoK === 'kvs' && Math.abs(a.Qprev) > 1e-7).forEach(a => {
                 const el = a.el, r = ultimoResultado[el.id];
@@ -4633,6 +4658,12 @@
                 const dpMax = FL * FL * (p1 - FF * fluido.pv), sigma = (p1 - fluido.pv) / Math.max(dp, 1);
                 const Qh = Math.abs(a.Qprev) * 3600, kvNec = dp > 0 ? Qh * Math.sqrt((fluido.rho / 1000) / (dp / 1e5)) : null;
                 r.control = { p1, p2, dp, dpMax, sigma, FL, kv: kvApertura(el), kvNec, kvsRec: kvNec ? kvNec / (el.caracteristica === 'lineal' ? 0.7 : Math.pow(50, 0.7 - 1)) : null };
+                // v8.30 · autoridad N = Δp válvula / Δp del recorrido de mayor pérdida (aprox.) y característica instalada Q/Q100 = 1/√((1−N) + N/f²)
+                { const P = perdidasDesdeOrigen(resultado), hfMax = P && P.dist ? Math.max(0, ...Object.values(P.dist)) : 0, dpRec = hfMax * fluido.rho * G, dpv = Math.max(dp, 0);
+                  if (dpRec > 0 && dpv > 0) { const N = Math.min(1, dpv / Math.max(dpRec, dpv)), kvs = +el.kvs || 0;
+                    r.control.autoridad = N;
+                    r.control.instalada = [10, 25, 50, 75, 90, 100].map(h => { const f = kvs > 0 ? kvApertura(Object.assign({}, el, { apertura: h })) / kvs : h / 100; return [h, 100 / Math.sqrt((1 - N) + N / Math.max(f * f, 1e-6))]; });
+                    if (N < 0.25) avisos.push(`${tagDe(el)}: autoridad de la válvula de control N = ${N.toFixed(2)} (< 0,25): regulación pobre; habituales 0,25–0,5 en proceso y ≥ 0,5 en climatización. Reduce el Kvs o la pérdida del resto del circuito.`); } }
                 if (dp >= dpMax) fallo(el, `cavitación / flujo estrangulado: Δp ${(dp / 1e5).toFixed(2)} bar ≥ ${(dpMax / 1e5).toFixed(2)} bar (FL ${FL})`);
                 else if (sigma < 2) avisos.push(`${tagDe(el)}: σ = ${sigma.toFixed(2)} < 2 → riesgo de cavitación incipiente; valorar FL mayor, dos etapas o menor Δp.`);
                 const ap = +el.apertura;
@@ -6216,6 +6247,107 @@
             return true;
         }
 
+        // ==================================================================================
+        // v8.29 · COMPATIBILIDAD DE UNIONES entre componentes contiguos (buena práctica de montaje)
+        // Tipo de extremo de cada puerto: BRIDA (cara de una brida dibujada), BRIDADO (componente con conexión bridada: la
+        // contrabrida se supone, como en cualquier P&ID), WAFER, BW (soldar a tope), SW (enchufe socket-weld), SO (brida plana
+        // slip-on: va sobre tubo), LOCA (brida loca sobre portabridas), ROS (rosca), PL (brida plástica), CLAMP, RAN (ranurado),
+        // TUBO_AC (tubo de acero, extremo liso/biselado), TUBO_PLE (PVC/CPVC encolado), TUBO_PLF (PE/PP/PVDF por fusión),
+        // TUBO_CU, TUBO_FD (fundición). Las juntas no se dibujan: se suponen entre bridas.
+        // ==================================================================================
+        function tipoConexTexto(t) {
+            t = String(t || ''); if (!t) return null;
+            if (/^(Bridada|Brida)$/.test(t)) return 'BRIDADO'; if (/^(Wafer|Lug)/.test(t)) return 'WAFER'; if (/Roscad/.test(t) || /racor|manguito/i.test(t)) return 'ROS';
+            if (/socket|SW\)/i.test(t)) return 'SW'; if (/tope|BW\)/i.test(t)) return 'BW'; if (/Clamp/i.test(t)) return 'CLAMP'; if (/Ranurad/i.test(t)) return 'RAN'; return null;
+        }
+        function tipoExtremo(el, pid) {
+            if (!el || esAnotacion(el) || sinFlujo(el)) return null;
+            if (el.type === 'tuberia') { const b = matBase(el.material) || '';
+                if (/Acero/.test(b)) return 'TUBO_AC'; if (/PVC/.test(b)) return 'TUBO_PLE'; if (/^(PE|PP|PVDF)/.test(b)) return 'TUBO_PLF'; if (/Cobre/.test(b)) return 'TUBO_CU'; if (/Fundici/.test(b)) return 'TUBO_FD'; return null; }
+            if (SUBTIPOS_BRIDA.includes(el.subtype)) {
+                if (pid === 'a') return 'BRIDA';
+                const m = typeof modeloAcc === 'function' ? modeloAcc(el) : null, c = m && m.props ? tipoConexTexto(m.props.conexion) : null;
+                if (el.subtype === 'bridaplastica') return 'PL'; if (el.subtype === 'bridaloca') return 'LOCA'; if (el.subtype === 'bridaroscada') return 'ROS'; if (el.subtype === 'bridawn') return c === 'SW' ? 'SW' : 'BW';
+                return c === 'SW' ? 'SW' : 'SO';   // brida plana / brida unión: slip-on (o socket si su modelo lo dice)
+            }
+            if (['machon', 'manguito', 'tuerca', 'racor'].includes(el.subtype)) return 'ROS';
+            if (el.type === 'valvula') return tipoConexTexto(el.conexValv);
+            if (el.type === 'accesorio') { const m = el.accModelo && typeof modeloAcc === 'function' ? modeloAcc(el) : null; return m && m.props ? tipoConexTexto(m.props.conexion) : tipoConexTexto(el.conexValv); }
+            if (el.type === 'bomba') { const c = conexBomba(el, pid === 'succion' ? 'Asp' : 'Imp'); return c.tipo && (el['conex' + (pid === 'succion' ? 'Asp' : 'Imp')]) ? tipoConexTexto(c.tipo) : null; }
+            if (esTerminal(el) || esEquipo(el)) return tipoConexTexto(el.tipoConexion);
+            return null;
+        }
+        const ES_TUBO = t => /^TUBO_/.test(t || ''), ES_PLAST = t => /^(TUBO_PL|PL$)/.test(t || '');
+        // [nivel, texto] con nivel 'error' | 'aviso', o null si la unión es correcta o no hay datos
+        function reglaUnion(a, b, ea, eb) {
+            if (!a || !b) return null;
+            const P = (x, y) => (a === x && b === y) || (a === y && b === x), uno = x => a === x || b === x, otro = x => a === x ? b : a;
+            if (uno('BRIDA')) { const o = otro('BRIDA'); if (['BRIDA', 'BRIDADO', 'WAFER'].includes(o)) return null;
+                return ['error', 'contra la cara de una brida solo va (con su junta) una contrabrida, un componente bridado o una válvula wafer; no un tubo, un accesorio soldado ni una unión roscada']; }
+            if (uno('BRIDADO') || uno('WAFER')) { const o = uno('BRIDADO') ? otro('BRIDADO') : otro('WAFER');
+                if (['BRIDADO', 'WAFER', 'BRIDA'].includes(o) || ES_TUBO(o)) return null;   // contrabrida implícita en el P&ID
+                if (uno('WAFER') && ['BW', 'SW', 'SO', 'ROS', 'LOCA', 'PL'].includes(o)) return ['error', 'la válvula wafer / lug va entre dos caras de brida, no contra el lado de soldadura o rosca de un accesorio'];
+                return ['aviso', 'componente bridado contra un accesorio soldado o roscado: falta la brida intermedia']; }
+            if (uno('SO')) { const o = otro('SO'); if (o === 'TUBO_AC') return null; return ['error', 'la brida plana (slip-on) se monta sobre tubo de acero, no contra un accesorio ni contra otra brida']; }
+            if (uno('LOCA')) { const o = otro('LOCA'); if (ES_TUBO(o) && o !== 'TUBO_CU') return null; return ['error', 'la brida loca va sobre un portabridas (stub-end) del tubo, no contra un accesorio']; }
+            if (uno('PL')) { const o = otro('PL'); if (o === 'TUBO_PLE' || o === 'TUBO_PLF') return null; return ['error', 'la brida plástica se une a tubo plástico (encolado o por fusión), no a acero']; }
+            if (P('TUBO_AC', 'BW') || P('BW', 'BW') || P('TUBO_AC', 'TUBO_AC') || P('ROS', 'ROS') || P('CLAMP', 'CLAMP') || P('RAN', 'RAN') || P('TUBO_PLE', 'TUBO_PLE') || P('TUBO_PLF', 'TUBO_PLF') || P('TUBO_CU', 'TUBO_CU')) return null;
+            if (P('TUBO_AC', 'SW')) { const d = Math.max(dnNum(ea.dn), dnNum(eb.dn)); return d > 50 ? ['aviso', `socket weld en DN ${d}: la práctica habitual lo limita a DN 50 (2")`] : null; }
+            if (P('TUBO_AC', 'ROS')) return ['aviso', 'unión roscada: el tubo tiene que ir roscado (ASME B31.3 §314: Sch 80 mínimo hasta 1½") y no se recomienda por encima de DN 50'];
+            if (P('TUBO_AC', 'RAN')) return ['aviso', 'unión ranurada: el tubo tiene que ir ranurado (roll-groove o cut-groove)'];
+            if (P('TUBO_AC', 'CLAMP')) return ['aviso', 'clamp sanitario: necesita casquillo (ferrule) soldado al tubo'];
+            if (P('TUBO_AC', 'TUBO_FD')) return ['aviso', 'unión acero – fundición: con bridas o junta mecánica (EN 545)'];
+            if (P('BW', 'SW')) return ['error', 'un extremo para soldar a tope no se suelda contra un enchufe socket-weld: intercala un niple de tubo'];
+            if (P('SW', 'SW')) return ['error', 'dos enchufes socket-weld no se unen entre sí: intercala un niple de tubo'];
+            if (P('BW', 'ROS') || P('SW', 'ROS')) return ['error', 'extremo soldado contra rosca: intercala un niple roscado-soldado o una brida'];
+            if ((uno('TUBO_AC') || uno('BW') || uno('SW')) && (ES_PLAST(a) || ES_PLAST(b) || uno('TUBO_PLE') || uno('TUBO_PLF'))) return ['error', 'transición acero – plástico: hazla con bridas (portabridas + brida loca contra brida de acero) o con un enlace / racor de transición, nunca soldada'];
+            if (uno('TUBO_CU') && (uno('TUBO_AC') || uno('BW') || uno('SW'))) return ['error', 'acero – cobre: par galvánico; usa manguito dieléctrico o bridas aisladas'];
+            if (P('TUBO_PLE', 'TUBO_PLF')) return ['error', 'PVC (encolado) y PE/PP/PVDF (fusión) no se unen directamente: bridas o enlace de transición'];
+            if (uno('ROS') && (uno('TUBO_PLE') || uno('TUBO_PLF'))) return ['aviso', 'rosca en plástico: usa un adaptador de transición macho/hembra del sistema plástico'];
+            if (uno('ROS') && uno('TUBO_CU')) return ['aviso', 'cobre – rosca: con racor de transición'];
+            if (P('BW', 'TUBO_CU') || P('BW', 'TUBO_FD') || P('SW', 'TUBO_FD')) return ['error', 'materiales que no se sueldan entre sí: usa bridas o una junta mecánica'];
+            return null;
+        }
+        // uniones de la hoja: cada nudo con dos puertos de elementos distintos
+        function unionesHoja() {
+            const g = construirGrafoRed(), por = Object.fromEntries(elementosRed.map(e => [e.id, e])), out = [];
+            g.nodos.forEach(n => { const ps = n.puertos.filter(p => por[p.elId] && !esAnotacion(por[p.elId]) && !sinFlujo(por[p.elId])); if (ps.length !== 2 || ps[0].elId === ps[1].elId) return;
+                const [p, q] = ps, ea = por[p.elId], eb = por[q.elId], ta = tipoExtremo(ea, p.portId), tb = tipoExtremo(eb, q.portId), r = reglaUnion(ta, tb, ea, eb);
+                let extra = null;
+                if (ta === 'BRIDA' && tb === 'BRIDA' && ea.pn && eb.pn && ea.pn !== eb.pn) extra = ['aviso', `bridas enfrentadas con distinto PN / clase (${ea.pn} y ${eb.pn}): deben coincidir norma, DN y rating`];
+                if (r || extra) out.push({ ea, eb, ta, tb, nivel: (r || extra)[0], texto: (r || extra)[1] });
+            });
+            return out;
+        }
+        function comprobacionesUniones(resultado, fallo) {
+            const avisos = resultado.avisosRed = resultado.avisosRed || [];
+            unionesHoja().forEach(u => { const m = `unión ${tagDe(u.ea)} – ${tagDe(u.eb)}: ${u.texto}`; if (u.nivel === 'error') { const el = u.ea.type === 'tuberia' ? u.eb : u.ea; fallo(el, m); } else avisos.push(m + '.'); });
+        }
+        // al insertar: aviso inmediato si la unión con lo que toca no es correcta
+        function avisarUnionesDe(el) {
+            const us = unionesHoja().filter(u => u.ea.id === el.id || u.eb.id === el.id);
+            us.forEach(u => aviso(`Unión ${tagDe(u.ea)} – ${tagDe(u.eb)}: ${u.texto}`, u.nivel === 'error' ? 'error' : undefined));
+        }
+        // ==================================================================================
+        // v8.29 · LÍNEAS VACÍAS: al insertar en otra línea, se ofrece borrar las que se han quedado sin componentes
+        // (nunca una línea de la que cuelgan ramales con componentes). Se pregunta siempre antes de borrar.
+        // ==================================================================================
+        const LINEAS_VACIAS_MANTENER = new Set();
+        function lineasVacias(excepto) {
+            const usadas = new Set(elementosRed.concat(elementosOtrasHojas()).filter(e => !esAnotacion(e) && e.linea).map(e => e.linea)), todas = todasLineas(), guardar = new Set(usadas);
+            todas.filter(l => usadas.has(l.id)).forEach(l => { let p = l.padre, n = 0; while (p && n++ < 20) { guardar.add(p); const lp = todas.find(x => x.id === p); p = lp && lp.padre; } });
+            return todas.filter(l => !guardar.has(l.id) && l.id !== excepto && !LINEAS_VACIAS_MANTENER.has(l.id));
+        }
+        async function revisarLineasVacias(excepto) {
+            const v = lineasVacias(excepto); if (!v.length) return;
+            const r = await dialogo('<i class="fa-solid fa-broom text-blue-600 mr-1.5"></i>Líneas vacías', `<p>Estas líneas no tienen ningún componente:</p><ul class="list-disc ml-5 my-2">${v.map(l => `<li><b>${esc(l.id)}</b>${l.nombre ? ' · ' + esc(l.nombre) : ''}${l.padre ? ` <span class="text-slate-400">(ramal de ${esc(l.padre)})</span>` : ''}</li>`).join('')}</ul><p>¿Las elimino?</p>`,
+                [{ texto: 'Mantenerlas', valor: null }, { texto: 'Eliminar', valor: 'si', clase: 'bg-rose-600 hover:bg-rose-700 text-white' }]);
+            if (r !== 'si') { v.forEach(l => LINEAS_VACIAS_MANTENER.add(l.id)); return; }
+            guardarEstado(); const ids = new Set(v.map(l => l.id));
+            lineas = lineas.filter(l => !ids.has(l.id)); hojas.forEach(h => { if (Array.isArray(h.l)) h.l = h.l.filter(l => !ids.has(l.id)); }); sincronizarHoja();
+            marcarCambios(true); if (typeof programarArbol === 'function') programarArbol(); renderizarVectorial();
+            aviso(`Eliminadas ${v.length} línea(s) vacía(s): ${v.map(l => l.id).join(', ')}.`, 'ok');
+        }
         // ==================================================================================
         // 7) PANEL DE AVISOS DEL CÁLCULO y 8) CORRECCIÓN CON UN CLIC
         // ==================================================================================
@@ -7870,13 +8002,161 @@
         // ==================================================================================
         function ponerVista(modo) {
             cerrarMenus && cerrarMenus();
-            vistaIso = modo === 'iso';
-            [['normal', !vistaIso], ['iso', vistaIso]].forEach(([m, act]) => { const b = document.getElementById('btn-vista-' + m); if (!b) return;
+            vistaIso = modo === 'iso'; vista3d = modo === '3d';
+            if (vista3d) abrirVista3D(); else cerrarVista3D();
+            [['normal', modo !== 'iso' && modo !== '3d'], ['iso', vistaIso], ['3d', vista3d]].forEach(([m, act]) => { const b = document.getElementById('btn-vista-' + m); if (!b) return;
                 ['bg-blue-600', 'text-white', 'border-blue-600'].forEach(c => b.classList.toggle(c, act)); ['bg-white', 'text-slate-700', 'border-slate-300'].forEach(c => b.classList.toggle(c, !act)); });
             const gz = document.getElementById('axis-gizmo'); if (gz) gz.style.display = vistaIso ? 'none' : '';
             renderizarVectorial(); if (vistaIso && typeof zoomTodo === 'function') zoomTodo();
             if (vistaIso && !geometriaIsoRed().segs.length) aviso('Vista isométrica: la hoja no tiene tuberías conectadas.', 'error');
         }
+        // ==================================================================================
+        // v8.30 · VISTA 3D (fase F1: visor de consulta generado desde el P&ID, sin crear hoja)
+        // Ejes navales (dextrógiro): origen 0,0,0 en el eje del timón (cuaderna 0); +X proa (cuadernas crecientes), −X popa,
+        // +Y babor, −Y estribor, +Z arriba. En planta: +X a la derecha, +Y arriba y +Z hacia el usuario (como el lienzo).
+        // Posiciones: longitud y cotas a/b de cada tubería y dirección del esquema; el inicio de P01 se coloca en el «origen de
+        // P01» respecto al eje del timón (mm). Separación de cuadernas por defecto 750 mm. Tubos con su diámetro exterior real.
+        // ==================================================================================
+        const URL_THREE = 'https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js';
+        let V3 = null;
+        function cargarThree() { if (window.THREE) return Promise.resolve(window.THREE); return new Promise((ok, mal) => { const s = document.createElement('script'); s.src = URL_THREE; s.onload = () => window.THREE ? ok(window.THREE) : mal(new Error('Three.js no disponible')); s.onerror = () => mal(new Error('No se ha podido cargar Three.js (sin conexión a cdn.jsdelivr.net).')); document.head.appendChild(s); }); }
+        const cfg3D = () => { proyecto.origen3D = proyecto.origen3D || { x: 0, y: 0, z: 0 }; if (!(+proyecto.cuaderna > 0)) proyecto.cuaderna = 750; return { o: proyecto.origen3D, c: +proyecto.cuaderna }; };
+        function textoNaval(x, y, z) {   // en mm
+            const { c } = cfg3D(), n = x / c;
+            return `X ${Math.round(x)} mm (cuaderna ${n >= 0 ? '' : '−'}${Math.floor(Math.abs(n))}${Math.abs(x % c) > 1 ? ' + ' + Math.round(Math.abs(x) % c) + ' mm' : ''}${x >= 0 ? ', a proa del timón' : ', a popa del timón'}) · Y ${Math.round(Math.abs(y))} mm a ${y >= 0 ? 'babor' : 'estribor'} de crujía · Z ${Math.round(z)} mm`;
+        }
+        async function abrirVista3D() {
+            let ov = document.getElementById('vista-3d');
+            if (!ov) {
+                const cont = document.getElementById('canvas-container').parentElement;
+                ov = document.createElement('div'); ov.id = 'vista-3d'; ov.style.cssText = 'position:absolute;inset:0;z-index:25;display:flex;flex-direction:column;background:#0f172a';
+                ov.innerHTML = `<div id="v3d-barra" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 8px;background:#1e293b;color:#e2e8f0;font:11px sans-serif">
+                    <b style="margin-right:4px">3D</b>${[['planta', 'Planta'], ['perfil', 'Perfil (desde estribor)'], ['proa', 'Desde proa'], ['iso', 'Isométrica'], ['ajustar', 'Ajustar']].map(([k, t]) => `<button onclick="vista3dCamara('${k}')" style="padding:2px 8px;border:1px solid #475569;border-radius:4px;background:#334155;color:#fff">${t}</button>`).join('')}
+                    <span style="margin-left:8px">Inicio de P01 respecto al eje del timón (mm): X <input id="v3d-ox" type="number" style="width:80px;color:#000"> Y <input id="v3d-oy" type="number" style="width:70px;color:#000"> Z <input id="v3d-oz" type="number" style="width:70px;color:#000"></span>
+                    <span>Cuaderna (mm) <input id="v3d-cu" type="number" style="width:60px;color:#000"></span>
+                    <label><input id="v3d-etq" type="checkbox" checked onchange="construirEscena3D()"> Etiquetas</label><label><input id="v3d-cua" type="checkbox" checked onchange="construirEscena3D()"> Cuadernas</label></div>
+                    <div id="v3d-lienzo" style="flex:1;position:relative;overflow:hidden"></div>
+                    <div id="v3d-estado" style="padding:3px 8px;background:#1e293b;color:#cbd5e1;font:11px sans-serif;min-height:18px">Arrastrar: girar · botón derecho o Mayús: desplazar · rueda: zoom · clic: seleccionar</div>`;
+                cont.appendChild(ov);
+                ['ox', 'oy', 'oz', 'cu'].forEach(k => document.getElementById('v3d-' + k).addEventListener('change', e => { const { o } = cfg3D(), v = +e.target.value || 0; if (k === 'cu') { if (v > 0) proyecto.cuaderna = v; } else o[k[1]] = v; marcarCambios(true); construirEscena3D(); }));
+            }
+            ov.style.display = 'flex';
+            const { o, c } = cfg3D(); document.getElementById('v3d-ox').value = o.x; document.getElementById('v3d-oy').value = o.y; document.getElementById('v3d-oz').value = o.z; document.getElementById('v3d-cu').value = c;
+            try { await cargarThree(); } catch (e) { document.getElementById('v3d-lienzo').innerHTML = `<p style="color:#fca5a5;padding:16px;font:13px sans-serif">${esc(e.message)}</p>`; return; }
+            if (!V3) iniciarMotor3D();
+            construirEscena3D(); vista3dCamara('iso');
+        }
+        function cerrarVista3D() { const ov = document.getElementById('vista-3d'); if (ov) ov.style.display = 'none'; }
+        function iniciarMotor3D() {
+            const T = window.THREE, cont = document.getElementById('v3d-lienzo');
+            const renderer = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); renderer.setPixelRatio(window.devicePixelRatio || 1); renderer.setClearColor(0x0f172a);
+            cont.appendChild(renderer.domElement);
+            const scene = new T.Scene(), camera = new T.PerspectiveCamera(40, 1, 0.01, 5000); camera.up.set(0, 0, 1);
+            scene.add(new T.AmbientLight(0xffffff, 0.55)); const dl = new T.DirectionalLight(0xffffff, 0.8); dl.position.set(5, -8, 10); scene.add(dl); const dl2 = new T.DirectionalLight(0xffffff, 0.3); dl2.position.set(-6, 6, 4); scene.add(dl2);
+            V3 = { T, renderer, scene, camera, cont, grupo: null, target: new T.Vector3(), r: 20, th: -Math.PI / 4, ph: 1.0, objetos: [], ray: new T.Raycaster(), raton: new T.Vector2() };
+            const ajustarTam = () => { const w = cont.clientWidth || 800, h = cont.clientHeight || 500; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); pintar3D(); };
+            V3.ajustarTam = ajustarTam; if (window.ResizeObserver) new ResizeObserver(ajustarTam).observe(cont); ajustarTam();
+            let arr = null; const el = renderer.domElement;
+            el.addEventListener('contextmenu', e => e.preventDefault());
+            el.addEventListener('mousedown', e => { arr = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, mov: false }; });
+            window.addEventListener('mouseup', e => { if (arr && !arr.mov && arr.b === 0 && e.target === el) elegir3D(e, true); arr = null; });
+            el.addEventListener('mousemove', e => {
+                if (!arr) { elegir3D(e, false); return; }
+                const dx = e.clientX - arr.x, dy = e.clientY - arr.y; if (Math.abs(dx) + Math.abs(dy) > 2) arr.mov = true; arr.x = e.clientX; arr.y = e.clientY;
+                if (arr.b === 2 || arr.sh) { const k = V3.r * 0.0016, cam = V3.camera, der = new T.Vector3().subVectors(cam.position, V3.target).cross(cam.up).normalize(), arriba = new T.Vector3().crossVectors(der, new T.Vector3().subVectors(V3.target, cam.position)).normalize();
+                    V3.target.addScaledVector(der, dx * k).addScaledVector(arriba, dy * k); }
+                else { V3.th -= dx * 0.008; V3.ph = Math.min(Math.PI - 0.01, Math.max(0.01, V3.ph - dy * 0.008)); }
+                pintar3D();
+            });
+            el.addEventListener('wheel', e => { e.preventDefault(); V3.r *= e.deltaY > 0 ? 1.12 : 1 / 1.12; pintar3D(); }, { passive: false });
+        }
+        function pintar3D() {
+            if (!V3) return; const { camera, target, r, th, ph } = V3;
+            camera.position.set(target.x + r * Math.sin(ph) * Math.cos(th), target.y + r * Math.sin(ph) * Math.sin(th), target.z + r * Math.cos(ph));
+            camera.lookAt(target); camera.far = Math.max(1000, r * 20); camera.updateProjectionMatrix(); V3.renderer.render(V3.scene, camera);
+        }
+        function vista3dCamara(k) {
+            if (!V3 || !V3.caja) return; const b = V3.caja, c = b.getCenter(new V3.T.Vector3()), tam = b.getSize(new V3.T.Vector3()), rr = Math.max(tam.x, tam.y, tam.z, 1) * 1.6;
+            V3.target.copy(c); V3.r = rr;
+            if (k === 'planta') { V3.th = -Math.PI / 2; V3.ph = 0.001; }
+            else if (k === 'perfil') { V3.th = -Math.PI / 2; V3.ph = Math.PI / 2; }
+            else if (k === 'proa') { V3.th = 0; V3.ph = Math.PI / 2; }
+            else if (k === 'iso') { V3.th = -Math.PI / 4; V3.ph = 0.96; }
+            pintar3D();
+        }
+        function etiqueta3D(texto, color) {
+            const T = V3.T, cv = document.createElement('canvas'), ctx = cv.getContext('2d'); ctx.font = 'bold 26px sans-serif'; const w = Math.ceil(ctx.measureText(texto).width) + 12; cv.width = w; cv.height = 36;
+            const c2 = cv.getContext('2d'); c2.font = 'bold 26px sans-serif'; c2.fillStyle = 'rgba(15,23,42,0.75)'; c2.fillRect(0, 0, w, 36); c2.fillStyle = color || '#f8fafc'; c2.fillText(texto, 6, 27);
+            const sp = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(cv), depthTest: false })); sp.renderOrder = 10; sp.userData.esEtiqueta = true; sp.userData.w = w / 36; return sp;
+        }
+        // posiciones navales (m) de la red de la hoja
+        function geometria3D() {
+            const g = geometriaIsoRed(), { o } = cfg3D(), m = p => ({ x: p.x + (+o.x || 0) / 1000, y: p.y + (+o.y || 0) / 1000, z: p.z + (+o.z || 0) / 1000 });
+            return { segs: g.segs.map(s => Object.assign({}, s, { a: m(s.a), b: m(s.b) })), marcas: g.marcas.map(q => Object.assign({}, q, { p: m(q.p), p0: q.p })), segsRaw: g.segs };
+        }
+        function construirEscena3D() {
+            if (!V3) return; const T = V3.T, P = paleta();
+            if (V3.grupo) { V3.scene.remove(V3.grupo); V3.grupo.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.material) { if (x.material.map) x.material.map.dispose(); x.material.dispose(); } }); }
+            const G = new T.Group(); V3.grupo = G; V3.scene.add(G); V3.objetos = [];
+            const geo = geometria3D(), conEtq = document.getElementById('v3d-etq').checked, conCua = document.getElementById('v3d-cua').checked, { c } = cfg3D();
+            const colorDe = el => { const sel = idSeleccionado === el.id || seleccion.has(el.id); if (sel) return new T.Color('#f59e0b'); if (el.estado === 'fallo') return new T.Color('#ef4444'); try { const k = colorElemento(el, P); return new T.Color(/^#|^rgb/.test(k) ? k : '#94a3b8'); } catch (e) { return new T.Color('#94a3b8'); } };
+            const mat = (el, extra) => new T.MeshStandardMaterial(Object.assign({ color: colorDe(el), metalness: 0.35, roughness: 0.55 }, extra || {}));
+            const V = p => new T.Vector3(p.x, p.y, p.z);
+            const reg = (obj, el) => { obj.userData.id = el.id; V3.objetos.push(obj); G.add(obj); return obj; };
+            const radios = {};
+            geo.segs.forEach(s => {
+                const el = s.el, od = (datosTuberia(el).od || 60) / 1000, r = od / 2, a = V(s.a), b = V(s.b), d = new T.Vector3().subVectors(b, a), L = d.length();
+                if (L > 1e-4) { const cy = new T.Mesh(new T.CylinderGeometry(r, r, L, 20), mat(el)); cy.position.copy(a).addScaledVector(d, 0.5); cy.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.clone().normalize()); reg(cy, el); }
+                [a, b].forEach(p => { const sp = new T.Mesh(new T.SphereGeometry(r * 1.02, 16, 12), mat(el)); sp.position.copy(p); reg(sp, el); });
+                radios[s.a.x.toFixed(4) + ',' + s.a.y.toFixed(4) + ',' + s.a.z.toFixed(4)] = Math.max(radios[s.a.x.toFixed(4) + ',' + s.a.y.toFixed(4) + ',' + s.a.z.toFixed(4)] || 0, r);
+                radios[s.b.x.toFixed(4) + ',' + s.b.y.toFixed(4) + ',' + s.b.z.toFixed(4)] = Math.max(radios[s.b.x.toFixed(4) + ',' + s.b.y.toFixed(4) + ',' + s.b.z.toFixed(4)] || 0, r);
+                if (conEtq && L > 0.4) { const sp = etiqueta3D(`${tagDe(el)} · ${s.L} mm`, '#cbd5e1'); sp.position.copy(a).addScaledVector(d, 0.5).add(new T.Vector3(0, 0, r * 3 + 0.08)); const h = Math.max(0.08, Math.min(0.25, L * 0.06)); sp.scale.set(h * sp.userData.w, h, 1); G.add(sp); }
+            });
+            geo.marcas.forEach(m => {
+                const el = m.el, k = m.p.x.toFixed(4) + ',' + m.p.y.toFixed(4) + ',' + m.p.z.toFixed(4), r0 = radios[k] || 0.03, p = V(m.p);
+                const seg = geo.segs.find(s => (Math.abs(s.a.x - m.p.x) + Math.abs(s.a.y - m.p.y) + Math.abs(s.a.z - m.p.z)) < 1e-6 || (Math.abs(s.b.x - m.p.x) + Math.abs(s.b.y - m.p.y) + Math.abs(s.b.z - m.p.z)) < 1e-6);
+                const eje = seg ? new T.Vector3().subVectors(V(seg.b), V(seg.a)).normalize() : new T.Vector3(1, 0, 0), q = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), eje);
+                let obj;
+                if (el.type === 'valvula') { obj = new T.Group(); const s1 = r0 * 2.4; [-1, 1].forEach(sg => { const co = new T.Mesh(new T.ConeGeometry(s1, s1 * 1.3, 18), mat(el)); co.position.set(0, sg * s1 * 0.65, 0); if (sg < 0) co.rotation.z = Math.PI; co.userData.id = el.id; V3.objetos.push(co); obj.add(co); });
+                    const vs = new T.Mesh(new T.CylinderGeometry(r0 * 0.25, r0 * 0.25, s1 * 2.2, 8), mat(el, { color: new T.Color('#64748b') })); vs.position.set(0, 0, s1 * 1.1); vs.rotation.x = Math.PI / 2; vs.userData.id = el.id; V3.objetos.push(vs); obj.add(vs); obj.position.copy(p); obj.quaternion.copy(q); G.add(obj); }
+                else if (el.type === 'bomba') { obj = new T.Group(); const s1 = Math.max(r0 * 4, 0.25); const cu = new T.Mesh(new T.CylinderGeometry(s1 * 0.6, s1 * 0.6, s1 * 0.7, 24), mat(el)); cu.rotation.x = Math.PI / 2; const mo = new T.Mesh(new T.CylinderGeometry(s1 * 0.45, s1 * 0.45, s1 * 1.4, 20), mat(el, { color: new T.Color('#2563eb') })); mo.position.set(-s1 * 1.0, 0, 0); mo.rotation.z = Math.PI / 2;
+                    [cu, mo].forEach(x => { x.userData.id = el.id; V3.objetos.push(x); obj.add(x); }); obj.position.copy(p); G.add(obj); }
+                else if (esDeposito(el) || (TIPOS[el.subtype] || {}).calc === 'deposito') { const vol = Math.max(+el.volumen || 1000, 50) / 1000, h = Math.max(+el.hC || 0, +el.hLamina || 0, 1), R = Math.max(0.3, Math.sqrt(vol / (Math.PI * h)));
+                    obj = new T.Mesh(new T.CylinderGeometry(R, R, h, 32), mat(el, { transparent: true, opacity: 0.55 })); obj.rotation.x = Math.PI / 2; const zf = (+el.cotaFondo || 0) + (cfg3D().o.z || 0) / 1000; obj.position.set(p.x - (seg ? eje.x : 1) * R, p.y - (seg ? eje.y : 0) * R, zf + h / 2); reg(obj, el); }
+                else if (esEquipo(el)) { const s1 = Math.max(r0 * 6, 0.5); obj = new T.Mesh(new T.BoxGeometry(s1 * 1.4, s1, s1), mat(el)); obj.position.copy(p); reg(obj, el); }
+                else if (el.subtype === 'consumo') { obj = new T.Mesh(new T.ConeGeometry(Math.max(r0 * 2, 0.05), Math.max(r0 * 3, 0.08), 16), mat(el)); obj.rotation.x = Math.PI / 2; obj.position.copy(p); reg(obj, el); }
+                else if (/^codo/.test(el.subtype || '')) { obj = new T.Mesh(new T.SphereGeometry(r0 * 1.15, 16, 12), mat(el)); obj.position.copy(p); reg(obj, el); }
+                else { obj = new T.Mesh(new T.SphereGeometry(Math.max(r0 * 1.5, 0.03), 16, 12), mat(el)); obj.position.copy(p); reg(obj, el); }
+                if (conEtq && !/^codo/.test(el.subtype || '')) { const sp = etiqueta3D(tagDe(el), el.estado === 'fallo' ? '#fca5a5' : '#fde68a'); sp.position.copy(p).add(new T.Vector3(0, 0, Math.max(r0 * 5, 0.2))); sp.scale.set(0.16 * sp.userData.w, 0.16, 1); G.add(sp); }
+            });
+            // caja de la red
+            G.updateMatrixWorld(true); const caja = new T.Box3(); V3.objetos.forEach(o => caja.expandByObject(o)); if (caja.isEmpty()) caja.set(new T.Vector3(-1, -1, 0), new T.Vector3(1, 1, 1));
+            caja.expandByPoint(new T.Vector3(0, 0, 0)); V3.caja = caja.clone();
+            // ejes en el eje del timón y cuadernas
+            const ejeL = Math.max(1, caja.getSize(new T.Vector3()).length() * 0.12);
+            [[1, 0, 0, '#ef4444', '+X PROA'], [0, 1, 0, '#22c55e', '+Y BABOR'], [0, 0, 1, '#3b82f6', '+Z']].forEach(([x, y, z, col, t]) => { G.add(new T.ArrowHelper(new T.Vector3(x, y, z), new T.Vector3(0, 0, 0), ejeL, new T.Color(col).getHex(), ejeL * 0.15, ejeL * 0.07)); if (conEtq) { const sp = etiqueta3D(t, col); sp.position.set(x * ejeL * 1.15, y * ejeL * 1.15, z * ejeL * 1.15); sp.scale.set(0.18 * sp.userData.w * ejeL / 2, 0.18 * ejeL / 2, 1); G.add(sp); } });
+            { const m = new T.LineBasicMaterial({ color: 0xfbbf24 }), gl = new T.BufferGeometry().setFromPoints([new T.Vector3(0, 0, caja.min.z - 0.5), new T.Vector3(0, 0, caja.max.z + 0.5)]); G.add(new T.Line(gl, m)); if (conEtq) { const sp = etiqueta3D('Eje del timón (C0)', '#fbbf24'); sp.position.set(0, 0, caja.max.z + 0.7); sp.scale.set(0.2 * sp.userData.w, 0.2, 1); G.add(sp); } }
+            if (conCua) {
+                const cm = c / 1000, i0 = Math.floor(Math.min(caja.min.x, 0) / cm) - 1, i1 = Math.ceil(caja.max.x / cm) + 1, y0 = Math.min(caja.min.y, 0) - 1, y1 = Math.max(caja.max.y, 0) + 1, z0 = caja.min.z - 0.05;
+                const pts = [], ptsF = []; for (let i = i0; i <= i1; i++) (i % 5 === 0 ? ptsF : pts).push(new T.Vector3(i * cm, y0, z0), new T.Vector3(i * cm, y1, z0));
+                G.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({ color: 0x334155 }))); G.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(ptsF), new T.LineBasicMaterial({ color: 0x64748b })));
+                G.add(new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(i0 * cm, 0, z0), new T.Vector3(i1 * cm, 0, z0)]), new T.LineDashedMaterial({ color: 0x22c55e, dashSize: 0.2, gapSize: 0.1 })).computeLineDistances());
+                if (conEtq) for (let i = i0; i <= i1; i++) if (i % 5 === 0) { const sp = etiqueta3D('C' + i, '#94a3b8'); sp.position.set(i * cm, y0 - 0.15, z0); sp.scale.set(0.14 * sp.userData.w, 0.14, 1); G.add(sp); }
+            }
+            V3.n = { segs: geo.segs.length, marcas: geo.marcas.length };
+            pintar3D();
+        }
+        function elegir3D(e, clic) {
+            if (!V3) return; const rc = V3.renderer.domElement.getBoundingClientRect();
+            V3.raton.set(((e.clientX - rc.left) / rc.width) * 2 - 1, -((e.clientY - rc.top) / rc.height) * 2 + 1); V3.ray.setFromCamera(V3.raton, V3.camera);
+            const h = V3.ray.intersectObjects(V3.objetos, false)[0], est = document.getElementById('v3d-estado');
+            if (!h) { if (!clic && est) est.textContent = 'Arrastrar: girar · botón derecho o Mayús: desplazar · rueda: zoom · clic: seleccionar'; return; }
+            const el = elementosRed.find(x => x.id === h.object.userData.id); if (!el) return;
+            if (est) est.textContent = `${tagDe(el)} · ${nombreTipo(el)} · ${textoNaval(h.point.x * 1000, h.point.y * 1000, h.point.z * 1000)}`;
+            if (clic) { seleccionarElemento(el.id); construirEscena3D(); }
+        }
+        let tempo3D = null;
+        function refrescar3D() { if (!vista3d || !V3) return; clearTimeout(tempo3D); tempo3D = setTimeout(() => { try { construirEscena3D(); } catch (e) { console.error(e); } }, 250); }
         function geometriaIsoRed() {
             const g = construirGrafoRed(), padre = g.nodos.map((n, i) => i);
             const find = i => { while (padre[i] !== i) { padre[i] = padre[padre[i]]; i = padre[i]; } return i; }, unir = (a, b) => { a = find(a); b = find(b); if (a !== b) padre[a] = b; };
@@ -8359,7 +8639,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.28';
+        const VERSION_WEB = '8.30';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -8455,8 +8735,8 @@
         }
         // v8.28 · pérdida de carga acumulada (fricción + singulares, sin la altura de las bombas) desde el inicio de la línea
         // principal hasta cada nudo, por el camino de menor pérdida (Dijkstra sobre las aristas del último cálculo)
-        function perdidasDesdeOrigen() {
-            const res = ultimoCalculo && ultimoCalculo.resultado; if (!res || !res.aristas) return null; if (res._hfAcum) return res._hfAcum;
+        function perdidasDesdeOrigen(resDado) {
+            const res = resDado || (ultimoCalculo && ultimoCalculo.resultado); if (!res || !res.aristas) return null; if (res._hfAcum) return res._hfAcum;
             const pr = lineaPorId('P01') || lineas.find(l => l.tipo === 'principal'); if (!pr) return (res._hfAcum = { dist: {} });
             const orden = ordenarLinea(pr.id, mapaVecinos()).map(id => elementosRed.find(e => e.id === id)).filter(e => e && !esAnotacion(e));
             const nodosDe = id => { const n = new Set(); res.aristas.forEach(a => { if (a.el.id === id) { n.add(a.nodoA); n.add(a.nodoB); } }); Object.entries((res.terminales || {}).porNodo || {}).forEach(([k, e]) => { if (e.id === id) n.add(isNaN(+k) ? k : +k); }); return [...n]; };
@@ -10004,8 +10284,9 @@
                 { icono: 'fa-circle-info', texto: 'Ctrl/Mayús + clic: añadir o quitar · arrastrar en vacío: ventana', accion: () => {} }
             ]},
             { titulo: 'Vista', items: [
-                { icono: vistaIso ? 'fa-square' : 'fa-check', texto: 'Vista normal (P&ID)', accion: () => ponerVista('normal') },
+                { icono: vistaIso || vista3d ? 'fa-square' : 'fa-check', texto: 'Vista normal (P&ID)', accion: () => ponerVista('normal') },
                 { icono: vistaIso ? 'fa-check' : 'fa-square', texto: 'Vista isométrica (consulta)', accion: () => ponerVista('iso') },
+                { icono: vista3d ? 'fa-check' : 'fa-square', texto: 'Vista 3D (ejes navales, consulta)', accion: () => ponerVista('3d') },
                 'sep',
                 { icono: 'fa-sitemap', texto: 'Árbol de estructura (mostrar/ocultar)', accion: () => alternarArbol() },
                 { icono: 'fa-triangle-exclamation', texto: 'Panel de avisos del cálculo (mostrar/ocultar)', accion: () => alternarPanelAvisos() },
@@ -10728,13 +11009,38 @@
             const cv = cvDesdeTexto(b.props.cv), filas = ACERO_TAM.filter(t => /^DN/.test(t.clave) && dnNum(t.clave) <= 1200);
             const html = `<p class="text-[11px] text-slate-500 mb-2">Cv a apertura total (gpm/√psi). Si el fabricante da Kv (m³/h), Cv = 1,156 · Kv. Vacío = no se fabrica en ese tamaño.</p>
                 <div class="flex gap-2 items-center text-[11px] mb-2"><label>Kv → Cv <input id="tcv-kv" type="checkbox"></label><span class="text-slate-400">(marca si escribes Kv)</span></div>
-                <div class="overflow-auto border rounded" style="max-height:55vh"><table class="text-[11px] w-full"><thead class="bg-slate-100 sticky top-0"><tr><th class="px-2 text-left">DN</th><th class="px-2 text-left">Pulgadas</th><th class="px-2 text-left">Cv</th></tr></thead><tbody>
-                ${filas.map(t => `<tr class="border-t"><td class="px-2">${esc(t.clave)}</td><td class="px-2">${esc(t.nps)}"</td><td class="px-2"><input data-nps="${esc(t.nps)}" type="number" step="any" value="${cv[t.nps] == null ? '' : cv[t.nps]}" class="border rounded p-0.5 w-24"></td></tr>`).join('')}</tbody></table></div>`;
+                <div class="overflow-auto border rounded" style="max-height:55vh"><table class="text-[11px] w-full"><thead class="bg-slate-100 sticky top-0"><tr><th class="px-2 text-left">DN</th><th class="px-2 text-left">Pulgadas</th><th class="px-2 text-left">Cv</th><th class="px-2 text-left" title="Cv equivalente al K de Crane TP-410 del subtipo, con Dint Sch 40">Cv Crane (ref.)</th></tr></thead><tbody>
+                ${filas.map(t => `<tr class="border-t"><td class="px-2">${esc(t.clave)}</td><td class="px-2">${esc(t.nps)}"</td><td class="px-2"><input data-nps="${esc(t.nps)}" data-dn="${esc(t.clave)}" type="number" step="any" value="${cv[t.nps] == null ? '' : cv[t.nps]}" oninput="this.dataset.est = ''; this.style.color = ''; this.style.fontStyle = ''" class="border rounded p-0.5 w-24"></td><td class="px-2 text-slate-400">${(() => { const c = cvCraneRef(b, t.clave); return c ? c.toFixed(0) : '—'; })()}</td></tr>`).join('')}</tbody></table></div>
+                <div class="mt-2 flex gap-2 items-center text-[11px]"><button type="button" onclick="completarTablaCv()" class="px-2 py-1 border border-blue-300 text-blue-700 rounded hover:bg-blue-50"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Completar los tamaños que faltan (escalado Crane con fT)</button><span class="text-slate-400">Los estimados salen en naranja; revísalos.</span></div>`;
             const r = await dialogo('<i class="fa-solid fa-table text-blue-600 mr-1.5"></i>Cv por tamaño', html, [{ texto: 'Cancelar', valor: null }, { texto: 'Aplicar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }]);
             if (r !== 'si') return;
             const kv = document.getElementById('tcv-kv').checked, o = [];
             document.querySelectorAll('#dialogo-cuerpo input[data-nps]').forEach(x => { if (x.value !== '' && +x.value > 0) o.push(`${x.dataset.nps}:${+(kv ? +x.value * 1.156 : +x.value).toFixed(2)}`); });
-            b.props.cv = o.join('; '); pintarLibreria();
+            b.props.cv = o.join('; ');
+            const est = [...document.querySelectorAll('#dialogo-cuerpo input[data-est="1"]')].filter(x => x.value !== '').map(x => x.dataset.nps + '"');
+            if (est.length) b.notas = ((b.notas || '').replace(/\s*Cv estimados por escalado Crane: [^.]*\./, '') + ` Cv estimados por escalado Crane: ${est.join(', ')}.`).trim();
+            pintarLibreria();
+        }
+        // Cv equivalente al K de Crane del tipo (referencia para revisar las tablas del fabricante)
+        function cvCraneRef(b, dn) {
+            const el = { type: 'valvula', subtype: b.subtipo || (libVista && libVista.subtipo), craneTipo: (b.props || {}).craneTipo || '' }, ent = entradaCrane(el), D = dintReferencia(dn);
+            if (!ent || !(D > 0)) return null; const k = kDeEntradaCrane(ent, dnNum(dn), D).K; return k > 0 ? Math.sqrt(891 * Math.pow(D / 25.4, 4) / k) : null;
+        }
+        // v8.30 · completa los tamaños sin Cv: se calcula n = K/fT en los tamaños conocidos (K = 891·d⁴/Cv²), se interpola n en log(D)
+        // y Cv = √(891·d⁴ / (n·fT)). Solo dentro del rango conocido y un tamaño más por cada extremo.
+        function completarTablaCv() {
+            const ins = [...document.querySelectorAll('#dialogo-cuerpo input[data-nps]')], dato = x => x.value !== '' && +x.value > 0 && x.dataset.est !== '1';
+            const pts = ins.map((x, i) => ({ x, i, D: dintReferencia(x.dataset.dn) })).filter(p => p.D > 0);
+            const kn = pts.filter(p => dato(p.x)).map(p => { const K = 891 * Math.pow(p.D / 25.4, 4) / (+p.x.value) ** 2; return Object.assign(p, { n: K / fT(dnNum(p.x.dataset.dn), p.D) }); });
+            if (kn.length < 1) { aviso('Escribe al menos un Cv para poder escalar.', 'error'); return; }
+            const i0 = kn[0].i, i1 = kn[kn.length - 1].i; let nuevos = 0;
+            pts.filter(p => !dato(p.x) && p.i >= i0 - 1 && p.i <= i1 + 1).forEach(p => {
+                const a = kn.filter(k => k.D <= p.D).pop() || kn[0], c = kn.find(k => k.D >= p.D) || kn[kn.length - 1];
+                const n = a === c ? a.n : a.n + (c.n - a.n) * (Math.log(p.D) - Math.log(a.D)) / (Math.log(c.D) - Math.log(a.D));
+                const cv = Math.sqrt(891 * Math.pow(p.D / 25.4, 4) / (n * fT(dnNum(p.x.dataset.dn), p.D)));
+                p.x.value = +cv.toFixed(cv < 10 ? 2 : 1); p.x.dataset.est = '1'; p.x.style.color = '#c2410c'; p.x.style.fontStyle = 'italic'; p.x.title = 'Estimado por escalado Crane (n = K/fT interpolado)'; nuevos++;
+            });
+            aviso(nuevos ? `${nuevos} tamaño(s) estimados por escalado.` : 'No hay tamaños que completar dentro del rango.', nuevos ? 'ok' : undefined);
         }
         // comprobaciones de las válvulas en el cálculo: rango de DN y de temperatura del modelo, fire-safe y conexión
         function comprobacionesValvulas(resultado, fallo) {
@@ -10750,6 +11056,10 @@
                 else if ((clase === 'FLAM' || clase === 'METANOL' || clase === 'COMB') && !el.fireSafe && ['bola', 'mariposa', 'macho'].includes(el.subtype) && el.libItem) avisos.push(`${tag}: fluido combustible o inflamable — comprueba que la válvula sea fire-safe (API 607 / ISO 10497).`);
                 if (/^Wafer/.test(el.conexValv || '') && (vec[el.id] || []).length < 2) avisos.push(`${tag}: válvula wafer en un extremo de línea: no sirve para desmontar aguas abajo con presión; usa tipo lug o bridada.`);
                 avisosValvula(el).forEach(m => avisos.push(`${tag}: ${m}.`));
+                // v8.30 · Cv de catálogo frente al de Crane para el mismo tipo y tamaño (detección de erratas)
+                if (el.modoK === 'catalogo' && el.dn) { const sv = CAT.valvulas.find(v => v.nombre === el.serieCat), cv = sv && sv.cv[npsDeDN(el.dn)], D = dintReferencia(el.dn), ent = entradaCrane(el);
+                    if (cv > 0 && D > 0 && ent) { const kc = kDeEntradaCrane(ent, dnNum(el.dn), D).K, cvc = kc > 0 ? Math.sqrt(891 * Math.pow(D / 25.4, 4) / kc) : null, q = cvc ? cv / cvc : 1;
+                        if (cvc && (q > 1.5 || q < 0.67)) avisos.push(`${tag}: Cv de catálogo ${cv} frente a ${cvc.toFixed(0)} según Crane (${ent[0]}) — ${q > 1 ? '+' : ''}${((q - 1) * 100).toFixed(0)} %: revisa una posible errata del catálogo o el subtipo Crane.`); } }
             });
         }
 

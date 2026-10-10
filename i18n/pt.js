@@ -89,3 +89,9 @@ Object.assign(window.PIPING_I18N.pt.d, {"Redimensionar (componentes que cumplen 
 
 // v8.28
 Object.assign(window.PIPING_I18N.pt.d, {"Pérdida acumulada": "Perda de carga acumulada"});
+
+// v8.29
+Object.assign(window.PIPING_I18N.pt.d, {"Líneas vacías": "Linhas vazias", "Mantenerlas": "Mantê-las", "Estas líneas no tienen ningún componente:": "Estas linhas não têm nenhum componente:", "¿Las elimino?": "Elimino-as?"});
+
+// v8.30
+Object.assign(window.PIPING_I18N.pt.d, {"Vista 3D (ejes navales, consulta)": "Vista 3D (eixos navais, consulta)", "Planta": "Planta", "Perfil (desde estribor)": "Perfil (de estibordo)", "Desde proa": "Da proa", "Isométrica": "Isométrica", "Ajustar": "Ajustar", "Etiquetas": "Etiquetas", "Cuadernas": "Balizas", "Cuaderna (mm)": "Baliza (mm)", "Inicio de P01 respecto al eje del timón (mm):": "Início de P01 em relação ao eixo do leme (mm):", "Completar los tamaños que faltan (escalado Crane con fT)": "Completar os tamanhos em falta (escalonamento Crane com fT)", "Cv Crane (ref.)": "Cv Crane (ref.)"});
