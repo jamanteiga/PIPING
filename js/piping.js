@@ -8359,7 +8359,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.27';
+        const VERSION_WEB = '8.28';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -8445,11 +8445,35 @@
                 else if (r.ramas && r.ramas.length) r.ramas.forEach(x => f(`Rama ${x.rama}`, `Q ${fQ(x.Q, 2)} ${lQ()} · V ${fmt(x.V, 2)} m/s · K ${fmt(x.K)} · hf ${fmt(x.hf, 3)} m`));
                 else if (esTerminal(el)) f('Resultado', el.subtype === 'consumo' ? `Q ${fQ(r.Q, 2)} ${lQ()} · p ${fP(r.p, 2)} ${lP()} (mín ${fP(r.pMin, 2)})${r.equilibrado ? ` · equilibrado Δp ${fP(r.equilibrado.dp, 2)} ${lP()}, Kv ${fmt(r.equilibrado.Kv, 2)}` : ''}` : `Q ${fQ(r.Q, 2)} ${lQ()} (${esc(r.sentido)}) · p ${fP(r.p, 2)} ${lP()}`);
                 else f('Resultado', `Q ${fQ(r.Q, 2)} ${lQ()} · V ${fmt(r.V, 2)} m/s${r.Re ? ' · Re ' + Math.round(r.Re) : ''}${r.f ? ' · f ' + fmt(r.f, 4) : ''} · hf ${fmt(r.hf, 3)} m${r.sentido ? ' · ' + r.sentido : ''}${r.dp != null ? ' · Δp ' + fmt(r.dp, 1) + ' kPa' : ''}`);
+                { const pc = perdidaAcumuladaElemento(el); if (pc) { const rho = fluidoActual().rho || 1000, bar = m => m * rho * G / 1e5, t = (m) => `<b>${fmt(m, 3)} m</b> (${fP(bar(m), 3)} ${lP()})`;
+                    f('Pérdida acumulada', `desde el inicio de ${esc(pc.linea)}${pc.origen ? ' (' + esc(pc.origen) + ')' : ''}: ${pc.n > 1 && pc.max - pc.min > 1e-6 ? `entrada ${t(pc.min)} · salida ${t(pc.max)}` : t(pc.max)}`); } }
                 if (r.pA != null && !esTerminal(el)) f('Presión', `${fP(r.pA, 2)} → ${fP(r.pB, 2)} ${lP()} man.${r.pma != null ? ` · PMA ${fP(r.pma, 1)} ${lP()}` : ''}${r.ariete ? ` · ariete Δp ${fP(r.ariete.dp / 1e5, 2)} ${lP()}` : ''}`);
                 f('Estado', el.estado === 'fallo' ? `<span class="text-rose-300 font-bold">No cumple</span>: ${esc(r.motivos.join('; '))}${(r.alternativas || []).map(x => `<br><span class="text-amber-300">→ ${esc(x)}</span>`).join('')}` : `<span class="text-emerald-300 font-bold">Cumple</span>${el.esLineaCritica ? ' · <span class="text-violet-300">ruta crítica</span>' : ''}`);
             }
             { const x = ultimoCalculo && (ultimoCalculo.resultado.pedRecipientes || []).find(q => q.id === el.id); if (x) f('PED recipiente', `${esc(x.cat)} · ${esc(x.cuadro)} · PS ${fP(x.PS, 2)} ${lP()} · V ${fmt(x.V, 0)} l`); }
             return `<div class="font-bold text-white mb-1">${esc(tagDe(el))}</div><table>${filas.join('')}</table>`;
+        }
+        // v8.28 · pérdida de carga acumulada (fricción + singulares, sin la altura de las bombas) desde el inicio de la línea
+        // principal hasta cada nudo, por el camino de menor pérdida (Dijkstra sobre las aristas del último cálculo)
+        function perdidasDesdeOrigen() {
+            const res = ultimoCalculo && ultimoCalculo.resultado; if (!res || !res.aristas) return null; if (res._hfAcum) return res._hfAcum;
+            const pr = lineaPorId('P01') || lineas.find(l => l.tipo === 'principal'); if (!pr) return (res._hfAcum = { dist: {} });
+            const orden = ordenarLinea(pr.id, mapaVecinos()).map(id => elementosRed.find(e => e.id === id)).filter(e => e && !esAnotacion(e));
+            const nodosDe = id => { const n = new Set(); res.aristas.forEach(a => { if (a.el.id === id) { n.add(a.nodoA); n.add(a.nodoB); } }); Object.entries((res.terminales || {}).porNodo || {}).forEach(([k, e]) => { if (e.id === id) n.add(isNaN(+k) ? k : +k); }); return [...n]; };
+            const grado = {}; res.aristas.forEach(a => { grado[a.nodoA] = (grado[a.nodoA] || 0) + 1; grado[a.nodoB] = (grado[a.nodoB] || 0) + 1; });
+            let origen = null, elOrigen = null;
+            for (const e of orden) { const ns = nodosDe(e.id); if (ns.length) { origen = ns.slice().sort((a, b) => (grado[a] || 0) - (grado[b] || 0))[0]; elOrigen = e; break; } }
+            if (origen == null) return (res._hfAcum = { dist: {} });
+            const ady = {}; res.aristas.forEach(a => { const w = a.esBomba ? 0 : Math.abs(hfDeArista(a) || 0); (ady[a.nodoA] = ady[a.nodoA] || []).push([a.nodoB, w]); (ady[a.nodoB] = ady[a.nodoB] || []).push([a.nodoA, w]); });
+            const dist = { [origen]: 0 }, hecho = new Set(), pend = [origen];
+            while (pend.length) { pend.sort((a, b) => dist[a] - dist[b]); const n = pend.shift(); if (hecho.has(n)) continue; hecho.add(n);
+                (ady[n] || []).forEach(([m, w]) => { const d = dist[n] + w; if (dist[m] == null || d < dist[m] - 1e-12) { dist[m] = d; pend.push(m); } }); }
+            return (res._hfAcum = { dist, origen, elOrigen, linea: pr.id, nodosDe });
+        }
+        function perdidaAcumuladaElemento(el) {
+            const P = perdidasDesdeOrigen(); if (!P || !P.nodosDe) return null;
+            const ds = P.nodosDe(el.id).map(n => P.dist[n]).filter(d => d != null); if (!ds.length) return null;
+            return { min: Math.min(...ds), max: Math.max(...ds), n: ds.length, linea: P.linea, origen: P.elOrigen ? tagDe(P.elOrigen) : '' };
         }
         function mostrarTooltip(id, x, y) {
             const el = elementosRed.find(e => e.id === id);

@@ -86,3 +86,6 @@ Object.assign(window.PIPING_I18N.en.d, {"Conexión y materiales internos": "Conn
 
 // v8.27
 Object.assign(window.PIPING_I18N.en.d, {"Redimensionar (componentes que cumplen y que no)...": "Resize (complying and non-complying components)...", "Redimensionar la red": "Resize the network", "Propuesta automática (recorre el árbol desde P01)": "Automatic proposal (walks the tree from P01)", "Recalcular": "Recalculate", "Todos": "All", "Solo los que no cumplen": "Only non-complying", "Opciones que cumplen": "Complying options", "Ocultar": "Hide", "Aplicar los aceptados": "Apply accepted", "Descartar": "Discard", "Aceptar": "Accept", "Orden": "Order", "Componente": "Component", "Cambio propuesto": "Proposed change", "Tras el cambio": "After the change", "Medida": "Size", "Estado": "Status", "cumple": "complies", "sin cálculo": "not calculated"});
+
+// v8.28
+Object.assign(window.PIPING_I18N.en.d, {"Pérdida acumulada": "Cumulative head loss"});

@@ -86,3 +86,6 @@ Object.assign(window.PIPING_I18N.pt.d, {"Conexión y materiales internos": "Liga
 
 // v8.27
 Object.assign(window.PIPING_I18N.pt.d, {"Redimensionar (componentes que cumplen y que no)...": "Redimensionar (componentes que cumprem e que não)...", "Redimensionar la red": "Redimensionar a rede", "Propuesta automática (recorre el árbol desde P01)": "Proposta automática (percorre a árvore desde P01)", "Recalcular": "Recalcular", "Todos": "Todos", "Solo los que no cumplen": "Só os que não cumprem", "Opciones que cumplen": "Opções que cumprem", "Ocultar": "Ocultar", "Aplicar los aceptados": "Aplicar os aceites", "Descartar": "Descartar", "Aceptar": "Aceitar", "Orden": "Ordem", "Componente": "Componente", "Cambio propuesto": "Alteração proposta", "Tras el cambio": "Após a alteração", "Medida": "Medida", "Estado": "Estado", "cumple": "cumpre", "sin cálculo": "sem cálculo"});
+
+// v8.28
+Object.assign(window.PIPING_I18N.pt.d, {"Pérdida acumulada": "Perda de carga acumulada"});

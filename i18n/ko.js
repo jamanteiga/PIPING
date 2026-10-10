@@ -86,3 +86,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Conexión y materiales internos": "연�
 
 // v8.27
 Object.assign(window.PIPING_I18N.ko.d, {"Redimensionar (componentes que cumplen y que no)...": "크기 재선정 (적합/부적합 구성품)...", "Redimensionar la red": "배관망 크기 재선정", "Propuesta automática (recorre el árbol desde P01)": "자동 제안 (P01부터 트리 순회)", "Recalcular": "재계산", "Todos": "전체", "Solo los que no cumplen": "부적합만", "Opciones que cumplen": "적합 옵션", "Ocultar": "숨기기", "Aplicar los aceptados": "승인 항목 적용", "Descartar": "취소", "Aceptar": "승인", "Orden": "순서", "Componente": "구성품", "Cambio propuesto": "제안 변경", "Tras el cambio": "변경 후", "Medida": "크기", "Estado": "상태", "cumple": "적합", "sin cálculo": "미계산"});
+
+// v8.28
+Object.assign(window.PIPING_I18N.ko.d, {"Pérdida acumulada": "누적 손실수두"});
