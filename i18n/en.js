@@ -95,3 +95,6 @@ Object.assign(window.PIPING_I18N.en.d, {"Líneas vacías": "Empty lines", "Mante
 
 // v8.30
 Object.assign(window.PIPING_I18N.en.d, {"Vista 3D (ejes navales, consulta)": "3D view (ship axes, read-only)", "Planta": "Plan", "Perfil (desde estribor)": "Profile (from starboard)", "Desde proa": "From bow", "Isométrica": "Isometric", "Ajustar": "Fit", "Etiquetas": "Labels", "Cuadernas": "Frames", "Cuaderna (mm)": "Frame spacing (mm)", "Inicio de P01 respecto al eje del timón (mm):": "Start of P01 from the rudder axis (mm):", "Completar los tamaños que faltan (escalado Crane con fT)": "Fill missing sizes (Crane fT scaling)", "Cv Crane (ref.)": "Crane Cv (ref.)"});
+
+// v8.31
+Object.assign(window.PIPING_I18N.en.d, {"Ratón 3D": "3D mouse", "Fondo": "Background", "Rejilla": "Grid", "Referencia 3D": "3D reference", "Norte (° desde +X)": "North (° from +X)", "Separación de cuadernas (mm)": "Frame spacing (mm)"});

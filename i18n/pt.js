@@ -95,3 +95,6 @@ Object.assign(window.PIPING_I18N.pt.d, {"Líneas vacías": "Linhas vazias", "Man
 
 // v8.30
 Object.assign(window.PIPING_I18N.pt.d, {"Vista 3D (ejes navales, consulta)": "Vista 3D (eixos navais, consulta)", "Planta": "Planta", "Perfil (desde estribor)": "Perfil (de estibordo)", "Desde proa": "Da proa", "Isométrica": "Isométrica", "Ajustar": "Ajustar", "Etiquetas": "Etiquetas", "Cuadernas": "Balizas", "Cuaderna (mm)": "Baliza (mm)", "Inicio de P01 respecto al eje del timón (mm):": "Início de P01 em relação ao eixo do leme (mm):", "Completar los tamaños que faltan (escalado Crane con fT)": "Completar os tamanhos em falta (escalonamento Crane com fT)", "Cv Crane (ref.)": "Cv Crane (ref.)"});
+
+// v8.31
+Object.assign(window.PIPING_I18N.pt.d, {"Ratón 3D": "Rato 3D", "Fondo": "Fundo", "Rejilla": "Grelha", "Referencia 3D": "Referência 3D", "Norte (° desde +X)": "Norte (° desde +X)", "Separación de cuadernas (mm)": "Espaçamento de balizas (mm)"});

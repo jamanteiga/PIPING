@@ -95,3 +95,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Líneas vacías": "빈 라인", "Manten
 
 // v8.30
 Object.assign(window.PIPING_I18N.ko.d, {"Vista 3D (ejes navales, consulta)": "3D 보기 (선박 좌표, 조회)", "Planta": "평면", "Perfil (desde estribor)": "측면 (우현에서)", "Desde proa": "선수에서", "Isométrica": "등각", "Ajustar": "맞춤", "Etiquetas": "라벨", "Cuadernas": "늑골", "Cuaderna (mm)": "늑골 간격 (mm)", "Inicio de P01 respecto al eje del timón (mm):": "타축 기준 P01 시작점 (mm):", "Completar los tamaños que faltan (escalado Crane con fT)": "누락 크기 채우기 (Crane fT 스케일링)", "Cv Crane (ref.)": "Crane Cv (참고)"});
+
+// v8.31
+Object.assign(window.PIPING_I18N.ko.d, {"Ratón 3D": "3D 마우스", "Fondo": "배경", "Rejilla": "격자", "Referencia 3D": "3D 기준", "Norte (° desde +X)": "북쪽 (+X 기준 °)", "Separación de cuadernas (mm)": "늑골 간격 (mm)"});
