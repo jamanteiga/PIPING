@@ -891,3 +891,60 @@ Si algún componente no cumple en los cálculos las condiciones iniciales de dis
   - con un DN 15 de impulsión, el tubo y la válvula (ruta crítica) salen en #dc2626 (rojo);
   - con presión de diseño 30 bar, la válvula PN 16 no cumple, con la alternativa «PN 40 (40 bar ≥ 30 bar)»; los tubos Sch 40 de 2" cumplen por PMA.
 - Regresión 10–23 sin cambios.
+
+# PIPING v8.23 · Bombas: leyes de afinidad, BEP, caudal mínimo, motor y presión del cuerpo
+
+Fecha: 2026-10-09. Versión anterior: 8.22 (copia en `copias\v822\`).
+
+## Leyes de afinidad
+- Campos nuevos de la bomba, en «Punto de trabajo y límites»:
+  - **Velocidad de trabajo con variador (rpm)**: `rpmTrabajo`, frente a la velocidad nominal de la curva `rpm`;
+  - **Impulsor recortado (mm)**: `impulsorTrabajo`, frente al diámetro de la curva `impulsor`.
+- r = (n/n₀)·(D/D₀): Q × r, H × r², P × r³; NPSHr × (n/n₀)², sin corregir por el recorte.
+- Se aplican a la curva por puntos (`curvaEfectiva`), a la parábola (Qd, Hd, H₀), al rango de la ecuación y a η, NPSHr y P en el punto de funcionamiento.
+- Avisos:
+  - recorte > 15 %;
+  - impulsor mayor que el de la curva o que el máximo;
+  - velocidad > 110 % o < 30 % de la nominal;
+  - falta la rpm o el diámetro de la curva.
+- En el panel se muestran los factores (Q ×, H ×, P ×).
+
+## Zona de operación (BEP)
+- `bepBomba`: Q de máximo η, sacado de las ecuaciones (η, o calculado con H y P) o de los puntos con η. Solo vale si el máximo cae dentro de la curva. Ya incluye la afinidad.
+- Aviso si el punto de funcionamiento queda fuera del 70–120 % del BEP (zona preferente, ANSI/HI 9.6.3). En el panel: «BEP … · trabaja al x % del BEP».
+
+## Límites nuevos (no cumple, en rojo)
+- **Caudal mínimo continuo** (`qMin`, m³/h, corregido con la afinidad): Q de funcionamiento < Qmin. Alternativas: recirculación de caudal mínimo, variador o bomba más pequeña.
+- **Potencia en el eje** en el punto de funcionamiento (columna P de la curva) > potencia del motor.
+- **Presión máxima del cuerpo** (`pCuerpo`, bar):
+  - presión de descarga > pCuerpo → no cumple;
+  - presión de diseño del proyecto > pCuerpo → no cumple;
+  - presión a caudal nulo (aspiración + altura de cierre) > pCuerpo → aviso.
+
+## Librería, base de datos e IA
+- Ficha de la bomba: «Caudal mínimo continuo (m³/h)» y «Presión máxima del cuerpo (bar)». Se copian al elemento al asignarla.
+- `08_bombas.sql`: columnas `min_flow_m3h` y `casing_max_pressure_bar` en `piping_pumps` (hay que volver a ejecutarlo).
+- Validación al elegir la bomba:
+  - muestra el BEP, el % del caudal de diseño respecto al BEP, el caudal mínimo y la presión del cuerpo;
+  - avisa si el caudal de diseño está fuera del 70–120 % del BEP o por debajo del caudal mínimo;
+  - avisa si la presión de diseño supera la del cuerpo o si falta la presión del cuerpo.
+- Edge Function `piping-bomba-pdf`: el esquema pide además `caudal_minimo_m3h` y `presion_max_cuerpo_bar`. Hay que pegar de nuevo el `index.ts` en Supabase.
+
+## Pruebas
+CP 200-ST6 (ecuaciones de la tabla, cuerpo 8 bar, Qmin 2 m³/h, motor 2,2 kW, 2900 rpm):
+
+| Caso | Resultado |
+|---|---|
+| Nominal | BEP 9,82 m³/h y η 51,5 % |
+| Variador a 2610 rpm (r = 0,9) | Q 19,41 → 17,36 m³/h, P eje 2,19 → 1,60 kW, BEP 8,84 m³/h, rango de curva 2,16–14,58 m³/h |
+| Recorte a 120 mm (−20 %) | aviso de fiabilidad |
+| Presión de diseño 10 bar > cuerpo 8 bar | no cumple, con alternativa |
+| Qmin 30 m³/h | no cumple |
+
+- Base de datos: ida y vuelta de los campos nuevos.
+- Regresión 10–23 sin cambios.
+
+## Pendiente
+- Bombas distintas en paralelo o en serie (ahora se suponen iguales).
+- Margen de NPSH según ANSI/HI 9.6.1 por tipo de servicio.
+- Curva con el punto de funcionamiento en el informe.
