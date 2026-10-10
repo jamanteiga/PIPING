@@ -223,7 +223,7 @@ function mostrarDimBomba() {
                     <tr><td colspan="2" class="text-slate-400 pt-1">Q = 0: altura estática + presión mínima</td></tr></table>
                 </div>
                 <div class="mt-1">${graficoBombaSVG(d, b0, D.rho)}</div>
-                <div class="text-right"><button onclick="aplicarDimBomba(${i})" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px]">Aplicar a ${d.nB > 1 ? 'estas bombas' : 'esta bomba'}</button></div>
+                <div class="text-right"><button onclick="cerrarModalRed(); preseleccionarBomba(${i})" class="px-2 py-1 border border-blue-300 text-blue-700 hover:bg-blue-50 rounded text-[11px] mr-1"><i class="fa-solid fa-list-check mr-1"></i>Preseleccionar de la base de datos...</button><button onclick="aplicarDimBomba(${i})" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px]">Aplicar a ${d.nB > 1 ? 'estas bombas' : 'esta bomba'}</button></div>
                 </div>`;
             }).join('');
             document.getElementById('red-content').innerHTML = `
