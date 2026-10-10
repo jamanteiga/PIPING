@@ -8038,7 +8038,10 @@
                     <label><input id="v3d-etq" type="checkbox" onchange="guardarCfg3DLocal({ etiquetas: this.checked }); construirEscena3D()"> Etiquetas</label><label><input id="v3d-cua" type="checkbox" onchange="guardarCfg3DLocal({ cuadernas: this.checked }); construirEscena3D()"> <span id="v3d-cua-t">Cuadernas</span></label>
                     <label title="Color de fondo (selector de color del sistema)">Fondo <input id="v3d-fondo" type="color" style="width:34px;height:20px;padding:0;border:0;vertical-align:middle" oninput="guardarCfg3DLocal({ fondo: this.value }); if (V3) { V3.renderer.setClearColor(new V3.T.Color(this.value)); pintar3D(); }"></label>
                     <button onclick="conectarSpaceMouse(true)" title="Ratón 3D 3Dconnexion (SpaceMouse) por WebHID: Chrome o Edge" style="padding:2px 8px;border:1px solid #475569;border-radius:4px;background:#334155;color:#fff">Ratón 3D</button><span id="v3d-sm" style="color:#94a3b8"></span>
-                    <span>Sens. <input id="v3d-sens" type="number" step="0.1" min="0.1" style="width:46px;color:#000" onchange="guardarCfg3DLocal({ sens: Math.max(0.1, +this.value || 1) })"></span></div>
+                    <span>Sens. <input id="v3d-sens" type="number" step="0.1" min="0.1" style="width:46px;color:#000" onchange="guardarCfg3DLocal({ sens: Math.max(0.1, +this.value || 1) })"></span>
+                    <label title="Sin alabeo: la vertical +Z queda siempre hacia arriba"><input id="v3d-hor" type="checkbox" onchange="guardarCfg3DLocal({ horizonteFijo: this.checked }); if (this.checked && V3) { V3.rol = 0; pintar3D(); }"> Horizonte fijo</label>
+                    <label><input id="v3d-inv" type="checkbox" onchange="guardarCfg3DLocal({ invertirGiros: this.checked })"> Invertir giros</label>
+                    <label title="Muestra en la barra inferior lo que envía el ratón 3D"><input id="v3d-smdiag" type="checkbox"> Diagnóstico</label></div>
                     <div id="v3d-lienzo" style="flex:1;position:relative;overflow:hidden"></div>
                     <div id="v3d-estado" style="padding:3px 8px;background:#1e293b;color:#cbd5e1;font:11px sans-serif;min-height:18px">Arrastrar: girar · botón derecho o Mayús: desplazar · rueda: zoom · clic: seleccionar</div>`;
                 cont.appendChild(ov);
@@ -8048,7 +8051,7 @@
             const { o, c } = cfg3D(), loc = cfg3DLocal(), bq = !!proyecto.esBuque; document.getElementById('v3d-ox').value = o.x; document.getElementById('v3d-oy').value = o.y; document.getElementById('v3d-oz').value = o.z; document.getElementById('v3d-cu').value = c;
             document.getElementById('v3d-norte').value = proyecto.norte == null ? 90 : proyecto.norte; document.getElementById('v3d-buque').style.display = bq ? '' : 'none'; document.getElementById('v3d-ind').style.display = bq ? 'none' : '';
             document.getElementById('v3d-cua-t').textContent = bq ? 'Cuadernas' : 'Rejilla'; document.getElementById('v3d-etq').checked = loc.etiquetas !== false; document.getElementById('v3d-cua').checked = loc.cuadernas !== false;
-            document.getElementById('v3d-fondo').value = loc.fondo || CFG3D_DEF.fondo; document.getElementById('v3d-sens').value = loc.sens || 1; conectarSpaceMouse(false);
+            document.getElementById('v3d-fondo').value = loc.fondo || CFG3D_DEF.fondo; document.getElementById('v3d-sens').value = loc.sens || 1; document.getElementById('v3d-hor').checked = loc.horizonteFijo !== false; document.getElementById('v3d-inv').checked = !!loc.invertirGiros; conectarSpaceMouse(false);
             try { await cargarThree(); } catch (e) { document.getElementById('v3d-lienzo').innerHTML = `<p style="color:#fca5a5;padding:16px;font:13px sans-serif">${esc(e.message)}</p>`; return; }
             if (!V3) iniciarMotor3D();
             construirEscena3D(); vista3dCamara('iso');
@@ -8080,11 +8083,11 @@
         function pintar3D() {
             if (!V3) return; const { camera, target, r, th, ph } = V3;
             camera.position.set(target.x + r * Math.sin(ph) * Math.cos(th), target.y + r * Math.sin(ph) * Math.sin(th), target.z + r * Math.cos(ph));
-            camera.lookAt(target); camera.far = Math.max(1000, r * 20); camera.updateProjectionMatrix(); V3.renderer.render(V3.scene, camera);
+            camera.lookAt(target); if (V3.rol) camera.rotateZ(V3.rol); camera.far = Math.max(1000, r * 20); camera.updateProjectionMatrix(); V3.renderer.render(V3.scene, camera);
         }
         function vista3dCamara(k) {
             if (!V3 || !V3.caja) return; const b = V3.caja, c = b.getCenter(new V3.T.Vector3()), tam = b.getSize(new V3.T.Vector3()), rr = Math.max(tam.x, tam.y, tam.z, 1) * 1.6;
-            V3.target.copy(c); V3.r = rr;
+            V3.target.copy(c); V3.r = rr; V3.rol = 0;
             if (k === 'planta') { V3.th = -Math.PI / 2; V3.ph = 0.001; }
             else if (k === 'perfil') { V3.th = -Math.PI / 2; V3.ph = Math.PI / 2; }
             else if (k === 'proa') { V3.th = 0; V3.ph = Math.PI / 2; }
@@ -8268,36 +8271,48 @@
             V3.geo = geo; pintar3D();
         }
         // ---------- ratón 3D (3Dconnexion SpaceMouse) por WebHID: Chrome / Edge ----------
-        let SM = { dev: null, t: [0, 0, 0], r: [0, 0, 0], bucle: false };
+        // v8.31.1 · los 6 grados de libertad: X e Y del capuchón desplazan, empujar/tirar (Y del ratón) acerca/aleja, subir/bajar
+        // (Z) desplaza en vertical; inclinar adelante/atrás (Rx) cabecea, girar (Rz) gira alrededor de la vertical e inclinar a los lados
+        // (Ry) alabea (solo con «Horizonte fijo» desactivado). Un SpaceMouse publica varias colecciones HID: se abre la del controlador
+        // multieje (usage page 1, usage 8), que es la que envía los ejes; con otra solo llegaba el zoom que emula el driver como rueda.
+        let SM = { devs: [], t: [0, 0, 0], r: [0, 0, 0], bucle: false, diag: '', n: 0 };
         function leerInformeSpaceMouse(id, dv) {
             const s = i => dv.byteLength >= i + 2 ? dv.getInt16(i, true) : 0;
             if (id === 1) { SM.t = [s(0), s(2), s(4)]; if (dv.byteLength >= 12) SM.r = [s(6), s(8), s(10)]; }
             else if (id === 2) SM.r = [s(0), s(2), s(4)];
-            else if (id === 3) { const b = dv.getUint8(0); if (b & 1) vista3dCamara('ajustar'); if (b & 2) vista3dCamara('iso'); }
+            else if (id === 3) { const b = dv.byteLength ? dv.getUint8(0) : 0; if (b & 1) vista3dCamara('ajustar'); if (b & 2) vista3dCamara('iso'); }
+            SM.n++; SM.diag = `informe ${id} (${dv.byteLength} B) · T ${SM.t.join(' / ')} · R ${SM.r.join(' / ')}`;
+            const dg = document.getElementById('v3d-smdiag'); if (dg && dg.checked) { const e = document.getElementById('v3d-estado'); if (e) e.textContent = 'Ratón 3D · ' + SM.diag; }
             if (!SM.bucle) { SM.bucle = true; requestAnimationFrame(pasoSpaceMouse); }
         }
         function pasoSpaceMouse() {
             if (!V3 || !vista3d) { SM.bucle = false; return; }
-            const zona = 12, k = cfg3DLocal().sens || 1, f = v => Math.abs(v) < zona ? 0 : v / 350, [tx, ty, tz] = SM.t.map(f), [rx, , rz] = SM.r.map(f);
-            if (tx || ty || tz || rx || rz) {
-                const T = V3.T, cam = V3.camera, der = new T.Vector3().subVectors(cam.position, V3.target).cross(cam.up).normalize().negate(), arr = new T.Vector3().crossVectors(new T.Vector3().subVectors(V3.target, cam.position).normalize(), der).normalize().negate();
-                V3.target.addScaledVector(der, tx * V3.r * 0.02 * k).addScaledVector(arr, -tz * V3.r * 0.02 * k);
-                V3.r *= Math.exp(ty * 0.03 * k); V3.th -= rz * 0.03 * k; V3.ph = Math.min(Math.PI - 0.01, Math.max(0.01, V3.ph - rx * 0.03 * k)); pintar3D();
-                requestAnimationFrame(pasoSpaceMouse);
+            const loc = cfg3DLocal(), k = loc.sens || 1, zona = 15, f = v => Math.abs(v) < zona ? 0 : (v - Math.sign(v) * zona) / 330, inv = loc.invertirGiros ? -1 : 1;
+            const [tx, ty, tz] = SM.t.map(f), [rx, ry, rz] = SM.r.map(f);
+            if (tx || ty || tz || rx || ry || rz) {
+                const T = V3.T, cam = V3.camera; cam.updateMatrixWorld();
+                const der = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), arr = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 1), paso = V3.r * 0.015 * k;
+                V3.target.addScaledVector(der, -tx * paso).addScaledVector(arr, tz * paso);   // el contenido sigue al capuchón
+                V3.r *= Math.exp(ty * 0.025 * k);
+                V3.ph = Math.min(Math.PI - 0.001, Math.max(0.001, V3.ph + inv * rx * 0.025 * k));
+                V3.th += inv * rz * 0.025 * k;
+                if (loc.horizonteFijo === false) V3.rol = (V3.rol || 0) + inv * ry * 0.025 * k; else V3.rol = 0;
+                pintar3D(); requestAnimationFrame(pasoSpaceMouse);
             } else SM.bucle = false;
         }
+        const esMultieje = d => (d.collections || []).some(c => c.usagePage === 1 && c.usage === 8);
         async function conectarSpaceMouse(pedir) {
             const est = document.getElementById('v3d-sm');
             if (!navigator.hid) { if (pedir) alert('El ratón 3D funciona en Chrome o Edge (WebHID). Este navegador no lo admite.'); return; }
             try {
                 const filtros = [{ vendorId: 0x256f, usagePage: 1, usage: 8 }, { vendorId: 0x046d, usagePage: 1, usage: 8 }];
-                let d = (await navigator.hid.getDevices()).find(x => x.vendorId === 0x256f || (x.vendorId === 0x046d && /space|3d|navigator|pilot/i.test(x.productName || '')));
-                if (!d && pedir) d = (await navigator.hid.requestDevice({ filters: filtros }))[0];
-                if (!d) return;
-                if (!d.opened) await d.open();
-                if (SM.dev !== d) d.addEventListener('inputreport', e => leerInformeSpaceMouse(e.reportId, e.data));
-                SM.dev = d; if (est) { est.textContent = '● ' + (d.productName || 'SpaceMouse'); est.style.color = '#86efac'; }
-            } catch (e) { if (pedir) alert('No se ha podido conectar el ratón 3D: ' + e.message + '\n\nSi el driver 3DxWare lo tiene en uso exclusivo, cierra 3DxWare o prueba otro puerto USB.'); }
+                let ds = (await navigator.hid.getDevices()).filter(x => (x.vendorId === 0x256f || x.vendorId === 0x046d) && esMultieje(x));
+                if (!ds.length && pedir) ds = (await navigator.hid.requestDevice({ filters: filtros })).filter(esMultieje);
+                if (!ds.length) { if (pedir && est) { est.textContent = 'sin controlador multieje'; est.style.color = '#fca5a5'; } return; }
+                for (const d of ds) { if (!d.opened) await d.open(); if (!SM.devs.includes(d)) { d.addEventListener('inputreport', e => leerInformeSpaceMouse(e.reportId, e.data)); SM.devs.push(d); } }
+                if (est) { est.textContent = '● ' + (ds[0].productName || 'SpaceMouse'); est.style.color = '#86efac'; }
+                if (!SM.escucha) { SM.escucha = true; navigator.hid.addEventListener('connect', () => { if (vista3d) conectarSpaceMouse(false); }); navigator.hid.addEventListener('disconnect', e => { SM.devs = SM.devs.filter(x => x !== e.device); const s2 = document.getElementById('v3d-sm'); if (s2 && !SM.devs.length) { s2.textContent = 'desconectado'; s2.style.color = '#94a3b8'; } }); }
+            } catch (e) { if (pedir) alert('No se ha podido conectar el ratón 3D: ' + e.message + '\n\nSi el driver 3DxWare lo tiene en uso exclusivo, ciérralo (icono de la bandeja > Salir) y vuelve a pulsar «Ratón 3D».'); }
         }
         function elegir3D(e, clic) {
             if (!V3) return; const rc = V3.renderer.domElement.getBoundingClientRect();
@@ -8792,7 +8807,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.31';
+        const VERSION_WEB = '8.31.1';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
