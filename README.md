@@ -948,3 +948,55 @@ CP 200-ST6 (ecuaciones de la tabla, cuerpo 8 bar, Qmin 2 m³/h, motor 2,2 kW, 29
 - Bombas distintas en paralelo o en serie (ahora se suponen iguales).
 - Margen de NPSH según ANSI/HI 9.6.1 por tipo de servicio.
 - Curva con el punto de funcionamiento en el informe.
+
+# PIPING v8.24 · Resistencias según Crane TP-410M (2009) y verificación del método
+
+Fecha: 2026-10-10. Versión anterior: 8.23 (copia en `copias\v823\`). Fuente: Crane Technical Paper 410M, edición métrica 2009 (reimpresión 01/10), PDF escaneado aportado por José.
+
+## A · Resistencias actualizadas a la edición 2009
+- **Tabla fT (pág. A-27)**:
+  - DN 15 0,026 · 20 0,024 · 25 0,022 · 32 0,021 · 40 0,020 · 50 0,019 · 65 0,018 · 80 0,017 · 100 0,016 · 125–150 0,015 · 200 0,014 · 250–350 0,013 · 400–550 0,012 · 600–900 0,011.
+  - Antes eran los valores de una edición anterior, un 4–7 % más altos.
+  - Fuera de la tabla se usa la ec. 2-8 con ε = 0,046 mm.
+  - `catalogo.js` pasa a la versión `2026-10-10.1`.
+- **Tes e injertos (ec. 2-35 a 2-38, tablas 2-1 a 2-5)**:
+  - K de paso y de derivación según el sentido (convergente o divergente), el reparto x = Qderivación/Qcombinado y la relación de diámetros β².
+  - Sustituye a 20·fT / 60·fT. Se recalcula en cada iteración del cálculo (`actualizarKTees`) a partir de la 3.ª.
+  - Modelo de nodo central: ramal combinado K = 0; ramal recto K_run·(Vc/Vs)²; derivación K_branch·(Vc/Vb)². (Vc/Vi)² se limita a 100 y K se relaja entre iteraciones.
+  - Los K negativos de Crane (ganancia de energía) se toman como 0, del lado de la seguridad.
+  - Si el caudal se combina o reparte por la derivación (caso que Crane no cubre), y en los cruces, se mantiene 20·fT / 60·fT.
+  - Informe: tabla de la te con flujo, x, β², K derivación y K paso.
+- **Mariposas (pág. A-29)**: doble excéntrica 74/52/43·fT y triple excéntrica 218/96/55·fT (DN 50–200 / 250–350 / 400–600). Antes usaban el valor de la céntrica (45/35/25·fT), que subestima la triple excéntrica unas 5 veces.
+- **Schedule de referencia por clase (pág. 2-9, ec. 2-9)**:
+  - En válvulas con K de Crane: K = K_ref·(d tubo / d ref)⁴.
+  - d ref es el schedule de la clase: hasta Class 300 o PN 50 Sch 40; 400/600 o PN 63–100 Sch 80; 900 o PN 160 Sch 120; 1500 o PN 250 Sch 160; 2500 XXS hasta DN 150.
+  - El origen del K muestra la corrección aplicada.
+- **Entrada y salida de depósitos (pág. A-30)**:
+  - Entrada a la tubería desde un depósito: a ras 0,5 (por defecto), saliente 0,78, redondeada 0,04 o ninguna. Salida a un depósito: 1,0.
+  - Se elige en el depósito: «Conexión del tubo al depósito (Crane)».
+  - Se suma a la arista conectada según el sentido del caudal (`kTerminalArista`).
+  - Informe: fila «Entrada / salida del depósito».
+- **Tipos nuevos**:
+  - membrana tipo Weir 149·fT y paso recto 39·fT (la válvula de membrana pasa a cálculo automático Crane);
+  - curvas de tubo r/d 8, 10, 12, 14, 16 y 20 (24 a 50·fT);
+  - falsas escuadras de 15°, 30° y 75°.
+- **Fórmulas de paso reducido** (pág. A-27) generalizadas: `kCraneReducido` (fórm. 5 y 6, con ángulos de entrada y salida distintos) y `kCraneFormula7`. Serpentines: `kSerpentinCrane` (ec. 2-33).
+- **Leyes de afinidad**: el aviso de recorte de impulsor pasa del 15 % al 5 %, que es el límite que da Crane (pág. 5-4).
+
+## B · Verificación del método
+- `Herramientas > Verificación del método (Crane TP-410M)...`: tabla con 50 casos de los ejemplos resueltos del capítulo 7 y de las tablas del apéndice A. Cada caso calcula con las funciones de PIPING y compara con el resultado publicado.
+  - Casos: 7-1, 7-2, 7-3, 7-4, 7-5, 7-6, 7-9, 7-10, 7-11, 7-12, 7-14, 7-15, 7-32, 7-33, 7-34, 7-35 y 7-36, más fT de la A-27 y las mariposas y la membrana de la A-29.
+  - Tolerancias: 0–2 % en fórmulas cerradas; 3–4 % donde Crane lee f en el diagrama de Moody.
+- Resultado: **50 de 50 dentro de tolerancia**.
+- El informe cita el resultado en la tabla de métodos («Verificación del método»).
+- Erratas o redondeos del original anotados en los casos:
+  - 7-4: Crane redondea β⁴ a 0,21;
+  - 7-5: β = 62,7/77,9;
+  - 7-34: el enunciado da η 70,7 % pero el cálculo usa 72,1 %.
+- Prueba en red real (depósito → tubo DN 100 → te → DN 100 / DN 80 → depósitos): las pérdidas efectivas de la te en el cálculo coinciden con las K de Crane (divergente K_derivación 0,9644 frente a 0,965; convergente K_paso 0,4386 frente a 0,4389). Las K de entrada y salida se aplican según el sentido.
+
+## Efecto en los cálculos
+Pequeño en las pruebas de regresión. Por ejemplo, el margen de presión de un consumo pasa de 1,66 a 1,63 bar y una ruta crítica de 0,23 a 0,24 m. La causa son la entrada desde el depósito y la tabla fT. Los proyectos ya calculados cambian ligeramente al recalcular.
+
+## Pendiente
+Hazen-Williams como alternativa para agua (C = 100/120/140/150), velocidades razonables de la pág. A-10 por servicio, dimensionado de válvulas de control (capítulo 3), caudalímetros (capítulo 4) y gas y vapor (capítulo 1).
