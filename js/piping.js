@@ -205,6 +205,15 @@
         function tamanoTubo(material, dn) { const n = npsDeDN(dn); return esAceroTubo(material) && n && !(CAT.materiales[material] || {}).sistema ? `${pulgadasTxt(n)}"` : dn; }
 
         // Diámetro interior de referencia de un DN: acero Sch 40 (o STD si no existe Sch 40), en mm
+        // schedule de referencia de las K de Crane según la clase / PN de la válvula (TP-410M 2009, pág. 2-9)
+        function scheduleRefCrane(el) {
+            const pn = String(el.pn || ''), m = pn.match(/(\d+(?:\.\d+)?)/), v = m ? +m[1] : 0, dn = dnNum(el.dn);
+            const cls = /#/.test(pn) ? v : (v <= 50 ? 300 : v <= 100 ? 600 : v <= 160 ? 900 : v <= 250 ? 1500 : 2500);
+            if (!v || cls <= 300) return '40';
+            if (cls <= 600) return '80'; if (cls <= 900) return '120'; if (cls <= 1500) return '160';
+            return dn <= 150 ? 'XXS' : '160';
+        }
+        function dintSchedule(clave, sch) { const t = ACERO_TAM.find(x => x.clave === clave); if (!t) return 0; const e = t.e[sch] != null ? t.e[sch] : (t.e['40'] != null ? t.e['40'] : t.e['STD']); return e != null ? t.od - 2 * e : 0; }
         function dintReferencia(clave) {
             const t = ACERO_TAM.find(x => x.clave === clave);
             if (!t) return 52.5;
@@ -217,8 +226,9 @@
             const fila = CAT.ft.find(r => r[0] === dn);
             if (fila) return fila[1];
             if (dn < 15) return 0.027;
+            if (dn > 900) return 0.011;
             const D = Dmm || dn;
-            return 0.25 / Math.pow(Math.log10(0.045 / (3.7 * D)), 2);
+            return 0.25 / Math.pow(Math.log10(0.046 / (3.7 * D)), 2);   // Crane TP-410M (2009) ec. 2-8
         }
 
         // ---------- Tuberías ----------
@@ -328,6 +338,8 @@
         function nCrane(valor, dn) {
             if (typeof valor === 'number') return valor;
             if (valor === 'mariposa') return dn <= 200 ? 45 : (dn <= 350 ? 35 : 25);
+            if (valor === 'mariposa2') return dn <= 200 ? 74 : (dn <= 350 ? 52 : 43);    // doble excéntrica (Crane TP-410M 2009)
+            if (valor === 'mariposa3') return dn <= 200 ? 218 : (dn <= 350 ? 96 : 55);   // triple excéntrica (Crane TP-410M 2009)
             if (valor === 'basc5') return dn <= 200 ? 40 : (dn <= 350 ? 30 : 20);
             if (valor === 'basc15') return dn <= 200 ? 120 : (dn <= 350 ? 90 : 60);
             return 0;
@@ -336,10 +348,20 @@
             const ops = opcionesCrane(claveCrane(el));
             return ops.find(o => o[0] === el.craneTipo) || ops[0] || null;
         }
+        // Crane TP-410M (2009), pág. A-27: válvulas de paso reducido. K referido a la tubería (diámetro mayor).
+        //  fórm. 5 (θ ≤ 45°) y 6 (45° < θ ≤ 180°): K2 = [K1 + contracción + expansión]/β⁴; con θ distinto en entrada y salida (ej. 7-6).
+        //  fórm. 7 (globo, angular, retención de obturador): K2 = [K1 + β·(0,5·(1 − β²) + (1 − β²)²)]/β⁴
+        function kCraneReducido(K1, beta, thEntrada, thSalida) {
+            const b2 = 1 - beta * beta, s = th => Math.sin(th * Math.PI / 360);
+            const kc = thEntrada <= 45 ? 0.8 * s(thEntrada) * b2 : 0.5 * Math.sqrt(s(thEntrada)) * b2;
+            const ke = thSalida <= 45 ? 2.6 * s(thSalida) * b2 * b2 : b2 * b2;
+            return (K1 + kc + ke) / Math.pow(beta, 4);
+        }
+        const kCraneFormula7 = (K1, beta) => (K1 + beta * (0.5 * (1 - beta * beta) + Math.pow(1 - beta * beta, 2))) / Math.pow(beta, 4);
         function kDeEntradaCrane(ent, dn, Dmm) {
             if (!ent) return { K: 0, origen: 'Crane (sin dato)' };
             if (ent[1] && ent[1].calc === 'bolaRed') {
-                const f = fT(dn, Dmm), b = 0.8, b2 = 1 - b * b, K = (3 * f + Math.sin(15 * Math.PI / 180) * (0.8 * b2 + 2.6 * b2 * b2)) / Math.pow(b, 4);
+                const f = fT(dn, Dmm), K = kCraneReducido(3 * f, 0.8, 30, 30);
                 return { K, origen: `Crane fórm. 6 (${ent[0]})` };
             }
             if (ent[1] && ent[1].pedirCv) return { K: 0, origen: 'falta el Cv del fabricante', aviso: 'Válvula de doble clapeta: introduce el Cv del fabricante.' };
@@ -393,6 +415,111 @@
             const f = fT(dn, dintReferencia(el.dn));
             if (el.subtype === 'injerto') return { run: 0, der: 60 * f, origen: 'Crane 60·fT derivación' };
             return { run: 20 * f, der: 60 * f, origen: 'Crane 20·fT / 60·fT' };
+        }
+        // v8.24 · Tes e Y según Crane TP-410M (2009), ec. 2-35 a 2-38 (tablas 2-1 a 2-5). K referidos a la velocidad
+        // del ramal combinado. conv: flujo convergente; x = Qderivación/Qcombinado; b2 = (d derivación/d combinado)²; alfa en grados.
+        function kTeeCrane2009(conv, x, b2, alfa = 90) {
+            x = Math.min(Math.max(x, 0), 1); b2 = Math.max(b2, 1e-6);
+            const r = x / b2, ca = Math.cos(alfa * Math.PI / 180);
+            if (conv) {
+                const T = { 30: [1, 2, 1.74], 45: [1, 2, 1.41], 60: [1, 2, 1], 90: [1, 2, 0] }[alfa] || [1, 2, 0];
+                const C = b2 <= 0.35 ? 1 : (x <= 0.35 ? 0.9 * (1 - x) : 0.55);
+                const Kb = C * (1 + T[0] * r * r - T[1] * (1 - x) * (1 - x) - T[2] * x * x / b2);
+                const Kr = alfa === 90 ? 1.55 * x - x * x : (1 - (1 - x) * (1 - x) - T[2] * x * x / b2);
+                return { Kbranch: Kb, Krun: Kr };
+            }
+            const G = b2 <= 0.35 ? (x <= 0.6 ? 1.1 - 0.7 * x : 0.85) : (x <= 0.4 ? 1.0 - 0.6 * x : 0.6);
+            let H = 1, J = 2;
+            if (alfa >= 89.9) { const bb = Math.sqrt(b2); if (bb >= 0.999) { H = 0.3; J = 0; } else if (bb > 2 / 3) { const t = (bb - 2 / 3) / (1 / 3); H = 1 - 0.7 * t; J = 2 * (1 - t); } }
+            const Kb = G * (1 + H * r * r - J * r * ca);
+            const M = b2 <= 0.4 ? 0.4 : (x <= 0.5 ? 2 * (2 * x - 1) : 0.3 * (2 * x - 1));
+            return { Kbranch: Kb, Krun: M * x * x };
+        }
+        // En cada iteración: K de cada ramal de la te según el sentido y el reparto del caudal (modelo de nodo central:
+        // ramal combinado K = 0; ramal recto K = K_run·(Vc/Vs)²; derivación K = K_branch·(Vc/Vb)²). K negativos → 0.
+        function actualizarKTees(aristas) {
+            const porTe = {};
+            aristas.forEach(a => { if (a.esValvulaAcc && esNodo(a.el) && (a.el.subtype === 'tee' || a.el.subtype === 'injerto') && a.el.modoK !== 'manual') (porTe[a.el.id] = porTe[a.el.id] || {})[a.rama] = a; });
+            Object.values(porTe).forEach(L => {
+                if (!L.a || !L.b || !L.c) return;
+                const q = k => L[k].Qprev, qs = ['a', 'b', 'c'].map(k => Math.abs(q(k)));
+                if (Math.max(...qs) < 1e-7) return;
+                const ent = ['a', 'b', 'c'].filter(k => q(k) > 0), sal = ['a', 'b', 'c'].filter(k => q(k) <= 0);
+                const conv = ent.length === 2, comb = conv ? sal[0] : ent[0];
+                if (!comb || (conv ? sal.length !== 1 : ent.length !== 1)) return;
+                if (comb === 'c') { ['a', 'b', 'c'].forEach(k => { L[k].teeInfo = { metodo: 'combinado por la derivación: 20·fT / 60·fT' }; }); return; }
+                const rec = comb === 'a' ? 'b' : 'a', Ac = L[comb].A, As = L[rec].A, Ab = L.c.A;
+                const Qc = Math.abs(q(comb)), x = Math.abs(q('c')) / Math.max(Qc, 1e-12), b2 = (L.c.D / L[comb].D) ** 2;
+                const k = kTeeCrane2009(conv, x, b2, 90), Vc = Qc / Ac, Vs = Math.max(Math.abs(q(rec)) / As, 1e-6), Vb = Math.max(Math.abs(q('c')) / Ab, 1e-6);
+                // (Vc/Vi)² limitado a 100 (Vi ≥ 0,1·Vc) para que un ramal casi parado no quede bloqueado; K relajado entre iteraciones
+                const kr = Math.max(k.Krun, 0) * Math.min((Vc / Vs) ** 2, 100), kb = Math.max(k.Kbranch, 0) * Math.min((Vc / Vb) ** 2, 100), rel = (o, nn) => o == null || !isFinite(o) ? nn : 0.6 * o + 0.4 * nn;
+                L[comb].K = rel(L[comb].K, 0); L[rec].K = rel(L[rec].K, kr); L.c.K = rel(L.c.K, kb);
+                const info = { metodo: 'Crane TP-410M (2009) ec. 2-35 a 2-38', conv, x, b2, Kbranch: k.Kbranch, Krun: k.Krun, comb };
+                ['a', 'b', 'c'].forEach(kk => { L[kk].teeInfo = info; L[kk].origenK = `Crane 2009 · te ${conv ? 'convergente' : 'divergente'} · Qd/Qc ${x.toFixed(2)} · β² ${b2.toFixed(2)} · rama ${kk}`; });
+            });
+        }
+        // Crane TP-410M (2009) ec. 2-33: serpentines y curvas de más de 90° (n curvas de 90°, radio relativo r/d, K de una curva de 90°)
+        const kSerpentinCrane = (n, rd, f, K90) => (n - 1) * (0.25 * f * Math.PI * rd + 0.5 * K90) + K90;
+        // ---------- v8.24 · Verificación del método frente a los ejemplos resueltos de Crane TP-410M (2009), capítulo 7 ----------
+        // Cada caso calcula con las funciones de PIPING y compara con el resultado publicado. tol = tolerancia relativa.
+        // Las tolerancias del 3–4 % cubren los factores de fricción que Crane lee en el diagrama de Moody (pág. A-26).
+        function verificarCrane() {
+            const n = (sub, nombre) => { const o = (CAT.crane[sub] || []).find(x => x[0] === nombre); return o ? nCrane(o[1], 100) : NaN; };
+            const C = [], add = (ej, que, crane, piping, tol, nota) => C.push({ ej, que, crane, piping, tol, nota: nota || '', dev: Math.abs(piping - crane) / Math.max(Math.abs(crane), 1e-12), ok: isFinite(piping) && Math.abs(piping - crane) <= tol * Math.max(Math.abs(crane), 1e-12) });
+            // fT: tabla A-27
+            [[15, .026], [20, .024], [25, .022], [32, .021], [40, .020], [50, .019], [65, .018], [80, .017], [100, .016], [150, .015], [200, .014], [300, .013], [500, .012], [600, .011]].forEach(([dn, f]) => add('A-27', `fT DN ${dn}`, f, fT(dn, dintReferencia('DN ' + dn)), 0.001));
+            // 7-1: tubo liso de plástico
+            { const Re = 21.22 * 200 * 995.62 / (52.5 * 0.80); add('7-1', 'Re', 100600, Re, 0.005); add('7-1', 'f (tubo liso)', 0.0179, colebrookWhite(Re, 0), 0.03, 'Crane lee f en el diagrama de Moody'); }
+            // 7-2: K desde Kv
+            add('7-2', 'K de Kv = 500 (d 154 mm)', 3.60, kDesdeCv(1.156 * 500, 154), 0.01);
+            // 7-3: válvula angular paso total
+            add('7-3', 'n de la válvula angular', 150, n('globo', 'Angular'), 0);
+            add('7-3', 'K angular DN 100 (Sch 80)', 2.475, 150 * fT(100, 97.2), 0.04, 'Crane toma fT 0,0165 del diagrama para Sch 80; PIPING, la tabla A-27 (0,016)');
+            // 7-4: compuerta venturi (fórm. 5)
+            add('7-4', 'K2 compuerta venturi (β 0,68)', 1.22, kCraneReducido(8 * 0.015, 0.68, 2 * Math.asin(0.115) * 180 / Math.PI, 2 * Math.asin(0.115) * 180 / Math.PI), 0.025, 'Crane redondea β² = 0,46 y β⁴ = 0,21');
+            // 7-5: retención de obturador (fórm. 7) y velocidad mínima
+            add('7-5', 'K2 retención lift (β = 62,7/77,9)', 26.3, kCraneFormula7(600 * 0.018, 62.7 / 77.9), 0.01);
+            add('7-5', 'V mín. retención lift (m/s)', 1.583, (CAT.vmin['Obturador ascendente (lift)'] || 0) * Math.sqrt(0.0010018), 0.01);
+            add('7-5', 'n de la retención lift', 600, n('retencion', 'Obturador ascendente (lift)'), 0);
+            // 7-6: bola de paso reducido con conos distintos
+            add('7-6', 'K2 bola paso reducido', 0.59, kCraneReducido(3 * 0.017, 0.77, 16, 30), 0.03);
+            // 7-9: aceite, flujo laminar
+            { const Re = 21.22 * 1500 * 869.2 / (128 * 130), f = Re < 2300 ? 64 / Re : NaN, K = 0.015 * (n('compuerta', 'Compuerta (cuña, doble obturador, macho)') + n('globo', 'Angular') + n('codo', 'Codo 90° soldado radio corto (r/d 1)')) + f * 85 * 1000 / 128;
+              add('7-9', 'f laminar', 0.0385, f, 0.005); add('7-9', 'K total del sistema', 28.24, K, 0.005); add('7-9', 'Δp total (Pa)', 174200, 225.2 * K * 869.2 * 1500 ** 2 / 128 ** 4 + 15 * 869.2 * 9.81, 0.005); }
+            // 7-10: globo en Y con asiento reducido (fórm. 7)
+            add('7-10', 'K2 globo en Y β 0,9', 1.44, kCraneFormula7(55 * 0.015, 0.9), 0.02);
+            add('7-10', 'n del codo soldado r/d 1,5', 14, n('codo', 'Codo 90° soldado radio largo (r/d 1,5)'), 0);
+            // 7-11: serpentín de calefacción (ec. 2-33)
+            add('7-11', 'K de 7 curvas de 180° r/d 4', 3.72, 7 * kSerpentinCrane(2, 4, 0.022, 14 * 0.022), 0.01);
+            // 7-12: entrada, salida y compuerta DN 300
+            add('7-12', 'K entrada tubo saliente', 0.78, K_ENTRADA_DEP.saliente, 0); add('7-12', 'K salida a depósito', 1.0, kTerminalArista({ depB: { entradaTipo: 'aRas' }, Qprev: 1 }), 0);
+            add('7-12', 'K compuerta DN 300', 0.10, 8 * fT(300, 303), 0.05);
+            // 7-14: codo reductor (codo + ensanchamiento brusco, fórm. 4)
+            { const r = kReduccion({ dn: 'DN 125', dnMenor: 'DN 100', theta: 180, thetaManual: true }, 128, 102.3); add('7-14', 'K codo reductor 125×100', 0.53, 14 * 0.015 + r.ke / Math.pow(r.beta, 4), 0.02); }
+            // 7-15: potencia de bombeo
+            add('7-15', 'K de 4 codos roscados DN 80', 2.04, 4 * n('codo', 'Codo 90° roscado estándar') * fT(80, 77.9), 0.005);
+            add('7-15', 'Potencia (kW)', 11.84, 998.2 * G * (400 / 60000) * 127 / 0.7 / 1000, 0.005);
+            // 7-32: NPSH disponible con las propiedades del agua de PIPING
+            { const w = propiedadesFluido('Agua', 15); if (w.ok) { add('7-32', 'ρ agua 15 °C (kg/m³)', 999.1, w.rho, 0.002); add('7-32', 'NPSHa (m)', 5.7, (1.213e5 - w.pv) / (9.81 * w.rho) - 4 - 2.5, 0.02, 'pv de la tabla de agua de PIPING'); } }
+            // 7-33: leyes de afinidad (velocidad)
+            { const f = afinidadBomba({ type: 'bomba', rpm: 3500, rpmTrabajo: 1700 }); add('7-33', 'Q a 1700 rpm (l/min)', 777, 1600 * f.r, 0.002); add('7-33', 'H a 1700 rpm (m)', 9.91, 42 * f.r * f.r, 0.002); add('7-33', 'P a 1700 rpm (kW)', 1.79, 15.6 * f.r ** 3, 0.005); }
+            // 7-34: potencia en el eje y eléctrica (el original calcula con η 72,1 %)
+            { const bp = 2500 / 60000 * 81 * 999.1 * G / 0.721 / 1000; add('7-34', 'Potencia en el eje (kW)', 45.9, bp, 0.005, 'Crane da η 70,7 % pero calcula con 72,1 %'); add('7-34', 'Potencia eléctrica (kW)', 50.3, bp / (0.95 * 0.96), 0.005); }
+            // 7-35 y 7-36: tes e Y (ec. 2-35 a 2-38)
+            { const k = kTeeCrane2009(true, 380 / 1515, 1, 90); add('7-35', 'K derivación te convergente', -0.04026, k.Kbranch, 0.01); add('7-35', 'K paso te convergente', 0.3258, k.Krun, 0.005); }
+            { const k = kTeeCrane2009(false, 950 / 2465, 1, 45); add('7-36', 'K derivación Y 45° divergente', 0.4640, k.Kbranch, 0.005); add('7-36', 'K paso Y 45° divergente', -0.06809, k.Krun, 0.005); }
+            // A-29: mariposas
+            add('A-29', 'n mariposa doble excéntrica DN 100', 74, nCrane('mariposa2', 100), 0); add('A-29', 'n mariposa triple excéntrica DN 500', 55, nCrane('mariposa3', 500), 0);
+            add('A-29', 'n membrana tipo Weir', 149, n('membrana', 'Membrana tipo Weir (Crane 149·fT)'), 0);
+            return C;
+        }
+        function abrirVerificacionCrane() {
+            const v = verificarCrane(), ok = v.filter(x => x.ok).length, f = x => Math.abs(x) >= 1000 ? Math.round(x).toLocaleString('es-ES') : (+x.toPrecision(4)).toString();
+            const html = `<p class="text-xs text-slate-600 mb-2">Cálculo de PIPING frente a los ejemplos resueltos de <b>Crane TP-410M (2009)</b>, capítulo 7 y apéndice A. <b class="${ok === v.length ? 'text-emerald-700' : 'text-rose-600'}">${ok} de ${v.length} dentro de tolerancia.</b></p>
+                <div class="overflow-auto border rounded" style="max-height:60vh"><table class="w-full text-[11px]"><thead class="bg-slate-100 sticky top-0"><tr class="text-left text-slate-500"><th class="px-1 py-1">Ejemplo</th><th class="px-1">Magnitud</th><th class="px-1 text-right">Crane</th><th class="px-1 text-right">PIPING</th><th class="px-1 text-right">Desv.</th><th class="px-1 text-right">Tol.</th><th class="px-1"></th></tr></thead><tbody>
+                ${v.map(x => `<tr class="border-t ${x.ok ? '' : 'bg-rose-50'}" title="${esc(x.nota)}"><td class="px-1 py-0.5 font-bold">${esc(x.ej)}</td><td class="px-1">${esc(x.que)}${x.nota ? ' <i class="fa-solid fa-circle-info text-slate-400"></i>' : ''}</td><td class="px-1 text-right font-mono">${f(x.crane)}</td><td class="px-1 text-right font-mono">${f(x.piping)}</td><td class="px-1 text-right font-mono">${(x.dev * 100).toFixed(2)} %</td><td class="px-1 text-right font-mono">${(x.tol * 100).toFixed(1)} %</td><td class="px-1">${x.ok ? '<i class="fa-solid fa-circle-check text-emerald-600"></i>' : '<i class="fa-solid fa-circle-xmark text-rose-600"></i>'}</td></tr>`).join('')}</tbody></table></div>
+                <p class="text-[10px] text-slate-400 mt-2">Las tolerancias del 3–4 % cubren los factores de fricción que Crane lee en el diagrama de Moody. Pasa el ratón por <i class="fa-solid fa-circle-info"></i> para ver la nota del caso.</p>`;
+            return dialogo('<i class="fa-solid fa-scale-balanced text-blue-600 mr-1.5"></i>Verificación del método · Crane TP-410M', html, [{ texto: 'Cerrar', valor: null }]);
         }
         // Reducción (Crane, fórmulas 1–4): K referido al diámetro menor. θ de ASME B16.9 si existe.
         function thetaReduccion(el) {
@@ -467,7 +594,7 @@
             compuerta:     { type: 'valvula', codigo: 'VC', nombre: 'Válvula de compuerta', cat: 'valvulas', calc: 'crane', puertos: [PA, PB] },
             globo:         { type: 'valvula', codigo: 'VG', nombre: 'Válvula de globo', cat: 'valvulas', calc: 'crane', puertos: [PA, PB] },
             mariposa:      { type: 'valvula', codigo: 'VM', nombre: 'Válvula de mariposa', cat: 'valvulas', calc: 'crane', puertos: [PA, PB] },
-            membrana:      { type: 'valvula', codigo: 'VMB', nombre: 'Válvula de membrana', cat: 'valvulas', calc: 'pedir', crane: 'membrana', puertos: [PA, PB] },
+            membrana:      { type: 'valvula', codigo: 'VMB', nombre: 'Válvula de membrana', cat: 'valvulas', calc: 'crane', crane: 'membrana', puertos: [PA, PB] },
             macho:         { type: 'valvula', codigo: 'VMA', nombre: 'Válvula macho', cat: 'valvulas', calc: 'crane', crane: 'macho', puertos: [PA, PB] },
             neumatica:     { type: 'valvula', codigo: 'VN', nombre: 'Válvula neumática', cat: 'valvulas', calc: 'crane', puertos: [PA, PB] },
             control:       { type: 'valvula', codigo: 'VCO', nombre: 'Válvula de control (regulación)', cat: 'valvulas', calc: 'crane', crane: 'globo', puertos: [PA, PB] },
@@ -521,16 +648,18 @@
         // Tablas de Crane adicionales (se añaden al catálogo). Un valor numérico es el múltiplo n de
         // fT; un objeto {K} es un K fijo (no depende del DN).
         if (CAT) Object.assign(CAT.crane, {
-            codo45: [['Codo 45° estándar (Crane)', 16], ['Inglete 45°', 15]],
-            codo60: [['Codo 60° (estimado entre 45° y 90° LR)', 15], ['Inglete 60°', 25]],
+            codo45: [['Codo 45° estándar (Crane)', 16], ['Inglete 45°', 15], ['Inglete 30°', 8], ['Inglete 15°', 4]],
+            codo60: [['Codo 60° (estimado entre 45° y 90° LR)', 15], ['Inglete 60°', 25], ['Inglete 75°', 40]],
             macho: [['Macho paso directo', 18], ['Macho 3 vías, paso directo', 30], ['Macho 3 vías, derivación', 90]],
-            membrana: [['Zappe/ESDU tipo Weir (aprox.)', { K: 2.3 }], ['Zappe/ESDU paso recto (aprox.)', { K: 0.6 }]],
+            membrana: [['Membrana tipo Weir (Crane 149·fT)', 149], ['Membrana paso recto (Crane 39·fT)', 39], ['Zappe/ESDU tipo Weir (aprox.)', { K: 2.3 }], ['Zappe/ESDU paso recto (aprox.)', { K: 0.6 }]],
             cero: [['Despreciable (K = 0)', 0]]
         });
         // Subtipos de válvula adicionales
         if (CAT) {
             CAT.crane.bola.push(['Bola paso reducido (β 0,8; Crane fórm. 6, θ 30°)', { calc: 'bolaRed' }]);
-            CAT.crane.mariposa.push(['Mariposa doble excéntrica (K de mariposa Crane)', 'mariposa'], ['Mariposa triple excéntrica (K de mariposa Crane)', 'mariposa']);
+            CAT.crane.mariposa.push(['Mariposa doble excéntrica (K de mariposa Crane)', 'mariposa2'], ['Mariposa triple excéntrica (K de mariposa Crane)', 'mariposa3']);
+            // curvas de tubo a más radios (Crane TP-410M 2009, pág. A-30)
+            if (CAT.crane.codo) [['Curva 90° r/d 8', 24], ['Curva 90° r/d 10', 30], ['Curva 90° r/d 12', 34], ['Curva 90° r/d 14', 38], ['Curva 90° r/d 16', 42], ['Curva 90° r/d 20', 50]].forEach(x => { if (!CAT.crane.codo.some(y => y[0] === x[0])) CAT.crane.codo.push(x); });
             CAT.crane.retencion.push(['Doble clapeta tipo wafer (dual plate): Cv del fabricante', { pedirCv: true }]);
         }
         // ---------- Presión nominal de componentes (orientativa) ----------
@@ -2603,7 +2732,7 @@
                 h += ctrlNum(fn, 'cotaFondo', mostrarCampo('cotaFondo', obj.cotaFondo), 'Cota del fondo del tanque (mm)', '1') + ctrlNum(fn, 'hB', obj.hB, 'Conexión lateral b: altura sobre el fondo (m)', '0.01') +
                     ctrlNum(fn, 'hC', obj.hC, 'Conexión superior c: altura sobre el fondo (m)', '0.01') + ctrlNum(fn, 'hLamina', obj.hLamina, 'Nivel de líquido sobre el fondo (m)', '0.01') +
                     ctrlSelect(fn, 'tipoConexion', TIPOS_CONEXION, obj.tipoConexion, 'Tipo de conexión') + ctrlSelect(fn, 'dnConexion', [['', '— igual que la tubería —'], ...LISTA_DN.map(d => [d, etiquetaDN(d)])], obj.dnConexion || '', 'Tamaño de la conexión') +
-                    ctrlMag(fn, 'presionDep', obj.presionDep, 'Presión sobre la lámina', ' man.') +
+                    ctrlMag(fn, 'presionDep', obj.presionDep, 'Presión sobre la lámina', ' man.') + ctrlSelect(fn, 'entradaTipo', [['aRas', 'Entrada a ras, arista viva (K 0,5)'], ['saliente', 'Tubo saliente hacia dentro (K 0,78)'], ['redondeada', 'Entrada redondeada r/d ≥ 0,15 (K 0,04)'], ['ninguna', 'Sin pérdidas de entrada ni de salida']], obj.entradaTipo || 'aRas', 'Conexión del tubo al depósito (Crane)') +
                     ctrlNum(fn, 'volumen', obj.volumen || '', 'Volumen interior (l) · PED recipientes y vaso', 'any') + ctrlMag(fn, 'psRecipiente', obj.psRecipiente || '', 'PS del recipiente', '; vacío = calculada') + infoRecipiente(obj);
                 return h + info(`Conexión b a cota ${fmt(obj.cota, 2)} m · c a ${fmt(obj.cotaEntrada, 2)} m · lámina a ${fmt(obj.cotaLamina, 2)} m.<br>Condición de contorno: altura piezométrica = cota de lámina + presión.`);
             }
@@ -3441,6 +3570,9 @@
                     const Dmm = dintTuberiaEnNodo(a.nodoA, aristas, el.dn) || dintTuberiaEnNodo(a.nodoB, aristas, el.dn) || dintReferencia(el.dn);
                     const kk = kElemento(el, Dmm);
                     a.D = Dmm / 1000; a.K = kk.K; a.origenK = kk.origen;
+                    // v8.24 · las K de Crane van referidas al schedule de la clase de la válvula (≤ Class 300: Sch 40; 400/600: Sch 80;
+                    // 900: Sch 120; 1500: Sch 160; 2500: XXS hasta DN 150): con la tubería real, K = K_ref·(d / d_ref)⁴ (ec. 2-9)
+                    if (el.type === 'valvula' && /^Crane/.test(kk.origen || '')) { const sr = scheduleRefCrane(el), dr = dintSchedule(el.dn, sr); if (dr > 0 && Math.abs(Dmm - dr) > 0.05) { const fc = Math.pow(Dmm / dr, 4); a.K *= fc; a.origenK += ` · ref. Sch ${sr} (d ${dr.toFixed(1)} mm) × ${fc.toFixed(3)}`; } }
                     if (kk.aviso) a.avisos.push(kk.aviso);
                 }
                 a.A = Math.PI * a.D * a.D / 4;
@@ -3468,7 +3600,7 @@
             if (+el.rpmTrabajo > 0 && !(+el.rpm > 0)) av.push('falta la velocidad nominal de la curva (rpm) para aplicar el variador');
             if (+el.impulsorTrabajo > 0 && !(+el.impulsor > 0)) av.push('falta el diámetro de impulsor de la curva para aplicar el recorte');
             if (+el.impulsorMax > 0 && +el.impulsorTrabajo > +el.impulsorMax) av.push(`impulsor ${el.impulsorTrabajo} mm > máximo ${el.impulsorMax} mm`);
-            if (rd < 0.85) av.push(`recorte del impulsor del ${((1 - rd) * 100).toFixed(0)} % (> 15 %): las leyes de afinidad dejan de ser fiables`);
+            if (rd < 0.95) av.push(`recorte del impulsor del ${((1 - rd) * 100).toFixed(0)} % (> 5 %): Crane TP-410 limita las leyes de afinidad a cambios pequeños de diámetro; interpola entre las curvas de impulsor del fabricante`);
             if (rd > 1.0001) av.push('impulsor mayor que el de la curva: la curva se extrapola');
             if (rs > 1.1) av.push(`velocidad ${((rs - 1) * 100).toFixed(0)} % por encima de la nominal: comprueba motor y fabricante`);
             if (rs < 0.3) av.push('velocidad por debajo del 30 % de la nominal');
@@ -3521,7 +3653,8 @@
             a.Re = Re; a.f = f; a.V = V;
             // Reducción: contracción si el caudal va del extremo mayor (a) al menor (b), expansión si no
             if (a.el.subtype === 'reduccion') { a.K = a.Qprev >= 0 ? a.Kc : a.Ke; a.sentidoRed = a.Qprev >= 0 ? 'contracción' : 'expansión'; }
-            a.R = a.esValvulaAcc ? (a.K / (2 * G * a.A * a.A)) : (f * a.L / (a.D * a.A * a.A * 2 * G));
+            a.Kterm = kTerminalArista(a);
+            a.R = a.esValvulaAcc ? ((a.K + a.Kterm) / (2 * G * a.A * a.A)) : ((f * a.L / a.D + a.Kterm) / (a.A * a.A * 2 * G));
             // K = 0 (bridas, manguitos, paso directo del injerto): resistencia mínima para que el
             // sistema lineal no divida por cero; es despreciable frente a la de cualquier tubería.
             a.R = Math.max(a.R, 1e-3);
@@ -3558,6 +3691,7 @@
 
             aristas.forEach(a => {
                 prepararArista(a);
+                a.depA = !a.esBomba && condiciones[a.nodoA] && condiciones[a.nodoA].deposito || null; a.depB = !a.esBomba && condiciones[a.nodoB] && condiciones[a.nodoB].deposito || null;
                 a.Qprev = a.el.type === 'bomba' ? Math.max((a.vol && a.Qvol > 0 ? a.Qvol : (a.el.caudal || 10) / 3600), 1e-4) : 1e-3;
             });
             asignarDiametrosYK(aristas, fluido);
@@ -3565,6 +3699,7 @@
             const QMIN = 1e-6;
             let Hnodo = {};
             for (let iter = 0; iter < 60; iter++) {
+                if (iter > 2) actualizarKTees(aristas);
                 aristas.forEach(a => actualizarResistencia(a, fluido));
 
                 let A = Array.from({ length: libres.length }, () => new Array(libres.length).fill(0));
@@ -3800,9 +3935,18 @@
         }
         function cerrarModalRed() { document.getElementById('modal-red').style.display = 'none'; if (document.querySelector('#red-content .hoja-impresa')) document.getElementById('red-content').innerHTML = ''; document.querySelector('#modal-red > div').style.width = ''; const t = document.querySelector('#modal-red h3 span'); if (t) t.innerHTML = '<i class="fa-solid fa-diagram-project text-blue-600 mr-1.5"></i> Cálculo Hidráulico de la Red'; }
 
+        // v8.24 · pérdida de entrada desde un depósito (a ras 0,5; saliente 0,78; redondeada 0,04) y de salida a un depósito (1,0) (Crane pág. A-30)
+        const K_ENTRADA_DEP = { aRas: 0.5, saliente: 0.78, redondeada: 0.04, ninguna: 0 };
+        function kTerminalArista(a) {
+            let k = 0; const ke = d => K_ENTRADA_DEP[d.entradaTipo || 'aRas'] ?? 0.5, ks = d => d.entradaTipo === 'ninguna' ? 0 : 1;
+            if (a.depA) k += a.Qprev >= 0 ? ke(a.depA) : ks(a.depA);
+            if (a.depB) k += a.Qprev < 0 ? ke(a.depB) : ks(a.depB);
+            return k;
+        }
         function hfDeArista(a) {
             if (a.esBomba) return 0;
-            return a.esValvulaAcc ? (a.K * a.V * a.V / (2 * G)) : (a.f * a.L / a.D * a.V * a.V / (2 * G));
+            const kt = (a.Kterm || 0) * a.V * a.V / (2 * G);
+            return kt + (a.esValvulaAcc ? (a.K * a.V * a.V / (2 * G)) : (a.f * a.L / a.D * a.V * a.V / (2 * G)));
         }
 
         // Línea crítica = el camino, desde la descarga de cada bomba hasta un extremo abierto de
@@ -3888,6 +4032,8 @@
                 const el = a.el;
                 const r = ultimoResultado[el.id] = ultimoResultado[el.id] || { Q: 0, V: 0, hf: 0, motivos: [], ramas: [] };
                 const motivos = [];
+                if (a.teeInfo) r.teeCrane = a.teeInfo;
+                if (a.Kterm > 0) r.kTerminal = a.Kterm;
                 if (a.esBomba) {
                     const npshd = calcularNPSH(a, Hnodo, fluido);
                     const Hop = Hnodo[a.nodoB] - Hnodo[a.nodoA];
@@ -7708,7 +7854,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.23';
+        const VERSION_WEB = '8.24';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -9293,7 +9439,9 @@
                 'sep',
                 { icono: 'fa-link', texto: 'Corregir conexiones casi unidas', accion: () => corregirConexiones() },
                 { icono: 'fa-cube', texto: 'Isométrico de línea...', accion: () => isometricoLinea() },
-                { icono: 'fa-magnifying-glass', texto: 'Buscar en el catálogo del fabricante...', accion: () => buscarCatalogo() }
+                { icono: 'fa-magnifying-glass', texto: 'Buscar en el catálogo del fabricante...', accion: () => buscarCatalogo() },
+                'sep',
+                { icono: 'fa-scale-balanced', texto: 'Verificación del método (Crane TP-410M)...', accion: () => abrirVerificacionCrane() }
             ]},
             { titulo: 'Opciones', items: [
                 { icono: 'fa-language', texto: 'Idioma', sub: () => [...Object.entries(IDIOMAS).map(([k, n]) => ({ icono: idioma === k ? 'fa-check' : 'fa-square', texto: n, accion: () => cambiarIdioma(k) })), 'sep',

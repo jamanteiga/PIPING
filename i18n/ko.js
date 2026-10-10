@@ -74,3 +74,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Usar la misma imagen que": "다음과 �
 
 // v8.23
 Object.assign(window.PIPING_I18N.ko.d, {"Punto de trabajo y límites": "운전점 및 한계", "Velocidad de trabajo con variador (rpm; vacío = nominal)": "인버터 운전 속도 (rpm; 비우면 정격)", "Impulsor recortado (mm; vacío = el de la curva)": "트림 임펠러 (mm; 비우면 곡선 직경)", "Caudal mínimo continuo (m³/h)": "최소 연속 유량 (m³/h)", "Presión máxima del cuerpo (bar)": "케이싱 최대 압력 (bar)"});
+
+// v8.24
+Object.assign(window.PIPING_I18N.ko.d, {"Verificación del método (Crane TP-410M)...": "방법 검증 (Crane TP-410M)...", "Conexión del tubo al depósito (Crane)": "탱크 배관 연결 (Crane)", "Entrada a ras, arista viva (K 0,5)": "플러시 날카로운 입구 (K 0.5)", "Tubo saliente hacia dentro (K 0,78)": "내부 돌출관 (K 0.78)", "Entrada redondeada r/d ≥ 0,15 (K 0,04)": "라운드 입구 r/d ≥ 0.15 (K 0.04)", "Sin pérdidas de entrada ni de salida": "입구·출구 손실 없음"});

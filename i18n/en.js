@@ -74,3 +74,6 @@ Object.assign(window.PIPING_I18N.en.d, {"Usar la misma imagen que": "Use the sam
 
 // v8.23
 Object.assign(window.PIPING_I18N.en.d, {"Punto de trabajo y límites": "Operating point and limits", "Velocidad de trabajo con variador (rpm; vacío = nominal)": "Operating speed with VFD (rpm; empty = rated)", "Impulsor recortado (mm; vacío = el de la curva)": "Trimmed impeller (mm; empty = curve diameter)", "Caudal mínimo continuo (m³/h)": "Minimum continuous flow (m³/h)", "Presión máxima del cuerpo (bar)": "Maximum casing pressure (bar)"});
+
+// v8.24
+Object.assign(window.PIPING_I18N.en.d, {"Verificación del método (Crane TP-410M)...": "Method verification (Crane TP-410M)...", "Conexión del tubo al depósito (Crane)": "Pipe connection to the tank (Crane)", "Entrada a ras, arista viva (K 0,5)": "Flush, sharp-edged inlet (K 0.5)", "Tubo saliente hacia dentro (K 0,78)": "Inward projecting pipe (K 0.78)", "Entrada redondeada r/d ≥ 0,15 (K 0,04)": "Rounded inlet r/d ≥ 0.15 (K 0.04)", "Sin pérdidas de entrada ni de salida": "No entrance or exit losses"});

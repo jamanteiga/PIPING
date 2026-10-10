@@ -261,7 +261,7 @@ async function svgAPNG(txt, W, H) {
         }
 function detalleK(el, a) {
             const Dmm = a.D * 1000, dn = dnNum(el.dn), F = [];
-            const fTfila = () => { const v = fT(dn, Dmm); F.push(['Factor de fricción de referencia', 'fT (Crane TP-410, turbulencia total)', CAT.ft.some(r => r[0] === dn) ? `tabla Crane, DN ${dn}` : `Colebrook, ε = 0,045 mm, D = ${nf(Dmm, 2)} mm`, nf(v, 4)]); return v; };
+            const fTfila = () => { const v = fT(dn, Dmm); F.push(['Factor de fricción de referencia', 'fT (Crane TP-410, turbulencia total)', CAT.ft.some(r => r[0] === dn) ? `tabla Crane, DN ${dn}` : `Crane ec. 2-8, ε = 0,046 mm, D = ${nf(Dmm, 2)} mm`, nf(v, 4)]); return v; };
             const conCv = (cv, fuente) => {
                 F.push(['Coeficiente de caudal', 'Cv (' + fuente + ')', '', nf(cv, 1)]);
                 F.push(['Coeficiente de resistencia', 'K = 891·d⁴/Cv²  (d en pulgadas)', `891 × (${nf(Dmm, 2)}/25,4)⁴ / ${nf(cv, 1)}²`, nf(a.K, 4)]);
@@ -346,7 +346,8 @@ function justificacion(el, ars) {
                 F.push(['Número de Reynolds', 'Re = V·D / ν', `${nf(a.V, 3)} × ${nf(a.D, 4)} / ${nsci(fl.nu)}`, String(Math.round(a.Re))]);
                 if (a.Re < 2300) F.push(['Factor de fricción (laminar)', 'f = 64 / Re', `64 / ${Math.round(a.Re)}`, nf(a.f, 5)]);
                 else F.push([`Factor de fricción (${a.Re < 4000 ? 'transición, ' : ''}Colebrook-White)`, '1/√f = −2·log₁₀[ε/(3,7·D) + 2,51/(Re·√f)]', `ε = ${nf(dt.rug, 3)} mm; ε/D = ${nsci(a.rugosidad / a.D)}; Re = ${Math.round(a.Re)}`, nf(a.f, 5)]);
-                F.push(['Pérdida de carga por fricción', 'hf = f·(L/D)·V²/(2g)', `${nf(a.f, 5)} × (${nf(a.L, 3)} / ${nf(a.D, 4)}) × ${nf(a.V, 3)}² / (2 × 9,81)`, `${nf(hf, 4)} m`]);
+                { const hfr = a.f * a.L / a.D * a.V * a.V / (2 * G); F.push(['Pérdida de carga por fricción', 'hf = f·(L/D)·V²/(2g)', `${nf(a.f, 5)} × (${nf(a.L, 3)} / ${nf(a.D, 4)}) × ${nf(a.V, 3)}² / (2 × 9,81)`, `${nf(hfr, 4)} m`]);
+                  if (a.Kterm > 0) F.push(['Entrada / salida del depósito', 'h = K·V²/(2g)  (entrada 0,5 / 0,78 / 0,04; salida 1,0 · Crane)', `${nf(a.Kterm, 2)} × ${nf(a.V, 3)}² / (2 × 9,81)`, `${nf(hf - hfr, 4)} m`]); }
                 filaVmax(a, F);
                 F.push(['Cotas de los extremos', 'z a, z b', '', `${nf(el.cotaA, 2)} / ${nf(el.cotaB, 2)} m`]);
                 F.push(['Presión manométrica en los extremos', 'p = (H − z)·ρ·g − p_atm', `H = ${nf(res.Hnodo[a.nodoA], 3)} / ${nf(res.Hnodo[a.nodoB], 3)} m`, `${nf(a.pA, 3)} / ${nf(a.pB, 3)} bar`]);
@@ -401,8 +402,15 @@ function justificacion(el, ars) {
                 if (el.modoK === 'manual') F.push(['Coeficientes (usuario)', 'K paso directo, K derivación', '', `${nf(kt.run, 3)} / ${nf(kt.der, 3)}`]);
                 else {
                     F.push(['Factor de fricción de referencia', 'fT (Crane TP-410)', `DN ${dn}`, nf(fv, 4)]);
-                    F.push(['K paso directo', el.subtype === 'injerto' ? 'K = 0 (continuidad de la tubería)' : 'K = 20·fT', el.subtype === 'injerto' ? '' : `20 × ${nf(fv, 4)}`, nf(kt.run, 4)]);
-                    F.push(['K derivación', 'K = 60·fT', `60 × ${nf(fv, 4)}`, nf(kt.der, 4)]);
+                    const tc = (ultimoResultado[el.id] || {}).teeCrane;
+                    if (tc && tc.Kbranch != null) {
+                        F.push(['Flujo', tc.conv ? 'convergente' : 'divergente', `Qderivación/Qcombinado = ${nf(tc.x, 3)}; β² = ${nf(tc.b2, 3)}`, `ramal combinado ${tc.comb}`]);
+                        F.push(['K derivación (ref. ramal combinado)', tc.conv ? 'K = C·[1 + D·(x/β²)² − E·(1 − x)² − F·x²/β²]' : 'K = G·[1 + H·(x/β²)² − J·(x/β²)·cos α]', 'Crane TP-410M (2009) ec. ' + (tc.conv ? '2-35' : '2-37'), nf(tc.Kbranch, 4)]);
+                        F.push(['K paso directo (ref. ramal combinado)', tc.conv ? 'K = 1,55·x − x²' : 'K = M·x²', 'Crane TP-410M (2009) ec. ' + (tc.conv ? '2-36' : '2-38'), nf(tc.Krun, 4)]);
+                    } else {
+                        F.push(['K paso directo', el.subtype === 'injerto' ? 'K = 0 (continuidad de la tubería)' : 'K = 20·fT', el.subtype === 'injerto' ? '' : `20 × ${nf(fv, 4)}`, nf(kt.run, 4)]);
+                        F.push(['K derivación', 'K = 60·fT', `60 × ${nf(fv, 4)}`, nf(kt.der, 4)]);
+                    }
                 }
                 F.push(['Reparto por ramas', 'ramas de paso: K/2 · derivación: K_der − K_run/2', '', `${nf(kt.run / 2, 4)} / ${nf(Math.max(kt.der - kt.run / 2, 0), 4)}`]);
                 ars.forEach(a => {
@@ -538,10 +546,13 @@ async function construirInforme(D, opc = {}) {
                 ['Pérdida por fricción', 'hf = f·(L/D)·V²/(2g)', 'Darcy-Weisbach'],
                 ['Factor de fricción turbulento', '1/√f = −2·log₁₀[ε/(3,7·D) + 2,51/(Re·√f)]', 'Colebrook-White (Newton, semilla Swamee-Jain)'],
                 ['Factor de fricción laminar (Re < 2300)', 'f = 64/Re', 'Hagen-Poiseuille'],
-                ['Pérdida en válvulas y accesorios', 'hf = K·V²/(2g);  K = n·fT', 'Crane TP-410'],
+                ['Pérdida en válvulas y accesorios', 'hf = K·V²/(2g);  K = n·fT (fT de la tabla A-27); K referida al schedule de la clase: K = K_ref·(d/d_ref)⁴', 'Crane TP-410M (2009)'],
+                ['Entrada y salida de depósitos', 'K entrada 0,5 (a ras) / 0,78 (saliente) / 0,04 (redondeada); K salida 1,0', 'Crane TP-410M (2009), pág. A-30'],
                 ['K a partir del Cv', 'K = 891·d⁴/Cv²  (d en pulgadas);  Cv = 1,156·Kv', 'Crane TP-410 / catálogos de fabricante'],
                 ['Reducciones', 'Fórmulas 1 a 4 de Crane con θ de ASME B16.9', 'Crane TP-410, ASME B16.9'],
-                ['Tes, cruces e injertos', 'Nodo central: ramas de paso K_run/2, derivación K_der − K_run/2', 'Crane TP-410 (20·fT / 60·fT)'],
+                ['Tes e injertos', 'K de paso y de derivación según el sentido y el reparto del caudal (convergente / divergente) y la relación de diámetros', 'Crane TP-410M (2009), ec. 2-35 a 2-38'],
+                ['Cruces', 'Nodo central: ramas de paso K_run/2, derivación K_der − K_run/2', 'Crane TP-410 (20·fT / 60·fT)'],
+                ['Verificación del método', `Ejemplos resueltos de Crane TP-410M (2009), capítulo 7: ${(() => { const v = verificarCrane(); return `${v.filter(x => x.ok).length} de ${v.length} dentro de tolerancia`; })()}`, 'Herramientas > Verificación del método'],
                 ['Curva de bomba', 'H = H₀ − k·Q²', 'Parábola por el punto de diseño y la altura a caudal nulo'],
                 ['NPSH disponible', 'NPSHd = Hs − z − pv/(ρg) + v²/(2g)', 'Hs: altura piezométrica absoluta en la aspiración'],
                 ['Resolución de la red', 'Teoría lineal (Wood y Charles), convergencia 10⁻⁴ en caudales', 'Balance de masa en nodos y de energía en elementos'],

@@ -74,3 +74,6 @@ Object.assign(window.PIPING_I18N.pt.d, {"Usar la misma imagen que": "Usar a mesm
 
 // v8.23
 Object.assign(window.PIPING_I18N.pt.d, {"Punto de trabajo y límites": "Ponto de trabalho e limites", "Velocidad de trabajo con variador (rpm; vacío = nominal)": "Velocidade de trabalho com variador (rpm; vazio = nominal)", "Impulsor recortado (mm; vacío = el de la curva)": "Impulsor cortado (mm; vazio = o da curva)", "Caudal mínimo continuo (m³/h)": "Caudal mínimo contínuo (m³/h)", "Presión máxima del cuerpo (bar)": "Pressão máxima do corpo (bar)"});
+
+// v8.24
+Object.assign(window.PIPING_I18N.pt.d, {"Verificación del método (Crane TP-410M)...": "Verificação do método (Crane TP-410M)...", "Conexión del tubo al depósito (Crane)": "Ligação do tubo ao depósito (Crane)", "Entrada a ras, arista viva (K 0,5)": "Entrada à face, aresta viva (K 0,5)", "Tubo saliente hacia dentro (K 0,78)": "Tubo saliente para dentro (K 0,78)", "Entrada redondeada r/d ≥ 0,15 (K 0,04)": "Entrada arredondada r/d ≥ 0,15 (K 0,04)", "Sin pérdidas de entrada ni de salida": "Sem perdas de entrada nem de saída"});
