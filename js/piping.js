@@ -381,6 +381,7 @@
         function kvApertura(el) {
             const kvs = +el.kvs, h = Math.min(Math.max((+el.apertura || 0) / 100, 0.02), 1);
             if (!(kvs > 0)) return 0;
+            if (el.caracteristica === 'tabla') { const c = leerCurvaApertura(el.curvaApertura); if (c.length) return kvs * fraccionApertura(c, h * 100); }
             return el.caracteristica === 'lineal' ? kvs * h : kvs * Math.pow(50, h - 1);
         }
         // K de válvulas y accesorios de dos puertos para un diámetro interior D (mm).
@@ -392,7 +393,7 @@
             if (el.modoK === 'kvs') {
                 const kv = kvApertura(el);
                 if (!(kv > 0)) return { K: 0, origen: 'Kvs sin definir', aviso: `${tagDe(el)}: falta el Kvs de la válvula de control.` };
-                return { K: kDesdeCv(1.156 * kv, Dmm), origen: `Kvs ${el.kvs} · ${el.caracteristica === 'lineal' ? 'lineal' : 'isoporcentual'} · apertura ${el.apertura} % → Kv ${kv.toFixed(2)}` };
+                return { K: kDesdeCv(1.156 * kv, Dmm), origen: `Kvs ${el.kvs} · ${el.caracteristica === 'lineal' ? 'lineal' : el.caracteristica === 'tabla' ? 'curva del fabricante' : 'isoporcentual'} · apertura ${el.apertura} % → Kv ${kv.toFixed(2)}` };
             }
             if (el.modoK === 'cv') {
                 if (+el.cvUsuario > 0) return { K: kDesdeCv(+el.cvUsuario, Dmm), origen: `Cv ${el.cvUsuario} del usuario` };
@@ -400,8 +401,8 @@
             }
             if (el.type === 'valvula' && el.modoK === 'catalogo') {
                 const s = CAT.valvulas.find(v => v.nombre === el.serieCat);
-                const cv = s ? s.cv[npsDeDN(el.dn)] : null;
-                if (cv) return { K: kDesdeCv(cv, Dmm), origen: `Cv ${cv} (${s.nombre.split(' · ').slice(0, 2).join(' ')})` };
+                const cv0 = s ? s.cv[npsDeDN(el.dn)] : null, ca = s && el.apertura != null && el.apertura !== '' && +el.apertura < 100 ? leerCurvaApertura(s.curvaApertura || el.curvaApertura) : [], fr = ca.length ? fraccionApertura(ca, +el.apertura) : 1, cv = cv0 ? cv0 * fr : null;
+                if (cv) return { K: kDesdeCv(cv, Dmm), origen: `Cv ${+cv.toFixed(2)} (${s.nombre.split(' · ').slice(0, 2).join(' ')}${fr < 1 ? ` · apertura ${el.apertura} %` : ''})` };
                 const r = kDeEntradaCrane(entradaCrane(el), dn, Dmm);
                 return { K: r.K, origen: r.origen, aviso: `${tagDe(el)}: la serie de catálogo no tiene ${el.dn}; se usa el K de Crane.` };
             }
@@ -677,6 +678,35 @@
         function conexBomba(p, lado) {
             p = p || {}; const dn = p['dn' + lado] || '', norma = p['norma' + lado] || (p.normaBridas === 'ASME' ? 'ASME B16.5' : p.normaBridas === 'EN' ? 'EN 1092-1' : '');
             return { tipo: p['conex' + lado] || (dn || norma ? 'Bridada' : ''), dn, norma, rating: p['rating' + lado] || p['pn' + lado] || p.rating || '' };
+        }
+        // v8.26 · datos de las válvulas: conexión, dimensiones entre caras, materiales internos, servicio y accionamiento
+        const CONEX_VALV = ['Bridada', 'Wafer (entre bridas)', 'Lug (orejetas roscadas)', 'Roscada', 'Socket weld (SW)', 'Soldada a tope (BW)', 'Clamp sanitario', 'Ranurada (Victaulic)', 'Racor / manguito'];
+        const CARA_CARA_VALV = ['EN 558 serie 1', 'EN 558 serie 3', 'EN 558 serie 4', 'EN 558 serie 10', 'EN 558 serie 12', 'EN 558 serie 13', 'EN 558 serie 14', 'EN 558 serie 15', 'EN 558 serie 16', 'EN 558 serie 20', 'EN 558 serie 25', 'EN 558 serie 27',
+            'ASME B16.10 (largo)', 'ASME B16.10 (corto)', 'API 609 categoría A', 'API 609 categoría B', 'Del fabricante'];
+        const ASIENTOS_VALV = ['PTFE', 'RPTFE (PTFE reforzado)', 'PEEK', 'EPDM', 'NBR', 'FKM (Viton)', 'Neopreno (CR)', 'Silicona (VMQ)', 'Grafito', 'Metal-metal'];
+        const NORMAS_DISENO_VALV = ['ASME B16.34', 'API 6D', 'ISO 17292 / API 608 (bola)', 'API 609 (mariposa)', 'API 600 (compuerta de acero)', 'API 602 (forjadas compactas)', 'API 594 (retención)', 'API 599 (macho)',
+            'EN 13709 (globo y retención de acero)', 'EN 1171 (compuerta de fundición)', 'EN 593 (mariposa)', 'EN 12334 (retención de fundición)', 'EN 13397 (membrana)', 'EN 1984 (compuerta de acero)', 'IEC 60534 (control)', 'ISO 4126 (seguridad)'];
+        const ACCION_VALV = ['Palanca', 'Volante', 'Reductor manual', 'Actuador neumático simple efecto', 'Actuador neumático doble efecto', 'Actuador eléctrico', 'Actuador hidráulico', 'Automática (sin accionamiento)'];
+        const FIRE_SAFE_VALV = ['No', 'API 607', 'ISO 10497', 'API 6FA'];
+        // curva de apertura «apertura % : capacidad % (Cv/Cvmax)», p. ej. «10:1; 50:25; 100:100»
+        const leerCurvaApertura = t => { const o = []; String(t || '').split(/[;\n]+/).forEach(p => { const m = p.trim().replace(/,/g, '.').match(/^([\d.]+)\s*[:=]\s*([\d.]+)$/); if (m && +m[1] >= 0 && +m[1] <= 100 && +m[2] >= 0) o.push([+m[1], +m[2]]); }); o.sort((a, b) => a[0] - b[0]); return o; };
+        function fraccionApertura(curva, ap) {
+            const P = curva.slice(); if (!P.length) return 1; if (P[0][0] > 0) P.unshift([0, 0]); if (P[P.length - 1][0] < 100) P.push([100, Math.max(100, P[P.length - 1][1])]);
+            ap = Math.min(Math.max(+ap || 0, 0), 100); let i = 0; while (i < P.length - 2 && ap > P[i + 1][0]) i++;
+            const y = P[i][1] + (P[i + 1][1] - P[i][1]) * (ap - P[i][0]) / Math.max(P[i + 1][0] - P[i][0], 1e-9); return Math.max(y, 0) / 100;
+        }
+        // mariposa de asiento elástico: Cv relativo según Crane / Center Line Series 200 (10°…90° → 11…100 % de la carrera)
+        const CURVA_MARIPOSA_TIPICA = '11:0.05; 22:2.8; 33:6; 44:13; 56:23; 67:38; 78:61; 89:91; 100:100';
+        const CURVA_BOLA_TIPICA = '10:1; 20:3; 30:6; 40:11; 50:19; 60:30; 70:45; 80:65; 90:86; 100:100';
+        // coherencia de la conexión de una válvula y de su rango de servicio
+        function avisosValvula(el) {
+            const av = [], c = el.conexValv || '', n = el.normaValv || '', d = el.dn ? dnNum(el.dn) : null;
+            if (/^(Bridada|Wafer|Lug)/.test(c) && n && !esNormaBrida(n)) av.push(`conexión ${c.toLowerCase()} con norma ${n} (no es una norma de bridas)`);
+            if (c === 'Roscada' && n && !esNormaRosca(n)) av.push(`conexión roscada con norma ${n} (no es una norma de rosca)`);
+            if (c === 'Roscada' && d > 50) av.push(`roscada en ${el.dn}: la práctica habitual limita las uniones roscadas a DN 50 (2")`);
+            if (c === 'Socket weld (SW)' && d > 50) av.push(`socket weld en ${el.dn}: la práctica habitual lo limita a DN 50 (2")`);
+            if (/^Wafer/.test(c) && el.subtype !== 'mariposa' && el.subtype !== 'retencion') av.push('conexión wafer en un tipo de válvula que no suele fabricarse así');
+            return av;
         }
         // ficha antigua (una norma y un rating para las dos bridas) -> campos por lado
         function migrarConexLib(P) {
@@ -2693,7 +2723,7 @@
         // Tras cada cambio se redibujan los campos, porque unos dependen de otros (material -> serie
         // -> tamaño; modo de K -> tipo Crane / serie de catálogo / K manual).
         // ==================================================================================
-        const CAMPOS_NUMERICOS = ['rpmTrabajo', 'impulsorTrabajo', 'qMin', 'pCuerpo', 'rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros', 'scale', 'rotation', 'longitud', 'caudal', 'presion', 'h0', 'npsh', 'cota', 'k', 'kRun', 'kBranch', 'theta', 'cvUsuario',
+        const CAMPOS_NUMERICOS = ['tMinV', 'tMaxV', 'caraCaraMm', 'rpmTrabajo', 'impulsorTrabajo', 'qMin', 'pCuerpo', 'rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros', 'scale', 'rotation', 'longitud', 'caudal', 'presion', 'h0', 'npsh', 'cota', 'k', 'kRun', 'kBranch', 'theta', 'cvUsuario',
             'cotaA', 'cotaB', 'qNom', 'dpNom', 'qNom2', 'dpNom2', 'cotaEntrada', 'aislamiento', 'lambdaAisl', 'volumen', 'kvs', 'apertura', 'FL', 'eta', 'tamTexto', 'qCons', 'pMin', 'cotaLamina', 'presionDep', 'pmaManual', 'sobreespesor', 'cotaFondo', 'hB', 'hC', 'hLamina', 'pTarado', 'ox', 'oy', 'psRecipiente'];
         const CLS_CTRL = 'w-full bg-white border border-slate-300 rounded p-1 mt-0.5';
         const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -2828,7 +2858,7 @@
                 if (obj.modoK === 'manual') {
                     h += ctrlNum(fn, 'k', obj.k, 'K', '0.01');
                 } else if (obj.modoK === 'kvs') {
-                    h += ctrlNum(fn, 'kvs', obj.kvs || '', 'Kvs (m³/h, 1 bar)', 'any') + ctrlSelect(fn, 'caracteristica', [['iso', 'Isoporcentual (R = 50)'], ['lineal', 'Lineal']], obj.caracteristica || 'iso', 'Característica') +
+                    h += ctrlNum(fn, 'kvs', obj.kvs || '', 'Kvs (m³/h, 1 bar)', 'any') + ctrlSelect(fn, 'caracteristica', [['iso', 'Isoporcentual (R = 50)'], ['lineal', 'Lineal'], ['tabla', 'Curva del fabricante (apertura : Cv %)']], obj.caracteristica || 'iso', 'Característica') + (obj.caracteristica === 'tabla' ? ctrlTexto(fn, 'curvaApertura', obj.curvaApertura || '', 'Curva (apertura % : Kv %)') : '') +
                         ctrlNum(fn, 'apertura', obj.apertura != null ? obj.apertura : 70, 'Apertura (%)', '1') + ctrlNum(fn, 'FL', obj.FL || 0.9, 'Factor de recuperación FL (IEC 60534)', '0.01');
                     h += info(`Kv a la apertura: ${fmt(kvApertura(obj), 2)} m³/h. Se comprueba la cavitación (σ y Δp de estrangulamiento IEC 60534).`);
                 } else if (obj.modoK === 'cv') {
@@ -2842,7 +2872,8 @@
                         h += ctrlSelect(fn, 'serieCat', lista.map(v => v.nombre), obj.serieCat, 'Serie de catálogo');
                         const sv = lista.find(v => v.nombre === obj.serieCat);
                         const kk = kElemento(obj, dintReferencia(obj.dn));
-                        h += info(`Cv ${sv ? sv.cv[npsDeDN(obj.dn)] : '—'} (${npsDeDN(obj.dn)}") · Kv ${sv ? fmt(sv.cv[npsDeDN(obj.dn)] / 1.156, 1) : '—'}<br>K ≈ ${fmt(kk.K)} con Dint Sch 40<br>${sv ? esc(sv.fuente) : ''}${sv && sv.nota ? '<br><span class="text-amber-600">' + esc(sv.nota) + '</span>' : ''}`);
+                        if (sv && leerCurvaApertura(sv.curvaApertura).length) h += ctrlNum(fn, 'apertura', obj.apertura == null || obj.apertura === '' ? 100 : obj.apertura, 'Apertura (%; 100 = abierta)', '1');
+                        h += info(`Cv ${sv ? sv.cv[npsDeDN(obj.dn)] : '—'} (${npsDeDN(obj.dn)}") · Kv ${sv ? fmt(sv.cv[npsDeDN(obj.dn)] / 1.156, 1) : '—'}${sv && leerCurvaApertura(sv.curvaApertura).length && +obj.apertura < 100 ? ` · a ${obj.apertura} %: Cv ${fmt(sv.cv[npsDeDN(obj.dn)] * fraccionApertura(leerCurvaApertura(sv.curvaApertura), +obj.apertura), 1)}` : ''}<br>K ≈ ${fmt(kk.K)} con Dint Sch 40<br>${sv ? esc(sv.fuente) : ''}${sv && sv.nota ? '<br><span class="text-amber-600">' + esc(sv.nota) + '</span>' : ''}`);
                     }
                 } else {
                     const ops = opcionesCrane(claveCrane(obj));
@@ -4146,13 +4177,15 @@
         // fabricante y la ficha de seguridad del producto (plásticos: ISO/TR 10358; metales: NACE / MTI, Corrosion Data Survey).
         // ==================================================================================
         const FAM_MAT = { AC: 'Acero al carbono', FUND: 'Fundición', INOX: 'Acero inoxidable (grado sin indicar)', INOX304: 'Inoxidable 304 / 304L / 321', INOX316: 'Inoxidable 316 / 316L', DUPLEX: 'Dúplex 2205', SDUPLEX: 'Superdúplex 2507 / 6Mo',
-            NI: 'Aleaciones de níquel (Alloy 20, C-276, Ni 200)', CU: 'Cobre', CUNI: 'Cuproníquel 90/10 – 70/30', BRONCE: 'Bronces y latones', PVC: 'PVC-U', CPVC: 'PVC-C', PE: 'PE (PE80 / PE100)', PP: 'PP (PP-R / PP-H)', PVDF: 'PVDF', PTFE: 'Revestido PTFE / PFA', HORM: 'Hormigón' };
+            NI: 'Aleaciones de níquel (Alloy 20, C-276, Ni 200)', CU: 'Cobre', CUNI: 'Cuproníquel 90/10 – 70/30', BRONCE: 'Bronces y latones', PVC: 'PVC-U', CPVC: 'PVC-C', PE: 'PE (PE80 / PE100)', PP: 'PP (PP-R / PP-H)', PVDF: 'PVDF', PTFE: 'Revestido PTFE / PFA', HORM: 'Hormigón',
+            EPDM: 'Elastómero EPDM', NBR: 'Elastómero NBR (nitrilo)', FKM: 'Elastómero FKM (Viton)', CR: 'Elastómero CR (neopreno)', VMQ: 'Silicona (VMQ)', PEEK: 'PEEK', GRAF: 'Grafito' };
         // temperatura máxima de servicio a presión (sin reducir más la presión nominal: consultar las curvas del fabricante por encima de 20 °C)
-        const TMAX_FAM = { PVC: 60, CPVC: 90, PE: 60, PP: 90, PVDF: 120, PTFE: 200, HORM: 40 };
+        const TMAX_FAM = { PVC: 60, CPVC: 90, PE: 60, PP: 90, PVDF: 120, PTFE: 200, HORM: 40, EPDM: 120, NBR: 100, FKM: 200, CR: 100, VMQ: 200, PEEK: 250, GRAF: 450 };
         const CLASES_FLUIDO = { AGUA: 'Agua dulce', MAR: 'Agua de mar', H2SO4: 'Ácido sulfúrico concentrado (93–98 %)', NAOH: 'Sosa cáustica 50 %', GLICOL: 'Agua glicolada', METANOL: 'Metanol', FLAM: 'Inflamables (gasolinas, combustibles de aviación)', COMB: 'Combustibles y aceites (gasóleos, fuelóleos, aceites)' };
         function familiaMaterial(txt) {
             const t = String(txt || '').toLowerCase(); if (!t.trim()) return null;
-            const r = [['PTFE', /ptfe|pfa\b|revestid|lined/], ['NI', /hastelloy|alloy ?20|c-?276|n0?8020|inconel|monel|n[ií]quel|2\.4\d{3}|ni ?20[01]/], ['SDUPLEX', /super ?d[uú]plex|superd[uú]plex|2507|1\.4410|1\.4501|s3275[0]|s32760|6 ?mo|254 ?smo|1\.4547|s31254/],
+            const r = [['EPDM', /epdm/], ['NBR', /\bnbr\b|nitrilo|buna/], ['FKM', /fkm|viton|\bfpm\b/], ['CR', /neopreno|cloropreno|\(cr\)/], ['VMQ', /silicona|vmq/], ['PEEK', /peek/], ['GRAF', /^\s*(grafito|graphite)/],
+                ['PTFE', /ptfe|pfa\b|revestid|lined/], ['NI', /hastelloy|alloy ?20|c-?276|n0?8020|inconel|monel|n[ií]quel|2\.4\d{3}|ni ?20[01]/], ['SDUPLEX', /super ?d[uú]plex|superd[uú]plex|2507|1\.4410|1\.4501|s3275[0]|s32760|6 ?mo|254 ?smo|1\.4547|s31254/],
                 ['DUPLEX', /d[uú]plex|2205|1\.4462|s31803|s32205|cd3mn|cd4mcu/], ['INOX316', /316|1\.440[14]|1\.4435|1\.440[89]|cf8m|cf3m/], ['INOX304', /304|1\.430[167]|1\.4308|1\.4541|\bcf8\b|\bcf3\b|321/], ['INOX', /inox|stainless/],
                 ['CUNI', /cu-?ni|cuproníquel|cupron[ií]quel|90\/10|70\/30|c70[46]00|c71500/], ['BRONCE', /bronce|bronze|\bnab\b|c95[48]00|cusn|cual|lat[oó]n|brass/], ['CU', /cobre|copper|cu-?dhp|cw024/],
                 ['FUND', /fundici[oó]n|cast iron|gjl|gjs|a126|a536|\ba48\b|en-gj|d[uú]ctil/], ['CPVC', /pvc-?c|cpvc/], ['PVC', /pvc/], ['PVDF', /pvdf/], ['PP', /pp-?r|pp-?h|polipropileno|\bpp\b/], ['PE', /pe ?100|pe ?80|pead|hdpe|polietileno|\bpe\b/],
@@ -4196,6 +4229,17 @@
             COMB: { AC: _cm('A'), FUND: _cm('B', N_B313_FUND, 150), INOX: _cm('A'), INOX304: _cm('A'), INOX316: _cm('A'), DUPLEX: _cm('A'), SDUPLEX: _cm('A'), NI: _cm('A'), CU: _cm('A', 'en gasóleos almacenados mucho tiempo, el cobre acelera la oxidación del combustible'), CUNI: _cm('A'), BRONCE: _cm('A'),
                 PVC: _cm('B', N_PLAST_INFL), CPVC: _cm('B', N_PLAST_INFL), PE: _cm('B', N_PLAST_INFL), PP: _cm('B', N_PLAST_INFL), PVDF: _cm('B', N_PLAST_INFL), PTFE: _cm('A'), HORM: _cm('X', 'no es material de proceso') }
         };
+        // v8.26 · asientos y juntas de válvulas (elastómeros y polímeros), mismas clases de fluido
+        Object.entries({
+            AGUA: { EPDM: _cm('A'), NBR: _cm('A', '', 80), FKM: _cm('B', 'agua caliente y vapor: hidrólisis; preferir EPDM', 80), CR: _cm('A'), VMQ: _cm('A'), PEEK: _cm('A'), GRAF: _cm('A') },
+            MAR: { EPDM: _cm('A'), NBR: _cm('A'), FKM: _cm('A', '', 80), CR: _cm('A'), VMQ: _cm('A'), PEEK: _cm('A'), GRAF: _cm('B', 'par galvánico con aceros inoxidables en agua de mar') },
+            H2SO4: { EPDM: _cm('X', 'el ácido concentrado (oxidante) ataca el EPDM; apto solo diluido'), NBR: _cm('X', 'atacado por el ácido concentrado'), FKM: _cm('B', 'confirmar el grado con el fabricante', 40), CR: _cm('X', 'atacado por el ácido concentrado'), VMQ: _cm('X', 'atacada por el ácido concentrado'), PEEK: _cm('X', 'el ácido sulfúrico concentrado disuelve el PEEK'), GRAF: _cm('B', '', 100) },
+            NAOH: { EPDM: _cm('A', '', 90), NBR: _cm('B', 'resistencia limitada a la sosa concentrada', 50), FKM: _cm('X', 'los álcalis fuertes atacan el FKM'), CR: _cm('B', '', 60), VMQ: _cm('B', '', 40), PEEK: _cm('A'), GRAF: _cm('A') },
+            GLICOL: { EPDM: _cm('A'), NBR: _cm('A'), FKM: _cm('A'), CR: _cm('A'), VMQ: _cm('A'), PEEK: _cm('A'), GRAF: _cm('A') },
+            METANOL: { EPDM: _cm('A'), NBR: _cm('B', 'hinchamiento moderado'), FKM: _cm('X', 'el FKM estándar hincha con metanol (solo grados GF / GFLT)'), CR: _cm('A'), VMQ: _cm('B'), PEEK: _cm('A'), GRAF: _cm('A') },
+            FLAM: { EPDM: _cm('X', 'hidrocarburos: hinchamiento grave'), NBR: _cm('B', 'gasolinas con aromáticos o etanol: hinchamiento; preferible FKM'), FKM: _cm('A'), CR: _cm('X', 'hinchamiento con combustibles ligeros'), VMQ: _cm('X', 'hinchamiento con hidrocarburos'), PEEK: _cm('A'), GRAF: _cm('A') },
+            COMB: { EPDM: _cm('X', 'aceites y combustibles: hinchamiento grave'), NBR: _cm('A'), FKM: _cm('A'), CR: _cm('B', 'resistencia moderada a los aceites'), VMQ: _cm('X', 'hinchamiento con aceites y combustibles'), PEEK: _cm('A'), GRAF: _cm('A') }
+        }).forEach(([c, o]) => Object.assign(COMPAT_MF[c], o));
         // texto con el que se clasifica el material de un elemento
         function textoMaterialElemento(el) { return el.type === 'tuberia' ? [el.gradoMaterial, el.material, matBase(el.material)].filter(Boolean).join(' ') : [el.materialComp, el.gradoMaterial].filter(Boolean).join(' '); }
         // { r: 'A'|'B'|'X', fam, motivo, nota } o null si no se conoce el material o el fluido
@@ -4214,8 +4258,10 @@
             aristas.forEach(a => { els[a.el.id] = a.el; vmax[a.el.id] = Math.max(vmax[a.el.id] || 0, Math.abs(a.V || 0)); });
             const cond = {};
             Object.values(els).forEach(el => {
-                const tx = textoMaterialElemento(el); if (!tx) return;
-                const c = compatMaterialFluido(tx, clase, T, el.type === 'tuberia' || el.type === 'valvula' || el.type === 'accesorio' ? vmax[el.id] : null); if (!c) return;
+                const V = el.type === 'tuberia' || el.type === 'valvula' || el.type === 'accesorio' ? vmax[el.id] : null, peso = { X: 2, B: 1, A: 0 };
+                const res = [textoMaterialElemento(el), el.type === 'valvula' && el.asiento && el.asiento !== 'Metal-metal' ? el.asiento : ''].filter(Boolean).map((t, i) => { const c = compatMaterialFluido(t, clase, T, i ? null : V); if (c && i) c.motivo = c.motivo ? 'asiento: ' + c.motivo : c.motivo; return c; }).filter(Boolean);
+                if (!res.length) return;
+                const c = res.reduce((m, x) => peso[x.r] > peso[m.r] ? x : m);
                 resultado.compat.push({ id: el.id, tag: tagDe(el), fam: c.fam, r: c.r, motivo: c.motivo || c.nota });
                 const r = ultimoResultado[el.id]; if (r) r.compat = c;
                 if (c.r === 'X') fallo(el, c.motivo);
@@ -4230,7 +4276,7 @@
             const col = { A: '#dcfce7', B: '#fef3c7', X: '#fee2e2' }, tx = { A: 'A', B: 'B', X: 'X' };
             const cab = Object.entries(CLASES_FLUIDO).map(([k, n]) => `<th class="px-1 py-1 text-[10px] ${k === clase ? 'bg-blue-100 text-blue-800' : ''}" style="min-width:64px">${esc(n)}</th>`).join('');
             const filas = Object.entries(FAM_MAT).map(([f, n]) => `<tr class="border-t"><td class="px-1 py-0.5 font-bold whitespace-nowrap">${esc(n)}${TMAX_FAM[f] ? ` <span class="font-normal text-slate-400">(≤ ${TMAX_FAM[f]} °C)</span>` : ''}</td>${Object.keys(CLASES_FLUIDO).map(c => { const e = COMPAT_MF[c][f]; return `<td class="text-center font-bold ${c === clase ? 'outline outline-1 outline-blue-300' : ''}" style="background:${col[e.r]}" title="${esc([e.n, e.tmax ? 'T ≤ ' + e.tmax + ' °C' : '', e.vmax ? 'V ≤ ' + e.vmax + ' m/s' : ''].filter(Boolean).join(' · '))}">${tx[e.r]}${e.tmax || e.vmax ? '<sup>*</sup>' : ''}</td>`; }).join('')}</tr>`).join('');
-            const usados = elementosRed.filter(e => !esAnotacion(e)).map(e => ({ e, t: textoMaterialElemento(e) })).filter(x => x.t);
+            const usados = elementosRed.filter(e => !esAnotacion(e)).flatMap(e => [{ e, t: textoMaterialElemento(e) }, ...(e.type === 'valvula' && e.asiento && e.asiento !== 'Metal-metal' ? [{ e, t: e.asiento }] : [])]).filter(x => x.t);
             const lista = clase ? usados.map(({ e, t }) => { const c = compatMaterialFluido(t, clase, T, ultimoResultado && ultimoResultado[e.id] ? ultimoResultado[e.id].V : null); return c ? `<tr class="border-t"><td class="px-1">${esc(tagDe(e))}</td><td class="px-1">${esc(t)}</td><td class="px-1 text-center font-bold" style="background:${col[c.r]}">${c.r}</td><td class="px-1 text-[10px]">${esc(c.motivo || c.nota || '')}</td></tr>` : `<tr class="border-t"><td class="px-1">${esc(tagDe(e))}</td><td class="px-1">${esc(t)}</td><td class="px-1 text-center text-slate-400">?</td><td class="px-1 text-[10px] text-slate-400">material no clasificado</td></tr>`; }).join('') : '';
             dialogo('<i class="fa-solid fa-vial-circle-check text-blue-600 mr-1.5"></i>Compatibilidad material – fluido',
                 `<p class="text-[11px] text-slate-600 mb-2">Fluido del proyecto: <b>${esc(proyecto.fluido || '—')}</b>${clase ? ` → <b>${esc(CLASES_FLUIDO[clase])}</b>` : ' (sin clasificar: no se comprueba)'}${T != null ? ` · temperatura de diseño ${fmt(T, 0)} °C` : ''}. <b>A</b> apto · <b>B</b> apto con condiciones (<sup>*</sup> con límite de temperatura o velocidad; pasa el ratón por la celda) · <b>X</b> no apto. Las B y X se avisan o se marcan en rojo al calcular.</p>
@@ -4390,6 +4436,7 @@
             aristas.filter(a => a.esBomba).forEach(a => avisosConexBomba(a.el).forEach(m => avisos.push(`${tagDe(a.el)}: ${m}`)));
             // v8.25 · compatibilidad material – fluido (buenas prácticas; ver Herramientas > Compatibilidad material – fluido)
             comprobacionesMaterialFluido(resultado, fallo);
+            comprobacionesValvulas(resultado, fallo);
             // válvulas de control: cavitación (IEC 60534): Δp estrangulado = FL²·(p1 − FF·pv), FF = 0,96 − 0,28·√(pv/pc)
             aristas.filter(a => a.el.type === 'valvula' && a.el.modoK === 'kvs' && Math.abs(a.Qprev) > 1e-7).forEach(a => {
                 const el = a.el, r = ultimoResultado[el.id];
@@ -5002,7 +5049,12 @@
         const grupoDeSubtipo = st => Object.keys(GRUPOS_LIB).find(g => subtiposGrupo(g).includes(st)) || (CAT.materiales[st] ? 'tuberias' : null);
         // Campos técnicos por grupo: [campo, etiqueta, tipo ('num' | 'txt' | 'sel'), opciones]
         const CAMPOS_LIB = {
-            valvulas: [['craneTipo', 'Subtipo (pérdida de carga Crane)', 'crane'], ['cv', 'Cv por tamaño (pulg.:Cv; p. ej. 1/2:20; 1:78; 2:395)', 'txt'], ['kvs', 'Kvs (válvulas de control, m³/h)', 'num'], ['FL', 'Factor FL (IEC 60534)', 'num']],
+            valvulas: [['craneTipo', 'Subtipo (pérdida de carga Crane)', 'crane'], ['cv', 'Cv a apertura total por tamaño (pulg. o DN : Cv; p. ej. 1/2:20; DN 50:395)', 'cvtabla'], ['kvs', 'Kvs (válvulas de control, m³/h)', 'num'], ['FL', 'Factor FL (IEC 60534)', 'num'],
+                ['curvaApertura', 'Curva de apertura (apertura % : Cv %; p. ej. 10:1; 50:20; 100:100)', 'apertura'],
+                ['conexValv', 'Tipo de conexión', 'sel', CONEX_VALV], ['normaValv', 'Norma de brida o rosca', 'sel', NORMAS_CONEX_BOMBA], ['caraCara', 'Distancia entre caras (norma)', 'sel', CARA_CARA_VALV], ['caraCaraMm', 'Distancia entre caras (mm, DN de referencia)', 'num'],
+                ['dnMinV', 'DN mínimo del modelo', 'dn'], ['dnMaxV', 'DN máximo del modelo', 'dn'], ['tMinV', 'Temperatura mínima (°C)', 'num'], ['tMaxV', 'Temperatura máxima (°C)', 'num'],
+                ['asiento', 'Asiento / juntas (elastómero)', 'sel', ASIENTOS_VALV], ['obturador', 'Material del obturador (bola, disco, compuerta)', 'txt'], ['vastago', 'Material del vástago / eje', 'txt'],
+                ['normaDisenoV', 'Norma de diseño', 'sel', NORMAS_DISENO_VALV], ['accionamiento', 'Accionamiento', 'sel', ACCION_VALV], ['fireSafe', 'Fire-safe', 'sel', FIRE_SAFE_VALV]],
             accesorios: [['cod', 'Código del tipo (va en la etiqueta: C90LR, TE, RC...) *', 'txt'], ['variante', 'Variante (LR, SR, 3D, concéntrica, excéntrica, SW...)', 'txt'], ['sistema', 'Medidas', 'sel', [['ASME', 'ASME (pulgadas)'], ['EN', 'EN (DN)']]],
                 ['conexion', 'Conexión', 'sel', ['Soldar a tope (BW)', 'Socket weld (SW)', 'Roscado (NPT)']], ['matGrupo', 'Materiales que admite', 'sel', GRUPOS_MAT_ACC_LISTA], ['espTabla', 'Tabla de espesores', 'sel', [['ASME', 'ASME B36.10 / B36.19 según el material'], ['EN1', 'EN 10253-1 (un espesor por DN)'], ['EN2', 'EN 10253-2 (series 1 a 8)'], ['NO', 'Sin tabla cargada']]], ['ratings', 'Clase que admite (separadas por comas; NO = sin clase)', 'txt'],
                 ['craneTipo', 'Tipo (pérdida de carga Crane)', 'crane'], ['k', 'K del fabricante (vacío = Crane)', 'num']],
@@ -5035,7 +5087,8 @@
         const TUBERIAS_BASE = TUBERIAS_LIBRERIA.slice();
         const MATERIALES_BASE = CAT ? new Set(Object.keys(CAT.materiales)) : new Set();
         const cvTexto = cv => Object.entries(cv || {}).map(([k, v]) => `${k}:${v}`).join('; ');
-        const cvDesdeTexto = t => { const o = {}; String(t || '').split(/[;\n]+/).forEach(p => { const m = p.trim().match(/^([\d\-\/]+)\s*[:=]\s*([\d.,]+)$/); if (m) o[m[1]] = parseFloat(m[2].replace(',', '.')); }); return o; };
+        // v8.26 · admite pulgadas (1-1/4:85) o DN (DN 32:85); se guarda por pulgadas, que es como lo busca el cálculo
+        const cvDesdeTexto = t => { const o = {}; String(t || '').split(/[;\n]+/).forEach(p => { const m = p.trim().match(/^(DN\s*\d+|[\d\-\/]+)\s*"?\s*[:=]\s*([\d.,]+)$/i); if (!m) return; let k = m[1]; if (/^DN/i.test(k)) { k = npsDeDN('DN ' + k.replace(/\D/g, '')); if (!k) return; } o[k] = parseFloat(m[2].replace(',', '.')); }); return o; };
         // ---------- accesorios de tubería (v8.10): tablas separadas ----------
         // modelos (tipo de accesorio), medidas nominales, espesores por schedule, materiales, rating / PN y cotas.
         // El accesorio concreto se compone en el plano: modelo + medida + schedule + material (+ rating), con su código.
@@ -5221,7 +5274,8 @@
         function itemsLib(subtipo) {
             const usuario = LIB.items.filter(i => i.subtipo === subtipo);
             let base = [];
-            if (TIPOS[subtipo] && TIPOS[subtipo].type === 'valvula') base = VALVULAS_BASE.filter(v => v.tipo === subtipo).map(v => ({ id: 'cat:' + v.nombre, subtipo, origen: 'catálogo', nombre: v.nombre, fabricante: v.nombre.split(' · ')[0], url: '', notas: [v.fuente, v.nota].filter(Boolean).join(' · '), props: { cv: cvTexto(v.cv) } }));
+            if (TIPOS[subtipo] && TIPOS[subtipo].type === 'valvula') { const bd = typeof VALVULAS_BD !== 'undefined' ? VALVULAS_BD.filter(i => i.subtipo === subtipo) : [], ids = new Set(bd.map(i => i.id));
+                base = VALVULAS_BASE.filter(v => v.tipo === subtipo && !ids.has('cat:' + v.nombre)).map(v => ({ id: 'cat:' + v.nombre, subtipo, origen: 'catálogo', nombre: v.nombre, fabricante: v.nombre.split(' · ')[0], url: '', notas: [v.fuente, v.nota].filter(Boolean).join(' · '), props: { cv: cvTexto(v.cv), curvaApertura: v.tipo === 'mariposa' ? CURVA_MARIPOSA_TIPICA : '' } })).concat(bd); }
             if (GRUPOS_LIB.tuberias.subtipos.includes(subtipo) || (CAT.materiales[subtipo] && MATERIALES_BASE.has(subtipo))) {
                 const m = CAT.materiales[subtipo], sa = S_ADM[subtipo] || {};
                 base = [{ id: 'mat:' + subtipo, subtipo, origen: 'catálogo', nombre: subtipo, material: sa.mat ? GRADO_NUEVO(sa.mat.replace(/^ASTM A/, 'SA-').replace(/Gr\. /g, 'Gr.')) : '', norma: m ? m.norma : '', props: { base: subtipo, codigo: CODIGO_MATERIAL[subtipo] || '', rug: m ? m.rug : '', sAdm: sa.S || '', c: sa.c != null ? sa.c : '', Tmax: sa.Tmax || '' } }];
@@ -5238,10 +5292,12 @@
         function aplicarLibreria() {
             if (!CAT) return;
             const sobre = new Set(LIB.items.map(i => i.id));
-            CAT.valvulas = VALVULAS_BASE.filter(v => !LIB.ocultos.includes('cat:' + v.nombre) && !sobre.has('cat:' + v.nombre));
-            LIB.items.filter(i => TIPOS[i.subtipo] && TIPOS[i.subtipo].type === 'valvula' && i.props && i.props.cv).forEach(i => {
+            const bdV = typeof VALVULAS_BD !== 'undefined' ? VALVULAS_BD : [], sobreBD = new Set(bdV.map(i => i.id));
+            CAT.valvulas = VALVULAS_BASE.filter(v => !LIB.ocultos.includes('cat:' + v.nombre) && !sobre.has('cat:' + v.nombre) && !sobreBD.has('cat:' + v.nombre)).map(v => v.tipo === 'mariposa' && !v.curvaApertura ? Object.assign({}, v, { curvaApertura: CURVA_MARIPOSA_TIPICA }) : v);
+            // válvulas con Cv: base de datos de la empresa (v8.26) y librería del usuario
+            [...bdV.filter(i => !sobre.has(i.id)), ...LIB.items].filter(i => TIPOS[i.subtipo] && TIPOS[i.subtipo].type === 'valvula' && i.props && i.props.cv).forEach(i => {
                 const cv = cvDesdeTexto(i.props.cv);
-                if (Object.keys(cv).length) CAT.valvulas.push({ nombre: i.nombre, tipo: i.subtipo, fuente: i.url || 'Librería de usuario', nota: i.notas || '', cv });
+                if (Object.keys(cv).length) CAT.valvulas.push({ nombre: i.nombre, tipo: i.subtipo, fuente: i.url || (i.origen === 'empresa' ? 'Base de datos de la empresa' : 'Librería de usuario'), nota: i.notas || '', cv, curvaApertura: i.props.curvaApertura || '' });
             });
             // materiales base modificados (rugosidad, S) y tuberías nuevas por material
             LIB.items.filter(i => i.grupo === 'tuberias').forEach(i => {
@@ -5279,6 +5335,10 @@
                 if (p.cv && Object.keys(cvDesdeTexto(p.cv)).length) { el.modoK = 'catalogo'; el.serieCat = item.nombre; }
                 if (num(p.kvs) && el.subtype === 'control') el.kvs = num(p.kvs);
                 if (num(p.FL)) el.FL = num(p.FL);
+                // v8.26 · datos del modelo: conexión, materiales internos, servicio
+                ['conexValv', 'normaValv', 'caraCara', 'dnMinV', 'dnMaxV', 'asiento', 'obturador', 'vastago', 'normaDisenoV', 'accionamiento', 'fireSafe', 'curvaApertura'].forEach(k => { if (p[k]) el[k] = p[k]; else delete el[k]; });
+                ['tMinV', 'tMaxV', 'caraCaraMm'].forEach(k => { if (num(p[k]) != null) el[k] = num(p[k]); else delete el[k]; });
+                if (p.curvaApertura && el.modoK === 'kvs') el.caracteristica = 'tabla';
             } else if (el.type === 'accesorio') {
                 if (p.craneTipo) el.craneTipo = p.craneTipo;
                 if (num(p.k) != null && item.origen !== 'catálogo') { el.modoK = 'manual'; el.k = num(p.k); }   // los B16.9 de partida siguen con Crane (mismo K)
@@ -5341,6 +5401,18 @@
             if (Qd > 0) g += `<line x1="${X(Qd)}" x2="${X(Qd)}" y1="${m.t}" y2="${H_ - m.b}" stroke="#16a34a" stroke-dasharray="4 3"/><text x="${X(Qd) + 3}" y="${m.t + 10}" font-size="9" fill="#16a34a">Q diseño</text>`;
             return g + `<text x="${W / 2}" y="${H_ - 0}" font-size="9" text-anchor="middle" fill="#64748b">Q (m³/h) · H y NPSHr en m (izq.) · P en kW (dcha.)</text></svg>`;
         }
+        // v8.26 · conexión, materiales internos y servicio de una válvula (vienen del modelo de librería y se pueden cambiar)
+        function camposDatosValvula(obj, fn) {
+            const L = l => [['', '—'], ...l], dns = [['', '—'], ...LISTA_DN.map(d => [d, etiquetaDN(d)])], av = avisosValvula(obj);
+            let h = `<p class="font-bold text-slate-600 pt-1 text-[11px]">Conexión y materiales internos</p>`;
+            h += ctrlSelect(fn, 'conexValv', L(CONEX_VALV), obj.conexValv || '', 'Tipo de conexión') + ctrlSelect(fn, 'normaValv', L(NORMAS_CONEX_BOMBA), obj.normaValv || '', 'Norma de brida / rosca') + ctrlSelect(fn, 'caraCara', L(CARA_CARA_VALV), obj.caraCara || '', 'Distancia entre caras');
+            h += ctrlSelect(fn, 'asiento', L(ASIENTOS_VALV), obj.asiento || '', 'Asiento / juntas') + ctrlTexto(fn, 'obturador', obj.obturador || '', 'Obturador') + ctrlTexto(fn, 'vastago', obj.vastago || '', 'Vástago / eje');
+            h += `<p class="font-bold text-slate-600 pt-1 text-[11px]">Servicio</p>` + ctrlSelect(fn, 'dnMinV', dns, obj.dnMinV || '', 'DN mínimo del modelo') + ctrlSelect(fn, 'dnMaxV', dns, obj.dnMaxV || '', 'DN máximo del modelo') +
+                ctrlNum(fn, 'tMinV', obj.tMinV == null ? '' : obj.tMinV, 'Temperatura mínima (°C)') + ctrlNum(fn, 'tMaxV', obj.tMaxV == null ? '' : obj.tMaxV, 'Temperatura máxima (°C)') +
+                ctrlSelect(fn, 'fireSafe', L(FIRE_SAFE_VALV), obj.fireSafe || '', 'Fire-safe') + ctrlSelect(fn, 'normaDisenoV', L(NORMAS_DISENO_VALV), obj.normaDisenoV || '', 'Norma de diseño') + ctrlSelect(fn, 'accionamiento', L(ACCION_VALV), obj.accionamiento || '', 'Accionamiento');
+            if (av.length) h += info(`<span class="text-amber-700">${av.map(esc).join('<br>')}</span>`);
+            return h;
+        }
         function camposLibreria(obj, fn) {
             if (esAnotacion(obj)) return '';
             let h = '';
@@ -5350,6 +5422,7 @@
                 h += `<div>Modelo de librería: <select data-previo="${esc(obj.libItem || '')}" onchange="${obj.type === 'bomba' ? `validarSeleccionBomba(this, v => ${fn}('libItem', v))` : `${fn}('libItem', this.value)`}" class="${CLS_CTRL}"><option value="">— ninguno (genérico) —</option>${lista.map(i => `<option value="${esc(i.id)}" ${i.id === obj.libItem ? 'selected' : ''}>${esc(i.nombre)}${i.material ? ' · ' + esc(i.material) : ''}</option>`).join('')}</select></div>`;
                 if (obj.type === 'bomba' && obj.libItem) { const vb = obj.validacionCurva; h += `<p class="text-[10px] ${vb ? 'text-emerald-700' : 'text-amber-700'}">${vb ? `<i class="fa-solid fa-circle-check mr-1"></i>Validada por ${esc(vb.usuario)} el ${esc(new Date(vb.fecha).toLocaleDateString())}` : '<i class="fa-solid fa-triangle-exclamation mr-1"></i>Bomba sin validar: vuelve a elegir el modelo para revisarla.'}${obj.curvaEc ? ' · ' + esc(textoEcuacion(obj.curvaEc.H, 'H')) : ''}</p>`; }
                 h += ctrlMaterial(fn, 'materialComp', obj.materialComp || '', grupoMaterial(obj));
+                if (obj.type === 'valvula') h += camposDatosValvula(obj, fn);
             } else h += camposTubo(obj, fn);
             h += `<div>URL del componente: <div class="flex gap-1"><input type="text" value="${esc(obj.url || '')}" placeholder="https://..." onchange="${fn}('url', this.value)" class="${CLS_CTRL}">${obj.url ? `<a href="${esc(obj.url)}" target="_blank" rel="noopener" class="text-blue-600 mt-1.5" title="Abrir"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</div></div>`;
             return h;
@@ -5372,6 +5445,7 @@
             libVista = { grupo, solo: grupo === 'tuberias' && !!subtipo, fam: grupo === 'accesorios' && FAM_ACC[fam] ? fam : '', subtipo: subtipo && subs.includes(subtipo) ? subtipo : subs[0], id: null, borrador: null, filtroTipo: '', q: '', tab: 'modelos' };
             document.getElementById('modal-libreria').style.display = 'flex';
             document.getElementById('lib-caja').style.width = esGrupoTablas(grupo) ? 'min(1500px, 97vw)' : 'min(1150px, 96vw)';
+            if (grupo === 'valvulas') asegurarValvulas(true).then(() => { if (libVista && libVista.grupo === 'valvulas' && document.getElementById('modal-libreria').style.display === 'flex' && !libVista.borrador) pintarLibreria(); });
             if (grupo === 'bombas') asegurarBombas(true).then(() => { if (libVista && libVista.grupo === 'bombas' && document.getElementById('modal-libreria').style.display === 'flex' && !libVista.borrador) pintarLibreria(); });
             if (esGrupoTablas(grupo) && (!ACC_ORIGEN || (ACC_ORIGEN === 'local' && claveSupabase()))) {
                 if (!ACC_ORIGEN) { document.getElementById('lib-titulo').innerHTML = `<i class="fa-solid fa-book text-blue-600 mr-1.5"></i>Librería · ${esc(GRUPOS_LIB[grupo].titulo)}`; document.getElementById('lib-cuerpo').innerHTML = '<p class="text-slate-400 italic p-4"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Cargando accesorios...</p>'; }
@@ -5423,6 +5497,7 @@
             }
             if (esGrupoTablas(libVista.grupo) && accEnBD()) { guardarAccesorioBD(b); return; }
             if (libVista.grupo === 'bombas' && bombasEnBD()) { guardarBombaBD(b); return; }
+            if (libVista.grupo === 'valvulas' && valvulasEnBD()) { b.subtipo = b.subtipo || libVista.subtipo; guardarValvulaBD(b); return; }
             if (esGrupoTablas(libVista.grupo) && !prepararAccesorio(b)) return;
             const antes = LIB.items.find(i => i.id === b.id);
             if (antes && antes.grupo === 'tuberias' && antes.nombre !== b.nombre && elementosRed.some(e => e.material === antes.nombre)) { alert(`Hay tuberías del dibujo con «${antes.nombre}»: no se puede cambiar el nombre (crea una copia).`); return; }
@@ -5470,6 +5545,7 @@
             const V = libVista, it = V.borrador; if (!it) return;
             if (esGrupoTablas(V.grupo) && accEnBD() && ACC_BASE.some(i => i.id === it.id)) { eliminarAccesorioBD(it); return; }
             if (V.grupo === 'bombas' && bombasEnBD() && BOMBAS_BD.some(i => i.id === it.id)) { eliminarBombaBD(it); return; }
+            if (V.grupo === 'valvulas' && valvulasEnBD() && VALVULAS_BD.some(i => i.id === it.id)) { eliminarValvulaBD(it); return; }
             const usados = elementosRed.filter(e => e.libItem === it.id || (V.grupo === 'tuberias' && e.material === it.nombre && !MATERIALES_BASE.has(it.nombre)));
             if (V.grupo === 'tuberias' && MATERIALES_BASE.has(it.nombre)) { alert('Los materiales del programa no se eliminan; puedes modificar su rugosidad y tensión admisible.'); return; }
             if (!confirm(`¿Eliminar «${it.nombre}» de la librería?${usados.length ? `\n\nLo usan ${usados.length} elemento(s) del dibujo: conservan sus datos.` : ''}`)) return;
@@ -5495,7 +5571,7 @@
                 const grupoMat = V.grupo === 'tuberias' ? familiaMaterialTubo((b.props || {}).base || V.subtipo) : (stB === 'filtro' || stB === 'strainer' ? 'filtro' : G.mat);
                 const matSel = `<label class="block"><span class="text-slate-500">Material ${grupoMat === 'plastico' ? '' : '(ASME / EN)'}</span><select data-lib="material" class="w-full border rounded p-1 mt-0.5" onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) { const o = new Option(t, t, true, true); this.add(o, 0); } else this.value = ''; } const e = document.getElementById('lib-equiv'); if (e) e.textContent = equivalenteMaterial(this.value);">${opcionesMaterial(grupoMat, b.material || '')}</select><span id="lib-equiv" class="text-[10px] text-slate-400">${esc(equivalenteMaterial(b.material || ''))}</span></label>`;
                 const esTub = V.grupo === 'tuberias', esBase = esTub && b.id === 'mat:' + V.subtipo;
-                der = `${V.grupo === 'bombas' ? cabeceraIABomba(b) : ''}<div id="lib-form" class="grid ${admin ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
+                der = `${V.grupo === 'bombas' || V.grupo === 'valvulas' ? cabeceraIABomba(b) : ''}<div id="lib-form" class="grid ${admin ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
                     ${admin ? `<label class="block col-span-2"><span class="text-slate-500">Tipo de accesorio *</span><select data-lib="subtipo" onchange="leerFormLib(); libVista.subtipo = this.value; pintarLibreria()" class="w-full border rounded p-1 mt-0.5">${subs.map(x => `<option value="${esc(x)}" ${x === stB ? 'selected' : ''}>${esc(nombreSubtipo(x))}</option>`).join('')}</select></label>` : ''}
                     ${f('nombre', esTub ? 'Nombre del tipo de tubería (aparece en Tuberías del panel derecho) *' : 'Nombre / modelo *', b.nombre, esBase ? 'readonly' : '')}
                     ${f('fabricante', 'Fabricante', b.fabricante)}${f('referencia', 'Referencia del fabricante', b.referencia)}
@@ -5507,12 +5583,15 @@
                         if (tipo === 'crane') { const o = opcionesCrane(claveCrane({ subtype: stB })); return o.length ? sel('p.' + k, et, [['', '—'], ...o.map(x => x[0])], v) : ''; }
                         if (tipo === 'sel') return sel('p.' + k, et, [['', '—'], ...ops], v);
                         if (tipo === 'conex') return sel('p.' + k, et, [['', '—'], ...TIPOS_CONEXION], v);
+                        if (tipo === 'cvtabla') return `<label class="block col-span-2"><span class="text-slate-500">${et}</span><div class="flex gap-1 mt-0.5"><input data-lib="p.${k}" value="${esc(v || '')}" class="w-full border rounded p-1"><button type="button" onclick="editarTablaCvLib()" class="px-2 py-1 border rounded hover:bg-slate-50 whitespace-nowrap"><i class="fa-solid fa-table mr-1"></i>Tabla...</button></div></label>`;
+                        if (tipo === 'apertura') return `<label class="block col-span-2"><span class="text-slate-500">${et}</span><div class="flex gap-1 mt-0.5"><input data-lib="p.${k}" value="${esc(v || '')}" class="w-full border rounded p-1"><button type="button" title="Curva típica de mariposa de asiento elástico (Crane / Center Line Series 200)" onclick="const x = document.querySelector('#lib-form [data-lib=\\'p.${k}\\']'); x.value = CURVA_MARIPOSA_TIPICA" class="px-2 py-1 border rounded hover:bg-slate-50 whitespace-nowrap">Mariposa típica</button><button type="button" title="Curva típica de bola de paso total" onclick="const x = document.querySelector('#lib-form [data-lib=\\'p.${k}\\']'); x.value = CURVA_BOLA_TIPICA" class="px-2 py-1 border rounded hover:bg-slate-50 whitespace-nowrap">Bola típica</button></div></label>`;
                         if (tipo === 'dn') return sel('p.' + k, et, [['', '—'], ...LISTA_DN.map(d => [d, etiquetaDN(d)])], v);
                         if (tipo === 'base') return sel('p.' + k, et, [...MATERIALES_BASE].map(m => [m, m + ' (' + (CAT.materiales[m].norma || '') + ')']), v);
                         if (tipo === 'curva') return `<label class="block col-span-full"><span class="text-slate-500">${et}</span><div class="flex gap-2 mt-0.5 items-start"><textarea data-lib="p.${k}" rows="6" class="flex-1 border rounded p-1 font-mono" placeholder="0\t32\t0\t1,5&#10;10\t31,5\t45\t1,6&#10;20\t29,8\t68\t2,0&#10;30\t26,9\t74\t2,9">${esc(v || '')}</textarea><div class="flex flex-col gap-1"><button type="button" onclick="digitalizarCurvaLib()" class="px-2 py-1.5 border border-blue-300 rounded text-blue-700 hover:bg-blue-50 whitespace-nowrap"><i class="fa-solid fa-crosshairs mr-1"></i>Digitalizar desde una imagen...</button><button type="button" onclick="ecuacionesDesdeTablaLib()" class="px-2 py-1.5 border rounded hover:bg-slate-50 whitespace-nowrap"><i class="fa-solid fa-square-root-variable mr-1"></i>Calcular ecuaciones de la tabla</button></div></div>${resumenEcuacionesLib(b)}</label>`;
                         return f('p.' + k, et, v, tipo === 'num' ? 'type="number" step="any"' : '');
                     }).join('')}
                     <label class="block col-span-full"><span class="text-slate-500">Notas</span><textarea data-lib="notas" rows="2" class="w-full border rounded p-1 mt-0.5">${esc(b.notas || '')}</textarea></label>
+                    ${V.grupo === 'valvulas' ? `<div class="col-span-full">${pieValvulasLib()}</div>` : ''}
                     <p class="col-span-full text-[10px] text-slate-400">${b.origen === 'catálogo' ? 'Elemento del catálogo del programa: al guardar se crea tu versión modificada.' : 'Elemento de la librería del usuario.'} ${esTub ? 'Las tuberías nuevas heredan la tabla de tamaños y espesores del material base.' : 'Se elige al insertar el componente o en sus propiedades («Modelo de librería»).'}</p>
                     <div class="col-span-full flex justify-end ${esGrupoTablas(V.grupo) && !tienePermiso('compartido') ? 'hidden' : ''}"><button onclick="guardarItemLib()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium"><i class="fa-solid fa-floppy-disk mr-1"></i>Guardar</button></div>
                 </div>`;
@@ -5523,7 +5602,7 @@
             const tabla = `<div class="mt-3"><p class="font-bold text-slate-600 mb-1">Elementos existentes · ${esc(nombreSubtipo(V.subtipo))} (${lista.length})</p>
                 <div class="border rounded overflow-auto" style="max-height:${b ? 26 : 56}vh"><table class="w-full text-[11px]"><thead class="bg-slate-100 sticky top-0"><tr class="text-left text-slate-500">
                 <th class="px-1 py-1">Nombre / modelo</th><th class="px-1">Origen</th><th class="px-1">Fabricante</th><th class="px-1">Referencia</th><th class="px-1">Material</th><th class="px-1">Norma</th>${V.grupo === 'tuberias' ? '' : '<th class="px-1">PN / Rating</th>'}<th class="px-1 text-center">En el proyecto</th><th class="px-1">URL</th></tr></thead><tbody>
-                ${lista.map(i => { const n = usos(i); return `<tr onclick="seleccionarItemLib('${esc(i.id)}')" class="border-t border-slate-100 cursor-pointer ${i.id === V.id ? 'bg-amber-50' : 'hover:bg-blue-50'}"><td class="px-1 py-0.5 font-bold">${esc(i.nombre)}</td><td class="px-1 text-slate-500">${esc(i.origen === 'catálogo' ? 'catálogo' : 'usuario')}</td><td class="px-1">${esc(i.fabricante || '')}</td><td class="px-1">${esc(i.referencia || '')}</td><td class="px-1">${esc(i.material || '')}</td><td class="px-1">${esc(i.norma || '')}</td>${V.grupo === 'tuberias' ? '' : `<td class="px-1">${esc(i.pn || '')}</td>`}<td class="px-1 text-center ${n ? 'font-bold text-emerald-700' : 'text-slate-300'}">${n}</td><td class="px-1">${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-blue-600"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="9" class="p-2 text-slate-400 italic">Sin elementos de este tipo.</td></tr>'}
+                ${lista.map(i => { const n = usos(i); return `<tr onclick="seleccionarItemLib('${esc(i.id)}')" class="border-t border-slate-100 cursor-pointer ${i.id === V.id ? 'bg-amber-50' : 'hover:bg-blue-50'}"><td class="px-1 py-0.5 font-bold">${esc(i.nombre)}</td><td class="px-1 text-slate-500">${esc(i.origen === 'catálogo' ? 'catálogo' : i.origen === 'empresa' ? 'empresa (BD)' : 'usuario')}</td><td class="px-1">${esc(i.fabricante || '')}</td><td class="px-1">${esc(i.referencia || '')}</td><td class="px-1">${esc(i.material || '')}</td><td class="px-1">${esc(i.norma || '')}</td>${V.grupo === 'tuberias' ? '' : `<td class="px-1">${esc(i.pn || '')}</td>`}<td class="px-1 text-center ${n ? 'font-bold text-emerald-700' : 'text-slate-300'}">${n}</td><td class="px-1">${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-blue-600"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="9" class="p-2 text-slate-400 italic">Sin elementos de este tipo.</td></tr>'}
                 </tbody></table></div></div>`;
             if (admin) {
                 // administrador: arriba, todos los accesorios con todos sus datos; debajo, la ficha del marcado
@@ -8092,7 +8171,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.25';
+        const VERSION_WEB = '8.26';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -10373,6 +10452,95 @@
         }
 
         // ==================================================================================
+        // v8.26 · BASE DE DATOS DE VÁLVULAS (Supabase: piping_valves, 10_valvulas.sql)
+        // Lectura para todos; el administrador con sesión guarda y borra (las válvulas del catálogo del programa se
+        // sustituyen guardando su copia con el mismo identificador «cat:…»). Sin base de datos: librería del navegador.
+        // ==================================================================================
+        var VALVULAS_BD = [], VALV_ORIGEN = null, CARGA_VALV = null;
+        function itemDeValvulaBD(r) {
+            return { id: r.valve_id, subtipo: r.subtype, grupo: 'valvulas', origen: 'empresa', nombre: r.name, fabricante: r.manufacturer || '', referencia: r.model || '', material: r.body_material || '', norma: r.standard || '', pn: r.pressure_rating || '',
+                url: r.url || '', notas: r.notes || '', modificado_por: r.modificado_por || '', props: Object.assign({}, r.props || {}) };
+        }
+        function valvulaBDDeItem(b) {
+            const p = Object.assign({}, b.props || {}); Object.keys(p).forEach(k => { if (p[k] === '' || p[k] == null) delete p[k]; });
+            return { valve_id: /^usr:/.test(b.id) ? '' : b.id, subtype: b.subtipo, name: String(b.nombre || '').trim(), manufacturer: b.fabricante || '', model: b.referencia || '', body_material: b.material || '', standard: b.norma || '', pressure_rating: b.pn || '', url: b.url || '', notes: b.notas || '', props: p };
+        }
+        function asegurarValvulas(forzar) {
+            if (CARGA_VALV && !forzar) return CARGA_VALV;
+            return CARGA_VALV = (async () => {
+                VALV_ORIGEN = 'local';
+                if (typeof rpcUsuarios === 'function' && claveSupabase()) {
+                    try { const d = await rpcUsuarios('piping_valves_listar', {}); if (Array.isArray(d)) { VALVULAS_BD = d.map(itemDeValvulaBD); VALV_ORIGEN = 'supabase'; } } catch (e) { /* sin 10_valvulas.sql, sin clave o sin red */ }
+                }
+                aplicarLibreria(); return VALV_ORIGEN;
+            })();
+        }
+        function valvulasEnBD() { const s = typeof sesionActual === 'function' ? sesionActual() : null; return VALV_ORIGEN === 'supabase' && !!s && s.origen === 'supabase' && s.rol === 'admin'; }
+        async function guardarValvulaBD(b, silencio) {
+            const d = valvulaBDDeItem(b); if (!d.subtype) d.subtype = libVista.subtipo;
+            try {
+                const r = await rpcUsuarios('piping_valve_guardar', { p_token: sesionActual().token, p_item: d });
+                LIB.items = LIB.items.filter(i => i.id !== b.id); guardarLib(); await asegurarValvulas(true);
+                // los elementos del dibujo que usaban la copia local pasan a la de la base de datos
+                if (b.id !== r.valve_id) elementosRed.concat(elementosOtrasHojas()).forEach(e => { if (e.libItem === b.id) e.libItem = r.valve_id; });
+                if (!silencio) { libVista.id = r.valve_id; const it = VALVULAS_BD.find(i => i.id === r.valve_id); libVista.borrador = it ? JSON.parse(JSON.stringify(it)) : null; libVista.form = false; construirLibreria(); pintarLibreria(); aviso(`Válvula guardada en la base de datos: ${r.name}`, 'ok'); }
+                return r;
+            } catch (e) { if (!silencio) alert('No se ha podido guardar en la base de datos:\n' + e.message + (/piping_valve_guardar/.test(e.message) ? '\n\nEjecuta supabase/10_valvulas.sql en Supabase > SQL Editor.' : '')); else throw e; }
+        }
+        async function eliminarValvulaBD(it) {
+            const usados = elementosRed.filter(e => e.libItem === it.id);
+            if (!confirm(`¿Eliminar «${it.nombre}» de la base de datos de válvulas? Dejará de verla todo el mundo.${usados.length ? `\n\nLa usan ${usados.length} elemento(s) del dibujo: conservan sus datos.` : ''}${/^cat:/.test(it.id) ? '\n\nEs una válvula del catálogo del programa: vuelve a verse la versión original.' : ''}`)) return;
+            try { await rpcUsuarios('piping_valve_borrar', { p_token: sesionActual().token, p_id: it.id }); await asegurarValvulas(true); libVista.id = null; libVista.borrador = null; construirLibreria(); pintarLibreria(); aviso('Válvula eliminada de la base de datos.', 'ok'); }
+            catch (e) { alert('No se ha podido eliminar:\n' + e.message); }
+        }
+        // las válvulas creadas en este navegador antes de tener base de datos -> base de datos (administrador)
+        async function subirValvulasLocalesBD() {
+            const loc = LIB.items.filter(i => TIPOS[i.subtipo] && TIPOS[i.subtipo].type === 'valvula');
+            if (!loc.length) { aviso('No hay válvulas en la librería de este navegador.'); return; }
+            if (!confirm(`¿Subir a la base de datos las ${loc.length} válvula(s) de la librería de este navegador?\n\n${loc.slice(0, 15).map(i => '· ' + i.nombre).join('\n')}${loc.length > 15 ? '\n…' : ''}`)) return;
+            let ok = 0; const mal = [];
+            for (const i of loc) { try { await guardarValvulaBD(JSON.parse(JSON.stringify(i)), true); ok++; } catch (e) { mal.push(i.nombre + ': ' + e.message); } }
+            construirLibreria(); pintarLibreria(); marcarCambios(true);
+            if (mal.length) alert(`Subidas ${ok}; con error ${mal.length}:\n` + mal.join('\n')); else aviso(`Subidas ${ok} válvulas a la base de datos.`, 'ok');
+        }
+        function pieValvulasLib() {
+            if (!libVista || libVista.grupo !== 'valvulas') return '';
+            const loc = LIB.items.filter(i => TIPOS[i.subtipo] && TIPOS[i.subtipo].type === 'valvula').length;
+            if (valvulasEnBD()) return `<p class="text-[10px] text-emerald-700 mt-1"><i class="fa-solid fa-database mr-1"></i>Al guardar, la válvula va a la base de datos de la empresa (Supabase).${loc ? ` <a href="#" onclick="event.preventDefault(); subirValvulasLocalesBD()" class="text-blue-700 underline">Subir las ${loc} de este navegador</a>` : ''}</p>`;
+            return `<p class="text-[10px] text-amber-700 mt-1"><i class="fa-solid fa-circle-info mr-1"></i>${VALV_ORIGEN === 'supabase' ? 'Se guarda solo en este navegador: para guardarla en la base de datos de la empresa, inicia sesión como administrador (Archivo > Administración).' : 'Sin base de datos de válvulas (Opciones > Supabase y supabase/10_valvulas.sql): se guarda en este navegador.'}</p>`;
+        }
+        // tabla de Cv por tamaño (pulgadas / DN)
+        async function editarTablaCvLib() {
+            leerFormLib(); const b = libVista.borrador; if (!b) return; b.props = b.props || {};
+            const cv = cvDesdeTexto(b.props.cv), filas = ACERO_TAM.filter(t => /^DN/.test(t.clave) && dnNum(t.clave) <= 1200);
+            const html = `<p class="text-[11px] text-slate-500 mb-2">Cv a apertura total (gpm/√psi). Si el fabricante da Kv (m³/h), Cv = 1,156 · Kv. Vacío = no se fabrica en ese tamaño.</p>
+                <div class="flex gap-2 items-center text-[11px] mb-2"><label>Kv → Cv <input id="tcv-kv" type="checkbox"></label><span class="text-slate-400">(marca si escribes Kv)</span></div>
+                <div class="overflow-auto border rounded" style="max-height:55vh"><table class="text-[11px] w-full"><thead class="bg-slate-100 sticky top-0"><tr><th class="px-2 text-left">DN</th><th class="px-2 text-left">Pulgadas</th><th class="px-2 text-left">Cv</th></tr></thead><tbody>
+                ${filas.map(t => `<tr class="border-t"><td class="px-2">${esc(t.clave)}</td><td class="px-2">${esc(t.nps)}"</td><td class="px-2"><input data-nps="${esc(t.nps)}" type="number" step="any" value="${cv[t.nps] == null ? '' : cv[t.nps]}" class="border rounded p-0.5 w-24"></td></tr>`).join('')}</tbody></table></div>`;
+            const r = await dialogo('<i class="fa-solid fa-table text-blue-600 mr-1.5"></i>Cv por tamaño', html, [{ texto: 'Cancelar', valor: null }, { texto: 'Aplicar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }]);
+            if (r !== 'si') return;
+            const kv = document.getElementById('tcv-kv').checked, o = [];
+            document.querySelectorAll('#dialogo-cuerpo input[data-nps]').forEach(x => { if (x.value !== '' && +x.value > 0) o.push(`${x.dataset.nps}:${+(kv ? +x.value * 1.156 : +x.value).toFixed(2)}`); });
+            b.props.cv = o.join('; '); pintarLibreria();
+        }
+        // comprobaciones de las válvulas en el cálculo: rango de DN y de temperatura del modelo, fire-safe y conexión
+        function comprobacionesValvulas(resultado, fallo) {
+            const { aristas, fluido } = resultado, avisos = resultado.avisosRed = resultado.avisosRed || [], T = tempDiseno(fluido.T);
+            const clase = claseFluido(proyecto.fluido || (document.getElementById('selector-fluido') || {}).value), vistos = new Set(), vec = mapaVecinos();
+            aristas.filter(a => a.el.type === 'valvula').forEach(a => {
+                const el = a.el; if (vistos.has(el.id)) return; vistos.add(el.id); const tag = tagDe(el), d = el.dn ? dnNum(el.dn) : null;
+                if (el.dnMinV && d && d < dnNum(el.dnMinV)) fallo(el, `el modelo se fabrica desde ${el.dnMinV} (dibujada en ${el.dn})`);
+                if (el.dnMaxV && d && d > dnNum(el.dnMaxV)) fallo(el, `el modelo se fabrica hasta ${el.dnMaxV} (dibujada en ${el.dn})`);
+                if (el.tMaxV != null && el.tMaxV !== '' && T > +el.tMaxV) fallo(el, `temperatura de diseño ${T} °C > máxima de la válvula ${el.tMaxV} °C`);
+                if (el.tMinV != null && el.tMinV !== '' && fluido.T < +el.tMinV) fallo(el, `temperatura de servicio ${fluido.T} °C < mínima de la válvula ${el.tMinV} °C`);
+                if ((clase === 'FLAM' || clase === 'METANOL') && el.fireSafe === 'No') fallo(el, 'fluido inflamable: la válvula debe ser fire-safe (API 607 / ISO 10497)');
+                else if ((clase === 'FLAM' || clase === 'METANOL' || clase === 'COMB') && !el.fireSafe && ['bola', 'mariposa', 'macho'].includes(el.subtype) && el.libItem) avisos.push(`${tag}: fluido combustible o inflamable — comprueba que la válvula sea fire-safe (API 607 / ISO 10497).`);
+                if (/^Wafer/.test(el.conexValv || '') && (vec[el.id] || []).length < 2) avisos.push(`${tag}: válvula wafer en un extremo de línea: no sirve para desmontar aguas abajo con presión; usa tipo lug o bridada.`);
+                avisosValvula(el).forEach(m => avisos.push(`${tag}: ${m}.`));
+            });
+        }
+
+        // ==================================================================================
         // v8.19 · Ficha de bomba desde un PDF con IA (Gemini, a través de la función de servidor «piping-bomba-pdf»)
         // La IA rellena los campos de la ficha; el usuario los revisa antes de guardar. La curva no se lee de la gráfica: digitalizador.
         // ==================================================================================
@@ -10432,10 +10600,39 @@
             libVista.ia = { id: b.id, archivo, campos, avisos, conversiones: tt(d.conversiones), sinCurva: !vol && pts.length < 2 };
             return campos.length;
         }
+        // v8.26 · respuesta de la IA para una ficha de VÁLVULA -> campos de la ficha (solo los que vienen)
+        function aplicarDatosIAValvula(b, d, archivo) {
+            const campos = [], P = b.props = b.props || {}, avisos = (Array.isArray(d.avisos) ? d.avisos : []).map(x => String(x || '').trim()).filter(Boolean).slice(0, 8);
+            const nn = v => typeof v === 'number' && isFinite(v) ? v : (typeof v === 'string' && v.trim() !== '' && isFinite(+v.replace(',', '.')) ? +v.replace(',', '.') : null);
+            const tt = v => v == null ? '' : String(v).trim(), norm = v => tt(v).toUpperCase().replace(/[\s.\-_/]/g, '');
+            const raiz = (k, v) => { v = tt(v); if (v) { b[k] = v; campos.push(k); } }, prop = (k, v) => { if (v === '' || v == null) return; P[k] = v; campos.push('p.' + k); };
+            const elegir = (lista, v) => { const n = norm(v); if (!n) return ''; const l = lista.map(x => Array.isArray(x) ? x[0] : x); return l.find(x => norm(x) === n) || l.find(x => n.includes(norm(x).slice(0, Math.max(4, norm(x).length - 2))) || norm(x).includes(n)) || ''; };
+            raiz('fabricante', d.fabricante); raiz('referencia', d.modelo); raiz('material', d.material_cuerpo);
+            const nombre = [tt(d.fabricante), tt(d.modelo)].filter(Boolean).join(' ');
+            if (nombre && (!tt(b.nombre) || libVista.ia0 === b.id)) { b.nombre = nombre; campos.push('nombre'); }
+            if (d.tipo && d.tipo !== b.subtipo && TIPOS[d.tipo] && TIPOS[d.tipo].type === 'valvula') avisos.push(`La ficha parece de ${nombreSubtipo(d.tipo).toLowerCase()} y estás en ${nombreSubtipo(b.subtipo || libVista.subtipo).toLowerCase()}.`);
+            const rt = tt(d.pn_rating); if (rt) { const m = rt.replace(',', '.').match(/(\d+(?:\.\d+)?)/), c = m ? (/pn/i.test(rt) ? 'PN ' + m[1] : m[1] + '#') : ''; if (PN_LISTA.includes(c)) raiz('pn', c); else avisos.push(`PN / rating «${rt}» no reconocido: indícalo a mano.`); }
+            const nd = elegir(NORMAS_DISENO_VALV, d.norma_diseno); if (nd) prop('normaDisenoV', nd); else if (tt(d.norma_diseno)) raiz('norma', d.norma_diseno);
+            if (CONEX_VALV.includes(d.conexion)) prop('conexValv', d.conexion);
+            prop('normaValv', elegir(NORMAS_CONEX_BOMBA, d.norma_conexion)); prop('caraCara', elegir(CARA_CARA_VALV, d.cara_cara));
+            const dn = v => { v = nn(v); if (!(v > 0)) return ''; const c = LISTA_DN.map(k => [k, Math.abs(dnNum(k) - v)]).sort((x, y) => x[1] - y[1])[0]; return c && c[1] <= v * 0.08 ? c[0] : ''; };
+            prop('dnMinV', dn(d.dn_min_mm)); prop('dnMaxV', dn(d.dn_max_mm)); prop('tMinV', nn(d.t_min_c)); prop('tMaxV', nn(d.t_max_c));
+            if (ASIENTOS_VALV.includes(d.material_asiento)) prop('asiento', d.material_asiento); else if (tt(d.material_asiento)) { const a = elegir(ASIENTOS_VALV, d.material_asiento); if (a) prop('asiento', a); else avisos.push(`Asiento «${tt(d.material_asiento)}»: elígelo a mano.`); }
+            prop('obturador', tt(d.material_obturador)); prop('vastago', tt(d.material_vastago));
+            if (FIRE_SAFE_VALV.includes(d.fire_safe)) prop('fireSafe', d.fire_safe);
+            if (ACCION_VALV.includes(d.accionamiento)) prop('accionamiento', d.accionamiento);
+            prop('kvs', nn(d.kvs_m3h)); prop('FL', nn(d.fl));
+            const cv = (Array.isArray(d.cv_tabla) ? d.cv_tabla : []).map(x => { const t = tt(x.tamano).replace(/["”]|pulg(adas)?|in(ch)?/gi, '').trim(), v = nn(x.cv); if (!(v > 0) || !t) return null; const k = /^DN/i.test(t) ? 'DN ' + t.replace(/\D/g, '') : t.replace(/\s+/g, '-').replace(/^(\d)-(\d\/\d)$/, '$1-$2'); return `${k}:${+v.toFixed(2)}`; }).filter(Boolean);
+            if (cv.length) prop('cv', cv.join('; '));
+            const ap = (Array.isArray(d.curva_apertura) ? d.curva_apertura : []).map(x => [nn(x.apertura_pct), nn(x.cv_pct)]).filter(x => x[0] != null && x[1] != null);
+            if (ap.length >= 3) prop('curvaApertura', ap.map(x => `${+x[0].toFixed(1)}:${+x[1].toFixed(2)}`).join('; '));
+            libVista.ia = { id: b.id, archivo, campos, avisos, conversiones: tt(d.conversiones), sinCurva: false };
+            return campos.length;
+        }
         function leerArchivoBase64(f) { return new Promise((ok, mal) => { const r = new FileReader(); r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, '')); r.onerror = () => mal(new Error('No se puede leer el archivo.')); r.readAsDataURL(f); }); }
-        async function llamarIABomba(f, pista) {
+        async function llamarIABomba(f, pista, clase) {
             const s = sesionActual(), k = claveSupabase();
-            const r = await fetch(`${SUPABASE_URL}/functions/v1/${FUNCION_IA_BOMBA}`, { method: 'POST', headers: { apikey: k, Authorization: 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify({ token: s.token, mime: f.type || 'application/pdf', nombre: f.name, modelo: pista || '', datos: await leerArchivoBase64(f) }) });
+            const r = await fetch(`${SUPABASE_URL}/functions/v1/${FUNCION_IA_BOMBA}`, { method: 'POST', headers: { apikey: k, Authorization: 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify({ token: s.token, clase: clase || 'bomba', mime: f.type || 'application/pdf', nombre: f.name, modelo: pista || '', datos: await leerArchivoBase64(f) }) });
             const t = await r.text(); let d = null; try { d = JSON.parse(t); } catch (e) { }
             if (r.status === 404 && !(d && d.error)) throw new Error('La función «' + FUNCION_IA_BOMBA + '» no está desplegada en Supabase (Edge Functions).');
             if (!r.ok || !d || !d.datos) throw new Error((d && (d.error || d.message || d.msg)) || ('HTTP ' + r.status));
@@ -10453,17 +10650,18 @@
             const b = leerFormLib(); if (!b) return;
             const mime = f.type || (/\.pdf$/i.test(f.name) ? 'application/pdf' : '');
             if (!/^(application\/pdf|image\/(png|jpeg|webp))$/.test(mime)) { alert('Formato no admitido: usa un PDF o una imagen PNG / JPG.'); return; }
-            if (f.size > MAX_MB_IA * 1048576) { alert(`El archivo ocupa ${(f.size / 1048576).toFixed(1)} MB y el máximo es ${MAX_MB_IA} MB.\n\nSi es un catálogo completo, extrae a otro PDF solo las páginas de la bomba.`); return; }
+            if (f.size > MAX_MB_IA * 1048576) { alert(`El archivo ocupa ${(f.size / 1048576).toFixed(1)} MB y el máximo es ${MAX_MB_IA} MB.\n\nSi es un catálogo completo, extrae a otro PDF solo las páginas del modelo.`); return; }
             const pista = String(b.referencia || '').trim();
             libVista.ia0 = libVista.ia && libVista.ia.id === b.id ? b.id : (String(b.nombre || '').trim() ? null : b.id);   // el nombre solo se sustituye si estaba vacío o lo puso la IA
             libVista.iaOcupado = true; pintarLibreria();
             try {
-                const r = await llamarIABomba(f, pista);
+                const esV = libVista.grupo === 'valvulas', r = await llamarIABomba(f, pista, esV ? 'valvula' : 'bomba');
                 libVista.iaOcupado = false;
                 if (!libVista.borrador || libVista.borrador.id !== b.id) return;            // se ha cambiado de elemento mientras tanto
-                const n = aplicarDatosIABomba(libVista.borrador, r.datos, f.name);
+                if (esV && r.datos && r.datos.cv_tabla === undefined && r.datos.caudal_m3h !== undefined) throw new Error('La función de Supabase es anterior a la 8.26 y solo lee bombas: vuelve a desplegar supabase/functions/piping-bomba-pdf/index.ts.');
+                const n = esV ? aplicarDatosIAValvula(libVista.borrador, r.datos, f.name) : aplicarDatosIABomba(libVista.borrador, r.datos, f.name);
                 pintarLibreria();
-                aviso(n ? `IA: ${n} campos leídos de «${f.name}»${r.limite ? ` (${r.usadas_hoy}/${r.limite} lecturas de hoy)` : ''}. Revísalos antes de guardar.` : 'IA: no se ha encontrado ningún dato de bomba en el documento.', n ? 'ok' : 'error');
+                aviso(n ? `IA: ${n} campos leídos de «${f.name}»${r.limite ? ` (${r.usadas_hoy}/${r.limite} lecturas de hoy)` : ''}. Revísalos antes de guardar.` : 'IA: no se ha encontrado ningún dato en el documento.', n ? 'ok' : 'error');
             } catch (e) { libVista.iaOcupado = false; pintarLibreria(); alert('No se ha podido leer la ficha con IA:\n' + e.message); }
         }
 
@@ -10698,6 +10896,8 @@
         if (idioma !== 'es') setTimeout(() => cambiarIdioma(idioma, true), 0);
     
         // partes: en segundo plano tras arrancar (o de inmediato si lo pide la página, p. ej. en las pruebas)
+        // v8.26 · válvulas de la base de datos de la empresa (en segundo plano)
+        window.addEventListener('load', () => setTimeout(() => { try { asegurarValvulas().then(() => { try { construirLibreria(); } catch (e) { } }); } catch (e) { } }, 1800));
         if (typeof PARTES_LISTA !== 'undefined') {
             if (window.PIPING_PRECARGA) PARTES_LISTA.forEach(g => document.write(`<script src="js/partes/${g}.js?v=${VERSION_WEB}"><\/script>`));
             else window.addEventListener('load', () => setTimeout(() => cargarTodasLasPartes().then(() => asegurarAccesorios()), 2500));
