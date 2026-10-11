@@ -113,3 +113,7 @@ Object.assign(window.PIPING_I18N.ko.d, {"Barras de herramientas": "도구 모음
 
 // v8.38
 Object.assign(window.PIPING_I18N.ko.d, {"Iconos": "아이콘", "Baldosa con degradado": "그라데이션 타일", "Bicolor": "2색", "Línea técnica": "기술 선", "Clásico (Font Awesome)": "클래식 (Font Awesome)"});
+
+// v8.40
+Object.assign(window.PIPING_I18N.ko.d, {"Anexo D. Comprobación final por componente": "부록 D. 구성요소별 최종 검토", "Comprobación de las bombas": "펌프 검토", "Comprobación de tuberías, válvulas y accesorios": "배관·밸브·피팅 검토", "H a ese caudal (m c.l.)": "해당 유량에서의 H (m)", "NPSH calculado (m)": "계산 NPSH (m)", "Margen (m)": "여유 (m)", "Características": "특성", "K / Cv / f": "K / Cv / f", "Pérdida (m c.l.)": "손실 (m)", "Pérdida (Pa)": "손실 (Pa)", "Cumple": "적합", "Cumple · crítica": "적합 · 임계"});
+Object.assign(window.PIPING_I18N.ko.d, {"Relación de todos los componentes con sus características y los resultados del cálculo general de la red. «Cumple»: el elemento satisface todos los criterios comprobados (velocidad, presión, NPSH, rating, temperatura, uniones y materiales).": "모든 구성요소의 특성과 네트워크 전체 계산 결과 목록. «적합»: 검토한 모든 기준(유속, 압력, NPSH, 정격, 온도, 이음, 재질)을 만족함."});

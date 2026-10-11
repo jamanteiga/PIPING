@@ -830,6 +830,40 @@ async function construirInforme(D, opc = {}) {
                 ['Cv', 'Coeficiente de caudal (US gpm/√psi)', '—'], ['hf', 'Pérdida de carga', 'm c.l.'], ['H', 'Altura manométrica / piezométrica', 'm c.l.'], ['NPSHd / NPSHr', 'NPSH disponible / requerido', 'm'], ['ρ, ν, pv', 'Densidad, viscosidad cinemática, presión de vapor', 'kg/m³, mm²/s, kPa'],
                 ['Asp. / Imp.', 'Tramo de aspiración / impulsión', '—']], [18, 60, 22]));
 
+            // ===== v8.40 · ANEXO D: COMPROBACIÓN FINAL POR COMPONENTE =====
+            titulo(1, 'Anexo D. Comprobación final por componente');
+            cuerpo.push(par('Relación de todos los componentes con sus características y los resultados del cálculo general de la red. «Cumple»: el elemento satisface todos los criterios comprobados (velocidad, presión, NPSH, rating, temperatura, uniones y materiales).'));
+            const estadoD = e => e.estado === 'fallo' ? { t: 'NO CUMPLE', negrita: true, color: 'C00000' } : (e.esLineaCritica ? 'Cumple · crítica' : 'Cumple');
+            const bombasD = elementosRed.filter(e => e.type === 'bomba' && ultimoResultado[e.id]);
+            if (bombasD.length) {
+                cuerpo.push(leyenda('Tabla', 'Comprobación de las bombas'));
+                cuerpo.push(tabla(['Bomba', 'Q (m³/h)', 'H a ese caudal (m c.l.)', 'Conexión de impulsión', 'NPSH calculado (m)', 'NPSH requerido (m)', 'Margen (m)', 'Estado'], bombasD.map(e => {
+                    const r = ultimoResultado[e.id], ci = conexBomba(e, 'Imp'), vD = vecinosDe(e).find(w => w.puertoEl === 'descarga'), dnI = ci.dn || e.dnImp || e.dn || (vD ? dnEquivalente(vD.otro) || vD.otro.dn : '') || '';
+                    return [tagDe(e), nf(r.Q, 2), nf(r.H, 2), [dnI ? etiquetaDN(dnI) : '—', ci.tipo, ci.rating].filter(Boolean).join(' · '), nf(r.npshd, 2), nf(e.npsh, 2), nf((+r.npshd || 0) - (+e.npsh || 0), 2), estadoD(e)];
+                }), [13, 9, 12, 20, 12, 12, 9, 13]));
+                cuerpo.push(espacio());
+            }
+            const vistosD = new Set(), listaD = [];
+            orden.forEach(o => o.orden.forEach(id => { if (!vistosD.has(id)) { vistosD.add(id); const e = elementosRed.find(x => x.id === id); if (e) listaD.push(e); } }));
+            elementosRed.forEach(e => { if (!vistosD.has(e.id)) { vistosD.add(e.id); listaD.push(e); } });
+            const rg = (fl.rho || 1000) * 9.80665;
+            const filasD = listaD.filter(e => !esAnotacion(e) && e.type !== 'bomba').map(e => {
+                const as = de(e.id), hf = as.reduce((s2, a) => s2 + (hfDeArista(a) || 0), 0), a0 = as[0];
+                let car = '';
+                if (e.type === 'tuberia') car = `${etiquetaTuberia(e)} · ${e.material}`;
+                else if (e.subtype === 'reduccion') car = `${etiquetaDN(e.dn)} × ${etiquetaDN(e.dnMenor)}${e.pn ? ' · ' + e.pn : ''}`;
+                else car = [e.dn ? etiquetaDN(e.dn) : '', e.pn || '', e.type === 'valvula' && e.conexValv ? e.conexValv : ''].filter(Boolean).join(' · ');
+                let k = '—';
+                if (sinFlujo(e) || !as.length) k = '—';
+                else if (e.type === 'tuberia') k = a0 && a0.f ? `f ${nf(a0.f, 4)}` : '—';
+                else if (as.length > 1) k = as.map(a => `K ${nf(a.K, 3)}${a.rama ? ' (' + a.rama + ')' : ''}`).join('\n');
+                else if (a0 && a0.K != null) { k = `K ${nf(a0.K, 3)}`; if (e.type === 'valvula' && a0.K > 0 && a0.D) k += `\nCv ${nf(29.9 * Math.pow(a0.D * 39.3701, 2) / Math.sqrt(a0.K), 1)}`; }
+                return [tagDe(e), nombreTipo(e), car || '—', e.type === 'tuberia' ? nf((+e.longitud || 0) / 1000, 3) : '—', k, as.length ? nf(hf, 4) : '—', as.length ? nf(hf * rg, 0) : '—', estadoD(e)];
+            });
+            cuerpo.push(leyenda('Tabla', 'Comprobación de tuberías, válvulas y accesorios'));
+            cuerpo.push(tabla(['Componente', 'Tipo', 'Características', 'L (m)', 'K / Cv / f', 'Pérdida (m c.l.)', 'Pérdida (Pa)', 'Estado'], filasD.length ? filasD : [['—', '', '', '', '', '', '', '']], [16, 13, 25, 7, 11, 9, 9, 10]));
+            cuerpo.push(par(`Pérdida (Pa) = hf · ρ · g con ρ = ${nf(fl.rho, 1)} kg/m³. Cv (US gpm/√psi) = 29,9 · d² / √K con d = diámetro interior en pulgadas (Crane TP-410). En tes y cruces se da el K de cada rama.`, { run: { italics: true, size: 16 } }));
+
             // ===== PORTADA E ÍNDICES =====
             const portada = [
                 new D.Paragraph({ spacing: { before: 2200, after: 200 }, alignment: D.AlignmentType.CENTER, children: [T('INFORME DE CÁLCULO HIDRÁULICO', { bold: true, size: 44, color: AZUL })] }),

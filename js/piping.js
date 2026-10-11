@@ -2438,7 +2438,8 @@
                 svgCanvas.appendChild(g);
             });
             if (lideresNotas) { const gl = document.createElementNS("http://www.w3.org/2000/svg", "g"); gl.setAttribute('pointer-events', 'none'); gl.setAttribute('id', 'lideres-notas'); gl.innerHTML = lideresNotas; svgCanvas.insertBefore(gl, svgCanvas.querySelector('g[data-id]')); }
-            const gGu = svgGuias(); if (gGu) { const g0 = document.createElementNS("http://www.w3.org/2000/svg", "g"); g0.setAttribute('id', 'capa-guias'); g0.setAttribute('pointer-events', 'none'); g0.innerHTML = gGu; svgCanvas.appendChild(g0); }
+            const gGu = svgGuias(); if (gGu) { const g0 = document.createElementNS("http://www.w3.org/2000/svg", "g"); g0.setAttribute('id', 'capa-guias'); g0.setAttribute('pointer-events', 'none'); g0.innerHTML = gGu; svgCanvas.appendChild(g0);
+                g0.querySelectorAll('text[data-guia]').forEach(t => { t.addEventListener('mousedown', e => { e.stopPropagation(); if (e.detail === 2) { e.preventDefault(); editarTramoGuia(t.dataset.guia, +t.dataset.tramo); } }); }); }
             // etiquetas: capa superior
             const gE = document.createElementNS("http://www.w3.org/2000/svg", "g");
             gE.setAttribute('id', 'capa-etiquetas');
@@ -6270,7 +6271,7 @@
         // ==================================================================================
         const segmentosGuia = () => guias.flatMap(g => g.p.slice(1).map((B, i) => { const A = g.p[i], len = Math.hypot(B.x - A.x, B.y - A.y) || 1; return { g, i, A, B, len, u: { x: (B.x - A.x) / len, y: (B.y - A.y) / len } }; }));
         const proySeg = (sg, x, y) => ({ s: (x - sg.A.x) * sg.u.x + (y - sg.A.y) * sg.u.y, d: Math.abs((x - sg.A.x) * sg.u.y - (y - sg.A.y) * sg.u.x) });
-        function verticeGuiaCercano(x, y, tol) { let m = null; guias.forEach(g => g.p.forEach(p => { const d = Math.hypot(p.x - x, p.y - y); if (d < tol && (!m || d < m.d)) m = { x: p.x, y: p.y, d }; })); return m; }
+        function verticeGuiaCercano(x, y, tol) { let m = null; guias.forEach(g => g.p.forEach(p => { const d = Math.hypot(p.x - x, p.y - y); if (d < tol && (!m || d < m.d)) m = { x: p.x, y: p.y, d, ref: p }; })); return m; }
         const angPantalla = (dx, dy) => +(((Math.atan2(dy, dx) * 180 / Math.PI) % 360 + 360) % 360).toFixed(4);   // v8.35 · ángulo exacto (tramos a 45°, 60°…)
         function direccionesEnVertice(V) {
             const dirs = [], add = (ang, aguasArriba) => { if (!dirs.some(d => difAng(d.ang, ang) < 1)) dirs.push({ ang, aguasArriba }); };
@@ -6292,7 +6293,7 @@
             let r = false; avisoGuia = null;
             try { r = el.type === 'tuberia' ? colocarTuboEnGuia(el, cx, cy) : colocarAccesorioEnGuia(el, cx, cy); }
             finally { if (i >= 0) elementosRed.splice(i, 0, el); }
-            if (r) { ajustarLongitudesGuia(); if (avisoGuia) avisoGuia(); } avisoGuia = null;
+            if (r) { ajustarLongitudesGuia(); if (el.type === 'accesorio') { const n = asegurarTuboMinimo(el); if (n) { ajustarLongitudesGuia(); const av = avisoGuia; avisoGuia = () => { av && av(); aviso(`Faltaban ${TUBO_MIN_MM} mm de tubo recto junto a ${tagDe(el)}: el tramo de la trayectoria se ha alargado lo necesario (doble clic en su cota para cambiarlo).`, 'ok'); }; } } if (avisoGuia) avisoGuia(); } avisoGuia = null;
             return r;
         }
         function colocarTuboEnGuia(el, cx, cy) {
@@ -6330,6 +6331,36 @@
             }));
             if (!mejor || mejor.ok < 2) { el.rotation = 0; return false; }
             el.rotation = mejor.rot; const N = nodoAccesorio(el); el.x += v.x - N.x; el.y -= v.y - N.y;
+            // v8.40 · si entre esta boca y el elemento que sigue no cabe el tubo (los símbolos se pisan en el plano), el tramo de la
+            // trayectoria se alarga lo justo antes de recortar (el vértice y lo que cuelga se desplazan)
+            for (let it = 0; it < 4; it++) {
+                let alargado = false;
+                for (const Q of obtenerPuertosConexion(el)) {
+                    const r = Math.hypot(Q.x - v.x, Q.y - v.y); if (r < 1) continue; const u = { x: (Q.x - v.x) / r, y: (Q.y - v.y) / r };
+                    let m = null;
+                    elementosRed.forEach(t => { if (t.type !== 'tuberia') return; const pp = obtenerPuertosConexion(t);
+                        ['a', 'b'].forEach(k => { const E = pp.find(p => p.id === k), O = pp.find(p => p.id !== k), sE = (E.x - v.x) * u.x + (E.y - v.y) * u.y, dE = Math.abs((E.x - v.x) * u.y - (E.y - v.y) * u.x), sO = (O.x - v.x) * u.x + (O.y - v.y) * u.y, dO = Math.abs((O.x - v.x) * u.y - (O.y - v.y) * u.x);
+                            if (dE < 2 && dO < 2 && sE > -2 && sE < r + 25 && sO > sE && (!m || sE < m.sE)) m = { t, sO }; }); });
+                    if (!m || m.sO - r >= 3) continue;
+                    // primero se reduce el símbolo (el plano no es a escala; las longitudes reales no cambian)
+                    const esc0 = +el.scale || 1, esc1 = Math.max(0.5, Math.min(esc0, esc0 * (m.sO - 3) / r));
+                    if (esc1 < esc0 - 0.01) { el.scale = +esc1.toFixed(3); const N3 = nodoAccesorio(el); el.x += v.x - N3.x; el.y -= v.y - N3.y; if (esc1 * r / esc0 <= m.sO - 3 + 0.05) { alargado = true; break; } }
+                    // después, el símbolo del accesorio del otro extremo de ese tubo
+                    { const t = m.t, ppT = obtenerPuertosConexion(t), sOf = p => (p.x - v.x) * u.x + (p.y - v.y) * u.y, kO = sOf(ppT[0]) > sOf(ppT[1]) ? ppT[0].id : ppT[1].id;
+                      const w = vecinosDe(t).find(x => x.puertoEl === kO && x.otro.type === 'accesorio' && ACC_GUIA.includes(x.otro.subtype)), f2 = w && w.otro;
+                      if (f2 && (+f2.scale || 1) > 0.51) { const ws = vecinosDe(f2).filter(x => x.otro.type === 'tuberia'), N0 = nodoAccesorio(f2); f2.scale = 0.5; const N1 = nodoAccesorio(f2); f2.x += N0.x - N1.x; f2.y -= N0.y - N1.y;
+                          ws.forEach(x => { const tt = x.otro, Qn = obtenerPuertosConexion(f2).find(p => p.id === x.puertoEl), kt = x.puertoOtro, otroK = kt === 'a' ? 'b' : 'a', P0 = obtenerPuertosConexion(tt).find(p => p.id === otroK);   // los tubos del accesorio se reenganchan a sus nuevas bocas
+                              tt.largoDibujo = +Math.hypot(Qn.x - P0.x, Qn.y - P0.y).toFixed(4); tt.ajusteGuia = true; if (kt === 'a') colocarPorPuerto(tt, 'b', P0); });
+                          alargado = true; break; } }
+                    const rr = Math.hypot(...(() => { const Q2 = obtenerPuertosConexion(el).find(p => p.id === Q.id); return [Q2.x - v.x, Q2.y - v.y]; })());
+                    const pp = obtenerPuertosConexion(m.t);
+                    for (const g of guias) { for (let i = 0; i < g.p.length - 1 && !alargado; i++) { const A = g.p[i], B = g.p[i + 1], len = Math.hypot(B.x - A.x, B.y - A.y) || 1, sg = { A, B, len, u: { x: (B.x - A.x) / len, y: (B.y - A.y) / len } };
+                        if (pp.every(p => { const q = proySeg(sg, p.x, p.y); return q.d < 1.5 && q.s > -1 && q.s < len + 1; })) { alargado = cambiarLongitudTramoGuia(g, i, (len + (rr + 3 - m.sO) + 0.2) * 30, true); if (alargado) setTimeout(() => aviso(`El tramo de la trayectoria era demasiado corto para dibujar los dos accesorios: se ha alargado ${Math.round((rr + 3 - m.sO) * 30)} mm (doble clic en su cota para revisarlo).`, 'error'), 400); } } if (alargado) break; }
+                    if (alargado) break;
+                }
+                if (!alargado) break;
+                if (v.ref) { v.x = v.ref.x; v.y = v.ref.y; } const N2 = nodoAccesorio(el); el.x += v.x - N2.x; el.y -= v.y - N2.y; avisoGuia = null;
+            }
             const cambios = [];
             obtenerPuertosConexion(el).forEach(Q => {
                 const r = Math.hypot(Q.x - v.x, Q.y - v.y); if (r < 1) return; const u = { x: (Q.x - v.x) / r, y: (Q.y - v.y) / r };
@@ -6365,6 +6396,53 @@
             });
             return n;
         }
+        // v8.40 · cambiar la longitud de un tramo de la trayectoria (doble clic en su cota): el vértice final y todo lo que sigue se
+        // desplazan; el tubo que llega a ese extremo se alarga o acorta (y arrastra lo que cuelga de él, como al estirarlo a mano)
+        async function editarTramoGuia(gid, i) {
+            const g = guias.find(x => x.id === gid); if (!g || !g.p[i + 1]) return;
+            const L0 = Math.round(Math.hypot(g.p[i + 1].x - g.p[i].x, g.p[i + 1].y - g.p[i].y) * 30);
+            const v = prompt(`Longitud del tramo ${i + 1} de la trayectoria (mm):`, L0); if (v == null) return;
+            const L = +String(v).replace(',', '.'); if (!(L >= 10)) { aviso('Longitud no válida.', 'error'); return; }
+            cambiarLongitudTramoGuia(g, i, L);
+        }
+        function cambiarLongitudTramoGuia(g, i, Lmm, sinDeshacer) {
+            const A = g.p[i], B = g.p[i + 1], len = Math.hypot(B.x - A.x, B.y - A.y) || 1, u = { x: (B.x - A.x) / len, y: (B.y - A.y) / len }, dpx = Lmm / 30 - len;
+            if (Math.abs(dpx) < 1e-6) return true;
+            if (!sinDeshacer) guardarEstado();
+            const sg = { A, B, len, u };
+            // tubo del tramo cuyo extremo más alejado está más cerca de B
+            let mejor = null;
+            elementosRed.forEach(t => { if (t.type !== 'tuberia') return; const pp = obtenerPuertosConexion(t), qa = proySeg(sg, pp[0].x, pp[0].y), qb = proySeg(sg, pp[1].x, pp[1].y);
+                if (qa.d > 1.5 || qb.d > 1.5 || Math.min(qa.s, qb.s) < -1 || Math.max(qa.s, qb.s) > len + 1) return;
+                const lejos = qb.s >= qa.s ? 'b' : 'a', sL = Math.max(qa.s, qb.s); if (!mejor || sL > mejor.sL) mejor = { t, lejos, sL }; });
+            const Lnew = mejor ? largoPxTubo(mejor.t) + dpx : 0;
+            if (mejor && Lnew < 10 / 30) { aviso('El tramo quedaría más corto que los componentes que ya tiene: acórtalo menos o quita algún componente.', 'error'); if (!sinDeshacer && historialUndo.length) { historialUndo.pop(); actualizarBotonesHistorial(); } return false; }
+            if (mejor && mejor.lejos === 'b') { let arr = prepararArrastreTuberia(mejor.t); if (arr.modo === 'malla') { aviso('No se puede: la red está cerrada en malla por ese tramo.', 'error'); return false; }
+                if (arr.modo === 'fijoB') arr = { modo: 'arrastre', grupo: grupoDesde(vecinosDe(mejor.t).filter(w => w.puertoEl === 'b').map(w => w.otro), mejor.t), A: arr.A, B: arr.B };   // en la trayectoria se mueve lo que sigue, no el tubo
+                mejor.t.largoDibujo = +Lnew.toFixed(4); mejor.t.ajusteGuia = true; arrastrarTrasTuberia(mejor.t, arr); }
+            else {   // sin tubo (o tubo al revés): se desplaza lo que hay a partir del final del tramo
+                const enFin = elementosRed.filter(e => !esAnotacion(e) && obtenerPuertosConexion(e).some(p => { const q = proySeg(sg, p.x, p.y); return q.d < 1.5 && q.s > len - 26; }));
+                const antes = elementosRed.filter(e => !esAnotacion(e) && !enFin.includes(e) && obtenerPuertosConexion(e).some(p => { const q = proySeg(sg, p.x, p.y); return q.d < 1.5 && q.s <= len - 26 && q.s > -1; }));
+                const mover = new Set(); enFin.forEach(e => { mover.add(e); antes.length ? grupoDesde([e], antes[antes.length - 1]).forEach(x => mover.add(x)) : null; });
+                if (mejor) { const t = mejor.t, B0 = obtenerPuertosConexion(t).find(p => p.id === 'b'); t.largoDibujo = +Lnew.toFixed(4); t.ajusteGuia = true; colocarPorPuerto(t, 'b', B0); }   // tubo al revés: crece hacia atrás no; se recoloca con b fijo y se mueve con el resto
+                mover.forEach(e => { e.x += u.x * dpx; e.y -= u.y * dpx; });
+            }
+            for (let j = i + 1; j < g.p.length; j++) { g.p[j].x += u.x * dpx; g.p[j].y += u.y * dpx; }
+            invalidarResultados(); renderizarVectorial();
+            aviso(`Tramo ${i + 1} de la trayectoria: ${Math.round(len * 30)} → ${Math.round(Lmm)} mm.`, 'ok');
+            return true;
+        }
+        // tras colocar un codo/te: si entre él y el siguiente componente no quedan los 100 mm de tubo recto, el tramo se alarga
+        function asegurarTuboMinimo(el) {
+            let n = 0;
+            vecinosDe(el).forEach(w => { const t = w.otro; if (t.type !== 'tuberia' || !t.ajusteGuia || +t.longitud >= TUBO_MIN_MM) return;
+                const pp = obtenerPuertosConexion(t);
+                for (const g of guias) for (let i = 0; i < g.p.length - 1; i++) {
+                    const A = g.p[i], B = g.p[i + 1], len = Math.hypot(B.x - A.x, B.y - A.y) || 1, sg = { A, B, len, u: { x: (B.x - A.x) / len, y: (B.y - A.y) / len } };
+                    if (pp.every(p => { const q = proySeg(sg, p.x, p.y); return q.d < 1.5 && q.s > -1 && q.s < len + 1; })) { cambiarLongitudTramoGuia(g, i, len * 30 + (TUBO_MIN_MM - t.longitud) + 0.5, true); n++; return; }
+                } });
+            return n;
+        }
         // doble clic en el extremo libre de un tubo que está sobre una trayectoria: ocupa todo el tramo recto
         function extenderTuboEnGuia(px, py) {
             const tol = 9 / (zoomScale || 1); let hit = null;
@@ -6395,7 +6473,7 @@
                 + g.p.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2" fill="#fff" stroke="#0891b2" stroke-width=".8"/>`).join('')
                 + g.p.slice(1, -1).map((b, i) => { const a = g.p[i], c = g.p[i + 2], d = Math.round(difAng(Math.atan2(c.y - b.y, c.x - b.x) * 180 / Math.PI, Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI)); return d ? `<text x="${(b.x + 4).toFixed(1)}" y="${(b.y + 9).toFixed(1)}" font-family="sans-serif" font-size="5.5" fill="#0e7490" paint-order="stroke" stroke="#fff" stroke-width="2">${d}°</text>` : ''; }).join('')
                 + g.p.slice(1).map((b, i) => { const a = g.p[i], L = Math.round(Math.hypot(b.x - a.x, b.y - a.y) * 30 / 10) * 10, hz = Math.abs(b.x - a.x) > Math.abs(b.y - a.y);
-                    return `<text x="${((a.x + b.x) / 2 + (hz ? 0 : 4)).toFixed(1)}" y="${((a.y + b.y) / 2 + (hz ? -4 : 2)).toFixed(1)}" font-family="sans-serif" font-size="6" fill="#0e7490" text-anchor="${hz ? 'middle' : 'start'}" paint-order="stroke" stroke="#fff" stroke-width="2">${L} mm</text>`; }).join('')).join('');
+                    return `<text data-guia="${g.id}" data-tramo="${i}" style="pointer-events:auto;cursor:pointer" x="${((a.x + b.x) / 2 + (hz ? 0 : 4)).toFixed(1)}" y="${((a.y + b.y) / 2 + (hz ? -4 : 2)).toFixed(1)}" font-family="sans-serif" font-size="6" fill="#0e7490" text-anchor="${hz ? 'middle' : 'start'}" paint-order="stroke" stroke="#fff" stroke-width="2"><title>Doble clic: cambiar la longitud del tramo</title>${L} mm</text>`; }).join('')).join('');
         }
         // ==================================================================================
         // 2) INSERTAR EN MITAD DE UNA TUBERÍA: un componente en línea (puertos a–b opuestos) soltado sobre
@@ -6471,17 +6549,25 @@
             return null;
         }
         const ES_TUBO = t => /^TUBO_/.test(t || ''), ES_PLAST = t => /^(TUBO_PL|PL$)/.test(t || '');
+        const TUBO_MIN_MM = 100;   // v8.40 · tramo recto mínimo de tubo entre accesorios soldados (p. ej. codo – brida plana)
+        // v8.40 · codos, tes, cruces y reducciones de acero sin conexión declarada: extremos para soldar a tope (ASME B16.9 / EN 10253)
+        const ACC_BW = /^(codo90|codo45|codo60|tee|cruce|reduccion|injerto)$/;
+        const extremoInferido = (el, t, otro) => t || (el && el.type === 'accesorio' && ACC_BW.test(el.subtype || '') && ['TUBO_AC', 'BW', 'SO', 'SW', 'BRIDA'].includes(otro) ? 'BW' : t);
         // [nivel, texto] con nivel 'error' | 'aviso', o null si la unión es correcta o no hay datos
         function reglaUnion(a, b, ea, eb) {
             if (!a || !b) return null;
             const P = (x, y) => (a === x && b === y) || (a === y && b === x), uno = x => a === x || b === x, otro = x => a === x ? b : a;
             if (uno('BRIDA')) { const o = otro('BRIDA'); if (['BRIDA', 'BRIDADO', 'WAFER'].includes(o)) return null;
+                const fl = [ea, eb].find(e => e && SUBTIPOS_BRIDA.includes(e.subtype || ''));
+                if (o === 'BW' && fl && tipoExtremo(fl, 'b') === 'SO') return ['error', `la brida plana está al revés y, además, a un ${[ea, eb].some(e => e && /^codo/.test(e.subtype || '')) ? 'codo' : 'accesorio para soldar a tope'} no se le suelda una brida plana (ASME o EN): intercala un tubo recto de ${TUBO_MIN_MM} mm como mínimo con la brida en su otro extremo, o usa una brida WN`, 'carrete'];
                 return ['error', 'contra la cara de una brida solo va (con su junta) una contrabrida, un componente bridado o una válvula wafer; no un tubo, un accesorio soldado ni una unión roscada']; }
             if (uno('BRIDADO') || uno('WAFER')) { const o = uno('BRIDADO') ? otro('BRIDADO') : otro('WAFER');
                 if (['BRIDADO', 'WAFER', 'BRIDA'].includes(o) || ES_TUBO(o)) return null;   // contrabrida implícita en el P&ID
                 if (uno('WAFER') && ['BW', 'SW', 'SO', 'ROS', 'LOCA', 'PL'].includes(o)) return ['error', 'la válvula wafer / lug va entre dos caras de brida, no contra el lado de soldadura o rosca de un accesorio'];
                 return ['aviso', 'componente bridado contra un accesorio soldado o roscado: falta la brida intermedia']; }
-            if (uno('SO')) { const o = otro('SO'); if (o === 'TUBO_AC') return null; return ['error', 'la brida plana (slip-on) se monta sobre tubo de acero, no contra un accesorio ni contra otra brida']; }
+            if (uno('SO')) { const o = otro('SO'); if (o === 'TUBO_AC') return null;
+                if (o === 'BW') return ['error', `a un ${[ea, eb].some(e => e && /^codo/.test(e.subtype || '')) ? 'codo' : 'accesorio para soldar a tope'} no se le suelda una brida plana (slip-on, ASME o EN): intercala un tubo recto de ${TUBO_MIN_MM} mm como mínimo y suelda la brida plana en su otro extremo, o usa una brida de cuello (WN)`, 'carrete'];
+                return ['error', 'la brida plana (slip-on) se monta sobre tubo de acero, no contra un accesorio ni contra otra brida']; }
             if (uno('LOCA')) { const o = otro('LOCA'); if (ES_TUBO(o) && o !== 'TUBO_CU') return null; return ['error', 'la brida loca va sobre un portabridas (stub-end) del tubo, no contra un accesorio']; }
             if (uno('PL')) { const o = otro('PL'); if (o === 'TUBO_PLE' || o === 'TUBO_PLF') return null; return ['error', 'la brida plástica se une a tubo plástico (encolado o por fusión), no a acero']; }
             if (P('TUBO_AC', 'BW') || P('BW', 'BW') || P('TUBO_AC', 'TUBO_AC') || P('ROS', 'ROS') || P('CLAMP', 'CLAMP') || P('RAN', 'RAN') || P('TUBO_PLE', 'TUBO_PLE') || P('TUBO_PLF', 'TUBO_PLF') || P('TUBO_CU', 'TUBO_CU')) return null;
@@ -6505,10 +6591,10 @@
         function unionesHoja() {
             const g = construirGrafoRed(), por = Object.fromEntries(elementosRed.map(e => [e.id, e])), out = [];
             g.nodos.forEach(n => { const ps = n.puertos.filter(p => por[p.elId] && !esAnotacion(por[p.elId]) && !sinFlujo(por[p.elId])); if (ps.length !== 2 || ps[0].elId === ps[1].elId) return;
-                const [p, q] = ps, ea = por[p.elId], eb = por[q.elId], ta = tipoExtremo(ea, p.portId), tb = tipoExtremo(eb, q.portId), r = reglaUnion(ta, tb, ea, eb);
+                const [p, q] = ps, ea = por[p.elId], eb = por[q.elId], ta0 = tipoExtremo(ea, p.portId), tb0 = tipoExtremo(eb, q.portId), ta = extremoInferido(ea, ta0, tb0), tb = extremoInferido(eb, tb0, ta0), r = reglaUnion(ta, tb, ea, eb);
                 let extra = null;
                 if (ta === 'BRIDA' && tb === 'BRIDA' && ea.pn && eb.pn && ea.pn !== eb.pn) extra = ['aviso', `bridas enfrentadas con distinto PN / clase (${ea.pn} y ${eb.pn}): deben coincidir norma, DN y rating`];
-                if (r || extra) out.push({ ea, eb, ta, tb, nivel: (r || extra)[0], texto: (r || extra)[1] });
+                if (r || extra) out.push({ ea, eb, ta, tb, pa: p.portId, pb: q.portId, nivel: (r || extra)[0], texto: (r || extra)[1], arreglo: (r || extra)[2] || null });
             });
             return out;
         }
@@ -6520,6 +6606,33 @@
         function avisarUnionesDe(el) {
             const us = unionesHoja().filter(u => u.ea.id === el.id || u.eb.id === el.id);
             us.forEach(u => aviso(`Unión ${tagDe(u.ea)} – ${tagDe(u.eb)}: ${u.texto}`, u.nivel === 'error' ? 'error' : undefined));
+            const c = us.find(u => u.arreglo === 'carrete'); if (c) setTimeout(() => ofrecerCarrete(c), 50);
+        }
+        // v8.40 · codo (o accesorio a tope) contra brida plana: se ofrece intercalar un tubo recto de 100 mm; la brida y lo que cuelga de
+        // ella se desplazan esa distancia (y la trayectoria guía, si la hay)
+        async function ofrecerCarrete(u) {
+            const acc = u.ta === 'BW' ? u.ea : u.eb, br = acc === u.ea ? u.eb : u.ea, pAcc = acc === u.ea ? u.pa : u.pb;
+            if (!acc || !br) return;
+            const r = await dialogo('<i class="fa-solid fa-ruler-horizontal text-blue-600 mr-1.5"></i>Brida plana contra ' + (/^codo/.test(acc.subtype || '') ? 'codo' : 'accesorio'), `<p>${esc(tagDe(br))} (brida plana) no se puede soldar directamente a ${esc(tagDe(acc))}.</p><p class="mt-2">¿Intercalo un tubo recto de <b>${TUBO_MIN_MM} mm</b> entre ellos? La brida y lo que cuelga de ella se desplazan ${TUBO_MIN_MM} mm.</p>`,
+                [{ texto: `Intercalar tubo de ${TUBO_MIN_MM} mm`, valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Lo resuelvo yo', valor: null }]);
+            if (r === 'si') intercalarCarrete(acc, pAcc, br, TUBO_MIN_MM);
+        }
+        function intercalarCarrete(acc, pAcc, sig, Lmm) {
+            const Q = obtenerPuertosConexion(acc).find(p => p.id === pAcc); if (!Q) return false;
+            const N = acc.type === 'tuberia' ? null : nodoAccesorio(acc), dx = Q.x - N.x, dy = Q.y - N.y, n = Math.hypot(dx, dy) || 1, u = { x: dx / n, y: dy / n }, d = Lmm / 30;
+            const grupo = grupoDesde([sig], acc); if (grupo.includes(acc)) { aviso('No se puede intercalar el tubo: la red está cerrada en malla por ese punto.', 'error'); return false; }
+            guardarEstado();
+            grupo.forEach(e => { if (esAnotacion(e)) return; e.x += u.x * d; e.y -= u.y * d; });
+            const ref = elementosRed.find(e => e.type === 'tuberia' && e.linea === acc.linea) || elementosRed.find(e => e.type === 'tuberia');
+            const t = { id: 'sym_' + Date.now() + '_car', type: 'tuberia', subtype: '', name: 'Tubería', x: 0, y: screenAMundoY(0), scale: 1, rotation: angPantalla(u.x, u.y), material: ref ? ref.material : MATERIAL_DEF, serie: ref ? ref.serie : '40', dn: (ref && tamanoTuboDeDN(ref.material, ref.serie, acc.dn)) || (ref && ref.dn) || 'DN 50', longitud: Lmm, linea: acc.linea, cotaA: +acc.cota || 0, cotaB: +acc.cota || 0 };
+            if (ref && ref.pn) t.pn = ref.pn; normalizarElemento(t); colocarPorPuerto(t, 'a', Q); elementosRed.push(t); asignarNumero(t);
+            // brida plana con la cara hacia el tubo: se le da la vuelta (el lado de soldadura, b, contra el tubo)
+            if (SUBTIPOS_BRIDA.includes(sig.subtype || '')) { const Bt = obtenerPuertosConexion(t).find(p => p.id === 'b'), pa = obtenerPuertosConexion(sig).find(p => p.id === 'a');
+                if (pa && Math.hypot(pa.x - Bt.x, pa.y - Bt.y) < 1) { sig.rotation = (((+sig.rotation || 0) + 180) % 360); colocarPorPuerto(sig, 'b', Bt); } }
+            // trayectoria guía que pasa por ahí: sus vértices siguientes también avanzan
+            guias.forEach(g => { const k = g.p.findIndex((p, i) => i < g.p.length - 1 && (() => { const sg = { A: p, u: { x: (g.p[i + 1].x - p.x) / (Math.hypot(g.p[i + 1].x - p.x, g.p[i + 1].y - p.y) || 1), y: (g.p[i + 1].y - p.y) / (Math.hypot(g.p[i + 1].x - p.x, g.p[i + 1].y - p.y) || 1) } }, q = proySeg(sg, Q.x, Q.y); return q.d < 1.5 && q.s > -1 && q.s < Math.hypot(g.p[i + 1].x - p.x, g.p[i + 1].y - p.y) + 1; })());
+                if (k >= 0) for (let j = k + 1; j < g.p.length; j++) { g.p[j].x += u.x * d; g.p[j].y += u.y * d; } });
+            invalidarResultados(); renderizarVectorial(); aviso(`${tagDe(t)} (${Lmm} mm) intercalado entre ${tagDe(acc)} y ${tagDe(sig)}.`, 'ok'); return true;
         }
         // ==================================================================================
         // v8.29 · LÍNEAS VACÍAS: al insertar en otra línea, se ofrece borrar las que se han quedado sin componentes
@@ -9436,7 +9549,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.39';
+        const VERSION_WEB = '8.40';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;

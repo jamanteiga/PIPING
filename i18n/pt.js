@@ -113,3 +113,7 @@ Object.assign(window.PIPING_I18N.pt.d, {"Barras de herramientas": "Barras de fer
 
 // v8.38
 Object.assign(window.PIPING_I18N.pt.d, {"Iconos": "Ícones", "Baldosa con degradado": "Ladrilho com degradê", "Bicolor": "Bicolor", "Línea técnica": "Linha técnica", "Clásico (Font Awesome)": "Clássico (Font Awesome)"});
+
+// v8.40
+Object.assign(window.PIPING_I18N.pt.d, {"Anexo D. Comprobación final por componente": "Anexo D. Verificação final por componente", "Comprobación de las bombas": "Verificação das bombas", "Comprobación de tuberías, válvulas y accesorios": "Verificação de tubos, válvulas e acessórios", "H a ese caudal (m c.l.)": "H nesse caudal (m c.l.)", "NPSH calculado (m)": "NPSH calculado (m)", "Margen (m)": "Margem (m)", "Características": "Características", "K / Cv / f": "K / Cv / f", "Pérdida (m c.l.)": "Perda (m c.l.)", "Pérdida (Pa)": "Perda (Pa)", "Cumple": "Cumpre", "Cumple · crítica": "Cumpre · crítica"});
+Object.assign(window.PIPING_I18N.pt.d, {"Relación de todos los componentes con sus características y los resultados del cálculo general de la red. «Cumple»: el elemento satisface todos los criterios comprobados (velocidad, presión, NPSH, rating, temperatura, uniones y materiales).": "Relação de todos os componentes com as suas características e os resultados do cálculo geral da rede. «Cumpre»: o elemento satisfaz todos os critérios verificados (velocidade, pressão, NPSH, rating, temperatura, uniões e materiais)."});

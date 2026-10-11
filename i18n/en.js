@@ -113,3 +113,7 @@ Object.assign(window.PIPING_I18N.en.d, {"Barras de herramientas": "Toolbars", "N
 
 // v8.38
 Object.assign(window.PIPING_I18N.en.d, {"Iconos": "Icons", "Baldosa con degradado": "Gradient tile", "Bicolor": "Two-tone", "Línea técnica": "Technical line", "Clásico (Font Awesome)": "Classic (Font Awesome)"});
+
+// v8.40
+Object.assign(window.PIPING_I18N.en.d, {"Anexo D. Comprobación final por componente": "Annex D. Final check per component", "Comprobación de las bombas": "Pump check", "Comprobación de tuberías, válvulas y accesorios": "Check of pipes, valves and fittings", "H a ese caudal (m c.l.)": "H at that flow (m l.c.)", "NPSH calculado (m)": "Calculated NPSH (m)", "Margen (m)": "Margin (m)", "Características": "Characteristics", "K / Cv / f": "K / Cv / f", "Pérdida (m c.l.)": "Loss (m l.c.)", "Pérdida (Pa)": "Loss (Pa)", "Cumple": "Complies", "Cumple · crítica": "Complies · critical"});
+Object.assign(window.PIPING_I18N.en.d, {"Relación de todos los componentes con sus características y los resultados del cálculo general de la red. «Cumple»: el elemento satisface todos los criterios comprobados (velocidad, presión, NPSH, rating, temperatura, uniones y materiales).": "List of all components with their characteristics and the results of the overall network calculation. «Complies»: the element meets all the checked criteria (velocity, pressure, NPSH, rating, temperature, joints and materials)."});
