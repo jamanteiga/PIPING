@@ -104,3 +104,12 @@ Object.assign(window.PIPING_I18N.ko.d, {"Centrar aquí el giro de la vista": "�
 
 // v8.33
 Object.assign(window.PIPING_I18N.ko.d, {"Vista 3D": "3D 보기", "Alternar vista normal / 3D": "일반 / 3D 보기 전환", "Trazar trayectoria guía": "가이드 경로 그리기", "Exportar configuración del CAD...": "CAD 설정 내보내기...", "Importar configuración del CAD...": "CAD 설정 가져오기...", "Borrar esta trayectoria guía": "이 가이드 경로 삭제", "Planta (desde arriba)": "평면 (위에서)", "Desde abajo": "아래에서", "Perfil desde estribor": "우현에서 측면", "Perfil desde babor": "좌현에서 측면", "Desde popa": "선미에서", "Alzado": "입면", "Perfil": "측면", "Encajar (T)": "맞추기 (T)", "Invertir:": "반전:", "giro": "비틀기", "cabeceo": "피치", "alabeo": "롤", "Importar configuración del CAD": "CAD 설정 가져오기", "Configuración del CAD importada.": "CAD 설정을 가져왔습니다.", "No hay una posición anterior de la vista 3D.": "이전 3D 보기 위치가 없습니다.", "El 3D es un espacio único: las hojas son del 2D (Alt+1 para volver al 2D).": "3D는 단일 공간입니다: 시트는 2D용입니다 (Alt+1로 2D 복귀)."});
+
+// v8.35
+Object.assign(window.PIPING_I18N.ko.d, {"Terminar trazado": "경로 완료", "Terminar y crear tubos y codos": "완료 후 배관과 엘보 생성", "Quitar el último punto": "마지막 점 제거", "Cancelar trazado": "경로 취소"});
+
+// v8.37
+Object.assign(window.PIPING_I18N.ko.d, {"Barras de herramientas": "도구 모음", "Nueva barra...": "새 도구 모음...", "Personalizar barras...": "도구 모음 사용자 지정...", "Barras de fábrica (restablecer todas)": "기본 도구 모음 (모두 초기화)", "Dibujo": "그리기", "Vista y zoom": "보기 및 확대/축소", "Personalizar...": "사용자 지정...", "Horizontal": "가로", "Vertical": "세로", "Plegar": "접기", "Desplegar": "펼치기", "Quitar este botón": "이 버튼 제거", "Restablecer (de fábrica)": "초기화 (기본값)", "Órdenes disponibles (de todos los menús)": "사용 가능한 명령 (모든 메뉴)", "Arrastra órdenes aquí": "여기로 명령을 끌어 놓으십시오"});
+
+// v8.38
+Object.assign(window.PIPING_I18N.ko.d, {"Iconos": "아이콘", "Baldosa con degradado": "그라데이션 타일", "Bicolor": "2색", "Línea técnica": "기술 선", "Clásico (Font Awesome)": "클래식 (Font Awesome)"});

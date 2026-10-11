@@ -192,7 +192,7 @@ function dibujoElemento(el, c, P) {
             const tr = `translate(${el.x}, ${mundoAScreenY(el.y)}) rotate(${el.rotation || 0}, 25, 25) scale(${el.scale || 1})${trEspejo(el)}`;
             let d;
             if (el.type === 'bomba') d = simboloBomba(c, P);
-            else if (el.type === 'tuberia') d = `<line x1="0" y1="20" x2="${(el.longitud || 3000) / 30}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/>`;
+            else if (el.type === 'tuberia') d = `<line x1="0" y1="20" x2="${largoPxTubo(el)}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/>`;
             else d = simboloSVG(el, c, P);
             return `<g transform="${tr}">${d}</g>`;
         }

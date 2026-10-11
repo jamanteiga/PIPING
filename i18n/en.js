@@ -104,3 +104,12 @@ Object.assign(window.PIPING_I18N.en.d, {"Centrar aquí el giro de la vista": "Se
 
 // v8.33
 Object.assign(window.PIPING_I18N.en.d, {"Vista 3D": "3D view", "Alternar vista normal / 3D": "Toggle normal / 3D view", "Trazar trayectoria guía": "Draw guide path", "Exportar configuración del CAD...": "Export CAD settings...", "Importar configuración del CAD...": "Import CAD settings...", "Borrar esta trayectoria guía": "Delete this guide path", "Planta (desde arriba)": "Plan (from above)", "Desde abajo": "From below", "Perfil desde estribor": "Profile from starboard", "Perfil desde babor": "Profile from port", "Desde popa": "From stern", "Alzado": "Elevation", "Perfil": "Side view", "Encajar (T)": "Fit (T)", "Invertir:": "Invert:", "giro": "twist", "cabeceo": "pitch", "alabeo": "roll", "Importar configuración del CAD": "Import CAD settings", "Configuración del CAD importada.": "CAD settings imported.", "No hay una posición anterior de la vista 3D.": "There is no previous 3D view position.", "El 3D es un espacio único: las hojas son del 2D (Alt+1 para volver al 2D).": "3D is a single space: sheets belong to 2D (Alt+1 to go back to 2D)."});
+
+// v8.35
+Object.assign(window.PIPING_I18N.en.d, {"Terminar trazado": "Finish path", "Terminar y crear tubos y codos": "Finish and create pipes and elbows", "Quitar el último punto": "Remove last point", "Cancelar trazado": "Cancel path"});
+
+// v8.37
+Object.assign(window.PIPING_I18N.en.d, {"Barras de herramientas": "Toolbars", "Nueva barra...": "New toolbar...", "Personalizar barras...": "Customize toolbars...", "Barras de fábrica (restablecer todas)": "Factory toolbars (reset all)", "Dibujo": "Drawing", "Vista y zoom": "View and zoom", "Personalizar...": "Customize...", "Horizontal": "Horizontal", "Vertical": "Vertical", "Plegar": "Collapse", "Desplegar": "Expand", "Quitar este botón": "Remove this button", "Restablecer (de fábrica)": "Reset (factory)", "Órdenes disponibles (de todos los menús)": "Available commands (from all menus)", "Arrastra órdenes aquí": "Drag commands here"});
+
+// v8.38
+Object.assign(window.PIPING_I18N.en.d, {"Iconos": "Icons", "Baldosa con degradado": "Gradient tile", "Bicolor": "Two-tone", "Línea técnica": "Technical line", "Clásico (Font Awesome)": "Classic (Font Awesome)"});

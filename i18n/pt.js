@@ -104,3 +104,12 @@ Object.assign(window.PIPING_I18N.pt.d, {"Centrar aquí el giro de la vista": "Ce
 
 // v8.33
 Object.assign(window.PIPING_I18N.pt.d, {"Vista 3D": "Vista 3D", "Alternar vista normal / 3D": "Alternar vista normal / 3D", "Trazar trayectoria guía": "Traçar trajetória-guia", "Exportar configuración del CAD...": "Exportar configuração do CAD...", "Importar configuración del CAD...": "Importar configuração do CAD...", "Borrar esta trayectoria guía": "Apagar esta trajetória-guia", "Planta (desde arriba)": "Planta (de cima)", "Desde abajo": "De baixo", "Perfil desde estribor": "Perfil a estibordo", "Perfil desde babor": "Perfil a bombordo", "Desde popa": "Da popa", "Alzado": "Alçado", "Perfil": "Perfil", "Encajar (T)": "Enquadrar (T)", "Invertir:": "Inverter:", "giro": "rotação", "cabeceo": "arfagem", "alabeo": "rolamento", "Importar configuración del CAD": "Importar configuração do CAD", "Configuración del CAD importada.": "Configuração do CAD importada.", "No hay una posición anterior de la vista 3D.": "Não há posição anterior da vista 3D.", "El 3D es un espacio único: las hojas son del 2D (Alt+1 para volver al 2D).": "O 3D é um espaço único: as folhas são do 2D (Alt+1 para voltar ao 2D)."});
+
+// v8.35
+Object.assign(window.PIPING_I18N.pt.d, {"Terminar trazado": "Terminar traçado", "Terminar y crear tubos y codos": "Terminar e criar tubos e curvas", "Quitar el último punto": "Remover o último ponto", "Cancelar trazado": "Cancelar traçado"});
+
+// v8.37
+Object.assign(window.PIPING_I18N.pt.d, {"Barras de herramientas": "Barras de ferramentas", "Nueva barra...": "Nova barra...", "Personalizar barras...": "Personalizar barras...", "Barras de fábrica (restablecer todas)": "Barras de fábrica (repor todas)", "Dibujo": "Desenho", "Vista y zoom": "Vista e zoom", "Personalizar...": "Personalizar...", "Horizontal": "Horizontal", "Vertical": "Vertical", "Plegar": "Recolher", "Desplegar": "Expandir", "Quitar este botón": "Remover este botão", "Restablecer (de fábrica)": "Repor (de fábrica)", "Órdenes disponibles (de todos los menús)": "Comandos disponíveis (de todos os menus)", "Arrastra órdenes aquí": "Arraste comandos para aqui"});
+
+// v8.38
+Object.assign(window.PIPING_I18N.pt.d, {"Iconos": "Ícones", "Baldosa con degradado": "Ladrilho com degradê", "Bicolor": "Bicolor", "Línea técnica": "Linha técnica", "Clásico (Font Awesome)": "Clássico (Font Awesome)"});

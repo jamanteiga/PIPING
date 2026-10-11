@@ -1605,9 +1605,12 @@
         // Puertos locales (sin rotar/trasladar) de cada símbolo, coherentes con su dibujo SVG.
         // Cada puerto lleva un "id" semántico estable (usado por el motor de cálculo), independiente
         // de la posición/rotación visual.
+        // v8.36 · largo dibujado de una tubería (px de hoja). Normalmente longitud/30; en las tuberías amoldadas a una trayectoria
+        // la longitud (mm) es la real —tramo menos lo que ocupan los codos/tes reales— y el dibujo llega a la boca del símbolo
+        const largoPxTubo = el => el.largoDibujo != null && +el.largoDibujo > 0 ? +el.largoDibujo : (el.longitud || 3000) / 30;
         function obtenerPuertosLocales(el) {
             if (el.type === 'tuberia') {
-                let largoPx = (el.longitud || 3000) / 30;
+                let largoPx = largoPxTubo(el);
                 return [{ x: 0, y: 20, id: 'a' }, { x: largoPx, y: 20, id: 'b' }];
             }
             if (el.type === 'bomba') {
@@ -2253,7 +2256,7 @@
             const s = el.scale || 1, rot = el.rotation || 0, r = rot * Math.PI / 180;
             const ctr = el.type === 'instrumento' ? aPantalla(el, 25, 17) : centroElemento(el);
             let largo, off;
-            if (el.type === 'tuberia') { largo = (el.longitud || 3000) / 30 * s; off = 5; }
+            if (el.type === 'tuberia') { largo = largoPxTubo(el) * s; off = 5; }
             else if (el.type === 'bomba') { largo = 44 * s; off = 16 * s + 3; }
             else if (esDeposito(el)) { largo = 36 * s; off = 21 * s + 3; }
             else if (el.type === 'instrumento') { largo = 70; off = 9 * s + 3; }
@@ -2323,6 +2326,7 @@
         }
         let ultimoClic = {};
         function renderizarVectorial() {
+            if (!renderizarVectorial._aj && elementosRed.some(e => e.ajusteGuia)) { renderizarVectorial._aj = true; try { if (ajustarLongitudesGuia()) invalidarResultados(); } catch (e) { console.warn(e); } finally { renderizarVectorial._aj = false; } }
             recolocarTablasHoja();
             const emptyState = document.getElementById("empty-state");
             svgCanvas.innerHTML = "";
@@ -2414,7 +2418,7 @@
                 } else if (el.type === 'bomba') {
                     d = simboloBomba(c, P) + marcaFallo(25, 6);
                 } else if (el.type === 'tuberia') {
-                    const largoPx = (el.longitud || 3000) / 30;
+                    const largoPx = largoPxTubo(el);
                     const ax = Math.max(largoPx / 2 + 6, 8);
                     d = `<line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/>
                          <polygon points="${ax - 6},12.5 ${ax},15.5 ${ax - 6},18.5" fill="${P.flecha}"/>` + marcaFallo(largoPx / 2 - 8, 13);
@@ -2993,6 +2997,7 @@
             if ((campo === 'qNom' && !(v > 0)) || ((campo === 'dpNom' || campo === 'qCons') && v < 0)) return false;
             // tubería que cambia de largo en el dibujo: lo que cuelga de su extremo se desplaza con él (sin huecos)
             const arrastre = obj.type === 'tuberia' && (campo === 'longitud' || campo === 'scale') && elementosRed.includes(obj) && +obj[campo] !== v ? prepararArrastreTuberia(obj) : null;
+            if (obj.type === 'tuberia' && campo === 'longitud' && +obj.longitud !== v) { delete obj.largoDibujo; delete obj.ajusteGuia; }   // v8.36 · longitud escrita a mano: manda sobre el ajuste de la trayectoria
             obj[campo] = v;
             if (arrastre) arrastrarTrasTuberia(obj, arrastre);
             if (campo === 'modoK' && v === 'manual') {
@@ -6107,27 +6112,35 @@
             if (!proyectoDefinido()) { pantallaInicio(); return; }
             if (vista3d) ponerVista('normal');
             cerrarMenus(); ocultarTooltip();
-            traza = { puntos: [], inicio: null, raton: null, guia: !!guia };
+            traza = { puntos: [], inicio: null, raton: null, guia: true, entrada: '' };   // v8.35 · el trazado siempre queda como trayectoria
             canvasContainer.style.cursor = 'crosshair';
-            if (guia) aviso('Trayectoria guía: clic en el inicio, clic en cada cambio de dirección; doble clic o Intro para terminar. Queda dibujada: los tubos, codos, tes y cruces que insertes sobre ella se amoldan · Esc cancela · Retroceso quita el último punto.');
-            else aviso('Trazar tubería: clic en el inicio (o en un puerto libre), clic en cada cambio de dirección; doble clic, Intro o clic en un puerto libre para terminar · Esc cancela · Retroceso quita el último punto · (Mayús+L: trayectoria guía).');
+            aviso('Trazado: clic en el inicio (o en un puerto libre) y clic en cada cambio de dirección; el tramo se inclina a 45°, 60° o 90° moviendo el ratón a un lado. Teclea la longitud en mm e Intro para fijarla. Botón derecho > Terminar trazado (o Intro / doble clic). Esc cancela · Retroceso quita el último punto.');
         }
         function cancelarTrazado() { traza = null; canvasContainer.style.cursor = 'default'; document.getElementById('traza')?.remove(); }
         const puntoHoja = e => { const r = marcoA3.getBoundingClientRect(); return { x: (e.clientX - r.left) / zoomScale, y: (e.clientY - r.top) / zoomScale }; };
         // Punto de trazado: puerto libre cercano, o tramo ortogonal desde el punto anterior (con rejilla)
+        // v8.35 · tramos a 0°, 45°, 60° o 90° respecto al tramo anterior (el primero: 0/30/45/60/90… respecto a la horizontal)
+        // y longitud tecleada (mm) mientras se traza
+        const DESVIOS_TRAZA = [0, 45, -45, 60, -60, 90, -90];
+        const ANG_ABS_TRAZA = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
+        const difAng = (a, b) => { const d = Math.abs((((a - b) % 360) + 540) % 360 - 180); return d; };
         function puntoTraza(p) {
-            const port = puertoLibreCercano(p.x, p.y, null);
-            if (port && port.d < 14) return { x: port.x, y: port.y, puerto: port };
-            const vg = verticeGuiaCercano(p.x, p.y, 10); if (vg) return { x: vg.x, y: vg.y };   // se engancha a los vértices de otras trayectorias guía
-            let q = { x: p.x, y: p.y };
-            if (opciones.rejilla) { const g = pasoRejillaPx(), fr = marcoInterior(); q = { x: fr.x0 + Math.round((q.x - fr.x0) / g) * g, y: fr.y1 - Math.round((fr.y1 - q.y) / g) * g }; }
-            const ult = traza.puntos[traza.puntos.length - 1];
-            if (ult) {
-                // primer tramo desde un puerto: en la dirección de ese puerto
-                if (traza.puntos.length === 1 && traza.inicio) { const d = (dirPuertoLocal(traza.inicio.el, traza.inicio.id) + (traza.inicio.el.rotation || 0)) % 180; if (d === 0) q.y = ult.y; else q.x = ult.x; }
-                else if (Math.abs(q.x - ult.x) >= Math.abs(q.y - ult.y)) q.y = ult.y; else q.x = ult.x;
+            const tecleado = traza && traza.entrada && +traza.entrada > 0;
+            if (!tecleado) {
+                const port = puertoLibreCercano(p.x, p.y, null);
+                if (port && port.d < 14) return { x: port.x, y: port.y, puerto: port };
+                const vg = verticeGuiaCercano(p.x, p.y, 10); if (vg) return { x: vg.x, y: vg.y };   // se engancha a los vértices de otras trayectorias guía
             }
-            return q;
+            const P = traza.puntos, ult = P[P.length - 1];
+            if (!ult) return { x: p.x, y: p.y };
+            const dx = p.x - ult.x, dy = p.y - ult.y, raw = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+            let ang;
+            if (P.length === 1 && traza.inicio) ang = ((dirPuertoLocal(traza.inicio.el, traza.inicio.id) + (traza.inicio.el.rotation || 0)) % 360 + 360) % 360;   // primer tramo desde un puerto: en su dirección
+            else if (P.length >= 2) { const a = P[P.length - 2], prev = (Math.atan2(ult.y - a.y, ult.x - a.x) * 180 / Math.PI + 360) % 360; ang = DESVIOS_TRAZA.map(d => (prev + d + 360) % 360).sort((x, y) => difAng(x, raw) - difAng(y, raw))[0]; }
+            else ang = ANG_ABS_TRAZA.slice().sort((x, y) => difAng(x, raw) - difAng(y, raw))[0];
+            const r = ang * Math.PI / 180, proy = dx * Math.cos(r) + dy * Math.sin(r);
+            const Lmm = tecleado ? +traza.entrada : Math.max(10, Math.round(Math.max(0, proy) * 30 / 10) * 10);
+            return { x: ult.x + Math.cos(r) * Lmm / 30, y: ult.y + Math.sin(r) * Lmm / 30, ang, L: Lmm };
         }
         function pintarTraza() {
             document.getElementById('traza')?.remove();
@@ -6137,6 +6150,9 @@
             let h = pts.length > 1 ? `<polyline points="${pts.map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ')}" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-dasharray="6,3"/>` : '';
             if (traza.guia && pts.length > 1) h = h.replace('stroke="#f59e0b"', 'stroke="#0891b2"');
             pts.forEach(p => { h += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.puerto ? 5 : 2.5}" fill="${p.puerto ? 'rgba(245,158,11,.3)' : '#f59e0b'}" stroke="#f59e0b"/>`; });
+            if (pts.length > 2) { const a = pts[pts.length - 3], b = pts[pts.length - 2], c = pts[pts.length - 1], d = Math.round(difAng(Math.atan2(c.y - b.y, c.x - b.x) * 180 / Math.PI, Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI));
+                if (d > 0.5) h += `<text x="${(b.x + 6).toFixed(1)}" y="${(b.y + 12).toFixed(1)}" font-family="sans-serif" font-size="8" font-weight="bold" fill="#0e7490" paint-order="stroke" stroke="#fff" stroke-width="3">${d}°</text>`; }
+            if (pts.length > 1 && traza.entrada) { const b = pts[pts.length - 1]; h += `<text x="${(b.x + 8).toFixed(1)}" y="${(b.y - 10).toFixed(1)}" font-family="sans-serif" font-size="10" font-weight="bold" fill="#fff" paint-order="stroke" stroke="#0e7490" stroke-width="5">L = ${traza.entrada}▌ mm</text>`; }
             if (pts.length > 1) { const a = pts[pts.length - 2], b = pts[pts.length - 1], L = Math.hypot(b.x - a.x, b.y - a.y) * 30;
                 h += `<text x="${((a.x + b.x) / 2 + 6).toFixed(1)}" y="${((a.y + b.y) / 2 - 6).toFixed(1)}" font-family="sans-serif" font-size="8" font-weight="bold" fill="#b45309" paint-order="stroke" stroke="#fff" stroke-width="3">L ≈ ${Math.round(L / 10) * 10} mm</text>`; }
             g.innerHTML = h; svgCanvas.appendChild(g);
@@ -6154,23 +6170,45 @@
                 else if (d !== 0 && Math.abs(q.x - ult.x) > 0.5) traza.puntos.push({ x: q.x, y: ult.y });
                 traza.puntos.push(q); finalizarTrazado(); return;
             }
-            traza.puntos.push(q); pintarTraza();
+            traza.puntos.push(q); traza.entrada = ''; pintarTraza();
         }, true);
-        canvasContainer.addEventListener('mousemove', e => { if (!traza) return; traza.raton = traza.puntos.length ? puntoTraza(puntoHoja(e)) : null; pintarTraza(); });
+        canvasContainer.addEventListener('mousemove', e => { if (!traza) return; traza.rm = puntoHoja(e); traza.raton = traza.puntos.length ? puntoTraza(traza.rm) : null; pintarTraza(); });
+        // botón derecho durante el trazado: menú «Terminar trazado» (se corta el menú del lienzo y los gestos)
+        const enLienzo = e => canvasContainer.contains(e.target);
+        window.addEventListener('mousedown', e => { if (traza && e.button === 2 && enLienzo(e)) { e.preventDefault(); e.stopPropagation(); } }, true);
+        window.addEventListener('mouseup', e => { if (traza && e.button === 2 && enLienzo(e)) { e.stopPropagation(); } }, true);
+        window.addEventListener('contextmenu', e => {
+            if (!traza || !enLienzo(e)) return; e.preventDefault(); e.stopPropagation();
+            const n = traza.puntos.length;
+            mostrarMenuContextual(e.clientX, e.clientY, [
+                { icono: 'fa-flag-checkered', texto: 'Terminar trazado', accion: () => finalizarTrazado() },
+                { icono: 'fa-pen-ruler', texto: 'Terminar y crear tubos y codos', accion: () => finalizarTrazado('tubos') },
+                'sep',
+                ...(n ? [{ icono: 'fa-delete-left', texto: 'Quitar el último punto', accion: () => { traza.puntos.pop(); if (!traza.puntos.length) traza.inicio = null; pintarTraza(); } }] : []),
+                { icono: 'fa-xmark', texto: 'Cancelar trazado', accion: () => { cancelarTrazado(); aviso('Trazado cancelado.'); } }]);
+        }, true);
         canvasContainer.addEventListener('dblclick', e => { if (!traza) return; e.preventDefault(); e.stopPropagation(); finalizarTrazado(); }, true);
         window.addEventListener('keydown', e => {
             if (!traza) return;
-            if (e.key === 'Escape') { e.preventDefault(); cancelarTrazado(); aviso('Trazado cancelado.'); }
-            else if (e.key === 'Enter') { e.preventDefault(); finalizarTrazado(); }
-            else if (e.key === 'Backspace') { e.preventDefault(); traza.puntos.pop(); if (!traza.puntos.length) traza.inicio = null; pintarTraza(); }
+            const rehacer = () => { traza.raton = traza.puntos.length && traza.rm ? puntoTraza(traza.rm) : null; pintarTraza(); };
+            if (/^[0-9]$/.test(e.key) || ((e.key === ',' || e.key === '.') && !String(traza.entrada || '').includes('.'))) {   // longitud tecleada (mm)
+                if (!traza.puntos.length) return; e.preventDefault(); e.stopPropagation();
+                traza.entrada = (String(traza.entrada || '') + (e.key === ',' ? '.' : e.key)).slice(0, 8); rehacer(); return; }
+            if (e.key === 'Escape') { e.preventDefault(); if (traza.entrada) { traza.entrada = ''; rehacer(); } else { cancelarTrazado(); aviso('Trazado cancelado.'); } }
+            else if (e.key === 'Enter') { e.preventDefault(); if (traza.entrada && traza.raton) { traza.puntos.push(traza.raton); traza.entrada = ''; rehacer(); } else finalizarTrazado(); }
+            else if (e.key === 'Backspace') { e.preventDefault(); if (traza.entrada) traza.entrada = traza.entrada.slice(0, -1); else { traza.puntos.pop(); if (!traza.puntos.length) traza.inicio = null; } rehacer(); }
         }, true);
         function colocarPorPuerto(el, pid, destino) { const p = obtenerPuertosConexion(el).find(q => q.id === pid); el.x += destino.x - p.x; el.y -= destino.y - p.y; }
-        function finalizarTrazado() {
+        function finalizarTrazado(modo) {
             if (!traza) return;
-            // quitar puntos repetidos y colineales
+            if (traza.raton && traza.entrada) { traza.puntos.push(traza.raton); traza.entrada = ''; }
+            // quitar puntos repetidos y colineales (cualquier dirección)
             let P = traza.puntos.filter((p, i, a) => !i || Math.hypot(p.x - a[i - 1].x, p.y - a[i - 1].y) > 0.5);
+            P = P.filter((p, i, a) => i === 0 || i === a.length - 1 || Math.abs((p.x - a[i - 1].x) * (a[i + 1].y - p.y) - (p.y - a[i - 1].y) * (a[i + 1].x - p.x)) > 0.5 * Math.hypot(a[i + 1].x - p.x, a[i + 1].y - p.y) || ((p.x - a[i - 1].x) * (a[i + 1].x - p.x) + (p.y - a[i - 1].y) * (a[i + 1].y - p.y)) < 0);
             P = P.filter((p, i, a) => i === 0 || i === a.length - 1 || !((Math.abs(a[i - 1].x - p.x) < 0.5 && Math.abs(p.x - a[i + 1].x) < 0.5) || (Math.abs(a[i - 1].y - p.y) < 0.5 && Math.abs(p.y - a[i + 1].y) < 0.5)));
-            const inicio = traza.inicio, esGuia = traza.guia;
+            const inicio = traza.inicio, orto = P.slice(1).every((b, i) => Math.abs(b.x - P[i].x) < 0.5 || Math.abs(b.y - P[i].y) < 0.5);
+            let esGuia = modo !== 'tubos';
+            if (!esGuia && !orto) { esGuia = true; aviso('La conversión automática a tubos y codos solo admite tramos a 90°: el trazado queda como trayectoria; arrastra sobre ella tubos y codos.', 'error'); }
             cancelarTrazado();
             if (P.length < 2) { aviso('Trazado sin tramos: haz al menos dos clics.', 'error'); return; }
             if (esGuia) {   // v8.33 · trayectoria guía: queda dibujada; no crea elementos
@@ -6233,9 +6271,9 @@
         const segmentosGuia = () => guias.flatMap(g => g.p.slice(1).map((B, i) => { const A = g.p[i], len = Math.hypot(B.x - A.x, B.y - A.y) || 1; return { g, i, A, B, len, u: { x: (B.x - A.x) / len, y: (B.y - A.y) / len } }; }));
         const proySeg = (sg, x, y) => ({ s: (x - sg.A.x) * sg.u.x + (y - sg.A.y) * sg.u.y, d: Math.abs((x - sg.A.x) * sg.u.y - (y - sg.A.y) * sg.u.x) });
         function verticeGuiaCercano(x, y, tol) { let m = null; guias.forEach(g => g.p.forEach(p => { const d = Math.hypot(p.x - x, p.y - y); if (d < tol && (!m || d < m.d)) m = { x: p.x, y: p.y, d }; })); return m; }
-        const angPantalla = (dx, dy) => ((Math.round(Math.atan2(dy, dx) * 180 / Math.PI / 90) * 90) % 360 + 360) % 360;
+        const angPantalla = (dx, dy) => +(((Math.atan2(dy, dx) * 180 / Math.PI) % 360 + 360) % 360).toFixed(4);   // v8.35 · ángulo exacto (tramos a 45°, 60°…)
         function direccionesEnVertice(V) {
-            const dirs = [], add = (ang, aguasArriba) => { if (!dirs.some(d => d.ang === ang)) dirs.push({ ang, aguasArriba }); };
+            const dirs = [], add = (ang, aguasArriba) => { if (!dirs.some(d => difAng(d.ang, ang) < 1)) dirs.push({ ang, aguasArriba }); };
             segmentosGuia().forEach(sg => {
                 if (Math.hypot(sg.A.x - V.x, sg.A.y - V.y) < 0.6) add(angPantalla(sg.u.x, sg.u.y), false);
                 else if (Math.hypot(sg.B.x - V.x, sg.B.y - V.y) < 0.6) add(angPantalla(-sg.u.x, -sg.u.y), true);
@@ -6244,14 +6282,18 @@
             return dirs;
         }
         const nodoAccesorio = el => el.subtype === 'codo90' ? aPantalla(el, 15, 15) : centroElemento(el);
-        const ACC_GUIA = ['codo90', 'tee', 'cruce', 'injerto'];
+        const ACC_GUIA = ['codo90', 'codo60', 'codo45', 'tee', 'cruce', 'injerto'];
+        let avisoGuia = null;   // aviso que se da cuando el elemento ya está en la red (longitudes reales calculadas)
         // puertos de otros elementos que caen sobre la recta del tramo
         function paradasEnSegmento(sg, excluir) { const out = []; elementosRed.forEach(e => { if (esAnotacion(e) || e.id === excluir) return; obtenerPuertosConexion(e).forEach(p => { const q = proySeg(sg, p.x, p.y); if (q.d < 1.5 && q.s > -1 && q.s < sg.len + 1) out.push({ s: q.s, el: e, id: p.id }); }); }); return out; }
         function colocarEnGuia(el, cx, cy) {
             if (!guias.length || !(el.type === 'tuberia' || (el.type === 'accesorio' && ACC_GUIA.includes(el.subtype)))) return false;
             const i = elementosRed.indexOf(el); if (i >= 0) elementosRed.splice(i, 1);   // el propio elemento (aún en su sitio provisional) no cuenta
-            try { return el.type === 'tuberia' ? colocarTuboEnGuia(el, cx, cy) : colocarAccesorioEnGuia(el, cx, cy); }
+            let r = false; avisoGuia = null;
+            try { r = el.type === 'tuberia' ? colocarTuboEnGuia(el, cx, cy) : colocarAccesorioEnGuia(el, cx, cy); }
             finally { if (i >= 0) elementosRed.splice(i, 0, el); }
+            if (r) { ajustarLongitudesGuia(); if (avisoGuia) avisoGuia(); } avisoGuia = null;
+            return r;
         }
         function colocarTuboEnGuia(el, cx, cy) {
             if (tuberiaBajoPunto(cx, cy)) return false;
@@ -6263,20 +6305,29 @@
             const s0 = Math.max(0, ...par.filter(p => p.s <= sd + 0.5).map(p => p.s)), sFin = Math.min(sg.len, ...par.filter(p => p.s > s0 + 0.5).map(p => p.s));
             const disp = (sFin - s0) * 30; if (disp < 10) return false;
             el.rotation = angPantalla(sg.u.x, sg.u.y);
-            const L0 = +el.longitud || 3000; el.longitud = Math.max(10, Math.min(L0, Math.floor(disp + 1e-6)));
+            el.longitud = Math.max(10, Math.round(disp));   // v8.35 · el tubo toma la longitud del tramo (o del hueco que queda en él)
+            el.largoDibujo = +(Math.max(10, disp) / 30).toFixed(4); el.ajusteGuia = true;   // v8.36 · luego se descuenta lo que ocupan los codos/tes reales de sus extremos
             colocarPorPuerto(el, 'a', { x: sg.A.x + sg.u.x * s0, y: sg.A.y + sg.u.y * s0 });
-            aviso(`Tubería sobre la trayectoria guía${el.longitud < L0 ? ` (${el.longitud} mm: lo que queda del tramo)` : ''}. Doble clic en su extremo libre para que ocupe todo el tramo recto.`);
+            avisoGuia = () => aviso(`Tubería sobre la trayectoria: ${el.longitud} mm (tramo${s0 > 0.5 || sFin < sg.len - 0.5 ? ' que queda libre' : ''}${Math.abs(el.longitud - Math.round(largoPxTubo(el) * 30)) > 0.5 ? ', descontado lo que ocupan los accesorios reales' : ''}). Material, diámetro, serie y rating en su ventana.`);
             return true;
         }
         function colocarAccesorioEnGuia(el, cx, cy) {
             const v = verticeGuiaCercano(cx, cy, 18); if (!v) return false;
             const dirs = direccionesEnVertice(v); if (dirs.length < 2) return false;
+            // v8.35 · un codo soltado en un cambio de dirección pasa a ser el del ángulo de ese cambio (90°, 60° o 45°)
+            if (/^codo(45|60|90)$/.test(el.subtype)) {
+                if (dirs.length !== 2) return false;
+                const desvio = 180 - difAng(dirs[0].ang, dirs[1].ang), st = [[90, 'codo90'], [60, 'codo60'], [45, 'codo45']].find(([a]) => Math.abs(a - desvio) < 2.5);
+                if (!st) { aviso(`Cambio de dirección de ${Math.round(desvio)}°: no hay codo de ese ángulo (45°, 60° o 90°).`, 'error'); return false; }
+                if (st[1] !== el.subtype) { const T0 = TIPOS[st[1]]; el.subtype = st[1]; el.name = T0.nombre; if (el.craneTipo) delete el.craneTipo; }
+            }
+            el.rotation = 0; const ps0 = (() => { const N = nodoAccesorio(el); return obtenerPuertosConexion(el).map(p => ({ id: p.id, ang: angPantalla(p.x - N.x, p.y - N.y) })); })();
             let mejor = null;
-            [0, 90, 180, 270].forEach(rot => {
-                el.rotation = rot; const N = nodoAccesorio(el), ps = obtenerPuertosConexion(el).map(p => ({ id: p.id, ang: angPantalla(p.x - N.x, p.y - N.y) }));
-                const ok = dirs.filter(d => ps.some(p => p.ang === d.ang)).length, ent = dirs.find(d => d.aguasArriba), sc = ok + (ent && ps.some(p => p.id === 'a' && p.ang === ent.ang) ? 0.5 : 0);
-                if (!mejor || sc > mejor.sc) mejor = { rot, sc, ok };
-            });
+            ps0.forEach(p0 => dirs.forEach(d0 => {   // giro que lleva la boca p0 a la dirección d0; se puntúa cuántas direcciones quedan cubiertas
+                const rot = ((d0.ang - p0.ang) % 360 + 360) % 360, ps = ps0.map(p => ({ id: p.id, ang: (p.ang + rot) % 360 }));
+                const ok = dirs.filter(d => ps.some(p => difAng(p.ang, d.ang) < 1.5)).length, ent = dirs.find(d => d.aguasArriba), sc = ok + (ent && ps.some(p => p.id === 'a' && difAng(p.ang, ent.ang) < 1.5) ? 0.5 : 0);
+                if (!mejor || sc > mejor.sc) mejor = { rot: +rot.toFixed(4), sc, ok };
+            }));
             if (!mejor || mejor.ok < 2) { el.rotation = 0; return false; }
             el.rotation = mejor.rot; const N = nodoAccesorio(el); el.x += v.x - N.x; el.y -= v.y - N.y;
             const cambios = [];
@@ -6288,12 +6339,31 @@
                         if (dE < 2 && dO < 2 && sE > -2 && sE < r + 25 && sO > sE && (!m || sE < m.sE)) m = { t, k, E, O, sE }; }); });   // hasta ≈750 mm: se acorta o se completa
                 if (!m || Math.abs(m.sE - r) < 0.05) return;
                 if (vecinosDe(m.t).some(w => w.puertoEl === m.k && w.otro !== el && (m.sE > 1 || w.otro.type !== 'tuberia'))) return;   // ese extremo ya está unido a otra cosa (salvo otro tubo en el mismo vértice)
-                const L0 = m.t.longitud, L = Math.max(10, Math.round(Math.hypot(Q.x - m.O.x, Q.y - m.O.y) * 30));
-                if (m.k === 'b') m.t.longitud = L; else { const B = { x: m.O.x, y: m.O.y }; m.t.longitud = L; colocarPorPuerto(m.t, 'b', B); }
-                cambios.push(`${tagDe(m.t)} ${L0} → ${L} mm`);
+                const L0 = m.t.longitud, Lpx = Math.max(10 / 30, Math.hypot(Q.x - m.O.x, Q.y - m.O.y));
+                const B = { x: m.O.x, y: m.O.y }; m.t.largoDibujo = +Lpx.toFixed(4); m.t.longitud = Math.round(Lpx * 30); m.t.ajusteGuia = true; if (m.k === 'a') colocarPorPuerto(m.t, 'b', B);
+                cambios.push([m.t, L0]);
             });
-            aviso(`${nombreTipo(el)} en el vértice de la trayectoria guía${cambios.length ? ' · ' + cambios.join(' · ') : ''}.`, 'ok');
+            el.enGuia = true;
+            avisoGuia = () => { const tk = Math.round(medidas3D(el).def || 0); aviso(`${nombreTipo(el)} en el vértice de la trayectoria (ocupa ${tk} mm por boca, ${el.dn || ''})${cambios.length ? ' · ' + cambios.map(([t, L0]) => `${tagDe(t)} ${L0} → ${t.longitud} mm`).join(' · ') : ''}. Si cambias el DN, las longitudes se recalculan solas.`, 'ok'); };
             return true;
+        }
+        // v8.36 · longitud real de las tuberías amoldadas: lo dibujado (hasta la boca del símbolo) + lo que el símbolo ocupa en el dibujo
+        // − lo que ocupa el accesorio real (centro–extremo de medidas3D: codos LR 1,5·D, 45° 0,625·D, 60° 0,866·D, tes ASME B16.9)
+        function ajustarLongitudesGuia() {
+            let n = 0;
+            elementosRed.forEach(t => {
+                if (t.type !== 'tuberia' || !t.ajusteGuia) return;
+                const Ld = largoPxTubo(t); let corr = 0;
+                vecinosDe(t).forEach(w => { const f = w.otro; if (f.type !== 'accesorio' || !ACC_GUIA.includes(f.subtype)) return;
+                    const N = nodoAccesorio(f), Q = obtenerPuertosConexion(f).find(p => p.id === w.puertoOtro); if (!Q) return;
+                    const md = medidas3D(f), q = w.puertoOtro, rr = q === 'c' && md.c != null ? md.c : md[q] != null ? md[q] : md.def;
+                    corr += Math.hypot(Q.x - N.x, Q.y - N.y) * 30 - rr; });
+                const real = Math.max(10, Math.round(Ld * 30 + corr));
+                if (Math.abs(corr) < 0.5) { if (t.largoDibujo != null && Math.abs(Ld * 30 - Math.round(Ld * 30)) < 0.05) { delete t.largoDibujo; } if (t.longitud !== Math.round(Ld * 30)) { t.longitud = Math.round(Ld * 30); n++; } return; }
+                if (t.largoDibujo == null) t.largoDibujo = +Ld.toFixed(4);
+                if (t.longitud !== real) { t.longitud = real; n++; }
+            });
+            return n;
         }
         // doble clic en el extremo libre de un tubo que está sobre una trayectoria: ocupa todo el tramo recto
         function extenderTuboEnGuia(px, py) {
@@ -6308,10 +6378,10 @@
             const par = paradasEnSegmento(sg, t.id).map(p => p.s).filter(x => sentido > 0 ? x > sE + 0.5 : x < sE - 0.5);
             const lim = sentido > 0 ? Math.min(sg.len, ...par) : Math.max(0, ...par);
             const L = Math.round(Math.abs(lim - sO) * 30); if (L - t.longitud < 5) { aviso(`${tagDe(t)} ya ocupa el tramo recto de la trayectoria.`); return true; }
-            guardarEstado(); const L0 = t.longitud;
-            if (hit.k === 'b') t.longitud = L; else { const B = { x: O.x, y: O.y }; t.longitud = L; colocarPorPuerto(t, 'b', B); }
-            invalidarResultados(); renderizarVectorial(); seleccionarElemento(t.id);
-            aviso(`${tagDe(t)}: ${L0} → ${L} mm (ocupa el tramo recto de la trayectoria).`, 'ok'); return true;
+            guardarEstado(); const L0 = t.longitud, B = { x: O.x, y: O.y };
+            t.largoDibujo = +(Math.abs(lim - sO)).toFixed(4); t.longitud = L; t.ajusteGuia = true; if (hit.k === 'a') colocarPorPuerto(t, 'b', B);
+            ajustarLongitudesGuia(); invalidarResultados(); renderizarVectorial(); seleccionarElemento(t.id);
+            aviso(`${tagDe(t)}: ${L0} → ${t.longitud} mm (ocupa el tramo recto de la trayectoria).`, 'ok'); return true;
         }
         // se detecta en el segundo mousedown (e.detail = 2): el asa del extremo se redibuja entre los dos clics y el navegador no da dblclick
         let extendidoGuia = 0;
@@ -6323,6 +6393,7 @@
             if (!guias.length || vistaIso) return '';
             return '<style>@media print{#capa-guias{display:none}}</style>' + guias.map(g => `<polyline points="${g.p.map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ')}" fill="none" stroke="#0891b2" stroke-width="1" stroke-dasharray="8,3,2,3" opacity=".8"/>`
                 + g.p.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2" fill="#fff" stroke="#0891b2" stroke-width=".8"/>`).join('')
+                + g.p.slice(1, -1).map((b, i) => { const a = g.p[i], c = g.p[i + 2], d = Math.round(difAng(Math.atan2(c.y - b.y, c.x - b.x) * 180 / Math.PI, Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI)); return d ? `<text x="${(b.x + 4).toFixed(1)}" y="${(b.y + 9).toFixed(1)}" font-family="sans-serif" font-size="5.5" fill="#0e7490" paint-order="stroke" stroke="#fff" stroke-width="2">${d}°</text>` : ''; }).join('')
                 + g.p.slice(1).map((b, i) => { const a = g.p[i], L = Math.round(Math.hypot(b.x - a.x, b.y - a.y) * 30 / 10) * 10, hz = Math.abs(b.x - a.x) > Math.abs(b.y - a.y);
                     return `<text x="${((a.x + b.x) / 2 + (hz ? 0 : 4)).toFixed(1)}" y="${((a.y + b.y) / 2 + (hz ? -4 : 2)).toFixed(1)}" font-family="sans-serif" font-size="6" fill="#0e7490" text-anchor="${hz ? 'middle' : 'start'}" paint-order="stroke" stroke="#fff" stroke-width="2">${L} mm</text>`; }).join('')).join('');
         }
@@ -6356,7 +6427,8 @@
             t2.id = 'sym_' + Date.now() + '_p'; t2.num = null; t2.codigo = null; delete t2.inicioLinea; delete t2.etq; delete t2.estado;
             const za = +t.cotaA || 0, zb = +t.cotaB || 0;
             t.longitud = Math.max(10, Math.round(l1 * 30)); t.cotaB = +(za + (zb - za) * l1 / len).toFixed(3);
-            t2.longitud = Math.max(10, Math.round(l2 * 30)); t2.cotaA = t.cotaB;   // el componente del corte no tiene altura: los dos tramos comparten cota
+            t2.longitud = Math.max(10, Math.round(l2 * 30)); t2.cotaA = t.cotaB;
+            if (t.largoDibujo != null) { t.largoDibujo = +l1.toFixed(4); t2.largoDibujo = +l2.toFixed(4); }   // v8.36 · tuberías de trayectoria: cada trozo conserva su dibujo   // el componente del corte no tiene altura: los dos tramos comparten cota
             el.rotation = t.rotation || 0;
             colocarPorPuerto(el, pa.id, { x: A.x + ux * l1, y: A.y + uy * l1 });
             el.cota = t.cotaB;
@@ -6774,7 +6846,7 @@
         let CONF_ATAJOS = leerConfAtajos();
         function guardarConfAtajos() { try { localStorage.setItem(claveAtajosUsuario(), JSON.stringify(CONF_ATAJOS)); } catch (e) { } }
         // al iniciar o cerrar sesión: se cargan los atajos de ese usuario
-        function recargarAtajosUsuario() { CONF_ATAJOS = leerConfAtajos(); try { if (typeof pintarBarraRapida === 'function') pintarBarraRapida(); } catch (e) { } }
+        function recargarAtajosUsuario() { CONF_ATAJOS = leerConfAtajos(); try { if (typeof pintarBarraRapida === 'function') pintarBarraRapida(); if (typeof pintarBarrasFlotantes === 'function') pintarBarrasFlotantes(); if (typeof ponerEstiloIconos === 'function' && document.body) ponerEstiloIconos(); } catch (e) { } }
         setTimeout(recargarAtajosUsuario, 0);
         const libreDeCampo = () => { const a = document.activeElement; return !(a && (['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName) || a.isContentEditable)); };
         const sinVentanas = () => !document.querySelector('[id^="modal-"][style*="flex"]') && document.getElementById('paleta').style.display !== 'flex' && !menuAbierto && !(typeof traza !== 'undefined' && traza);
@@ -6797,6 +6869,12 @@
             { id: 'Selección › Girar 45° antihorario', teclas: ['Mayús+R'], cuando: () => haySeleccion(), accion: () => girar45(-45) },
             { id: 'Insertar › Trazar tubería (tramos y codos)', teclas: ['L'], accion: () => { if (vista3d) ponerVista('normal'); iniciarTrazado(); } },
             { id: 'Insertar › Trazar trayectoria guía', teclas: ['Mayús+L'], accion: () => { if (vista3d) ponerVista('normal'); iniciarTrazado(true); } },
+            { id: '3D › Planta', teclas: [], cuando: () => vista3d, accion: () => vista3dCamara('planta') },
+            { id: '3D › Isométrica', teclas: [], cuando: () => vista3d, accion: () => vista3dCamara('iso') },
+            { id: '3D › Encajar', teclas: [], cuando: () => vista3d, accion: () => encajar3D() },
+            { id: '3D › Vista anterior', teclas: [], cuando: () => vista3d, accion: () => volverAntesRaton3D() },
+            { id: '3D › Zoom ventana', teclas: [], cuando: () => vista3d, accion: () => zoomVentana3D(true) },
+            { id: '3D › Ratón 3D', teclas: [], cuando: () => vista3d, accion: () => conectarSpaceMouse(true) },
             { id: 'Vista › Alternar vista normal / 3D', teclas: ['Alt+1'], campo: true, accion: () => ponerVista(vista3d ? 'normal' : '3d') },
             { id: 'Hojas › Añadir hoja', teclas: ['Alt+A'], campo: true, accion: () => anadirHoja() },
             { id: 'Zoom › Ajustar', teclas: ['F'], accion: () => { if (vista3d && V3) volverAntesRaton3D(); else ajustarVistaVentana(); } },
@@ -6913,7 +6991,7 @@
             if (cfg.vista3d && typeof cfg.vista3d === 'object') guardarCfg3DLocal(cfg.vista3d);
             if (cfg.opciones && typeof cfg.opciones === 'object') OPC_CONFIG_CAD.forEach(k => { if (cfg.opciones[k] !== undefined) opciones[k] = cfg.opciones[k]; });
             if (Array.isArray(cfg.capasPlantilla)) try { localStorage.setItem(CLAVE_CAPAS, JSON.stringify(cfg.capasPlantilla)); } catch (e) { }
-            try { if (!FORMATOS[opciones.formato]) opciones.formato = 'A3'; if (!FONDOS[opciones.fondo]) opciones.fondo = 'papel'; aplicarFormato(); aplicarFondo(); pintarBarraRapida(); renderizarVectorial(); if (vista3d && V3) construirEscena3D(); } catch (e) { console.warn(e); }
+            try { if (!FORMATOS[opciones.formato]) opciones.formato = 'A3'; if (!FONDOS[opciones.fondo]) opciones.fondo = 'papel'; aplicarFormato(); aplicarFondo(); pintarBarraRapida(); pintarBarrasFlotantes(); ponerEstiloIconos(); renderizarVectorial(); if (vista3d && V3) construirEscena3D(); } catch (e) { console.warn(e); }
             marcarCambios(true);
             if (cfg.idioma && typeof idioma !== 'undefined' && cfg.idioma !== idioma && IDIOMAS[cfg.idioma]) cambiarIdioma(cfg.idioma);
             aviso('Configuración del CAD importada.', 'ok');
@@ -7556,6 +7634,176 @@
         function editorBarraRapida(...a) { return PARTES_OK.herr ? editorBarraRapida__p.apply(this, a) : cargarParte('herr').then(() => editorBarraRapida__p.apply(this, a)); }
 
         // ==================================================================================
+        // v8.37 · BARRAS DE HERRAMIENTAS FLOTANTES (CAD > Barras de herramientas). Se arrastran por la cabecera, se pegan a los
+        // bordes, se pliegan con doble clic y se cierran con ×. Botón derecho: personalizar, orientación, restablecer, ocultar.
+        // Su estado (visibles, posición, orientación, órdenes y barras propias) es de cada usuario (CONF_ATAJOS.barras) y viaja
+        // con CAD > Exportar / Importar configuración del CAD.
+        // ==================================================================================
+        const BARRAS_FABRICA = [
+            { id: 'dibujo', nombre: 'Dibujo', x: 236, y: 150, items: ['Insertar › Trazar tubería (tramos y codos)', 'Insertar › Trazar trayectoria guía', 'Insertar › Nota de texto', 'Insertar › Banderola de línea (tubería seleccionada)', 'Insertar › Banderolas en todas las líneas', 'Insertar › Comentario de revisión'] },
+            { id: 'edicion', nombre: 'Edición', x: 236, y: 196, items: ['Edición › Deshacer', 'Edición › Rehacer', 'Edición › Copiar', 'Edición › Cortar', 'Edición › Pegar', 'Selección › Girar 45° antihorario', 'Selección › Girar 45° horario', 'Edición › Simetría izquierda ↔ derecha', 'Edición › Eliminar selección'] },
+            { id: 'vista', nombre: 'Vista y zoom', x: 236, y: 242, items: ['Vista › Vista normal (P&ID)', 'Vista › Vista isométrica (consulta)', 'Vista › Vista 3D', 'Zoom › Ajustar', 'Zoom › Todo', 'Zoom › Ventana'] },
+            { id: 'calculo', nombre: 'Cálculo', x: 236, y: 288, items: ['Cálculo › Calcular red...', 'Cálculo › Calcular proyecto completo (todas las hojas)', 'Cálculo › Redimensionar (componentes que cumplen y que no)...', 'Cálculo › Perfil hidráulico de la ruta crítica...', 'Cálculo › Curva de la bomba y de la red...', 'Herramientas › Preseleccionar bomba (base de datos)...'] },
+            { id: 'b3d', nombre: '3D', solo3d: true, x: 236, y: 200, items: ['3D › Planta', '3D › Isométrica', '3D › Encajar', '3D › Vista anterior', '3D › Zoom ventana', '3D › Ratón 3D'] }
+        ];
+        // icono de cada orden en las barras (las de los menús con casilla de estado llevan uno propio)
+        const ICONO_BARRA = { 'Vista › Vista normal (P&ID)': 'fa-diagram-project', 'Vista › Vista isométrica (consulta)': 'fa-cube', 'Vista › Vista 3D': 'fa-cubes', 'Selección › Girar 45° horario': 'fa-rotate-right', 'Selección › Girar 45° antihorario': 'fa-rotate-left',
+            '3D › Planta': 'fa-border-all', '3D › Isométrica': 'fa-cube', '3D › Encajar': 'fa-maximize', '3D › Vista anterior': 'fa-clock-rotate-left', '3D › Zoom ventana': 'fa-vector-square', '3D › Ratón 3D': 'fa-computer-mouse' };
+        const iconoOrden = (id, c) => ICONO_BARRA[id] || (c && c.icono && !/^fa-(check|square|keyboard)$/.test(c.icono) ? c.icono : 'fa-angle-right');
+        function confBarras() {
+            if (!CONF_ATAJOS.barras || typeof CONF_ATAJOS.barras !== 'object') CONF_ATAJOS.barras = {};
+            const cfg = CONF_ATAJOS.barras;
+            const lista = BARRAS_FABRICA.map(f => Object.assign({ fabrica: true }, f, { items: f.items.slice() }, cfg[f.id] || {}));
+            Object.entries(cfg).forEach(([id, b]) => { if (b && b.propia) lista.push(Object.assign({ id, nombre: 'Barra', items: [], x: 300, y: 330 }, b)); });
+            return lista;
+        }
+        function guardarBarra(id, cambios) { confBarras(); CONF_ATAJOS.barras[id] = Object.assign(CONF_ATAJOS.barras[id] || {}, cambios); guardarConfAtajos(); pintarBarrasFlotantes(); }
+        function pintarBarrasFlotantes() {
+            document.querySelectorAll('.barra-flot').forEach(x => x.remove());
+            let cmds = null;
+            confBarras().forEach(b => {
+                if (!b.visible || (b.solo3d && !vista3d)) return;
+                cmds = cmds || listaComandos();
+                const d = document.createElement('div'); d.className = 'barra-flot'; d.dataset.barra = b.id;
+                const vert = !!b.vertical, W = window.innerWidth, H = window.innerHeight;
+                d.style.cssText = `position:fixed;z-index:30;left:${Math.max(0, Math.min(W - 60, +b.x || 0))}px;top:${Math.max(0, Math.min(H - 30, +b.y || 0))}px;display:flex;flex-direction:${vert ? 'column' : 'row'};align-items:stretch;background:rgba(255,255,255,.97);border:1px solid #cbd5e1;border-radius:7px;box-shadow:0 4px 14px rgba(15,23,42,.18);font:11px sans-serif;user-select:none`;
+                const cab = `<div class="bf-cab" title="${esc(trad(b.nombre))} · arrastra para mover · doble clic: plegar" style="display:flex;${vert ? 'flex-direction:row;' : 'flex-direction:column;'}align-items:center;justify-content:space-between;gap:2px;padding:3px;background:#1e293b;color:#e2e8f0;cursor:move;border-radius:${vert ? '6px 6px 0 0' : '6px 0 0 6px'}">
+                    <span style="${vert ? '' : 'writing-mode:vertical-rl;transform:rotate(180deg);'}font-weight:600;font-size:10px;white-space:nowrap;padding:2px">${esc(trad(b.nombre))}</span>
+                    <button class="bf-x" title="Ocultar" style="color:#94a3b8;line-height:1;padding:0 3px">×</button></div>`;
+                const botones = b.plegada ? '' : (b.items || []).map(id => { const c = cmds.find(x => x.id === id); if (!c) return ''; const t = teclasDe(id);
+                    return `<button type="button" data-orden="${esc(id)}" title="${esc(trad(c.texto))}${t.length ? ' (' + t.join(' / ') + ')' : ''}" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:5px;color:#334155" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background=''"><i class="fa-solid ${iconoOrden(id, c)}"></i></button>`; }).join('');
+                d.innerHTML = cab + `<div class="bf-cuerpo" style="display:flex;flex-direction:${vert ? 'column' : 'row'};flex-wrap:wrap;gap:1px;padding:3px">${botones || (b.plegada ? '' : '<span style="color:#94a3b8;padding:6px">Arrastra órdenes aquí</span>')}</div>`;
+                d.querySelector('.bf-cuerpo').addEventListener('click', e => { const bt = e.target.closest('[data-orden]'); if (bt) { cerrarMenus(); if (!ejecutarComando(bt.dataset.orden)) aviso('Esa orden no está disponible ahora.'); } });
+                d.querySelector('.bf-x').addEventListener('click', e => { e.stopPropagation(); guardarBarra(b.id, { visible: false }); });
+                const hd = d.querySelector('.bf-cab');
+                hd.addEventListener('mousedown', e => {
+                    if (e.button !== 0 || e.target.closest('.bf-x')) return; e.preventDefault();
+                    if (e.detail === 2) { guardarBarra(b.id, { plegada: !b.plegada }); return; }   // doble clic: plegar / desplegar
+                    const r = d.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top; let movida = false;
+                    const mv = ev => { if (Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) > 3) movida = true; d.style.left = Math.max(0, Math.min(window.innerWidth - r.width, ev.clientX - ox)) + 'px'; d.style.top = Math.max(0, Math.min(window.innerHeight - r.height, ev.clientY - oy)) + 'px'; };
+                    const up = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); if (!movida) return;
+                        const r2 = d.getBoundingClientRect(), Wv = window.innerWidth, Hv = window.innerHeight, ima = 24;   // se pega a los bordes
+                        let x = r2.left, y = r2.top; if (x < ima) x = 0; if (Wv - r2.right < ima) x = Wv - r2.width; if (y < ima) y = 0; if (Hv - r2.bottom < ima) y = Hv - r2.height;
+                        guardarBarra(b.id, { x: Math.round(x), y: Math.round(y) }); };
+                    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
+                });
+                d.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); const bt = e.target.closest('[data-orden]');
+                    mostrarMenuContextual(e.clientX, e.clientY, [
+                        { icono: 'fa-sliders', texto: 'Personalizar...', accion: () => abrirEditorBarras(b.id) },
+                        { icono: b.vertical ? 'fa-grip-lines' : 'fa-grip-lines-vertical', texto: b.vertical ? 'Horizontal' : 'Vertical', accion: () => guardarBarra(b.id, { vertical: !b.vertical }) },
+                        { icono: b.plegada ? 'fa-angles-down' : 'fa-angles-up', texto: b.plegada ? 'Desplegar' : 'Plegar', accion: () => guardarBarra(b.id, { plegada: !b.plegada }) },
+                        ...(bt ? [{ icono: 'fa-xmark', texto: 'Quitar este botón', accion: () => guardarBarra(b.id, { items: b.items.filter(x => x !== bt.dataset.orden) }) }] : []),
+                        ...(b.fabrica ? [{ icono: 'fa-rotate', texto: 'Restablecer (de fábrica)', accion: () => { delete CONF_ATAJOS.barras[b.id]; guardarBarra(b.id, { visible: true }); } }] : []),
+                        'sep',
+                        { icono: 'fa-eye-slash', texto: 'Ocultar', accion: () => guardarBarra(b.id, { visible: false }) }]); });
+                d.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('text/x-orden')) { e.preventDefault(); d.style.outline = '2px solid #38bdf8'; } });
+                d.addEventListener('dragleave', () => { d.style.outline = ''; });
+                d.addEventListener('drop', e => { d.style.outline = ''; const id = e.dataTransfer.getData('text/x-orden'); if (!id) return; e.preventDefault(); const l = (b.items || []).filter(x => x !== id), dest = e.target.closest && e.target.closest('[data-orden]'), i = dest ? l.indexOf(dest.dataset.orden) : -1; if (i >= 0) l.splice(i, 0, id); else l.push(id); guardarBarra(b.id, { items: l }); });
+                document.body.appendChild(d);
+            });
+        }
+        window.addEventListener('resize', () => { clearTimeout(window.__rzB); window.__rzB = setTimeout(pintarBarrasFlotantes, 200); });
+        setTimeout(pintarBarrasFlotantes, 0);
+        function menuBarras() {
+            return [...confBarras().map(b => ({ icono: b.visible ? 'fa-check' : 'fa-square', texto: b.nombre + (b.solo3d ? ' (en el 3D)' : ''), accion: () => guardarBarra(b.id, { visible: !b.visible }) })),
+                'sep',
+                { icono: 'fa-plus', texto: 'Nueva barra...', accion: () => nuevaBarra() },
+                { icono: 'fa-sliders', texto: 'Personalizar barras...', accion: () => abrirEditorBarras() },
+                { icono: 'fa-rotate', texto: 'Barras de fábrica (restablecer todas)', accion: () => { if (!confirm('¿Restablecer las barras de fábrica? Tus barras propias se conservan.')) return; Object.keys(CONF_ATAJOS.barras || {}).forEach(k => { if (!CONF_ATAJOS.barras[k].propia) delete CONF_ATAJOS.barras[k]; }); guardarConfAtajos(); pintarBarrasFlotantes(); } }];
+        }
+        async function nuevaBarra() {
+            cerrarMenus(); const n = prompt('Nombre de la nueva barra de herramientas:', 'Mi barra'); if (!n || !n.trim()) return;
+            const id = 'u' + Date.now().toString(36); guardarBarra(id, { propia: true, nombre: n.trim().slice(0, 40), items: [], visible: true, x: Math.round(window.innerWidth / 2 - 100), y: 160 });
+            abrirEditorBarras(id);
+        }
+        let vistaBarras = { id: null, texto: '' };
+        function abrirEditorBarras(id) {
+            cerrarMenus(); if (id) vistaBarras.id = id; if (!vistaBarras.id || !confBarras().some(b => b.id === vistaBarras.id)) vistaBarras.id = confBarras()[0].id;
+            pintarEditorBarras();
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-toolbox text-blue-600 mr-1.5"></i> Barras de herramientas';
+            document.querySelector('#modal-red > div').style.width = 'min(1000px, 96vw)';
+            document.getElementById('modal-red').style.display = 'flex';
+        }
+        function pintarEditorBarras() {
+            const bs = confBarras(), b = bs.find(x => x.id === vistaBarras.id), cmds = listaComandos(), q = sinAcentos(vistaBarras.texto || '');
+            const disp = cmds.filter(c => !b.items.includes(c.id) && (!q || sinAcentos(c.cat + ' ' + c.texto).includes(q))).slice(0, 250);
+            const js = v => esc(v).replace(/'/g, "\\'");
+            document.getElementById('red-content').innerHTML = `<div class="text-[11px]">
+                <div class="flex flex-wrap gap-1 mb-2">${bs.map(x => `<button onclick="vistaBarras.id='${js(x.id)}'; pintarEditorBarras()" class="px-2 py-1 border rounded ${x.id === b.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white'}">${esc(x.nombre)}${x.visible ? '' : ' (oculta)'}</button>`).join('')}
+                    <button onclick="nuevaBarra()" class="px-2 py-1 border rounded text-blue-700"><i class="fa-solid fa-plus mr-1"></i>Nueva</button></div>
+                <div class="flex flex-wrap items-center gap-3 mb-2">
+                    <label>Nombre <input value="${esc(b.nombre)}" ${b.fabrica ? 'disabled' : ''} onchange="guardarBarra('${js(b.id)}', { nombre: this.value.trim().slice(0, 40) || 'Barra' }); pintarEditorBarras()" class="border rounded px-1 py-0.5 w-40"></label>
+                    <label><input type="checkbox" ${b.visible ? 'checked' : ''} onchange="guardarBarra('${js(b.id)}', { visible: this.checked })"> Visible</label>
+                    <label><input type="checkbox" ${b.vertical ? 'checked' : ''} onchange="guardarBarra('${js(b.id)}', { vertical: this.checked })"> Vertical</label>
+                    ${b.fabrica ? `<button onclick="delete CONF_ATAJOS.barras['${js(b.id)}']; guardarConfAtajos(); pintarBarrasFlotantes(); pintarEditorBarras()" class="px-2 py-0.5 border rounded">De fábrica</button>` : `<button onclick="if (confirm('¿Eliminar la barra ${js(b.nombre)}?')) { delete CONF_ATAJOS.barras['${js(b.id)}']; guardarConfAtajos(); vistaBarras.id = null; pintarBarrasFlotantes(); abrirEditorBarras(); }" class="px-2 py-0.5 border rounded text-rose-700"><i class="fa-solid fa-trash-can mr-1"></i>Eliminar barra</button>`}</div>
+                <div class="grid grid-cols-2 gap-4"><div><p class="font-bold text-slate-600 mb-1">Órdenes disponibles (de todos los menús)</p>
+                    <input id="bf-filtro" value="${esc(vistaBarras.texto || '')}" oninput="vistaBarras.texto = this.value; clearTimeout(window.__tBf); window.__tBf = setTimeout(() => { pintarEditorBarras(); const i = document.getElementById('bf-filtro'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 200)" placeholder="Buscar orden..." class="w-full border rounded px-2 py-1 mb-1">
+                    <div class="border rounded overflow-auto" style="max-height:50vh">${disp.map(c => `<div class="flex items-center gap-2 px-2 py-1 border-t border-slate-100"><i class="fa-solid ${iconoOrden(c.id, c)} w-4 text-slate-500"></i><span class="flex-1"><span class="text-slate-400">${esc(c.cat)} ›</span> ${esc(c.texto)}</span><button onclick="guardarBarra('${js(b.id)}', { items: [...confBarras().find(x => x.id === '${js(b.id)}').items, '${js(c.id)}'] }); pintarEditorBarras()" class="px-2 border rounded text-blue-700">Añadir →</button></div>`).join('')}</div></div>
+                <div><p class="font-bold text-slate-600 mb-1">En la barra «${esc(b.nombre)}» (${b.items.length})</p><div class="border rounded overflow-auto" style="max-height:56vh">${b.items.map((id, i) => { const c = cmds.find(x => x.id === id);
+                    return `<div class="flex items-center gap-2 px-2 py-1 border-t border-slate-100"><i class="fa-solid ${iconoOrden(id, c)} w-4 text-slate-500"></i><span class="flex-1">${c ? esc(c.texto) : `<span class="text-rose-600">${esc(id)} (no disponible)</span>`}</span>
+                        <button onclick="moverEnBarraFlot('${js(b.id)}', ${i}, -1)" class="px-1 text-slate-500" title="Subir"><i class="fa-solid fa-arrow-up"></i></button><button onclick="moverEnBarraFlot('${js(b.id)}', ${i}, 1)" class="px-1 text-slate-500" title="Bajar"><i class="fa-solid fa-arrow-down"></i></button>
+                        <button onclick="guardarBarra('${js(b.id)}', { items: confBarras().find(x => x.id === '${js(b.id)}').items.filter((x, k) => k !== ${i}) }); pintarEditorBarras()" class="px-1 text-rose-600" title="Quitar"><i class="fa-solid fa-xmark"></i></button></div>`; }).join('') || '<p class="p-3 text-slate-400">Añade órdenes desde la lista de la izquierda (o arrástralas desde CAD > Atajos de teclado a la barra).</p>'}</div></div></div></div>`;
+            document.getElementById('red-footer').innerHTML = '<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>';
+        }
+        function moverEnBarraFlot(id, i, d) { const l = confBarras().find(x => x.id === id).items.slice(), j = i + d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; guardarBarra(id, { items: l }); pintarEditorBarras(); }
+
+        // ==================================================================================
+        // v8.38 · ICONOS PROPIOS (Opciones > Iconos): B · baldosa con degradado (por defecto), A · bicolor, C · línea técnica
+        // o Clásico (Font Awesome). Se aplican a menús, menú del botón derecho y sus órdenes alrededor del cursor, barra rápida,
+        // barras flotantes y paleta de comandos: cada <i class="fa-solid fa-…"> de esas zonas se cambia por su glifo SVG (o,
+        // si no tiene, por el de Font Awesome dentro del mismo estilo). Las casillas ✓/□ de los menús no se tocan.
+        // El estilo es de cada usuario (CONF_ATAJOS.iconos) y viaja con la configuración del CAD.
+        // ==================================================================================
+        const GLIFOS_P = {"trazar": "<path class=\"t\" d=\"M3 18h7l3-3V6h8\"/><circle class=\"a\" cx=\"3\" cy=\"18\" r=\"1.8\"/><circle class=\"a\" cx=\"13\" cy=\"6\" r=\"1.8\"/><circle class=\"a\" cx=\"21\" cy=\"6\" r=\"1.8\"/>", "guia": "<path class=\"t dash\" d=\"M3 19h6l5-5 0-8h7\"/><path class=\"a\" d=\"M9 19l2.2-2.2M14 9.5h0\"/><text class=\"txt\" x=\"15\" y=\"20\">45°</text>", "codo90": "<path class=\"t gr\" d=\"M4 20V13a7 7 0 0 1 7-7h9\"/><path class=\"a\" d=\"M2.5 20h3M20 4.5v3\"/>", "codo45": "<path class=\"t gr\" d=\"M3 18h6l8-8 3-3\"/><path class=\"a\" d=\"M9 18a3 3 0 0 0 2.1-.9\"/><text class=\"txt\" x=\"12.5\" y=\"21\">45</text>", "te": "<path class=\"t gr\" d=\"M3 9h18M12 9v12\"/><path class=\"a\" d=\"M2.5 6.5v5M21.5 6.5v5M9.5 21.5h5\"/>", "valvula": "<path class=\"t\" d=\"M3 7l9 5-9 5zM21 7l-9 5 9 5z\"/><path class=\"a\" d=\"M12 12V5M9 5h6\"/>", "bomba": "<circle class=\"t\" cx=\"12\" cy=\"12\" r=\"8\"/><path class=\"a fill\" d=\"M10 8l6 4-6 4z\"/><path class=\"t\" d=\"M2 12h2M20 12h2\"/>", "calcular": "<path class=\"t\" d=\"M4.5 17a8 8 0 1 1 15 0\"/><path class=\"a\" d=\"M12 15l4-5\"/><circle class=\"a fill\" cx=\"12\" cy=\"15\" r=\"1.6\"/><path class=\"t\" d=\"M3 20h18\"/>", "redim": "<rect class=\"t\" x=\"6\" y=\"9\" width=\"12\" height=\"6\" rx=\"1\"/><path class=\"a\" d=\"M2 12h3M19 12h3M3.5 10.5 2 12l1.5 1.5M20.5 10.5 22 12l-1.5 1.5\"/><path class=\"t\" d=\"M9 9v6M15 9v6\"/>", "perdida": "<path class=\"t\" d=\"M3 6h18\"/><path class=\"a\" d=\"M3 9l18 9\"/><path class=\"t dash\" d=\"M3 18h18\"/><text class=\"txt\" x=\"4\" y=\"22\">Δh</text>", "iso": "<path class=\"t\" d=\"M12 3v9l-8 5M12 12l8 5\"/><path class=\"a\" d=\"M12 3l-2 2.5M12 3l2 2.5\"/><path class=\"t dash\" d=\"M4 8l8 4 8-4\"/>", "cubo3d": "<path class=\"t\" d=\"M12 2.5l8 4.5v9l-8 4.5-8-4.5V7z\"/><path class=\"t\" d=\"M4 7l8 4.5L20 7M12 11.5V21\"/><path class=\"a\" d=\"M12 11.5l5 2.9M12 11.5V6.5\"/>", "raton3d": "<ellipse class=\"t\" cx=\"12\" cy=\"17\" rx=\"8\" ry=\"4\"/><rect class=\"t\" x=\"8\" y=\"6\" width=\"8\" height=\"9\" rx=\"4\"/><path class=\"a\" d=\"M12 3v2M9.5 3.8 12 2l2.5 1.8\"/>", "zoomv": "<rect class=\"t dash\" x=\"3\" y=\"3\" width=\"12\" height=\"10\" rx=\"1\"/><circle class=\"a\" cx=\"15\" cy=\"15\" r=\"4\"/><path class=\"a\" d=\"M18 18l3.5 3.5\"/>", "encajar": "<path class=\"t\" d=\"M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5\"/><rect class=\"a fill o\" x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1.5\"/>", "anterior": "<path class=\"t\" d=\"M4 12a8 8 0 1 0 2.4-5.7\"/><path class=\"a\" d=\"M4 4v4h4\"/><path class=\"t\" d=\"M12 8v4l3 2\"/>", "rejilla": "<path class=\"t\" d=\"M3 3h18v18H3z\"/><path class=\"a\" d=\"M9 3v18M15 3v18\"/><path class=\"t dash\" d=\"M3 12h18\"/>", "girar45": "<path class=\"t\" d=\"M5 15a7 7 0 1 1 3 4.6\"/><path class=\"a\" d=\"M5 20v-5h5\"/><text class=\"txt\" x=\"8.5\" y=\"14\">45</text>", "deshacer": "<path class=\"t\" d=\"M9 7H15a5 5 0 0 1 0 10H8\"/><path class=\"a\" d=\"M10 3 6 7l4 4\"/>", "eliminar": "<path class=\"t\" d=\"M4 7h16M10 3h4M6 7l1 13h10l1-13\"/><path class=\"a\" d=\"M10 11v6M14 11v6\"/>", "expcfg": "<circle class=\"t\" cx=\"10\" cy=\"13\" r=\"3\"/><path class=\"t\" d=\"M10 6v2M10 18v2M3 13h2M15 13h2M5 8l1.4 1.4M13.6 16.6 15 18M5 18l1.4-1.4M13.6 9.4 15 8\"/><path class=\"a\" d=\"M16 3h5v5M21 3l-6 6\"/>", "impcfg": "<circle class=\"t\" cx=\"10\" cy=\"13\" r=\"3\"/><path class=\"t\" d=\"M10 6v2M10 18v2M3 13h2M15 13h2M5 8l1.4 1.4M13.6 16.6 15 18M5 18l1.4-1.4M13.6 9.4 15 8\"/><path class=\"a\" d=\"M21 8V3M16 3l5 5h-5\"/>", "girar": "<path class=\"t\" d=\"M5 13a7 7 0 1 0 2.5-5.4\"/><path class=\"a\" d=\"M4 4v5h5\"/>", "rehacer": "<path class=\"t\" d=\"M15 7H9a5 5 0 0 0 0 10h7\"/><path class=\"a\" d=\"M14 3l4 4-4 4\"/>", "guardar": "<path class=\"t\" d=\"M4 4h12l4 4v12H4z\"/><path class=\"a\" d=\"M8 4v5h7V4\"/><rect class=\"t\" x=\"7\" y=\"13\" width=\"10\" height=\"7\"/>", "abrir": "<path class=\"t\" d=\"M3 6h6l2 2h9v3\"/><path class=\"a\" d=\"M3 19l3-8h16l-3 8z\"/><path class=\"t\" d=\"M3 6v13\"/>", "nuevo": "<path class=\"t\" d=\"M6 3h8l5 5v13H6z\"/><path class=\"t\" d=\"M14 3v5h5\"/><path class=\"a\" d=\"M12.5 12v6M9.5 15h6\"/>", "imprimir": "<path class=\"t\" d=\"M7 8V3h10v5\"/><rect class=\"t\" x=\"3\" y=\"8\" width=\"18\" height=\"8\" rx=\"1.5\"/><path class=\"a\" d=\"M7 13h10v8H7z\"/>", "copiar": "<rect class=\"t\" x=\"8\" y=\"8\" width=\"12\" height=\"12\" rx=\"1.5\"/><path class=\"a\" d=\"M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3\"/>", "pegar": "<rect class=\"t\" x=\"5\" y=\"4\" width=\"14\" height=\"17\" rx=\"1.5\"/><path class=\"a\" d=\"M9 4V3h6v1M9 11h6M9 15h4\"/>", "cortar": "<circle class=\"t\" cx=\"6\" cy=\"18\" r=\"2.5\"/><circle class=\"t\" cx=\"18\" cy=\"18\" r=\"2.5\"/><path class=\"a\" d=\"M8 16 19 4M16 16 5 4\"/>", "buscar": "<circle class=\"t\" cx=\"10\" cy=\"10\" r=\"6\"/><path class=\"a\" d=\"M14.5 14.5 20 20\"/>", "ajustar": "<path class=\"t\" d=\"M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5\"/><path class=\"a\" d=\"M9 9l-4-4M15 9l4-4M15 15l4 4M9 15l-4 4\"/>", "teclado": "<rect class=\"t\" x=\"2.5\" y=\"6\" width=\"19\" height=\"12\" rx=\"2\"/><path class=\"a\" d=\"M6 10h1M9.5 10h1M13 10h1M16.5 10h1M7 14h10\"/>", "capas": "<path class=\"t\" d=\"M12 3l9 5-9 5-9-5z\"/><path class=\"a\" d=\"M3 12l9 5 9-5M3 16l9 5 9-5\"/>", "tabla": "<rect class=\"t\" x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"1.5\"/><path class=\"a\" d=\"M3 9h18M9 4v16\"/><path class=\"t\" d=\"M3 14.5h18M15 9v11\"/>", "comprobar": "<path class=\"t\" d=\"M9 6h12M9 12h12M9 18h12\"/><path class=\"a\" d=\"M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17\"/>", "manometro": "<circle class=\"t\" cx=\"12\" cy=\"11\" r=\"7.5\"/><path class=\"a\" d=\"M12 11l4-3.5\"/><circle class=\"a fill\" cx=\"12\" cy=\"11\" r=\"1.4\"/><path class=\"t\" d=\"M12 18.5V22M9 22h6\"/>", "termometro": "<path class=\"t\" d=\"M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z\"/><path class=\"a\" d=\"M12 9v8\"/><circle class=\"a fill\" cx=\"12\" cy=\"17\" r=\"1.8\"/>", "vaso": "<path class=\"t\" d=\"M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6A2 2 0 0 0 19 18l-5-9V3\"/><path class=\"a\" d=\"M7 15h10\"/>", "dimensionar": "<path class=\"t\" d=\"M4 20V4h4v12h12v4z\"/><path class=\"a\" d=\"M8 8h-2M8 12h-2M12 16v2M16 16v2\"/>", "verificacion": "<path class=\"t\" d=\"M12 4v16M7 20h10M5 7h14\"/><path class=\"a\" d=\"M5 7l-3 6h6zM19 7l-3 6h6z\"/>", "curva": "<path class=\"t\" d=\"M3 3v18h18\"/><path class=\"a\" d=\"M5 7c4 0 8 2 14 10\"/><path class=\"t dash\" d=\"M5 17c5-2 9-6 14-11\"/>", "barras": "<rect class=\"t\" x=\"3\" y=\"8\" width=\"18\" height=\"12\" rx=\"1.5\"/><path class=\"t\" d=\"M9 8V5h6v3\"/><path class=\"a\" d=\"M3 13h18M11 12v3h2v-3\"/>", "ajustes": "<path class=\"t\" d=\"M4 6h16M4 12h16M4 18h16\"/><circle class=\"a fill\" cx=\"9\" cy=\"6\" r=\"2\"/><circle class=\"a fill\" cx=\"15\" cy=\"12\" r=\"2\"/><circle class=\"a fill\" cx=\"7\" cy=\"18\" r=\"2\"/>", "bd": "<ellipse class=\"t\" cx=\"12\" cy=\"5.5\" rx=\"7\" ry=\"2.5\"/><path class=\"t\" d=\"M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13\"/><path class=\"a\" d=\"M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5\"/>", "nube_sube": "<path class=\"t\" d=\"M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4.5 4.5 0 0 1 0 9\"/><path class=\"a\" d=\"M12 21v-8M9 15.5 12 12.5l3 3\"/>", "nube_baja": "<path class=\"t\" d=\"M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4.5 4.5 0 0 1 0 9\"/><path class=\"a\" d=\"M12 12v8M9 17l3 3 3-3\"/>", "unir": "<path class=\"t\" d=\"M10 14a4 4 0 0 1 0-5.7l2.8-2.8a4 4 0 0 1 5.7 5.7L17 12.6\"/><path class=\"a\" d=\"M14 10a4 4 0 0 1 0 5.7l-2.8 2.8a4 4 0 0 1-5.7-5.7L7 11.4\"/>", "simetria": "<path class=\"t dash\" d=\"M12 3v18\"/><path class=\"t\" d=\"M9 6 3 18h6z\"/><path class=\"a\" d=\"M15 6l6 12h-6z\"/>", "repetir": "<path class=\"t\" d=\"M4 11V9a3 3 0 0 1 3-3h12\"/><path class=\"a\" d=\"M16 3l3 3-3 3M20 13v2a3 3 0 0 1-3 3H5\"/><path class=\"t\" d=\"M8 21l-3-3 3-3\"/>", "cerrar": "<path class=\"a\" d=\"M6 6l12 12M18 6 6 18\"/>", "nota": "<path class=\"t\" d=\"M4 4h16v11l-5 5H4z\"/><path class=\"a\" d=\"M15 20v-5h5M8 9h8M8 13h5\"/>", "banderola": "<path class=\"t\" d=\"M5 21V3\"/><path class=\"a\" d=\"M5 4h12l-3 4 3 4H5\"/>", "pid": "<rect class=\"t\" x=\"2.5\" y=\"9\" width=\"5\" height=\"6\" rx=\"1\"/><circle class=\"t\" cx=\"18\" cy=\"6\" r=\"3\"/><rect class=\"t\" x=\"15\" y=\"15\" width=\"6\" height=\"5\" rx=\"1\"/><path class=\"a\" d=\"M7.5 12H12V6h3M12 12v5.5h3\"/>", "exportar": "<path class=\"t\" d=\"M14 3H6v18h12v-6\"/><path class=\"a\" d=\"M12 11h9M18 8l3 3-3 3\"/>", "importar": "<path class=\"t\" d=\"M14 3H6v18h12v-6\"/><path class=\"a\" d=\"M21 11h-9M15 8l-3 3 3 3\"/>", "mover": "<path class=\"t\" d=\"M12 3v18M3 12h18\"/><path class=\"a\" d=\"M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3\"/>", "editar": "<path class=\"t\" d=\"M4 20h4L19 9l-4-4L4 16z\"/><path class=\"a\" d=\"M13 7l4 4M4 20h16\"/>", "lapiz": "<path class=\"t\" d=\"M4 20l1-4L16 5l3 3L8 19z\"/><path class=\"a\" d=\"M14 7l3 3\"/>", "usuario": "<circle class=\"t\" cx=\"12\" cy=\"8\" r=\"4\"/><path class=\"a\" d=\"M4 21a8 8 0 0 1 16 0\"/>", "usuarios": "<circle class=\"t\" cx=\"9\" cy=\"8\" r=\"3.5\"/><path class=\"t\" d=\"M2 20a7 7 0 0 1 14 0\"/><circle class=\"a\" cx=\"17\" cy=\"9\" r=\"2.5\"/><path class=\"a\" d=\"M16 14.2A5.5 5.5 0 0 1 22 19\"/>", "llave": "<circle class=\"t\" cx=\"8\" cy=\"15\" r=\"4.5\"/><path class=\"a\" d=\"M11.5 12 20 3.5M17 6.5l2.5 2.5M14.5 9l2 2\"/>", "candado": "<rect class=\"t\" x=\"5\" y=\"11\" width=\"14\" height=\"10\" rx=\"2\"/><path class=\"a\" d=\"M8 11V7a4 4 0 0 1 8 0v4\"/><circle class=\"a fill\" cx=\"12\" cy=\"16\" r=\"1.5\"/>", "ojo": "<path class=\"t\" d=\"M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z\"/><circle class=\"a\" cx=\"12\" cy=\"12\" r=\"3\"/>", "ojo_no": "<path class=\"t\" d=\"M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z\"/><path class=\"a\" d=\"M4 20 20 4\"/>", "mas": "<path class=\"a\" d=\"M12 5v14M5 12h14\"/>", "info": "<circle class=\"t\" cx=\"12\" cy=\"12\" r=\"9\"/><path class=\"a\" d=\"M12 11v6M12 7.5v.5\"/>", "aviso": "<path class=\"t\" d=\"M12 3 2.5 20h19z\"/><path class=\"a\" d=\"M12 10v5M12 17.5v.5\"/>", "idioma": "<circle class=\"t\" cx=\"12\" cy=\"12\" r=\"9\"/><path class=\"t\" d=\"M3 12h18\"/><path class=\"a\" d=\"M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18\"/>", "congelar": "<path class=\"a\" d=\"M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7\"/><path class=\"t\" d=\"M9.5 3.5 12 6l2.5-2.5M9.5 20.5 12 18l2.5 2.5\"/>", "iman": "<path class=\"t\" d=\"M5 3h4v9a3 3 0 0 0 6 0V3h4v9a7 7 0 0 1-14 0z\"/><path class=\"a\" d=\"M5 7h4M15 7h4\"/>", "cubos": "<path class=\"t\" d=\"M7 3l5 3v6l-5 3-5-3V6z\"/><path class=\"a\" d=\"M17 9l5 3v6l-5 3-5-3v-6z\"/>", "ventilador": "<circle class=\"a fill\" cx=\"12\" cy=\"12\" r=\"1.8\"/><path class=\"t\" d=\"M12 10c0-4 1-7 4-7 2 0 3 3-1 6M14 12c4 0 7 1 7 4 0 2-3 3-6-1M12 14c0 4-1 7-4 7-2 0-3-3 1-6M10 12c-4 0-7-1-7-4 0-2 3-3 6 1\"/>", "excel": "<path class=\"t\" d=\"M6 3h9l4 4v14H6z\"/><path class=\"a\" d=\"M9 11l5 6M14 11l-5 6\"/>", "pdf": "<path class=\"t\" d=\"M6 3h9l4 4v14H6z\"/><text class=\"txt\" x=\"7.3\" y=\"16.5\" style=\"font-size:5.5px\">PDF</text>", "word": "<path class=\"t\" d=\"M6 3h9l4 4v14H6z\"/><path class=\"a\" d=\"M8.5 11l1.5 6 2-4.5 2 4.5 1.5-6\"/>", "dxf": "<path class=\"t\" d=\"M6 3h9l4 4v14H6z\"/><path class=\"a\" d=\"M9 17l3-6 3 6M10 15h4\"/>", "imagen": "<rect class=\"t\" x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"1.5\"/><path class=\"a\" d=\"M3 17l5-5 4 4 3-3 6 6\"/><circle class=\"a\" cx=\"16\" cy=\"8.5\" r=\"1.5\"/>", "firma": "<path class=\"t\" d=\"M3 20h18\"/><path class=\"a\" d=\"M4 16c3-6 5-9 6-7s-2 7 0 7 3-5 5-5 1 4 3 4 2-2 2-2\"/>", "sello": "<path class=\"t\" d=\"M5 21h14M6 17h12v4H6z\"/><path class=\"a\" d=\"M9 17v-4a3 3 0 1 1 6 0v4\"/>", "certificado": "<circle class=\"t\" cx=\"12\" cy=\"9\" r=\"6\"/><path class=\"a\" d=\"M9 14l-2 7 5-3 5 3-2-7\"/><path class=\"a\" d=\"M9.5 9l2 2 3.5-3.5\"/>", "consola": "<rect class=\"t\" x=\"2.5\" y=\"4\" width=\"19\" height=\"16\" rx=\"2\"/><path class=\"a\" d=\"M6 9l3 3-3 3M11 15h6\"/>", "raiz": "<path class=\"t\" d=\"M3 13h3l3 7 5-16h7\"/><path class=\"a\" d=\"M14 10l5 6M19 10l-5 6\"/>", "escoba": "<path class=\"t\" d=\"M14 4l6 6\"/><path class=\"a\" d=\"M17 7 10 14M4 20l6-6 4 4-2 2z\"/>", "red": "<rect class=\"t\" x=\"9\" y=\"2.5\" width=\"6\" height=\"5\" rx=\"1\"/><rect class=\"t\" x=\"2.5\" y=\"16.5\" width=\"6\" height=\"5\" rx=\"1\"/><rect class=\"t\" x=\"15.5\" y=\"16.5\" width=\"6\" height=\"5\" rx=\"1\"/><path class=\"a\" d=\"M12 7.5V12M5.5 16.5V12h13v4.5\"/>", "rama": "<circle class=\"t\" cx=\"6\" cy=\"5\" r=\"2\"/><circle class=\"t\" cx=\"6\" cy=\"19\" r=\"2\"/><circle class=\"t\" cx=\"18\" cy=\"8\" r=\"2\"/><path class=\"a\" d=\"M6 7v10M18 10c0 4-6 3-11 7\"/>", "mira": "<circle class=\"t\" cx=\"12\" cy=\"12\" r=\"7\"/><path class=\"a\" d=\"M12 2v5M12 17v5M2 12h5M17 12h5\"/>", "regla": "<rect class=\"t\" x=\"2.5\" y=\"8\" width=\"19\" height=\"8\" rx=\"1\"/><path class=\"a\" d=\"M6 8v4M10 8v3M14 8v4M18 8v3\"/>", "grifo": "<path class=\"t\" d=\"M3 9h10a3 3 0 0 1 3 3v2\"/><path class=\"t\" d=\"M8 9V6M5 6h6\"/><path class=\"a\" d=\"M16 17v.5M16 20v.5\"/>", "reloj": "<circle class=\"t\" cx=\"12\" cy=\"12\" r=\"9\"/><path class=\"a\" d=\"M12 7v5l3 2\"/>", "enlace": "<path class=\"t\" d=\"M14 4h6v6M20 4l-9 9\"/><path class=\"a\" d=\"M18 14v6H4V6h6\"/>", "libro": "<path class=\"t\" d=\"M4 4h7a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4z\"/><path class=\"a\" d=\"M20 4h-7a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h7z\"/>", "edificio": "<path class=\"t\" d=\"M4 21V5l8-2v18M12 8h8v13M2 21h20\"/><path class=\"a\" d=\"M7 8h2M7 12h2M7 16h2M15 12h2M15 16h2\"/>", "fabrica": "<path class=\"t\" d=\"M2 21V10l6 4v-4l6 4V6h4v15z\"/><path class=\"a\" d=\"M2 21h20M6 17h2M11 17h2\"/>", "tutorial": "<rect class=\"t\" x=\"3\" y=\"3\" width=\"18\" height=\"12\" rx=\"1.5\"/><path class=\"a\" d=\"M10 7l4 2-4 2z\"/><path class=\"t\" d=\"M8 21l4-6 4 6\"/>", "chispa": "<path class=\"a\" d=\"M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18\"/><circle class=\"t\" cx=\"12\" cy=\"12\" r=\"2.5\"/>", "rayo": "<path class=\"a fill o\" d=\"M13 2 4 14h7l-1 8 9-12h-7z\"/><path class=\"t\" d=\"M13 2 4 14h7l-1 8 9-12h-7z\"/>", "fuego": "<path class=\"t\" d=\"M12 22a7 7 0 0 0 7-7c0-5-5-6-5-12-3 2-6 6-6 9-1-1-1.5-2-2-3-1 2-1 4-1 6a7 7 0 0 0 7 7z\"/><path class=\"a\" d=\"M12 22a3 3 0 0 0 3-3c0-2-2-3-2-5-2 1-4 3-4 5a3 3 0 0 0 3 3z\"/>", "anillo": "<circle class=\"t\" cx=\"12\" cy=\"12\" r=\"8\"/><circle class=\"a\" cx=\"12\" cy=\"12\" r=\"4\"/>", "cloud": "<path class=\"t\" d=\"M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4.5 4.5 0 0 1 0 9z\"/>"};
+        const FA_A_GLIFO = {"pen-ruler": "trazar", "route": "guia", "calculator": "calcular", "up-right-and-down-left-from-center": "redim", "chart-area": "perdida", "cube": "iso", "cubes": "cubo3d", "computer-mouse": "raton3d", "vector-square": "zoomv", "maximize": "encajar", "clock-rotate-left": "anterior", "border-all": "rejilla", "rotate-right": "girar", "rotate-left": "deshacer", "rotate": "repetir", "trash-can": "eliminar", "file-export": "exportar", "file-import": "importar", "fan": "ventilador", "diagram-project": "pid", "flag": "banderola", "flag-checkered": "banderola", "note-sticky": "nota", "floppy-disk": "guardar", "folder-open": "abrir", "file": "nuevo", "file-circle-plus": "nuevo", "print": "imprimir", "copy": "copiar", "clone": "copiar", "paste": "pegar", "scissors": "cortar", "magnifying-glass": "buscar", "expand": "ajustar", "keyboard": "teclado", "layer-group": "capas", "table": "tabla", "table-cells": "tabla", "table-cells-large": "tabla", "table-list": "tabla", "list-check": "comprobar", "clipboard-check": "comprobar", "clipboard-list": "comprobar", "gauge": "manometro", "gauge-high": "manometro", "temperature-half": "termometro", "flask": "vaso", "vial-circle-check": "vaso", "ruler-combined": "dimensionar", "scale-balanced": "verificacion", "chart-line": "curva", "toolbox": "barras", "sliders": "ajustes", "gears": "ajustes", "database": "bd", "cloud-arrow-up": "nube_sube", "cloud-arrow-down": "nube_baja", "cloud": "cloud", "link": "unir", "arrows-left-right": "simetria", "arrows-up-down": "simetria", "repeat": "repetir", "xmark": "cerrar", "circle-xmark": "cerrar", "arrows-up-down-left-right": "mover", "pen-to-square": "editar", "pen": "lapiz", "user": "usuario", "id-badge": "usuario", "user-shield": "usuario", "user-check": "usuario", "user-plus": "usuario", "user-lock": "usuario", "users": "usuarios", "people-arrows": "usuarios", "key": "llave", "lock": "candado", "lock-open": "candado", "eye": "ojo", "eye-slash": "ojo_no", "plus": "mas", "circle-plus": "mas", "circle-info": "info", "triangle-exclamation": "aviso", "circle-exclamation": "aviso", "language": "idioma", "snowflake": "congelar", "magnet": "iman", "file-excel": "excel", "file-pdf": "pdf", "file-word": "word", "compass-drafting": "dxf", "image": "imagen", "file-image": "imagen", "signature": "firma", "stamp": "sello", "certificate": "certificado", "terminal": "consola", "square-root-variable": "raiz", "broom": "escoba", "eraser": "escoba", "sitemap": "red", "network-wired": "red", "code-branch": "rama", "crosshairs": "mira", "location-crosshairs": "mira", "ruler": "regla", "faucet": "grifo", "book": "libro", "book-open": "libro", "building": "edificio", "industry": "fabrica", "person-chalkboard": "tutorial", "wand-magic-sparkles": "chispa", "bolt": "rayo", "fire": "fuego", "fire-flame-simple": "fuego", "ring": "anillo", "arrow-up-right-from-square": "enlace", "file-arrow-down": "importar", "file-code": "exportar", "file-lines": "nuevo", "hard-drive": "bd", "right-left": "simetria", "object-group": "cubos", "object-ungroup": "cubos", "shapes": "cubos", "code-compare": "comprobar", "id-card": "usuario", "right-to-bracket": "importar", "right-from-bracket": "exportar", "delete-left": "deshacer", "fill-drip": "imagen", "circle-half-stroke": "imagen", "bezier-curve": "trazar"};
+        const FAMILIA_FA = {"pen-ruler": "dibujo", "route": "dibujo", "note-sticky": "dibujo", "flag": "dibujo", "flag-checkered": "dibujo", "shapes": "dibujo", "bezier-curve": "dibujo", "vector-square": "dibujo", "object-group": "dibujo", "object-ungroup": "dibujo", "comment-dots": "dibujo", "i-cursor": "dibujo", "text-width": "dibujo", "text-height": "dibujo", "signature": "dibujo", "magnet": "dibujo", "compass-drafting": "dibujo", "calculator": "calculo", "up-right-and-down-left-from-center": "calculo", "chart-area": "calculo", "chart-line": "calculo", "gauge": "calculo", "gauge-high": "calculo", "temperature-half": "calculo", "flask": "calculo", "vial-circle-check": "calculo", "ruler-combined": "calculo", "scale-balanced": "calculo", "certificate": "calculo", "fan": "calculo", "square-root-variable": "calculo", "faucet": "calculo", "list-check": "calculo", "clipboard-check": "calculo", "bolt": "calculo", "fire": "calculo", "fire-flame-simple": "calculo", "ruler": "calculo", "cube": "vista", "cubes": "vista", "computer-mouse": "vista", "maximize": "vista", "expand": "vista", "clock-rotate-left": "vista", "border-all": "vista", "eye": "vista", "eye-slash": "vista", "magnifying-glass": "vista", "crosshairs": "vista", "location-crosshairs": "vista", "sitemap": "vista", "diagram-project": "vista", "network-wired": "vista", "code-branch": "vista", "image": "vista", "file-image": "vista", "layer-group": "vista", "circle-half-stroke": "vista", "fill-drip": "vista", "trash-can": "borrar", "xmark": "borrar", "circle-xmark": "borrar", "ban": "borrar", "delete-left": "borrar", "broom": "borrar", "eraser": "borrar", "link-slash": "borrar", "floppy-disk": "sistema", "folder-open": "sistema", "file": "sistema", "file-circle-plus": "sistema", "print": "sistema", "file-export": "sistema", "file-import": "sistema", "file-excel": "sistema", "file-pdf": "sistema", "file-word": "sistema", "file-code": "sistema", "file-lines": "sistema", "file-arrow-down": "sistema", "database": "sistema", "cloud": "sistema", "cloud-arrow-up": "sistema", "cloud-arrow-down": "sistema", "hard-drive": "sistema", "key": "sistema", "lock": "sistema", "lock-open": "sistema", "user": "sistema", "users": "sistema", "user-shield": "sistema", "user-check": "sistema", "user-plus": "sistema", "user-lock": "sistema", "id-badge": "sistema", "id-card": "sistema", "people-arrows": "sistema", "gears": "sistema", "sliders": "sistema", "keyboard": "sistema", "toolbox": "sistema", "language": "sistema", "terminal": "sistema", "right-to-bracket": "sistema", "right-from-bracket": "sistema", "book": "sistema", "book-open": "sistema", "building": "sistema", "industry": "sistema", "person-chalkboard": "sistema", "stamp": "sistema", "snowflake": "sistema", "wand-magic-sparkles": "sistema", "arrow-up-right-from-square": "sistema"};
+        const COLORES_FAMILIA = {"dibujo": ["#2563eb", "#60a5fa"], "calculo": ["#059669", "#34d399"], "vista": ["#ea580c", "#fb923c"], "edicion": ["#475569", "#94a3b8"], "borrar": ["#dc2626", "#f87171"], "sistema": ["#7c3aed", "#a78bfa"]};
+        const ESTILOS_ICONO = { B: 'Baldosa con degradado', A: 'Bicolor', C: 'Línea técnica', clasico: 'Clásico (Font Awesome)' };
+        const estiloIconos = () => ESTILOS_ICONO[CONF_ATAJOS.iconos] ? CONF_ATAJOS.iconos : 'B';
+        const ZONAS_ICONO = '.menu-item > i.ico, .marca-menu > i.fa-solid, #barra-rapida i.fa-solid, .barra-flot [data-orden] > i.fa-solid, #paleta i.fa-solid';
+        const NO_ICONO = /^fa-(check|square|circle|angle-right|chevron-right|chevron-down|spinner|grip-lines|grip-lines-vertical|a|b|arrow-up|arrow-down|arrow-right|lock)$/;
+        (function () {
+            const st = document.createElement('style'); st.id = 'estilo-iconos';
+            st.textContent = `.icp{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:none;vertical-align:middle;line-height:1}
+                .icp svg{width:100%;height:100%;overflow:visible}.icp .t,.icp .a{fill:none;stroke-linecap:round;stroke-linejoin:round}.icp .txt{font:700 6px sans-serif;stroke:none}.icp .dash{stroke-dasharray:3 2}.icp i{font-size:10px}
+                .menu-item > .icp{margin-right:8px}.barra-flot [data-orden] > .icp{width:22px;height:22px}.barra-flot [data-orden] > .icp i{font-size:12px}#barra-rapida .icp{width:20px;height:20px}.marca-menu > .icp{width:16px;height:16px}
+                body.ic-B .icp{border-radius:5px;background:linear-gradient(145deg,var(--c2),var(--c1));box-shadow:0 1px 3px rgba(15,23,42,.3),inset 0 1px 0 rgba(255,255,255,.35);padding:2px;box-sizing:border-box}
+                body.ic-B .icp .t{stroke:#fff;stroke-width:2}body.ic-B .icp .a{stroke:#fef9c3;stroke-width:2.3}body.ic-B .icp .fill{fill:#fef9c3}body.ic-B .icp .o{fill-opacity:.35}body.ic-B .icp .txt{fill:#fff}body.ic-B .icp .gr{stroke-width:3.4}body.ic-B .icp i{color:#fff}
+                body.ic-A .icp .t{stroke:#1e293b;stroke-width:1.8}body.ic-A .icp .a{stroke:var(--c1);stroke-width:2.1}body.ic-A .icp .fill{fill:var(--c1)}body.ic-A .icp .o{fill-opacity:.25}body.ic-A .icp .txt{fill:var(--c1)}body.ic-A .icp .gr{stroke-width:3.2}body.ic-A .icp i{color:var(--c1)}
+                body.ic-C .icp .t,body.ic-C .icp .a{stroke:#334155;stroke-width:1.5}body.ic-C .icp .fill{fill:#334155}body.ic-C .icp .o{fill-opacity:.12}body.ic-C .icp .txt{fill:#334155}body.ic-C .icp .gr{stroke-width:2.6}body.ic-C .icp i{color:#334155}
+                .menu-item:hover:not(:disabled) > .icp{filter:brightness(1.08)}`;
+            document.head.appendChild(st);
+        })();
+        function htmlIcono(fa) {
+            const g = FA_A_GLIFO[fa.replace(/^fa-/, '')], col = COLORES_FAMILIA[FAMILIA_FA[fa.replace(/^fa-/, '')] || 'edicion'];
+            return `<span class="icp" data-fa="${fa}" style="--c1:${col[0]};--c2:${col[1]}">${g && GLIFOS_P[g] ? `<svg viewBox="0 0 24 24">${GLIFOS_P[g]}</svg>` : `<i class="fa-solid ${fa}"></i>`}</span>`;
+        }
+        function aplicarIconos(raiz) {
+            if (estiloIconos() === 'clasico') return;
+            (raiz && raiz.querySelectorAll ? raiz : document).querySelectorAll(ZONAS_ICONO).forEach(i => {
+                if (i.parentElement && i.parentElement.closest('.icp')) return;   // ya convertido (glifo de Font Awesome dentro del estilo)
+                const fa = [...i.classList].find(c => /^fa-/.test(c) && c !== 'fa-solid'); if (!fa || NO_ICONO.test(fa)) return;
+                i.insertAdjacentHTML('beforebegin', htmlIcono(fa)); i.remove();
+            });
+        }
+        function ponerEstiloIconos(e) {
+            if (e) { CONF_ATAJOS.iconos = e; guardarConfAtajos(); }
+            const v = estiloIconos(); document.body.classList.remove('ic-A', 'ic-B', 'ic-C'); if (v !== 'clasico') document.body.classList.add('ic-' + v);
+            // vuelta a Font Awesome: se restauran los <i> originales
+            if (v === 'clasico') document.querySelectorAll('.icp[data-fa]').forEach(x => { x.insertAdjacentHTML('beforebegin', `<i class="fa-solid ${x.dataset.fa} ico"></i>`); x.remove(); });
+            try { pintarBarraRapida(); pintarBarrasFlotantes(); } catch (er) { }
+            aplicarIconos();
+            if (e) aviso(`Iconos: ${ESTILOS_ICONO[v]}.`, 'ok');
+        }
+        let obsIconos = null;
+        function vigilarIconos() {
+            if (obsIconos || !window.MutationObserver) return;
+            let pend = false;
+            obsIconos = new MutationObserver(() => { if (pend) return; pend = true; Promise.resolve().then(() => { pend = false; try { aplicarIconos(); } catch (e) { } }); });
+            obsIconos.observe(document.body, { childList: true, subtree: true });
+        }
+        setTimeout(() => { ponerEstiloIconos(); vigilarIconos(); }, 0);
+        // ==================================================================================
         // 24) PLANTILLA DE CLIENTE: capas, cajetín, logotipo, plantilla Word y criterios en un archivo
         // ==================================================================================
         const CLAVE_PLANTILLAS_CLIENTE = 'piping-plantillas-cliente';
@@ -8176,6 +8424,7 @@
                 ['bg-blue-600', 'text-white', 'border-blue-600'].forEach(c => b.classList.toggle(c, act)); ['bg-white', 'text-slate-700', 'border-slate-300'].forEach(c => b.classList.toggle(c, !act)); });
             const gz = document.getElementById('axis-gizmo'); if (gz) gz.style.display = vistaIso ? 'none' : '';
             renderizarVectorial(); if (vistaIso && typeof zoomTodo === 'function') zoomTodo();
+            try { pintarBarrasFlotantes(); } catch (e) { }
             if (vistaIso && !geometriaIsoRed().segs.length) aviso('Vista isométrica: la hoja no tiene tuberías conectadas.', 'error');
         }
         // ==================================================================================
@@ -9186,7 +9435,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.34';
+        const VERSION_WEB = '8.38';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -9886,7 +10135,7 @@
             const dx = px * s - 25, dy = py * s - 25;
             return { x: el.x + 25 + dx * Math.cos(r) - dy * Math.sin(r), y: mundoAScreenY(el.y) + 25 + dx * Math.sin(r) + dy * Math.cos(r) };
         }
-        function centroElemento(el) { return el.type === 'tuberia' ? aPantalla(el, (el.longitud || 3000) / 60, 20) : aPantalla(el, 25, 25); }
+        function centroElemento(el) { return el.type === 'tuberia' ? aPantalla(el, largoPxTubo(el) / 2, 20) : aPantalla(el, 25, 25); }
         
         // opciones: { principales: [el], contexto: [el], numeros: {id: n}, rotulosLinea: bool }
 
@@ -10894,6 +11143,7 @@
                     ...Object.entries(UNIDADES.q).map(([k, u]) => ({ icono: (opciones.uCaudal || 'm3h') === k ? 'fa-check' : 'fa-square', texto: 'Caudal: ' + u[1], accion: () => cambiarUnidad('uCaudal', k) }))
                 ] },
                 { icono: 'fa-keyboard', texto: 'Atajos de teclado...', accion: () => abrirEditorAtajos() },
+                { icono: 'fa-toolbox', texto: 'Barras de herramientas', sub: () => menuBarras() },
                 { icono: 'fa-file-export', texto: 'Exportar configuración del CAD...', accion: () => exportarConfigCAD() },
                 { icono: 'fa-file-import', texto: 'Importar configuración del CAD...', accion: () => importarConfigCAD() },
                 { icono: 'fa-shapes', texto: 'Norma de símbolos', sub: () => Object.entries(NORMAS).map(([k, n]) => ({ icono: opciones.norma === k ? 'fa-check' : 'fa-square', texto: n, accion: () => cambiarNorma(k) })) }
@@ -10923,6 +11173,7 @@
             { titulo: 'Opciones', items: [
                 { icono: 'fa-language', texto: 'Idioma', sub: () => [...Object.entries(IDIOMAS).map(([k, n]) => ({ icono: idioma === k ? 'fa-check' : 'fa-square', texto: n, accion: () => cambiarIdioma(k) })), 'sep',
                     { icono: 'fa-file-word', texto: 'Informe, cajetín y listados', sub: () => [{ icono: !IDIOMAS[opciones.idiomaDoc] ? 'fa-check' : 'fa-square', texto: 'Igual que la interfaz', accion: () => cambiarIdiomaDoc('') }, ...Object.entries(IDIOMAS).map(([k, n]) => ({ icono: opciones.idiomaDoc === k ? 'fa-check' : 'fa-square', texto: n, accion: () => cambiarIdiomaDoc(k) }))] }] },
+                { icono: 'fa-shapes', texto: 'Iconos', sub: () => Object.entries(ESTILOS_ICONO).map(([k, t]) => ({ icono: estiloIconos() === k ? 'fa-check' : 'fa-square', texto: t, accion: () => ponerEstiloIconos(k) })) },
                 { icono: 'fa-fill-drip', texto: 'Fondo del lienzo', sub: () => Object.entries(FONDOS).map(([k, f]) => ({ icono: opciones.fondo === k ? 'fa-check' : 'fa-square', texto: f.nombre, accion: () => cambiarFondo(k) })) },
                 { icono: 'fa-floppy-disk', texto: 'Guardado automático', sub: () => [
                     { icono: 'fa-circle-info', texto: 'En el navegador: siempre (Archivo > Recuperar copia de seguridad)', accion: () => recuperarCopia() }, 'sep',
