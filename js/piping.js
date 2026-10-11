@@ -6801,7 +6801,7 @@
             { id: 'Hojas › Añadir hoja', teclas: ['Alt+A'], campo: true, accion: () => anadirHoja() },
             { id: 'Zoom › Ajustar', teclas: ['F'], accion: () => { if (vista3d && V3) volverAntesRaton3D(); else ajustarVistaVentana(); } },
             { id: 'Zoom › Todo', teclas: ['T'], accion: () => { if (vista3d && V3) encajar3D(); else zoomTodo(); } },
-            { id: 'Zoom › Ventana', teclas: ['W'], accion: () => { modoZoomVentana = !modoZoomVentana; canvasContainer.style.cursor = modoZoomVentana ? 'crosshair' : 'default'; } }
+            { id: 'Zoom › Ventana', teclas: ['W'], accion: () => { if (vista3d && V3) { zoomVentana3D(!V3.zv); return; } modoZoomVentana = !modoZoomVentana; canvasContainer.style.cursor = modoZoomVentana ? 'crosshair' : 'default'; } }
         ];
         const BASE_POR_ID = Object.fromEntries(ACCIONES_BASE.map(a => [a.id, a]));
         // Todas las órdenes: las de los menús (ruta completa) y las de teclado sin menú
@@ -8212,7 +8212,7 @@
                     <span title="Ratón 3D: invierte el sentido de cada giro si no te resulta natural">Invertir: <label><input id="v3d-invRz" type="checkbox" onchange="guardarCfg3DLocal({ invRz: this.checked })"> giro</label> <label><input id="v3d-invRx" type="checkbox" onchange="guardarCfg3DLocal({ invRx: this.checked })"> cabeceo</label> <label><input id="v3d-invRy" type="checkbox" onchange="guardarCfg3DLocal({ invRy: this.checked })"> alabeo</label></span>
                     <label title="Muestra en la barra inferior lo que envía el ratón 3D"><input id="v3d-smdiag" type="checkbox"> Diagnóstico</label></div>
                     <div id="v3d-lienzo" style="flex:1;position:relative;overflow:hidden"></div>
-                    <div id="v3d-estado" style="padding:3px 8px;background:#1e293b;color:#cbd5e1;font:11px sans-serif;min-height:18px">Arrastrar: girar (con ratón 3D, solo él gira y acerca) · botón derecho o Mayús: desplazar · rueda: zoom · clic: seleccionar · doble clic: pivote · Ctrl+doble clic: propiedades · R / Mayús+R: girar 45° · T: encajar · F: vista anterior · Alt+1: 2D/3D</div>`;
+                    <div id="v3d-estado" style="padding:3px 8px;background:#1e293b;color:#cbd5e1;font:11px sans-serif;min-height:18px">Izquierdo: girar · derecho, central o Mayús: desplazar · Ctrl/Mayús+central: girar · rueda: zoom al cursor · W: zoom ventana · clic: seleccionar · doble clic: pivote · Ctrl+doble clic: propiedades · R / Mayús+R: girar 45° · T: encajar · F: vista anterior · Alt+1: 2D/3D</div>`;
                 cont.appendChild(ov);
                 ['ox', 'oy', 'oz', 'cu', 'norte'].forEach(k => document.getElementById('v3d-' + k).addEventListener('change', e => { const { o } = cfg3D(), v = +e.target.value || 0; if (k === 'cu') { if (v > 0) proyecto.cuaderna = v; } else if (k === 'norte') proyecto.norte = v; else o[k[1]] = v; marcarCambios(true); construirEscena3D(); }));
             }
@@ -8245,24 +8245,34 @@
             V3.ajustarTam = ajustarTam; if (window.ResizeObserver) new ResizeObserver(ajustarTam).observe(cont); ajustarTam();
             let arr = null; const el = renderer.domElement;
             el.addEventListener('contextmenu', e => e.preventDefault());
-            el.addEventListener('mousedown', e => { arr = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, mov: false }; cerrarMenus(); ocultarTooltip(); V3.tt = null; });
+            el.addEventListener('mousedown', e => {
+                if (e.button === 1) e.preventDefault();   // botón central: sin el desplazamiento automático del navegador
+                if (V3.zv && e.button === 0) { V3.zv.ini = { x: e.clientX, y: e.clientY }; e.preventDefault(); return; }
+                if (V3.zv && e.button === 2) { zoomVentana3D(false); return; }
+                arr = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, ct: e.ctrlKey || e.metaKey, mov: false }; cerrarMenus(); ocultarTooltip(); V3.tt = null; });
+            el.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
             window.addEventListener('mouseup', e => {
+                if (V3.zv && V3.zv.ini) { aplicarZoomVentana3D(e); return; }
                 const a = arr; arr = null; if (!a || a.mov || e.target !== el) return;
                 if (a.b === 0) { if (enMano) clicManoEn3D(e); else elegir3D(e, true); }
                 else if (a.b === 2) { if (enMano) soltarMano(true); else menu3D(e); }
+                else if (a.b === 1) { const t = Date.now(); if (t - ultCentral < 400) { encajar3D(); ultCentral = 0; } else ultCentral = t; }   // doble clic con la rueda: encajar
             });
+            let ultCentral = 0;
             el.addEventListener('dblclick', e => { e.preventDefault(); const r = picar3D(e); if (!r) return; if (e.ctrlKey || e.metaKey) { ocultarTooltip(); asegurarHojaDe(r.el.id); abrirVentanaElemento(r.el.id, e.clientX, e.clientY); } else pivote3D(r.el.id); });
             el.addEventListener('mousemove', e => {
                 if (V3.tt && Math.hypot(e.clientX - V3.tt.x, e.clientY - V3.tt.y) > 3) { ocultarTooltip(); V3.tt = null; }   // el tooltip de la selección se va al mover el ratón
+                if (V3.zv) { if (V3.zv.ini) rectZoom3D(V3.zv.ini, e); return; }
                 if (!arr) { elegir3D(e, false); if (enMano) pistaDestino3D(destino3D(e)); return; }
                 const dx = e.clientX - arr.x, dy = e.clientY - arr.y; if (Math.abs(dx) + Math.abs(dy) > 2) arr.mov = true; arr.x = e.clientX; arr.y = e.clientY;
-                if (arr.b === 2 || arr.sh) { const k = V3.r * 0.0016, cam = V3.camera, der = new T.Vector3().subVectors(cam.position, V3.target).cross(cam.up).normalize(), arriba = new T.Vector3().crossVectors(der, new T.Vector3().subVectors(V3.target, cam.position)).normalize();
+                const girar = (arr.b === 0 && !arr.sh) || (arr.b === 1 && (arr.sh || arr.ct));
+                if (!girar) { const k = V3.r * 0.0016, cam = V3.camera, der = new T.Vector3().subVectors(cam.position, V3.target).cross(cam.up).normalize(), arriba = new T.Vector3().crossVectors(der, new T.Vector3().subVectors(V3.target, cam.position)).normalize();
                     V3.target.addScaledVector(der, dx * k).addScaledVector(arriba, dy * k); }
-                else if (raton3DActivo()) { avisoRaton3D(); return; }   // con ratón 3D, los giros solo con él
-                else { marcarPosicion3D(); orbitar3D(-dx * 0.008, -dy * 0.008); }
+                else { marcarPosicion3D(); orbitar3D(-dx * 0.008, -dy * 0.008); }   // v8.34 · el ratón normal también gira, con o sin ratón 3D
                 pintar3D();
             });
-            el.addEventListener('wheel', e => { e.preventDefault(); if (raton3DActivo()) { avisoRaton3D(); return; } marcarPosicion3D(); zoom3D(e.deltaY > 0 ? 1.12 : 1 / 1.12); pintar3D(); }, { passive: false });
+            // rueda: acerca o aleja hacia el punto bajo el cursor (como en Inventor, SolidWorks o AutoCAD)
+            el.addEventListener('wheel', e => { e.preventDefault(); marcarPosicion3D(); zoomCursor3D(e, e.deltaY > 0 ? 1.12 : 1 / 1.12); pintar3D(); }, { passive: false });
             // pivote (esfera naranja) y triada de la esquina
             V3.marcaPiv = new T.Mesh(new T.SphereGeometry(1, 16, 10), new T.MeshBasicMaterial({ color: 0xf97316, depthTest: false, transparent: true, opacity: 0.85 })); V3.marcaPiv.renderOrder = 20; V3.marcaPiv.visible = false; scene.add(V3.marcaPiv);
             // v8.32 · insertar desde el 3D: se arrastra un componente de la librería a un extremo libre (esfera azul) o sobre una tubería
@@ -8294,6 +8304,36 @@
             if (P) V3.target.fromArray(v3.sum(P, v3.mul(v3.sum(V3.target.toArray(), v3.mul(P, -1)), f)));
             V3.r = r1;
         }
+        // punto del plano que pasa por el centro de la vista (perpendicular a ella) bajo un punto de la pantalla
+        function puntoPlanoVista3D(clientX, clientY) {
+            const T = V3.T, rc = V3.renderer.domElement.getBoundingClientRect(), cam = V3.camera;
+            V3.raton.set(((clientX - rc.left) / rc.width) * 2 - 1, -((clientY - rc.top) / rc.height) * 2 + 1); V3.ray.setFromCamera(V3.raton, cam);
+            const n = new T.Vector3().subVectors(V3.target, cam.position).normalize(), pl = new T.Plane().setFromNormalAndCoplanarPoint(n, V3.target), P = new T.Vector3();
+            return V3.ray.ray.intersectPlane(pl, P) ? P.toArray() : V3.target.toArray();
+        }
+        function zoomCursor3D(e, f) {
+            const r1 = Math.max(0.02, V3.r * f); f = r1 / V3.r; const P = puntoPlanoVista3D(e.clientX, e.clientY);
+            V3.target.fromArray(v3.sum(P, v3.mul(v3.sum(V3.target.toArray(), v3.mul(P, -1)), f))); V3.r = r1;
+        }
+        // W en el 3D: zoom ventana (arrastrar un rectángulo con el botón izquierdo; Esc o botón derecho cancela)
+        function zoomVentana3D(on) {
+            document.getElementById('v3d-zv')?.remove(); const cv = V3 && V3.renderer.domElement; if (!cv) return;
+            V3.zv = on ? {} : null; cv.style.cursor = on ? 'crosshair' : '';
+            const est = document.getElementById('v3d-estado'); if (est) est.textContent = on ? 'Zoom ventana: arrastra un rectángulo sobre la zona a ampliar · Esc o botón derecho: cancelar' : ayuda3D();
+        }
+        function rectZoom3D(a, e) {
+            let d = document.getElementById('v3d-zv'); if (!d) { d = document.createElement('div'); d.id = 'v3d-zv'; d.style.cssText = 'position:fixed;border:1.5px dashed #f59e0b;background:rgba(245,158,11,.12);pointer-events:none;z-index:40'; document.body.appendChild(d); }
+            Object.assign(d.style, { left: Math.min(a.x, e.clientX) + 'px', top: Math.min(a.y, e.clientY) + 'px', width: Math.abs(e.clientX - a.x) + 'px', height: Math.abs(e.clientY - a.y) + 'px' });
+        }
+        function aplicarZoomVentana3D(e) {
+            const a = V3.zv.ini, w = Math.abs(e.clientX - a.x), h = Math.abs(e.clientY - a.y); zoomVentana3D(false);
+            if (w < 6 || h < 6) { aviso('Zoom ventana: arrastra un rectángulo (W otra vez para repetir).'); return; }
+            const rc = V3.renderer.domElement.getBoundingClientRect(), mx = (a.x + e.clientX) / 2, my = (a.y + e.clientY) / 2;
+            // centro: el componente que hay en el centro del rectángulo (si lo hay) o el plano de la vista
+            const hit = picar3D({ clientX: mx, clientY: my }), P = hit ? hit.h.point.toArray() : puntoPlanoVista3D(mx, my), dist = V3.camera.position.distanceTo(new V3.T.Vector3(...P));
+            marcarPosicion3D(true); V3.target.fromArray(P); V3.r = Math.max(0.02, dist * Math.max(w / rc.width, h / rc.height)); pintar3D();
+        }
+        window.addEventListener('keydown', e => { if (e.key === 'Escape' && V3 && V3.zv) { e.preventDefault(); e.stopPropagation(); zoomVentana3D(false); } }, true);
         const raton3DActivo = () => SM.devs.length > 0;
         function avisoRaton3D() { const est = document.getElementById('v3d-estado'); if (est) est.textContent = 'Ratón 3D conectado: los giros y el acercar/alejar se hacen con él (el ratón normal desplaza con botón derecho o Mayús, selecciona y abre menús).'; }
         function construirTriada(buque) {
@@ -8580,7 +8620,7 @@
             const h = V3.ray.intersectObjects(V3.objetos, false)[0]; if (!h) return null;
             const el = todosLosElementos().find(x => x.id === h.object.userData.id); return el ? { el, h } : null;
         }
-        const ayuda3D = () => 'Arrastrar: girar (con ratón 3D, solo él gira y acerca) · botón derecho o Mayús: desplazar · rueda: zoom · clic: seleccionar · doble clic: pivote · Ctrl+doble clic: propiedades · R / Mayús+R: girar 45° · T: encajar · F: vista anterior · Alt+1: 2D/3D' + (V3 && V3.desfases && V3.desfases.length ? ` · ⚠ ${V3.desfases.length} tubería(s) con desnivel en 3D distinto de sus cotas: ${V3.desfases.slice(0, 4).map(x => tagDe(x.el) + ' ' + (x.dz >= 0 ? '+' : '') + Math.round(x.dz * 1000) + ' mm').join(', ')}${V3.desfases.length > 4 ? '…' : ''} (el cálculo usa las cotas)` : '');
+        const ayuda3D = () => 'Izquierdo: girar · derecho, central o Mayús: desplazar · Ctrl/Mayús+central: girar · rueda: zoom al cursor · W: zoom ventana · clic: seleccionar · doble clic: pivote · Ctrl+doble clic: propiedades · R / Mayús+R: girar 45° · T: encajar · F: vista anterior · Alt+1: 2D/3D' + (V3 && V3.desfases && V3.desfases.length ? ` · ⚠ ${V3.desfases.length} tubería(s) con desnivel en 3D distinto de sus cotas: ${V3.desfases.slice(0, 4).map(x => tagDe(x.el) + ' ' + (x.dz >= 0 ? '+' : '') + Math.round(x.dz * 1000) + ' mm').join(', ')}${V3.desfases.length > 4 ? '…' : ''} (el cálculo usa las cotas)` : '');
         function elegir3D(e, clic) {
             if (!V3) return; const r = picar3D(e), est = document.getElementById('v3d-estado');
             if (!r) { if (est) est.textContent = ayuda3D(); if (clic && (idSeleccionado || seleccion.size)) { seleccion.clear(); idSeleccionado = null; construirEscena3D(); } return; }
@@ -9146,7 +9186,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.33';
+        const VERSION_WEB = '8.34';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -10664,6 +10704,7 @@
         function zoomTodo() { irAOrigenEnEsquina(); }
 
         function activarZoomVentana() {
+            if (vista3d && V3) { cerrarMenus(); zoomVentana3D(true); return; }
             modoZoomVentana = true;
             canvasContainer.style.cursor = 'crosshair';
         }
