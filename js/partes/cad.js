@@ -139,28 +139,10 @@ function geometriaIsometrico(idLinea) {
             const vec = mapaVecinos(); let orden = ordenarLinea(idLinea, vec).map(id => elementosRed.find(e => e.id === id)).filter(e => e && !esAnotacion(e));
             if (orden.length > 1) orden = orden.filter(e => (vec[e.id] || []).length);
             if (!orden.length) return null;
-            const d2 = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
-            let P = { x: 0, y: 0, z: null }, cur = null;
-            const segs = [], marcas = [];
-            orden.forEach((el, i) => {
-                const ps = obtenerPuertosConexion(el), sig = orden[i + 1], psSig = sig ? obtenerPuertosConexion(sig) : [];
-                let ent = cur ? ps.slice().sort((a, b) => d2(a, cur) - d2(b, cur))[0] : (sig ? ps.slice().sort((a, b) => Math.min(...psSig.map(q => d2(b, q))) - Math.min(...psSig.map(q => d2(a, q))))[0] : ps[0]);
-                const resto = ps.filter(p => p !== ent);
-                const sal = resto.length ? (sig ? resto.slice().sort((a, b) => Math.min(...psSig.map(q => d2(a, q))) - Math.min(...psSig.map(q => d2(b, q))))[0] : resto.sort((a, b) => d2(b, ent) - d2(a, ent))[0]) : ent;
-                if (el.type === 'tuberia') {
-                    const desdeA = ent.id === 'a', zA = +el.cotaA || 0, zB = +el.cotaB || 0, z0 = desdeA ? zA : zB, z1 = desdeA ? zB : zA;
-                    if (P.z == null) P.z = z0;
-                    const L = (+el.longitud || 0) / 1000, dz = z1 - z0, h = Math.sqrt(Math.max(0, L * L - dz * dz));
-                    const dx = sal.x - ent.x, dy = sal.y - ent.y, n = Math.hypot(dx, dy) || 1;
-                    const Q = { x: P.x + dx / n * h, y: P.y - dy / n * h, z: z1 };
-                    segs.push({ a: Object.assign({}, P), b: Q, L: +el.longitud || 0, tag: tagDe(el), el });
-                    P = Q;
-                } else {
-                    if (P.z == null) P.z = +el.cota || 0;
-                    marcas.push({ p: Object.assign({}, P), tag: tagDe(el), tipo: el.type, sub: el.subtype, ramal: ps.length > 2 });
-                }
-                cur = sal;
-            });
+            const ids = new Set(orden.map(e => e.id)), g = geometria3DParaIso(el => ids.has(el.id), orden), d = (p, q) => Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+            g.segs.forEach((sg, i) => { const prev = g.segs[i - 1]; if (prev && d(prev.b, sg.a) > d(prev.b, sg.b) + 1e-6) { const t = sg.a; sg.a = sg.b; sg.b = t; } });
+            const segs = g.segs.map(sg => ({ a: sg.a, b: sg.b, L: sg.L, tag: tagDe(sg.el), el: sg.el }));
+            const marcas = g.comps.map(c => ({ p: c.C, tag: tagDe(c.el), tipo: c.el.type, sub: c.el.subtype, ramal: c.ports.length > 2 }));
             return { orden, segs, marcas };
         }
 async function isometricoLinea__p(idLinea) {
@@ -187,8 +169,8 @@ async function isometricoLinea__p(idLinea) {
                 sub: `${tamanoTexto(t0)}" ${CODIGO_MATERIAL[t0.material] || t0.material} ${serieTexto(t0)} · ${hojaOrigen}`, w: +((u1 - u0) * k).toFixed(1), h: +((v1 - v0) * k).toFixed(1) };
             // cotas de elevación en el inicio, el final y cada cambio de nivel
             geo.cotas = []; let zUlt = null;
-            const ponerCota = p => { geo.cotas.push({ x: X(p), y: Y(p), t: zTxt(p.z) }); zUlt = p.z; };
-            g.segs.forEach((s, i) => { if (i === 0) ponerCota(s.a); if (Math.abs(s.b.z - s.a.z) > 1e-3) { if (zUlt == null || Math.abs(zUlt - s.a.z) > 1e-3) ponerCota(s.a); ponerCota(s.b); } else if (i === g.segs.length - 1 && Math.abs(zUlt - s.b.z) > 1e-3) ponerCota(s.b); });
+            const ponerCota = p => { geo.cotas.push({ x: X(p), y: Y(p), t: zTxt(p.zc) }); zUlt = p.zc; };
+            g.segs.forEach((s, i) => { if (i === 0) ponerCota(s.a); if (Math.abs(s.b.zc - s.a.zc) > 1e-3) { if (zUlt == null || Math.abs(zUlt - s.a.zc) > 1e-3) ponerCota(s.a); ponerCota(s.b); } else if (i === g.segs.length - 1 && Math.abs(zUlt - s.b.zc) > 1e-3) ponerCota(s.b); });
             if (g.segs.length > 1 && geo.cotas.length < 2) ponerCota(g.segs[g.segs.length - 1].b);
             const n = nuevaAnotacion('isometrico', MM(30), MM(30) + Math.max(0, (H - geo.h) / 2));
             n.iso = geo; n.linea = undefined; n.x = MM(30) + Math.max(0, (W - geo.w) / 2);

@@ -8406,6 +8406,7 @@
         // 31) ISOMÉTRICO AUTOMÁTICO DE UNA LÍNEA a partir de las cotas (hoja nueva, imprimible y exportable a DXF)
         // Direcciones en planta: las del esquema (derecha = este, arriba = norte); vertical: cota b − cota a.
         // ==================================================================================
+        // v8.39 · isométrico de una línea: la misma geometría que el 3D (solo los elementos de la línea), en el orden del flujo
         
         const ISO_C = Math.cos(Math.PI / 6), ISO_S = Math.sin(Math.PI / 6);
         const isoProy = p => ({ u: (p.x + p.y) * ISO_C, v: (p.x - p.y) * ISO_S - p.z });
@@ -8953,39 +8954,28 @@
         }
         let tempo3D = null;
         function refrescar3D() { if (!vista3d || !V3) return; clearTimeout(tempo3D); tempo3D = setTimeout(() => { try { construirEscena3D(); } catch (e) { console.error(e); } }, 250); }
+        // v8.39 · la isométrica en papel sale de la MISMA geometría que el 3D (geometria3DReal): longitudes reales de tubos y
+        // accesorios, ramales, giros en el espacio y bocas de cada componente. Las cotas (EL) son las de las tuberías.
+        function geometria3DParaIso(filtro, orden) {
+            const { geo } = geometria3DReal(), P = a => ({ x: a[0], y: a[1], z: a[2] }), segs = [], comps = [];
+            Object.values(geo).forEach(gg => { const el = gg.el; if (filtro && !filtro(el)) return;
+                if (gg.tubo) { if (gg.ports.a && gg.ports.b) { const a = P(gg.ports.a.p), b = P(gg.ports.b.p); a.zc = +el.cotaA || 0; b.zc = +el.cotaB || 0; segs.push({ el, a, b, L: +el.longitud || 0 }); } }   // zc: cota de la tubería (para los rótulos EL)
+                else comps.push({ el, C: P(gg.C), ports: Object.entries(gg.ports).map(([q, x]) => ({ q, p: P(x.p) })) }); });
+            if (orden) { const pos = Object.fromEntries(orden.map((e, i) => [e.id, i])); segs.sort((a, b) => pos[a.el.id] - pos[b.el.id]); comps.sort((a, b) => pos[a.el.id] - pos[b.el.id]); }
+            // referencia de elevación: la cota del extremo a de la primera tubería
+            const t0 = segs[0], dz = t0 ? (+t0.el.cotaA || 0) - t0.a.z : 0;
+            if (dz) { segs.forEach(sg => { sg.a.z += dz; sg.b.z += dz; }); comps.forEach(c => { c.C.z += dz; c.ports.forEach(q => { q.p.z += dz; }); }); }
+            return { segs, comps };
+        }
         function geometriaIsoRed() {
-            const g = construirGrafoRed(), padre = g.nodos.map((n, i) => i);
-            const find = i => { while (padre[i] !== i) { padre[i] = padre[padre[i]]; i = padre[i]; } return i; }, unir = (a, b) => { a = find(a); b = find(b); if (a !== b) padre[a] = b; };
-            const nodosEl = {}; g.puertosTodos.forEach(p => { (nodosEl[p.elId] = nodosEl[p.elId] || {})[p.portId] = p; });
-            const els = elementosRed.filter(e => !esAnotacion(e) && nodosEl[e.id]);
-            els.filter(e => e.type !== 'tuberia').forEach(e => { const ns = Object.values(nodosEl[e.id]).map(p => p.nodo); ns.slice(1).forEach(n => unir(ns[0], n)); });
-            const tubos = els.filter(e => e.type === 'tuberia' && nodosEl[e.id].a && nodosEl[e.id].b).map(e => { const pa = nodosEl[e.id].a, pb = nodosEl[e.id].b; return { el: e, na: find(pa.nodo), nb: find(pb.nodo), pa, pb }; });
-            const ady = {}; tubos.forEach(t => { (ady[t.na] = ady[t.na] || []).push([t, 'a']); (ady[t.nb] = ady[t.nb] || []).push([t, 'b']); });
-            const pos = {}, segs = [];
-            let x0 = 0;
-            tubos.forEach(t0 => {
-                if (pos[t0.na] || pos[t0.nb]) return;
-                pos[t0.na] = { x: x0, y: 0, z: +t0.el.cotaA || 0 }; const cola = [t0.na], comp = [t0.na];
-                while (cola.length) { const n = cola.shift();
-                    (ady[n] || []).forEach(([t, lado]) => { if (t._iso) return; t._iso = true;
-                        const desdeA = lado === 'a', otro = desdeA ? t.nb : t.na, P = pos[n], zOtro = +(desdeA ? t.el.cotaB : t.el.cotaA) || 0, zEste = +(desdeA ? t.el.cotaA : t.el.cotaB) || 0;
-                        const L = (+t.el.longitud || 0) / 1000, dz = zOtro - zEste, h = Math.sqrt(Math.max(0, L * L - dz * dz));
-                        const s0 = desdeA ? t.pa : t.pb, s1 = desdeA ? t.pb : t.pa, dx = s1.x - s0.x, dyN = -(s1.y - s0.y), nn = Math.hypot(dx, dyN);
-                        const Q = { x: P.x + (nn > 1e-6 ? dx / nn : 1) * h, y: P.y + (nn > 1e-6 ? dyN / nn : 0) * h, z: P.z + dz };
-                        if (!pos[otro]) { pos[otro] = Q; cola.push(otro); comp.push(otro); }
-                        segs.push({ el: t.el, a: desdeA ? P : pos[otro], b: desdeA ? pos[otro] : P, L: +t.el.longitud || 0, cierre: pos[otro] !== Q });
-                    }); }
-                x0 = Math.max(...comp.map(k => pos[k].x)) + 2;   // la siguiente red aislada, a la derecha
-            });
-            tubos.forEach(t => delete t._iso);
-            const marcas = els.filter(e => e.type !== 'tuberia').map(e => { const n = find(Object.values(nodosEl[e.id])[0].nodo); return pos[n] ? { el: e, p: pos[n], n } : null; }).filter(Boolean);
-            return { segs, marcas };
+            const g = geometria3DParaIso();
+            return { segs: g.segs, comps: g.comps, marcas: g.comps.map(c => ({ el: c.el, p: c.C })) };
         }
         function dibujarVistaIso(P) {
             const geo = geometriaIsoRed(), g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('id', 'vista-iso');
             const fs = MM(2.4), c0 = P.texto, ttl = `<text x="${MM(25)}" y="${MM(18)}" font-family="sans-serif" font-size="${MM(4)}" font-weight="bold" fill="${c0}">${esc(tradMayDoc('VISTA ISOMÉTRICA'))} · ${esc(codigoHoja())}</text><text x="${MM(25)}" y="${MM(23)}" font-family="sans-serif" font-size="${fs}" fill="#64748b">${esc(trad('Solo consulta: para editar, vuelve a «Normal». Dirección en planta la del esquema; vertical por las cotas a / b.'))}</text>`;
             if (!geo.segs.length) { g.innerHTML = ttl; svgCanvas.appendChild(g); return; }
-            const pts = geo.segs.flatMap(s => [isoProy(s.a), isoProy(s.b)]), u0 = Math.min(...pts.map(p => p.u)), u1 = Math.max(...pts.map(p => p.u)), v0 = Math.min(...pts.map(p => p.v)), v1 = Math.max(...pts.map(p => p.v));
+            const pts = geo.segs.flatMap(s => [isoProy(s.a), isoProy(s.b)]).concat((geo.comps || []).flatMap(c => [isoProy(c.C), ...c.ports.map(q => isoProy(q.p))])), u0 = Math.min(...pts.map(p => p.u)), u1 = Math.max(...pts.map(p => p.u)), v0 = Math.min(...pts.map(p => p.v)), v1 = Math.max(...pts.map(p => p.v));
             const W = ANCHO_A3 - MM(70), H = ALTO_A3 - MM(110), k = Math.min(W / Math.max(u1 - u0, 1e-6), H / Math.max(v1 - v0, 1e-6), MM(40));
             const ox = MM(35) + (W - (u1 - u0) * k) / 2, oy = MM(40) + (H - (v1 - v0) * k) / 2;
             const X = p => +(ox + (isoProy(p).u - u0) * k).toFixed(2), Y = p => +(oy + (isoProy(p).v - v0) * k).toFixed(2);
@@ -9001,20 +8991,31 @@
             });
             // cotas de elevación en los extremos de los tramos con cambio de nivel
             const vistos = new Set();
-            geo.segs.filter(s => Math.abs(s.b.z - s.a.z) > 1e-3).forEach(s => [s.a, s.b].forEach(p => { const kk = X(p) + ',' + Y(p); if (vistos.has(kk)) return; vistos.add(kk); h += `<text x="${(X(p) + MM(1.5)).toFixed(2)}" y="${(Y(p) + MM(4)).toFixed(2)}" font-family="sans-serif" font-size="${MM(2)}" font-style="italic" fill="#475569">${esc(zTxt(p.z))}</text>`; }));
-            const usados = [];
-            geo.marcas.forEach(m => {
-                const el = m.el, sel = idSeleccionado === el.id || seleccion.has(el.id), c = sel ? P.sel : colorElemento(el, P), x = X(m.p), y = Y(m.p), r = MM(1.8);
-                const kk = usados.filter(u => Math.hypot(u.x - x, u.y - y) < MM(2)).length; usados.push({ x, y }); const dyL = kk * MM(3.2);
-                const s = geo.segs.find(q => q.a === m.p || q.b === m.p), ang = s ? Math.atan2(Y(s.b) - Y(s.a), X(s.b) - X(s.a)) * 180 / Math.PI : 0;
+            geo.segs.filter(s => Math.abs(s.b.zc - s.a.zc) > 1e-3).forEach(s => [s.a, s.b].forEach(p => { const kk = X(p) + ',' + Y(p); if (vistos.has(kk)) return; vistos.add(kk); h += `<text x="${(X(p) + MM(1.5)).toFixed(2)}" y="${(Y(p) + MM(4)).toFixed(2)}" font-family="sans-serif" font-size="${MM(2)}" font-style="italic" fill="#475569">${esc(zTxt(p.zc))}</text>`; }));
+            // componentes con su tamaño real (bocas del 3D) y etiquetas con línea de referencia sin solaparse
+            const cajas = [], libre = (x, y, w, hh) => !cajas.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + hh > b.y);
+            geo.segs.forEach(s2 => { if (Math.hypot(X(s2.b) - X(s2.a), Y(s2.b) - Y(s2.a)) > MM(28)) { const mx = (X(s2.a) + X(s2.b)) / 2, my = (Y(s2.a) + Y(s2.b)) / 2; cajas.push({ x: mx - MM(12), y: my - MM(4), w: MM(24), h: MM(8) }); } });
+            (geo.comps || []).forEach(cm => {
+                const el = cm.el, st = el.subtype || '', sel = idSeleccionado === el.id || seleccion.has(el.id), c = sel ? P.sel : colorElemento(el, P), x = X(cm.C), y = Y(cm.C), r = MM(1.6);
+                const pa = cm.ports.find(q => q.q === 'a' || q.q === 'succion'), pb = cm.ports.find(q => q.q === 'b' || q.q === 'descarga');
+                const ang = pa && pb ? Math.atan2(Y(pb.p) - Y(pa.p), X(pb.p) - X(pa.p)) * 180 / Math.PI : cm.ports[0] ? Math.atan2(Y(cm.ports[0].p) - y, X(cm.ports[0].p) - x) * 180 / Math.PI : 0;
+                let cuerpo = cm.ports.map(q => `<line x1="${x}" y1="${y}" x2="${X(q.p)}" y2="${Y(q.p)}" stroke="${c}" stroke-width="${sel ? 3 : 2}" stroke-linecap="round"/>`).join('');
                 let sym;
-                if (el.type === 'valvula') sym = `<polygon points="${-r},${-r} ${r},${r} ${r},${-r} ${-r},${r}" fill="#fff" stroke="${c}" stroke-width="0.9"/>`;
-                else if (el.type === 'bomba') sym = `<circle r="${r * 1.6}" fill="#fff" stroke="${c}" stroke-width="1"/><polygon points="${-r * 0.7},${-r} ${r},0 ${-r * 0.7},${r}" fill="${c}"/>`;
-                else if (el.type === 'equipo' || el.type === 'terminal') sym = `<rect x="${-r * 1.5}" y="${-r * 1.5}" width="${r * 3}" height="${r * 3}" fill="#fff" stroke="${c}" stroke-width="1"/>`;
-                else if (/^codo/.test(el.subtype || '')) sym = `<circle r="${r * 0.45}" fill="${c}"/>`;
+                if (el.type === 'valvula') sym = `<polygon points="${-r * 1.5},${-r} ${r * 1.5},${r} ${r * 1.5},${-r} ${-r * 1.5},${r}" fill="#fff" stroke="${c}" stroke-width="0.9"/>` + (st === 'retencion' ? '' : `<line x1="0" y1="0" x2="0" y2="${-r * 2.2}" stroke="${c}" stroke-width="0.8"/><line x1="${-r * 0.9}" y1="${-r * 2.2}" x2="${r * 0.9}" y2="${-r * 2.2}" stroke="${c}" stroke-width="0.8"/>`);
+                else if (el.type === 'bomba') sym = `<circle r="${r * 1.8}" fill="#fff" stroke="${c}" stroke-width="1"/><polygon points="${-r * 0.8},${-r * 1.1} ${r * 1.1},0 ${-r * 0.8},${r * 1.1}" fill="${c}"/>`;
+                else if (el.type === 'equipo' || el.type === 'terminal' || esDeposito(el)) sym = `<rect x="${-r * 1.6}" y="${-r * 1.6}" width="${r * 3.2}" height="${r * 3.2}" fill="#fff" stroke="${c}" stroke-width="1"/>`;
+                else if (SUBTIPOS_BRIDA.includes(st)) { const f = cm.ports.find(q => q.q === 'a') || cm.ports[0], fx = X(f.p), fy = Y(f.p); cuerpo += `<g transform="translate(${fx} ${fy}) rotate(${ang.toFixed(1)})"><line x1="0" y1="${-r * 1.4}" x2="0" y2="${r * 1.4}" stroke="${c}" stroke-width="1.2"/></g>`; sym = ''; }
+                else if (/^codo/.test(st)) sym = `<circle r="${r * 0.5}" fill="${c}"/>`;
+                else if (st === 'tee' || st === 'cruce' || st === 'injerto') sym = `<circle r="${r * 0.65}" fill="${c}"/>`;
+                else if (st === 'reduccion') sym = `<polygon points="${-r},${-r} ${r},${-r * 0.5} ${r},${r * 0.5} ${-r},${r}" fill="#fff" stroke="${c}" stroke-width="0.8"/>`;
                 else sym = `<circle r="${r * 0.8}" fill="#fff" stroke="${c}" stroke-width="0.9"/>`;
-                h += `<g class="iso-el" data-id="${el.id}" style="cursor:pointer"><g transform="translate(${x} ${y}) rotate(${ang.toFixed(1)})"><circle r="${r * 2}" fill="transparent"/>${sym}</g>`;
-                if (!/^codo/.test(el.subtype || '')) h += `<line x1="${x}" y1="${y}" x2="${x + MM(4)}" y2="${y - MM(6) - dyL}" stroke="${c}" stroke-width="0.4"/><text x="${x + MM(4.5)}" y="${y - MM(6.3) - dyL}" font-family="sans-serif" font-size="${MM(2.2)}" fill="${c}">${esc(tagDe(el))}${el.estado === 'fallo' ? ' !' : ''}</text>`;
+                h += `<g class="iso-el" data-id="${el.id}" style="cursor:pointer">${cuerpo}<g transform="translate(${x} ${y}) rotate(${ang.toFixed(1)})"><circle r="${r * 2}" fill="transparent"/>${sym}</g>`;
+                if (!/^codo/.test(st)) {   // etiqueta: se busca un hueco hacia arriba a la derecha
+                    const txt = esc(tagDe(el)) + (el.estado === 'fallo' ? ' !' : ''), tw = tagDe(el).length * MM(1.25) + MM(1), th = MM(3);
+                    let lx = x + MM(4), ly = y - MM(6), k2 = 0; while (!libre(lx, ly - th, tw, th + MM(0.6)) && k2 < 30) { ly -= MM(3.4); if (++k2 % 10 === 0) { lx += MM(30); ly = y - MM(6); } }
+                    cajas.push({ x: lx, y: ly - th, w: tw, h: th + MM(0.6) });
+                    h += `<line x1="${x}" y1="${y}" x2="${lx - MM(0.4)}" y2="${ly - MM(0.8)}" stroke="${c}" stroke-width="0.35"/><text x="${lx}" y="${ly}" font-family="sans-serif" font-size="${MM(2.2)}" fill="${c}">${txt}</text>`;
+                }
                 h += '</g>';
             });
             // ejes del isométrico: +X este, +Y norte, +Z arriba
@@ -9435,7 +9436,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.38';
+        const VERSION_WEB = '8.39';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
