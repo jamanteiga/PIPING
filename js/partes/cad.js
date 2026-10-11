@@ -90,17 +90,28 @@ function tablaCapasDXF(cab, nuevoHandle) {
             const cabT = cabTabla.replace(/( 70\n)\d+\n$/, '$1' + (capas.length + 1) + '\n');
             return cab.slice(0, i) + cabT + out + defpoints + cab.slice(j);
         }
+function ponerMarcaAgua() {
+            quitarMarcaAgua(); const W = ANCHO_A3, H = ALTO_A3, fs = Math.min(W, H) / 11, t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            t.setAttribute('id', 'marca-agua'); t.setAttribute('x', (W / 2).toFixed(1)); t.setAttribute('y', (H / 2 + fs * 0.35).toFixed(1)); t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-family', 'sans-serif');
+            t.setAttribute('font-weight', 'bold'); t.setAttribute('font-size', fs.toFixed(1)); t.setAttribute('fill', '#9ca3af'); t.setAttribute('fill-opacity', '0.35'); t.setAttribute('pointer-events', 'none');
+            t.setAttribute('transform', `rotate(-45 ${(W / 2).toFixed(1)} ${(H / 2).toFixed(1)})`); t.textContent = tradDoc(TEXTO_MARCA_AGUA);
+            svgCanvas.insertBefore(t, svgCanvas.firstChild);
+        }
+function quitarMarcaAgua() { document.getElementById('marca-agua')?.remove(); }
 function capturarHoja(i) {
             sincronizarHoja();
-            const g = { e: elementosRed, l: lineas, cc: condicionesContorno, f: opciones.formato, h: hojaActual, c: planoCongelado, sel: idSeleccionado, s: new Set(seleccion) };
+            const g = { e: elementosRed, l: lineas, cc: condicionesContorno, f: opciones.formato, h: hojaActual, c: planoCongelado, sel: idSeleccionado, s: new Set(seleccion), gu: guias };
             const h = hojas[i];
             try {
-                hojaActual = i; elementosRed = h.e || []; lineas = h.l || []; condicionesContorno = h.cc || {}; opciones.formato = h.formato || g.f; idSeleccionado = null; seleccion.clear();
+                hojaActual = i; elementosRed = h.e || []; lineas = h.l || []; condicionesContorno = h.cc || {}; opciones.formato = h.formato || g.f; idSeleccionado = null; seleccion.clear(); guias = [];   // las trayectorias guía no se imprimen
                 aplicarFormato(); renderizarVectorial();
                 document.querySelectorAll('.asa-tubo, #fantasma-mano, #pista-snap').forEach(x => x.remove());
-                return { html: document.getElementById('marco-a3').outerHTML.replace('id="marco-a3"', 'class="hoja-impresa"'), formato: opciones.formato || 'A3' };
+                ponerMarcaAgua();
+                const html = document.getElementById('marco-a3').outerHTML.replace('id="marco-a3"', 'class="hoja-impresa"');
+                quitarMarcaAgua();
+                return { html, formato: opciones.formato || 'A3' };
             } finally {
-                hojaActual = g.h; elementosRed = g.e; lineas = g.l; condicionesContorno = g.cc; opciones.formato = g.f; idSeleccionado = g.sel; g.s.forEach(x => seleccion.add(x));
+                hojaActual = g.h; elementosRed = g.e; lineas = g.l; condicionesContorno = g.cc; opciones.formato = g.f; idSeleccionado = g.sel; g.s.forEach(x => seleccion.add(x)); guias = g.gu;
                 aplicarFormato(); renderizarVectorial();
             }
         }
@@ -115,13 +126,13 @@ function abrirImpresion__p() {
             document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">Marca las hojas a imprimir. En el cuadro de impresión elige «Guardar como PDF» para obtener un PDF con todas ellas (una página por hoja).${fmts.length > 1 ? ` <span class="text-amber-700">Hay hojas de formatos distintos (${fmts.join(', ')}): se imprimen en el formato de la primera; imprime por separado si lo necesitas.</span>` : ''}</p>
                 <div class="flex flex-wrap gap-3 overflow-auto" style="max-height:62vh">${caps.map(mini).join('')}</div>`;
             document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><button onclick="impresionSel = hojas.map(() => true); abrirImpresion()" class="px-3 py-1.5 border rounded">Todas</button><button onclick="impresionSel = hojas.map((h, i) => i === hojaActual); abrirImpresion()" class="px-3 py-1.5 border rounded">Solo la actual</button><span class="flex-1"></span>
-                <button onclick="cerrarModalRed()" class="px-3 py-1.5 border rounded">Cancelar</button><button onclick="exportarPDFCapas(hojas.map((h, i) => i).filter(i => impresionSel[i]))" ${nSel ? '' : 'disabled'} class="px-3 py-1.5 border rounded disabled:opacity-40"><i class="fa-solid fa-file-pdf mr-1"></i>PDF vectorial con capas</button><button onclick="imprimirHojas()" ${nSel ? '' : 'disabled'} class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded font-medium"><i class="fa-solid fa-print mr-1"></i>Imprimir / PDF (${nSel} hoja${nSel === 1 ? '' : 's'})</button></div>`;
+                <button onclick="cerrarModalRed()" class="px-3 py-1.5 border rounded">Cancelar</button><button onclick="exportarPDFCapas(hojas.map((h, i) => i), { marcaAgua: true })" title="Un PDF con todas las hojas, de la 00 a la última" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-medium"><i class="fa-solid fa-file-pdf mr-1"></i>Imprimir todas (PDF, ${hojas.length} hoja${hojas.length === 1 ? '' : 's'})</button><button onclick="exportarPDFCapas(hojas.map((h, i) => i).filter(i => impresionSel[i]), { marcaAgua: true })" ${nSel ? '' : 'disabled'} class="px-3 py-1.5 border rounded disabled:opacity-40"><i class="fa-solid fa-file-pdf mr-1"></i>PDF vectorial con capas</button><button onclick="imprimirHojas()" ${nSel ? '' : 'disabled'} class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded font-medium"><i class="fa-solid fa-print mr-1"></i>Imprimir / PDF (${nSel} hoja${nSel === 1 ? '' : 's'})</button></div>`;
             document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-print text-blue-600 mr-1.5"></i> Vista previa de impresión';
             document.querySelector('#modal-red > div').style.width = 'min(1200px, 97vw)';
             document.getElementById('modal-red').style.display = 'flex';
         }
 function imprimirHojas__p() {
-            const idx = hojas.map((h, i) => i).filter(i => impresionSel[i]); if (!idx.length) return;
+            const idx = hojas.map((h, i) => i).filter(i => impresionSel[i]).sort((a, b) => (parseInt(hojas[a].id, 10) || 0) - (parseInt(hojas[b].id, 10) || 0)); if (!idx.length) return;
             const caps = idx.map(i => capturarHoja(i)), f = FORMATOS[caps[0].formato] || FORMATOS.A3;
             cerrarModalRed();
             let cont = document.getElementById('impresion-multiple'); if (cont) cont.remove();
@@ -303,7 +314,7 @@ function paginaPDF() {
                 if (n.hasAttribute && n.hasAttribute('data-capa')) { capaForma = capaTexto = n.getAttribute('data-capa'); }
                 const tag = n.tagName.toLowerCase();
                 if (['defs', 'pattern', 'marker', 'clippath', 'mask', 'title', 'style', 'script', 'foreignobject'].includes(tag)) return;
-                if (n.classList.contains('connection-port') || n.classList.contains('punto-enganche') || n.classList.contains('no-imprimir') || n.id === 'rejilla' || n.id === 'guias-arrastre') return;
+                if (n.classList.contains('connection-port') || n.classList.contains('punto-enganche') || n.classList.contains('no-imprimir') || n.id === 'rejilla' || n.id === 'guias-arrastre' || n.id === 'capa-guias') return;
                 const cs = getComputedStyle(n); if (cs.display === 'none') return;
                 const a = alfa * (parseFloat(cs.opacity) || (cs.opacity === '0' ? 0 : 1)); if (a <= 0.001) return;
                 if (tag === 'g' || tag === 'svg' || tag === 'a') { [...n.children].forEach(c => recorrer(c, capaForma, a, capaTexto)); return; }
@@ -354,16 +365,18 @@ function paginaPDF() {
             const gE = svgCanvas.querySelector('#capa-etiquetas'); if (gE) recorrer(gE, 'Object', 1);
             return { w: FMT.w * 72 / 25.4, h: Hpt, capas, imgs, est, conf: capaConf, hoja: codigoHoja() };
         }
-function conHoja(i, fn) {
-            const g = { e: elementosRed, l: lineas, cc: condicionesContorno, f: opciones.formato, h: hojaActual, c: planoCongelado, sel: idSeleccionado, s: new Set(seleccion) };
+function conHoja(i, fn, marcaAgua) {
+            const g = { e: elementosRed, l: lineas, cc: condicionesContorno, f: opciones.formato, h: hojaActual, c: planoCongelado, sel: idSeleccionado, s: new Set(seleccion), gu: guias };
             const h = hojas[i];
             try {
-                hojaActual = i; elementosRed = h.e || []; lineas = h.l || []; condicionesContorno = h.cc || {}; opciones.formato = h.formato || g.f; idSeleccionado = null; seleccion.clear();
+                hojaActual = i; elementosRed = h.e || []; lineas = h.l || []; condicionesContorno = h.cc || {}; opciones.formato = h.formato || g.f; idSeleccionado = null; seleccion.clear(); guias = [];
                 aplicarFormato(); renderizarVectorial();
                 document.querySelectorAll('.asa-tubo, #fantasma-mano, #pista-snap, #guias-arrastre').forEach(x => x.remove());
+                if (marcaAgua) ponerMarcaAgua();
                 return fn();
             } finally {
-                hojaActual = g.h; elementosRed = g.e; lineas = g.l; condicionesContorno = g.cc; opciones.formato = g.f; idSeleccionado = g.sel; g.s.forEach(x => seleccion.add(x));
+                quitarMarcaAgua();
+                hojaActual = g.h; elementosRed = g.e; lineas = g.l; condicionesContorno = g.cc; opciones.formato = g.f; idSeleccionado = g.sel; g.s.forEach(x => seleccion.add(x)); guias = g.gu;
                 aplicarFormato(); renderizarVectorial();
             }
         }
@@ -430,12 +443,13 @@ async function escribirPDF(paginas, titulo) {
             x += `trailer\n<< /Size ${objs.length + 1} /Root ${cat} 0 R /Info ${info} 0 R >>\nstartxref\n${xref}\n%%EOF\n`; meter(bytesLatin(x));
             return new Blob(partes, { type: 'application/pdf' });
         }
-async function exportarPDFCapas__p(indices) {
+async function exportarPDFCapas__p(indices, opc = {}) {
             cerrarMenus(); sincronizarHoja();
             indices = indices && indices.length ? indices : hojas.map((h, i) => i);
+            indices = indices.slice().sort((a, b) => (parseInt(hojas[a].id, 10) || 0) - (parseInt(hojas[b].id, 10) || 0));   // de la 00 a la última
             try {
                 aviso('Generando el PDF vectorial…');
-                const paginas = indices.map(i => conHoja(i, paginaPDF));
+                const paginas = indices.map(i => conHoja(i, paginaPDF, !!opc.marcaAgua));
                 const blob = await escribirPDF(paginas, [proyecto.numero, proyecto.nombrePlano].filter(Boolean).join(' - '));
                 const nombre = `${(proyecto.planoNumero || proyecto.numero || 'plano').replace(/[^\w.-]+/g, '_')}.pdf`;
                 const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);

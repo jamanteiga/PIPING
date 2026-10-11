@@ -181,13 +181,101 @@ async function generarInforme__p() {
                     a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
                     setTimeout(() => URL.revokeObjectURL(url), 5000);
                 }
+                mostrarAvisoProgreso('Generando la comprobación por componente (Excel)…');
+                let blobX = null, nombreX = nombre.replace(/\.docx$/i, '-comprobacion.xlsx');
+                try { blobX = await generarComprobacionXLSX(); await guardarBlobComo(blobX, nombreX, 'Libro de Excel (*.xlsx)', { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] }); } catch (ex) { console.error(ex); aviso('No se ha podido generar el Excel de comprobación: ' + ex.message, 'error'); }
                 mostrarAvisoProgreso(null);
-                alert(`Informe generado: ${handle ? handle.name : nombre}${plantilla ? '\nPlantilla: ' + plantilla.nombre : ''}\n\nAl abrirlo en Word acepta "actualizar campos" para rellenar los números de página de los índices (en LibreOffice: Herramientas > Actualizar > Actualizar todo).`);
+                abrirRevisionInforme(blob, handle ? handle.name : nombre, blobX, nombreX);   // se abren los dos para revisarlos
+                if (false) alert(`Informe generado: ${handle ? handle.name : nombre}${plantilla ? '\nPlantilla: ' + plantilla.nombre : ''}\n\nAl abrirlo en Word acepta "actualizar campos" para rellenar los números de página de los índices (en LibreOffice: Herramientas > Actualizar > Actualizar todo).`);
             } catch (err) {
                 console.error(err); mostrarAvisoProgreso(null);
                 alert('No se ha podido generar el informe: ' + err.message);
             }
         }
+function datosComprobacionRed() {
+            const res = ultimoCalculo.resultado, fl = res.fluido, ars = res.aristas, de = id => ars.filter(a => a.el.id === id), rg = (fl.rho || 1000) * 9.80665, r3 = (x, d = 3) => x == null || !isFinite(x) ? '' : +(+x).toFixed(d);
+            const estado = e => e.estado === 'fallo' ? 'NO CUMPLE' : (e.esLineaCritica ? 'Cumple · crítica' : 'Cumple');
+            const bombas = elementosRed.filter(e => e.type === 'bomba' && ultimoResultado[e.id]).map(e => { const r = ultimoResultado[e.id], ci = conexBomba(e, 'Imp'), ca = conexBomba(e, 'Asp'), vD = vecinosDe(e).find(w => w.puertoEl === 'descarga'), vS = vecinosDe(e).find(w => w.puertoEl === 'succion');
+                const dnI = ci.dn || e.dnImp || (vD ? dnEquivalente(vD.otro) || vD.otro.dn : '') || '', dnA = ca.dn || e.dnAsp || (vS ? dnEquivalente(vS.otro) || vS.otro.dn : '') || '';
+                return { tag: tagDe(e), Q: r3(r.Q, 2), H: r3(r.H, 2), p: r3(r.H * rg / 1e5, 3), asp: [dnA ? etiquetaDN(dnA) : '', ca.tipo, ca.rating].filter(Boolean).join(' · '), imp: [dnI ? etiquetaDN(dnI) : '', ci.tipo, ci.rating].filter(Boolean).join(' · '),
+                    npshd: r3(r.npshd, 2), npshr: r3(r.npshr != null ? r.npshr : e.npsh, 2), margen: r3((+r.npshd || 0) - (+(r.npshr != null ? r.npshr : e.npsh) || 0), 2), estado: estado(e) }; });
+            const vistos = new Set(), lista = [];
+            lineasEnOrden().forEach(o => o.orden.forEach(id => { if (!vistos.has(id)) { vistos.add(id); const e = elementosRed.find(x => x.id === id); if (e) lista.push(e); } }));
+            elementosRed.forEach(e => { if (!vistos.has(e.id)) { vistos.add(e.id); lista.push(e); } });
+            const comps = lista.filter(e => !esAnotacion(e) && e.type !== 'bomba').map(e => {
+                const as = de(e.id), hf = as.reduce((s2, a) => s2 + (hfDeArista(a) || 0), 0), a0 = as[0];
+                let car = e.type === 'tuberia' ? `${etiquetaTuberia(e)} · ${e.material}` : e.subtype === 'reduccion' ? `${etiquetaDN(e.dn)} × ${etiquetaDN(e.dnMenor)}${e.pn ? ' · ' + e.pn : ''}` : [e.dn ? etiquetaDN(e.dn) : '', e.pn || '', e.type === 'valvula' && e.conexValv ? e.conexValv : ''].filter(Boolean).join(' · ');
+                let K = '', Cv = '', f = '';
+                if (as.length && !sinFlujo(e)) { if (e.type === 'tuberia') f = r3(a0 && a0.f, 4); else if (as.length > 1) K = as.map(a => `${nfMenos(a.K)}${a.rama ? ' (' + a.rama + ')' : ''}`).join(' / '); else if (a0 && a0.K != null) { K = r3(a0.K, 3); if (e.type === 'valvula' && a0.K > 0 && a0.D) Cv = r3(29.9 * Math.pow(a0.D * 39.3701, 2) / Math.sqrt(a0.K), 1); } }
+                return { tag: tagDe(e), tipo: nombreTipo(e), car, L: e.type === 'tuberia' ? r3((+e.longitud || 0) / 1000, 3) : '', Q: a0 ? r3(Math.abs(a0.Qprev || 0) * 3600, 2) : '', V: a0 && a0.V != null ? r3(a0.V, 3) : '', K, Cv, f, hf: as.length ? r3(hf, 4) : '', pa: as.length ? Math.round(hf * rg) : '', estado: estado(e) };
+            });
+            const lc = res.lineaCritica, out = { bombas, comps, fl, lc: lc ? { hf: r3(lc.hfTotal, 3), kPa: r3(lc.hfTotal * rg / 1000, 2), recorrido: lc.aristasCamino.map(a => tagDe(a.el)).filter((n, i, a) => !i || n !== a[i - 1]).join(' → ') } : null };
+            // sin bombas: datos para seleccionar la bomba según la ruta crítica (bomba colocada al inicio de la ruta, sin pérdidas de aspiración)
+            if (!bombas.length && lc && lc.aristasCamino.length) {
+                const cam = lc.aristasCamino, cnt = {}; cam.forEach(a => { cnt[a.nodoA] = (cnt[a.nodoA] || 0) + 1; cnt[a.nodoB] = (cnt[a.nodoB] || 0) + 1; });
+                const extremos = Object.keys(cnt).filter(n => cnt[n] === 1).map(Number), porNodo = (res.terminales && res.terminales.porNodo) || {};
+                const esFuente = n => { const t = porNodo[n]; return t && t.subtype !== 'consumo' && !/consumo|descarga|salida/i.test(t.subtype || ''); };
+                const nA = extremos.find(esFuente) ?? (extremos.length ? extremos[0] : cam[0].nodoA), nZ = extremos.find(n => n !== nA) ?? cam[cam.length - 1].nodoB, a0 = cam[0];
+                const zN = n => (res.z || {})[n] || 0, pM = n => (res.pMan || {})[n] || 0, pAbs = res.pAbs || {}, PATM = 101325;
+                const ultT = cam.find(a => a.nodoA === nZ || a.nodoB === nZ), fin = porNodo[nZ] || (ultT && vecinosDe(ultT.el).map(v => v.otro).find(o => o.subtype === 'consumo')), pMinZ = fin && fin.subtype === 'consumo' ? (+fin.pMin || 0) * 1e5 : 0;
+                const Hdisp = zN(nA) + pM(nA) / rg, Hreq = zN(nZ) + pMinZ / rg;      // altura disponible en el origen y necesaria en el final (m c.l.)
+                const TDH = lc.hfTotal + Hreq - Hdisp, tubos = cam.map(a => a.el).filter(e => e.type === 'tuberia'), pA = pM(nA), z = zN;
+                const Q = Math.max(+res.Qdiseno || 0, Math.abs(a0.Qprev || 0) * 3600);
+                out.seleccion = [['Caudal', r3(Q, 2), 'm³/h'], ['Altura necesaria (pérdidas de la ruta crítica + desnivel + presión residual)', r3(TDH, 2), 'm c.l.'], ['Presión de salida de la bomba', r3((pA + rg * TDH) / 1e5, 3), 'bar man.'],
+                    ['NPSH disponible en la aspiración (bomba al inicio de la ruta)', r3(((pAbs[nA] || PATM) - (fl.pv || 0)) / rg, 2), 'm'], ['Conexión de aspiración (DN de la tubería de entrada)', tubos[0] ? etiquetaDN(dnEquivalente(tubos[0]) || tubos[0].dn) : '', ''],
+                    ['Conexión de impulsión (DN de la tubería de salida)', tubos.length ? etiquetaDN(dnEquivalente(tubos[tubos.length > 1 ? 1 : 0]) || tubos[tubos.length > 1 ? 1 : 0].dn) : '', ''], ['Pérdida de carga de la ruta crítica', r3(lc.hfTotal, 3), 'm c.l.'], ['Desnivel inicio → final de la ruta', r3(z(nZ) - z(nA), 2), 'm'], ['Altura disponible en el origen (cota + presión)', r3(Hdisp, 2), 'm c.l.'],
+                    ['Presión residual exigida al final', r3(pMinZ / 1e5, 2), 'bar man.'], ['Fluido', `${fl.nombre} a ${fl.T} °C`, ''], ['Densidad', r3(fl.rho, 1), 'kg/m³'], ['Viscosidad cinemática', fl.nu != null ? r3(fl.nu * 1e6, 3) : '', 'mm²/s'], ['Presión de vapor', r3((fl.pv || 0) / 1000, 2), 'kPa']];
+            }
+            return out;
+        }
+async function generarComprobacionXLSX() {
+            const X = await cargarXLSX(), d = datosComprobacionRed(), p = proyecto, aoa = [], merges = [];
+            const tit = t => { aoa.push([t]); }, vacia = () => aoa.push([]);
+            tit(`PIPING · Comprobación final por componente · ${p.numero || ''} · ${p.cliente || ''}`); tit(`${p.instalacion || ''} · Rev. ${p.revision || '0'} · ${new Date().toLocaleDateString('es-ES')}`); tit(`Fluido: ${d.fl.nombre} a ${d.fl.T} °C · ρ ${(+d.fl.rho).toFixed(1)} kg/m³`); vacia();
+            if (d.bombas.length) {
+                tit('BOMBAS'); aoa.push(['Bomba', 'Q (m³/h)', 'H a ese caudal (m c.l.)', 'Presión equivalente (bar)', 'Conexión de aspiración', 'Conexión de impulsión', 'NPSH calculado (m)', 'NPSH requerido (m)', 'Margen (m)', 'Estado']);
+                d.bombas.forEach(b => aoa.push([b.tag, b.Q, b.H, b.p, b.asp, b.imp, b.npshd, b.npshr, b.margen, b.estado])); vacia();
+            } else if (d.seleccion) {
+                tit('DATOS PARA SELECCIONAR LA BOMBA (la red no tiene bomba; según la ruta crítica)'); aoa.push(['Concepto', 'Valor', 'Unidad']); d.seleccion.forEach(r => aoa.push(r)); vacia();
+            }
+            tit('TUBERÍAS, VÁLVULAS Y ACCESORIOS'); const c0 = aoa.length;
+            aoa.push(['Componente', 'Tipo', 'Características', 'L (m)', 'Q (m³/h)', 'V (m/s)', 'K', 'Cv', 'f (Darcy)', 'Pérdida (m c.l.)', 'Pérdida (Pa)', 'Estado']);
+            d.comps.forEach(c => aoa.push([c.tag, c.tipo, c.car, c.L, c.Q, c.V, c.K, c.Cv, c.f, c.hf, c.pa, c.estado]));
+            vacia();
+            if (d.lc) { aoa.push(['PÉRDIDA DE CARGA TOTAL DE LA LÍNEA CRÍTICA', d.lc.hf, 'm c.l.', d.lc.kPa, 'kPa']); aoa.push(['Recorrido de la ruta crítica', d.lc.recorrido]); }
+            if (d.bombas.length) { vacia(); tit('DATOS DE LA BOMBA'); d.bombas.forEach(b => aoa.push([b.tag, `Q ${b.Q} m³/h`, `H ${b.H} m c.l. (${b.p} bar)`, `Asp. ${b.asp || '—'}`, `Imp. ${b.imp || '—'}`, `NPSHd ${b.npshd} m`, `NPSHr ${b.npshr} m`, b.estado])); }
+            else if (d.seleccion) { vacia(); tit('DATOS DE LA BOMBA NECESARIA'); d.seleccion.slice(0, 6).forEach(r => aoa.push([r[0], r[1], r[2]])); }
+            const ws = X.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [30, 22, 34, 10, 10, 10, 18, 10, 10, 14, 12, 16].map(w => ({ wch: w }));
+            ws['!autofilter'] = { ref: X.utils.encode_range({ s: { r: c0, c: 0 }, e: { r: c0 + d.comps.length, c: 11 } }) };
+            const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Comprobación');
+            return new Blob([X.write(wb, { type: 'array', bookType: 'xlsx' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        }
+async function guardarBlobComo(blob, nombre, desc, accept) {
+            if (window.showSaveFilePicker && navigator.userActivation && navigator.userActivation.isActive) {
+                try { const h = await window.showSaveFilePicker({ suggestedName: nombre, types: [{ description: desc, accept }] }); const w = await h.createWritable(); await w.write(blob); await w.close(); return h.name; } catch (e) { if (e.name === 'AbortError') return null; }
+            }
+            const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 8000); return nombre;
+        }
+function cargarDocxPreview() {
+            if (window.docx && window.docx.renderAsync) return Promise.resolve(window.docx);
+            return cargarJSZip().then(() => new Promise((ok, ko) => { const sc = document.createElement('script'); sc.src = URL_DOCX_PREVIEW; sc.onload = () => window.docx && window.docx.renderAsync ? ok(window.docx) : ko(new Error('docx-preview no disponible')); sc.onerror = () => ko(new Error('No se ha podido cargar el visor de Word (sin conexión a cdn.jsdelivr.net).')); document.head.appendChild(sc); }));
+        }
+async function abrirRevisionInforme(blobD, nombreD, blobX, nombreX) {
+            revisionInforme = { blobD, nombreD, blobX, nombreX };
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-file-word text-blue-600 mr-1.5"></i> Revisión del informe';
+            document.querySelector('#modal-red > div').style.width = 'min(1200px, 97vw)';
+            document.getElementById('red-content').innerHTML = `<div class="flex gap-1 mb-2 text-xs"><button id="rv-t-d" onclick="pestanaRevision('d')" class="px-3 py-1 border rounded bg-blue-600 text-white">Informe (.docx)</button>${blobX ? '<button id="rv-t-x" onclick="pestanaRevision(\'x\')" class="px-3 py-1 border rounded">Comprobación por componente (.xlsx)</button>' : ''}<span class="flex-1"></span><span class="text-slate-500 self-center">Guardados: ${esc(nombreD)}${blobX ? ' · ' + esc(nombreX) : ''}</span></div>
+                <div id="rv-d" style="height:68vh;overflow:auto;background:#e5e7eb;padding:8px"><p class="text-slate-500 text-xs p-4">Cargando el informe…</p></div><div id="rv-x" style="display:none;height:68vh;overflow:auto;background:#fff" class="text-[11px]"></div>`;
+            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><button onclick="abrirBlobRevision('d')" class="px-3 py-1.5 border rounded"><i class="fa-solid fa-file-word mr-1"></i>Abrir el .docx</button>${blobX ? '<button onclick="abrirBlobRevision(\'x\')" class="px-3 py-1.5 border rounded"><i class="fa-solid fa-file-excel mr-1"></i>Abrir el .xlsx</button>' : ''}<span class="flex-1"></span><button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
+            document.getElementById('modal-red').style.display = 'flex';
+            try { const DP = await cargarDocxPreview(), cont = document.getElementById('rv-d'); cont.innerHTML = ''; await DP.renderAsync(blobD, cont, null, { inWrapper: true, ignoreLastRenderedPageBreak: true }); }
+            catch (e) { const c = document.getElementById('rv-d'); if (c) c.innerHTML = `<p class="text-rose-700 text-xs p-4">${esc(e.message)} Usa «Abrir el .docx».</p>`; }
+            if (blobX) try { const X = await cargarXLSX(), wb = X.read(new Uint8Array(await blobX.arrayBuffer()), { type: 'array' }), html = X.utils.sheet_to_html(wb.Sheets[wb.SheetNames[0]], { header: '', footer: '' });
+                const c = document.getElementById('rv-x'); if (c) { c.innerHTML = html; c.querySelectorAll('td').forEach(td => { td.style.cssText = 'border:1px solid #e2e8f0;padding:2px 6px;white-space:nowrap'; if (/^NO CUMPLE$/.test(td.textContent)) td.style.color = '#b91c1c'; }); } } catch (e) { console.warn(e); }
+        }
+function pestanaRevision(k) { ['d', 'x'].forEach(x => { const c = document.getElementById('rv-' + x), b = document.getElementById('rv-t-' + x); if (c) c.style.display = x === k ? '' : 'none'; if (b) b.className = 'px-3 py-1 border rounded' + (x === k ? ' bg-blue-600 text-white' : ''); }); }
+function abrirBlobRevision(k) { const r = revisionInforme; if (!r) return; const b = k === 'd' ? r.blobD : r.blobX, n = k === 'd' ? r.nombreD : r.nombreX; if (!b) return; const url = URL.createObjectURL(b), a = document.createElement('a'); a.href = url; a.download = n; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 8000); }
 function dibujoElemento(el, c, P) {
             const tr = `translate(${el.x}, ${mundoAScreenY(el.y)}) rotate(${el.rotation || 0}, 25, 25) scale(${el.scale || 1})${trEspejo(el)}`;
             let d;
@@ -830,39 +918,7 @@ async function construirInforme(D, opc = {}) {
                 ['Cv', 'Coeficiente de caudal (US gpm/√psi)', '—'], ['hf', 'Pérdida de carga', 'm c.l.'], ['H', 'Altura manométrica / piezométrica', 'm c.l.'], ['NPSHd / NPSHr', 'NPSH disponible / requerido', 'm'], ['ρ, ν, pv', 'Densidad, viscosidad cinemática, presión de vapor', 'kg/m³, mm²/s, kPa'],
                 ['Asp. / Imp.', 'Tramo de aspiración / impulsión', '—']], [18, 60, 22]));
 
-            // ===== v8.40 · ANEXO D: COMPROBACIÓN FINAL POR COMPONENTE =====
-            titulo(1, 'Anexo D. Comprobación final por componente');
-            cuerpo.push(par('Relación de todos los componentes con sus características y los resultados del cálculo general de la red. «Cumple»: el elemento satisface todos los criterios comprobados (velocidad, presión, NPSH, rating, temperatura, uniones y materiales).'));
-            const estadoD = e => e.estado === 'fallo' ? { t: 'NO CUMPLE', negrita: true, color: 'C00000' } : (e.esLineaCritica ? 'Cumple · crítica' : 'Cumple');
-            const bombasD = elementosRed.filter(e => e.type === 'bomba' && ultimoResultado[e.id]);
-            if (bombasD.length) {
-                cuerpo.push(leyenda('Tabla', 'Comprobación de las bombas'));
-                cuerpo.push(tabla(['Bomba', 'Q (m³/h)', 'H a ese caudal (m c.l.)', 'Conexión de impulsión', 'NPSH calculado (m)', 'NPSH requerido (m)', 'Margen (m)', 'Estado'], bombasD.map(e => {
-                    const r = ultimoResultado[e.id], ci = conexBomba(e, 'Imp'), vD = vecinosDe(e).find(w => w.puertoEl === 'descarga'), dnI = ci.dn || e.dnImp || e.dn || (vD ? dnEquivalente(vD.otro) || vD.otro.dn : '') || '';
-                    return [tagDe(e), nf(r.Q, 2), nf(r.H, 2), [dnI ? etiquetaDN(dnI) : '—', ci.tipo, ci.rating].filter(Boolean).join(' · '), nf(r.npshd, 2), nf(e.npsh, 2), nf((+r.npshd || 0) - (+e.npsh || 0), 2), estadoD(e)];
-                }), [13, 9, 12, 20, 12, 12, 9, 13]));
-                cuerpo.push(espacio());
-            }
-            const vistosD = new Set(), listaD = [];
-            orden.forEach(o => o.orden.forEach(id => { if (!vistosD.has(id)) { vistosD.add(id); const e = elementosRed.find(x => x.id === id); if (e) listaD.push(e); } }));
-            elementosRed.forEach(e => { if (!vistosD.has(e.id)) { vistosD.add(e.id); listaD.push(e); } });
-            const rg = (fl.rho || 1000) * 9.80665;
-            const filasD = listaD.filter(e => !esAnotacion(e) && e.type !== 'bomba').map(e => {
-                const as = de(e.id), hf = as.reduce((s2, a) => s2 + (hfDeArista(a) || 0), 0), a0 = as[0];
-                let car = '';
-                if (e.type === 'tuberia') car = `${etiquetaTuberia(e)} · ${e.material}`;
-                else if (e.subtype === 'reduccion') car = `${etiquetaDN(e.dn)} × ${etiquetaDN(e.dnMenor)}${e.pn ? ' · ' + e.pn : ''}`;
-                else car = [e.dn ? etiquetaDN(e.dn) : '', e.pn || '', e.type === 'valvula' && e.conexValv ? e.conexValv : ''].filter(Boolean).join(' · ');
-                let k = '—';
-                if (sinFlujo(e) || !as.length) k = '—';
-                else if (e.type === 'tuberia') k = a0 && a0.f ? `f ${nf(a0.f, 4)}` : '—';
-                else if (as.length > 1) k = as.map(a => `K ${nf(a.K, 3)}${a.rama ? ' (' + a.rama + ')' : ''}`).join('\n');
-                else if (a0 && a0.K != null) { k = `K ${nf(a0.K, 3)}`; if (e.type === 'valvula' && a0.K > 0 && a0.D) k += `\nCv ${nf(29.9 * Math.pow(a0.D * 39.3701, 2) / Math.sqrt(a0.K), 1)}`; }
-                return [tagDe(e), nombreTipo(e), car || '—', e.type === 'tuberia' ? nf((+e.longitud || 0) / 1000, 3) : '—', k, as.length ? nf(hf, 4) : '—', as.length ? nf(hf * rg, 0) : '—', estadoD(e)];
-            });
-            cuerpo.push(leyenda('Tabla', 'Comprobación de tuberías, válvulas y accesorios'));
-            cuerpo.push(tabla(['Componente', 'Tipo', 'Características', 'L (m)', 'K / Cv / f', 'Pérdida (m c.l.)', 'Pérdida (Pa)', 'Estado'], filasD.length ? filasD : [['—', '', '', '', '', '', '', '']], [16, 13, 25, 7, 11, 9, 9, 10]));
-            cuerpo.push(par(`Pérdida (Pa) = hf · ρ · g con ρ = ${nf(fl.rho, 1)} kg/m³. Cv (US gpm/√psi) = 29,9 · d² / √K con d = diámetro interior en pulgadas (Crane TP-410). En tes y cruces se da el K de cada rama.`, { run: { italics: true, size: 16 } }));
+            // v8.41 · la comprobación final por componente va en un Excel aparte (generarComprobacionXLSX), no en el .docx
 
             // ===== PORTADA E ÍNDICES =====
             const portada = [

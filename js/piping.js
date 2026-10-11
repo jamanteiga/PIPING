@@ -614,9 +614,9 @@
             alivio:        { type: 'valvula', codigo: 'VAL', nombre: 'Válvula de alivio', cat: 'valvulas', calc: 'sinflujo', puertos: [{ x: 25, y: 45, id: 'a' }, { x: 40, y: 25, id: 'b' }] },
             // --- instrumentos (sin caudal, excluidos del cálculo) ---
             nota:          { type: 'anotacion', codigo: 'NOTA', nombre: 'Nota de texto', cat: 'anotaciones', calc: 'sinflujo', puertos: [] },
-            leyenda:       { type: 'anotacion', codigo: 'LEY', nombre: 'Leyenda de componentes (automática)', cat: 'anotaciones', calc: 'sinflujo', puertos: [] },
+            leyenda:       { type: 'anotacion', codigo: 'LEY', nombre: 'Leyenda (automática)', cat: 'anotaciones', calc: 'sinflujo', puertos: [] },
             tabla:         { type: 'anotacion', codigo: 'TB', nombre: 'Tabla', cat: 'ninguna', calc: 'sinflujo', puertos: [] },
-            materiales:    { type: 'anotacion', codigo: 'LST', nombre: 'Listado de componentes (automático)', cat: 'anotaciones', calc: 'sinflujo', puertos: [] },
+            materiales:    { type: 'anotacion', codigo: 'LST', nombre: 'Listado de materiales (automático)', cat: 'anotaciones', calc: 'sinflujo', puertos: [] },
             purgador:      { type: 'instrumento', codigo: 'PG', nombre: 'Purgador de aire', cat: 'instrumentos', calc: 'sinflujo', puertos: P_INSTR },
             drenaje:       { type: 'instrumento', codigo: 'DR', nombre: 'Drenaje / vaciado', cat: 'instrumentos', calc: 'sinflujo', puertos: [{ x: 25, y: 5, id: 'a' }] },
             vasoexp:       { type: 'instrumento', codigo: 'VE', nombre: 'Vaso de expansión', cat: 'instrumentos', calc: 'sinflujo', puertos: P_INSTR },
@@ -825,6 +825,15 @@
             const t = TIPOS[el.subtype];
             if (!t) return 'X';
             return typeof t.codigo === 'function' ? t.codigo(el) : t.codigo;
+        }
+        // v8.41 · nomenclatura única: no puede haber dos VC01 (mismo código y número) en todo el proyecto, sea cual sea la línea o la
+        // hoja. Si aparece un repetido (copiar/pegar, plantilla, importación…), el último recibe el siguiente número libre.
+        function numeracionUnica() {
+            const vistos = new Map(), cambios = [];
+            const todos = hojas.flatMap((h, i) => (i === hojaActual ? elementosRed : (h.e || [])));
+            todos.forEach(e => { if (!e.codigo || !e.num || esAnotacion(e) || esContinuacion(e)) return; const k = e.codigo + '#' + e.num; if (!vistos.has(k)) { vistos.set(k, e); return; }
+                const antes = tagDe(e), max = 1 + Math.max(0, ...todos.filter(x => x.codigo === e.codigo).map(x => x.num || 0)); e.num = max; vistos.set(e.codigo + '#' + e.num, e); cambios.push(`${antes} → ${tagDe(e)}`); });
+            return cambios;
         }
         function asignarNumero(el, lista = elementosRed.concat(elementosOtrasHojas())) {
             const c = codigoDe(el);
@@ -1996,7 +2005,7 @@
             const tx = (x, y, t, o = '') => `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-size="${fs.toFixed(2)}" ${F} ${o}>${esc(t)}</text>`;
             const Lh = (y, w) => `<line x1="0" y1="${y.toFixed(2)}" x2="${g.W.toFixed(2)}" y2="${y.toFixed(2)}" stroke="${c}" stroke-width="${w}"/>`;
             let h = `<rect x="0" y="0" width="${g.W.toFixed(2)}" height="${g.H.toFixed(2)}" fill="${P.relleno}" stroke="${c}" stroke-width="0.9"/>`;
-            h += `<text x="${(g.W / 2).toFixed(2)}" y="${(g.hT / 2 + ft * 0.36).toFixed(2)}" font-size="${ft.toFixed(2)}" font-weight="bold" text-anchor="middle" ${F}>${esc(tradMayDoc('LISTADO DE COMPONENTES'))}</text>`;
+            h += `<text x="${(g.W / 2).toFixed(2)}" y="${(g.hT / 2 + ft * 0.36).toFixed(2)}" font-size="${ft.toFixed(2)}" font-weight="bold" text-anchor="middle" ${F}>${esc(tradMayDoc('LISTADO DE MATERIALES'))}</text>`;
             h += Lh(g.hT, 0.7) + Lh(g.hT + g.hC, 0.7);
             let x = 0; const xs = COLS_LISTADO.map(([, w]) => { const x0 = x; x += MM(w); return [x0, MM(w)]; });
             const yC = g.hT + g.hC / 2 + fs * 0.36;
@@ -2016,7 +2025,7 @@
         const nombreLeyenda = e => tradDoc(e.type === 'tuberia' ? 'Tubería' : e.type === 'bomba' ? 'Bomba centrífuga' : e.subtype === 'codo90' ? 'Codo' : nombreTipo(e)).toUpperCase();
         function geomLeyenda() {
             const us = usadosLeyenda(), fs = MM(TXT_MM), ft = MM(TIT_MM), hT = MM(8), hF = MM(9), xT = MM(14);
-            ctxMedida.font = `bold ${ft}px sans-serif`; const wt = ctxMedida.measureText(tradMayDoc('LEYENDA DE COMPONENTES')).width + MM(8);
+            ctxMedida.font = `bold ${ft}px sans-serif`; const wt = ctxMedida.measureText(tradMayDoc('LEYENDA')).width + MM(8);
             const wf = Math.max(0, ...us.map(e => { ctxMedida.font = `${fs}px sans-serif`; return ctxMedida.measureText(nombreLeyenda(e)).width; })) + xT + MM(3);
             const W = Math.max(MM(80), wt, wf);
             return { us, W, hT, hF, xT, H: hT + Math.max(1, us.length) * hF + MM(1) };
@@ -2024,7 +2033,7 @@
         function dibujoLeyenda(c, P) {
             const g = geomLeyenda(), fs = MM(TXT_MM), ft = MM(TIT_MM), F = `font-family="sans-serif" fill="${c}"`;
             let h = `<rect x="0" y="0" width="${g.W.toFixed(2)}" height="${g.H.toFixed(2)}" fill="${P.relleno}" stroke="${c}" stroke-width="0.9"/>` +
-                `<text x="${(g.W / 2).toFixed(2)}" y="${(g.hT / 2 + ft * 0.36).toFixed(2)}" font-size="${ft.toFixed(2)}" font-weight="bold" text-anchor="middle" ${F}>${esc(tradMayDoc('LEYENDA DE COMPONENTES'))}</text>` +
+                `<text x="${(g.W / 2).toFixed(2)}" y="${(g.hT / 2 + ft * 0.36).toFixed(2)}" font-size="${ft.toFixed(2)}" font-weight="bold" text-anchor="middle" ${F}>${esc(tradMayDoc('LEYENDA'))}</text>` +
                 `<line x1="0" y1="${g.hT.toFixed(2)}" x2="${g.W.toFixed(2)}" y2="${g.hT.toFixed(2)}" stroke="${c}" stroke-width="0.7"/>`;
             const esc_ = MM(7) * 1.25 / 50; // símbolos un 25 % mayores que en 7.9
             g.us.forEach((e, i) => {
@@ -2043,22 +2052,38 @@
         // (0,0 = enganchada); al cambiar de formato se recolocan solas. Solo se mueven con Mover / Desconectar.
         const esTablaHoja = el => el && el.type === 'anotacion' && (el.subtype === 'materiales' || el.subtype === 'leyenda');
         function enganchesTabla(el) {
+            const k = +el.escTabla > 0 ? +el.escTabla : 1;   // v8.41 · tamaño de la tabla (textos y símbolos), 0,6 – 1
             // con el cajetín oculto el listado ocupa su posición (esquina inferior derecha del marco)
-            if (el.subtype === 'materiales') { const g = geomListado(), cj = cajaCajetin(); return { W: g.W, H: g.H, ax: cj.x1, ay: opciones.cajetin === false ? cj.y1 : cj.y0, px: g.W, py: g.H, dest: opciones.cajetin === false ? 'sitio del cajetín' : 'cajetín' }; }
-            const g = geomLeyenda(), fr = marcoInterior(); return { W: g.W, H: g.H, ax: fr.x1, ay: fr.y0, px: g.W, py: 0, dest: 'marco (esquina superior derecha)' };
+            if (el.subtype === 'materiales') { const g = geomListado(), cj = cajaCajetin(); return { W: g.W * k, H: g.H * k, ax: cj.x1, ay: opciones.cajetin === false ? cj.y1 : cj.y0, px: g.W * k, py: g.H * k, dest: opciones.cajetin === false ? 'sitio del cajetín' : 'cajetín' }; }
+            const g = geomLeyenda(), fr = marcoInterior(); return { W: g.W * k, H: g.H * k, ax: fr.x1, ay: fr.y0, px: g.W * k, py: 0, dest: 'marco (esquina superior derecha)' };
         }
         const RADIO_ENGANCHE = 15; // px
         function recolocarTablasHoja() {
             elementosRed.filter(esTablaHoja).forEach(el => {
                 if (isDraggingSymbol && activeSymbolId === el.id && el._suelto) return;
                 const q = enganchesTabla(el);
-                el.scale = 1; el.rotation = 0;
+                el.scale = +el.escTabla > 0 ? +el.escTabla : 1; el.rotation = 0;
                 if (!el.offHoja) { // dibujos anteriores: se conserva su posición (o se engancha si está cerca)
                     const dx = el.x + q.px - q.ax, dy = mundoAScreenY(el.y) + q.py - q.ay;
                     el.offHoja = Math.hypot(dx, dy) < 40 ? { dx: 0, dy: 0 } : { dx: +dx.toFixed(1), dy: +dy.toFixed(1) };
                 }
                 el.x = q.ax - q.px + el.offHoja.dx; el.y = screenAMundoY(q.ay - q.py + el.offHoja.dy);
             });
+            ajustarTablasSinSolape();
+        }
+        // v8.41 · leyenda y listado de materiales que se pisan: se reduce su tamaño (textos y símbolos) hasta un 60 % para que quepan;
+        // si aun así se pisan, se avisa (se pueden arrastrar a otro sitio). El tamaño elegido a mano (botón derecho) se respeta.
+        function cajaTabla(el) { const q = enganchesTabla(el), x = el.x, y = mundoAScreenY(el.y); return { x0: x, y0: y, x1: x + q.W, y1: y + q.H }; }
+        const solapanTablas = (a, b) => a.x0 < b.x1 - 0.5 && b.x0 < a.x1 - 0.5 && a.y0 < b.y1 - 0.5 && b.y0 < a.y1 - 0.5;
+        function ajustarTablasSinSolape() {
+            const ley = elementosRed.find(e => esTablaHoja(e) && e.subtype === 'leyenda'), lis = elementosRed.find(e => esTablaHoja(e) && e.subtype === 'materiales');
+            if (!ley || !lis) return;
+            const auto = [ley, lis].filter(e => !e.escFija); if (!auto.length) return;
+            const colocar = el => { const q = enganchesTabla(el); el.scale = +el.escTabla > 0 ? +el.escTabla : 1; el.x = q.ax - q.px + el.offHoja.dx; el.y = screenAMundoY(q.ay - q.py + el.offHoja.dy); };
+            let k = 1; auto.forEach(e => { e.escTabla = 1; colocar(e); });
+            while (solapanTablas(cajaTabla(ley), cajaTabla(lis)) && k > 0.6 + 1e-6) { k = +(k - 0.05).toFixed(2); auto.forEach(e => { e.escTabla = k; colocar(e); }); }
+            auto.forEach(e => { if (e.escTabla === 1) delete e.escTabla; });
+            if (solapanTablas(cajaTabla(ley), cajaTabla(lis)) && !ajustarTablasSinSolape._av) { ajustarTablasSinSolape._av = true; setTimeout(() => { ajustarTablasSinSolape._av = false; }, 8000); aviso('La leyenda y el listado de materiales se pisan incluso al 60 %: arrástralos a otro sitio del plano.', 'error'); }
         }
         // Arrastre libre (tras Mover / Desconectar) con imán al punto de enganche
         function moverTablaHoja(el, dx, dy) {
@@ -2326,6 +2351,7 @@
         }
         let ultimoClic = {};
         function renderizarVectorial() {
+            if (!renderizarVectorial._nu) { renderizarVectorial._nu = true; try { const cb = numeracionUnica(); if (cb.length) aviso(`Nomenclatura repetida corregida: ${cb.slice(0, 4).join(' · ')}${cb.length > 4 ? '…' : ''}`, 'ok'); } catch (e) { } finally { renderizarVectorial._nu = false; } }
             if (!renderizarVectorial._aj && elementosRed.some(e => e.ajusteGuia)) { renderizarVectorial._aj = true; try { if (ajustarLongitudesGuia()) invalidarResultados(); } catch (e) { console.warn(e); } finally { renderizarVectorial._aj = false; } }
             recolocarTablasHoja();
             const emptyState = document.getElementById("empty-state");
@@ -2537,8 +2563,7 @@
             }
             const el = elementosRed.find(item => item.id === activeSymbolId);
             if (el && esTablaHoja(el)) {
-                // listado y leyenda: solo se mueven tras Mover / Desconectar (menú del botón derecho)
-                if (!el._suelto) return;
+                // v8.41 · listado y leyenda se arrastran directamente (con imán a su punto de enganche)
                 if (!arrastreMovido && (dx || dy)) arrastreMovido = true;
                 moverTablaHoja(el, dx, dy); renderizarVectorial(); return;
             }
@@ -2637,6 +2662,9 @@
                 const q = enganchesTabla(el), eng = el.offHoja && !el.offHoja.dx && !el.offHoja.dy;
                 return [
                     { icono: 'fa-pen-to-square', texto: 'Editar...', accion: () => abrirVentanaElemento(el.id) },
+                    { icono: 'fa-text-height', texto: `Tamaño (${Math.round((+el.escTabla || 1) * 100)} %${el.escFija ? '' : ', automático'})`, sub: () => [
+                        { icono: !el.escFija ? 'fa-check' : 'fa-square', texto: 'Automático (se reduce si se pisa con la otra tabla)', accion: () => { guardarEstado(); delete el.escFija; renderizarVectorial(); } },
+                        'sep', ...[1, 0.9, 0.8, 0.7, 0.6].map(k => ({ icono: el.escFija && Math.abs((+el.escTabla || 1) - k) < 0.01 ? 'fa-check' : 'fa-square', texto: Math.round(k * 100) + ' %', accion: () => { guardarEstado(); el.escFija = true; el.escTabla = k; renderizarVectorial(); } }))] },
                     { icono: 'fa-arrows-up-down-left-right', texto: 'Mover / Desconectar', accion: () => { el._suelto = true; aviso(`Tabla liberada: arrástrala. Cerca de su punto de enganche (${q.dest}) se imanta.`); } },
                     itemCapa(el, false),
                     ...(eng ? [] : [{ icono: 'fa-magnet', texto: `Enganchar al ${q.dest}`, accion: () => { guardarEstado(); el.offHoja = { dx: 0, dy: 0 }; renderizarVectorial(); marcarCambios(true); } }]),
@@ -2675,8 +2703,8 @@
                 { icono: 'fa-calculator', texto: 'Calcular red', accion: () => calcularRed() },
                 ...(ultimaOrden ? [{ icono: 'fa-repeat', texto: 'Repetir: ' + textoUltimaOrden(), accion: () => { ratonHoja = { x: px, y: py }; repetirUltimaOrden(); } }] : []),
                 planoCongelado ? { icono: 'fa-fire', texto: 'Descongelar plano', accion: () => congelarPlano(false) } : { icono: 'fa-snowflake', texto: 'Congelar plano', accion: () => congelarPlano(true) },
-                { icono: 'fa-list', texto: 'Leyenda de componentes', accion: () => colocarLeyenda() },
-                { icono: 'fa-table-list', texto: 'Listado de componentes', accion: () => insertarListado(px, py) },
+                { icono: 'fa-list', texto: 'Leyenda', accion: () => colocarLeyenda() },
+                { icono: 'fa-table-list', texto: 'Listado de materiales', accion: () => insertarListado(px, py) },
                 { icono: 'fa-note-sticky', texto: 'Nota de texto', accion: () => insertarNotaEn(px, py) },
                 { icono: 'fa-ruler-combined', texto: 'Redimensionar red', accion: () => dimensionarTuberias() },
                 { icono: 'fa-diagram-project', texto: 'Seleccionar línea', sub: () => lineas.length ? lineasEnOrden().map(o => ({ icono: o.linea.tipo === 'principal' ? 'fa-diagram-project' : 'fa-code-branch', texto: ' '.repeat(o.nivel) + o.linea.id + (o.linea.nombre ? ' · ' + o.linea.nombre : ''), accion: () => seleccionarLinea(o.linea.id) })) : [{ icono: 'fa-ban', texto: 'Sin líneas', accion: () => {} }] },
@@ -6288,11 +6316,14 @@
         // puertos de otros elementos que caen sobre la recta del tramo
         function paradasEnSegmento(sg, excluir) { const out = []; elementosRed.forEach(e => { if (esAnotacion(e) || e.id === excluir) return; obtenerPuertosConexion(e).forEach(p => { const q = proySeg(sg, p.x, p.y); if (q.d < 1.5 && q.s > -1 && q.s < sg.len + 1) out.push({ s: q.s, el: e, id: p.id }); }); }); return out; }
         function colocarEnGuia(el, cx, cy) {
-            if (!guias.length || !(el.type === 'tuberia' || (el.type === 'accesorio' && ACC_GUIA.includes(el.subtype)))) return false;
+            if (!guias.length) return false;
+            const enLinea = !(el.type === 'tuberia' || (el.type === 'accesorio' && ACC_GUIA.includes(el.subtype)));
+            if (enLinea && !componenteEnLinea(el)) return false;
             const i = elementosRed.indexOf(el); if (i >= 0) elementosRed.splice(i, 1);   // el propio elemento (aún en su sitio provisional) no cuenta
             let r = false; avisoGuia = null;
-            try { r = el.type === 'tuberia' ? colocarTuboEnGuia(el, cx, cy) : colocarAccesorioEnGuia(el, cx, cy); }
+            try { r = enLinea ? hacerSitioEnGuia(el, cx, cy) : el.type === 'tuberia' ? colocarTuboEnGuia(el, cx, cy) : colocarAccesorioEnGuia(el, cx, cy); }
             finally { if (i >= 0) elementosRed.splice(i, 0, el); }
+            if (r && r.partir) { const ok = intentarPartirTuberia(el, r.x, r.y); if (ok) { ajustarLongitudesGuia(); aviso(r.texto, 'ok'); } return ok; }
             if (r) { ajustarLongitudesGuia(); if (el.type === 'accesorio') { const n = asegurarTuboMinimo(el); if (n) { ajustarLongitudesGuia(); const av = avisoGuia; avisoGuia = () => { av && av(); aviso(`Faltaban ${TUBO_MIN_MM} mm de tubo recto junto a ${tagDe(el)}: el tramo de la trayectoria se ha alargado lo necesario (doble clic en su cota para cambiarlo).`, 'ok'); }; } } if (avisoGuia) avisoGuia(); } avisoGuia = null;
             return r;
         }
@@ -6431,6 +6462,25 @@
             invalidarResultados(); renderizarVectorial();
             aviso(`Tramo ${i + 1} de la trayectoria: ${Math.round(len * 30)} → ${Math.round(Lmm)} mm.`, 'ok');
             return true;
+        }
+        // v8.41 · válvula u otro componente en línea soltado sobre un tubo de la trayectoria que es demasiado corto para él y dos
+        // tramos rectos de 100 mm: el tramo de la trayectoria se alarga lo necesario y el componente se coloca en el centro del tubo
+        function hacerSitioEnGuia(el, cx, cy) {
+            const loc = obtenerPuertosLocales(el), pa = loc.find(p => p.id === 'a' || p.id === 'succion'), pb = loc.find(p => p.id === 'b' || p.id === 'descarga'); if (!pa || !pb) return false;
+            const largo = Math.hypot(pb.x - pa.x, pb.y - pa.y) * (el.scale || 1), minPx = largo + 2 * TUBO_MIN_MM / 30 + 8;
+            let m = null;
+            elementosRed.forEach(t => { if (t.type !== 'tuberia') return; const pp = obtenerPuertosConexion(t), A = pp.find(p => p.id === 'a'), B = pp.find(p => p.id === 'b'), len = Math.hypot(B.x - A.x, B.y - A.y); if (len < 0.5) return;
+                const ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, s0 = (cx - A.x) * ux + (cy - A.y) * uy, d = Math.abs((cx - A.x) * uy - (cy - A.y) * ux);
+                if (d < 10 && s0 > -4 && s0 < len + 4 && (!m || d < m.d)) m = { t, A, B, len, d }; });
+            if (!m || m.len >= minPx) return false;
+            for (const g of guias) for (let i = 0; i < g.p.length - 1; i++) {
+                const A = g.p[i], B = g.p[i + 1], len = Math.hypot(B.x - A.x, B.y - A.y) || 1, sg = { A, B, len, u: { x: (B.x - A.x) / len, y: (B.y - A.y) / len } };
+                if ([m.A, m.B].every(p => { const q = proySeg(sg, p.x, p.y); return q.d < 1.5 && q.s > -1 && q.s < len + 1; })) {
+                    const extra = minPx - m.len + 0.3; if (!cambiarLongitudTramoGuia(g, i, (len + extra) * 30, true)) return false;
+                    const pp = obtenerPuertosConexion(m.t), A2 = pp.find(p => p.id === 'a'), B2 = pp.find(p => p.id === 'b');
+                    return { partir: true, x: (A2.x + B2.x) / 2, y: (A2.y + B2.y) / 2, texto: `${nombreTipo(el)}: el tramo era corto; se ha alargado ${Math.round(extra * 30)} mm para que quepa con ${TUBO_MIN_MM} mm de tubo recto a cada lado.` };
+                } }
+            return false;
         }
         // tras colocar un codo/te: si entre él y el siguiente componente no quedan los 100 mm de tubo recto, el tramo se alarga
         function asegurarTuboMinimo(el) {
@@ -7668,7 +7718,9 @@
         // ==================================================================================
         let impresionSel = null;
         // dibujo de una hoja cualquiera sin cambiar de hoja (se restaura todo)
-        
+        // v8.41 · marca de agua, solo en la impresión (y en su PDF): gris, girada 45°, por debajo de todo el dibujo
+        const TEXTO_MARCA_AGUA = 'VERSIÓN DE PRUEBA SIN VALIDEZ COMERCIAL';
+
         function abrirImpresion(...a) { return PARTES_OK.cad ? abrirImpresion__p.apply(this, a) : cargarParte('cad').then(() => abrirImpresion__p.apply(this, a)); }
         function imprimirHojas(...a) { return PARTES_OK.cad ? imprimirHojas__p.apply(this, a) : cargarParte('cad').then(() => imprimirHojas__p.apply(this, a)); }
 
@@ -9549,7 +9601,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.40';
+        const VERSION_WEB = '8.41';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -9754,13 +9806,13 @@
             const colorTxt = el => el.estado === 'fallo' ? P.fallo : el.esLineaCritica ? P.critica : el.estado === 'ok' ? P.ok : P.texto;
             const peso = el => el.estado === 'fallo' || el.esLineaCritica ? 'font-weight:600' : '';
             const mas = (clave, plegado) => `<span class="mas" onclick="event.stopPropagation(); alternarNodoArbol('${clave}')">${plegado ? '+' : '−'}</span>`;
-            const filaEl = el => `<div class="fila"><span class="nodo ${el.id === idSeleccionado || seleccion.has(el.id) ? 'sel' : ''}" onclick="irAElemento('${el.id}')" onmouseenter="resaltarElemento('${el.id}')" onmouseleave="resaltarElemento(null)" title="${esc(nombreTipo(el))}"><i class="fa-solid ${iconoArbol(el)}" style="color:${colorElemento(el, P)};font-size:10px;width:12px;text-align:center"></i><span class="txt" style="color:${colorTxt(el)};${peso(el)}">${esc(tagDe(el))}</span></span></div>`;
+            const filaEl = el => `<div class="fila"><span class="nodo ${el.id === idSeleccionado || seleccion.has(el.id) ? 'sel' : ''}" draggable="${esAnotacion(el) ? 'false' : 'true'}" data-arbol-el="${el.id}" data-arbol-linea="${esc(el.linea || '')}" onclick="irAElemento('${el.id}')" onmouseenter="resaltarElemento('${el.id}')" onmouseleave="resaltarElemento(null)" title="${esc(nombreTipo(el))}"><i class="fa-solid ${iconoArbol(el)}" style="color:${colorElemento(el, P)};font-size:10px;width:12px;text-align:center"></i><span class="txt" style="color:${colorTxt(el)};${peso(el)}">${esc(tagDe(el))}</span></span></div>`;
             const pintarLinea = l => {
                 const clave = 'L:' + l.id, plegado = arbolPlegados.has(clave);
                 const orden = ordenarLinea(l.id, vecinos);
                 const critica = orden.some(id => (elementosRed.find(e => e.id === id) || {}).esLineaCritica);
                 const falla = orden.some(id => (elementosRed.find(e => e.id === id) || {}).estado === 'fallo');
-                let h = `<div class="fila">${mas(clave, plegado)}<span class="nodo" onclick="seleccionarLinea('${l.id}')" onmouseenter="resaltarLinea('${l.id}')" onmouseleave="resaltarLinea(null)" title="Seleccionar la línea"><i class="fa-solid ${l.tipo === 'principal' ? 'fa-diagram-project' : 'fa-code-branch'}" style="color:${falla ? P.fallo : critica ? P.critica : P.base};font-size:10px"></i><span class="txt" style="${critica || falla ? 'color:' + (falla ? P.fallo : P.critica) + ';' : ''}font-weight:700">${l.id}</span><span class="txt" style="opacity:.8">${l.nombre ? esc(l.nombre) : ''} (${orden.length})</span></span>`;
+                let h = `<div class="fila">${mas(clave, plegado)}<span class="nodo" data-arbol-linea="${esc(l.id)}" onclick="seleccionarLinea('${l.id}')" onmouseenter="resaltarLinea('${l.id}')" onmouseleave="resaltarLinea(null)" title="Seleccionar la línea"><i class="fa-solid ${l.tipo === 'principal' ? 'fa-diagram-project' : 'fa-code-branch'}" style="color:${falla ? P.fallo : critica ? P.critica : P.base};font-size:10px"></i><span class="txt" style="${critica || falla ? 'color:' + (falla ? P.fallo : P.critica) + ';' : ''}font-weight:700">${l.id}</span><span class="txt" style="opacity:.8">${l.nombre ? esc(l.nombre) : ''} (${orden.length})</span></span>`;
                 if (!plegado) {
                     h += '<div class="hijos">';
                     orden.forEach(id => {
@@ -9794,6 +9846,24 @@
                 h += '</div>';
             }
             cuerpo.innerHTML = h + '</div>';
+        }
+        // v8.41 · arrastrar en el árbol: un componente se suelta sobre una línea o ramal (o sobre otro componente) y pasa a esa
+        // línea: su nomenclatura cambia sola (el número VC01, TAC03… se mantiene: es único en todo el proyecto)
+        (function () {
+            const cuerpo = document.getElementById('arbol-cuerpo'); if (!cuerpo) return;
+            let arrastrado = null;
+            cuerpo.addEventListener('dragstart', e => { const n = e.target.closest && e.target.closest('[data-arbol-el]'); if (!n) return; arrastrado = n.dataset.arbolEl; e.dataTransfer.setData('text/x-arbol', arrastrado); e.dataTransfer.effectAllowed = 'move'; });
+            cuerpo.addEventListener('dragend', () => { arrastrado = null; cuerpo.querySelectorAll('.arbol-destino').forEach(x => x.classList.remove('arbol-destino')); });
+            const destino = e => { const n = e.target.closest && e.target.closest('[data-arbol-linea]'); return n && n.dataset.arbolLinea ? n : null; };
+            cuerpo.addEventListener('dragover', e => { if (!arrastrado) return; const n = destino(e); cuerpo.querySelectorAll('.arbol-destino').forEach(x => x !== n && x.classList.remove('arbol-destino')); if (!n) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; n.classList.add('arbol-destino'); });
+            cuerpo.addEventListener('drop', e => { const n = destino(e), id = e.dataTransfer.getData('text/x-arbol') || arrastrado; if (!n || !id) return; e.preventDefault(); moverALinea(id, n.dataset.arbolLinea); });
+            const st = document.createElement('style'); st.textContent = '#arbol-cuerpo .arbol-destino{outline:2px dashed #2563eb;outline-offset:1px;background:rgba(37,99,235,.12)}'; document.head.appendChild(st);
+        })();
+        function moverALinea(id, lid) {
+            const el = elementosRed.find(e => e.id === id), l = lineaPorId(lid); if (!el || !l || el.linea === lid) return;
+            if (planoCongelado) { avisarCongelado(); return; }
+            const antes = tagDe(el); guardarEstado(); el.linea = lid; asignarNumero(el); invalidarResultados(); renderizarVectorial(); renderArbol(); marcarCambios(true);
+            aviso(`${antes} → ${tagDe(el)} (pasa a la línea ${l.id}${l.nombre && l.nombre !== l.id ? " · " + l.nombre : ""}).`, 'ok');
         }
         // Ancho del árbol: arrastrando su borde derecho
         (function () {
@@ -10242,6 +10312,17 @@
         // Sustituye {{MARCADOR}} aunque Word lo haya partido en varias ejecuciones de texto
 
         function generarInforme(...a) { return PARTES_OK.informe ? generarInforme__p.apply(this, a) : cargarParte('informe').then(() => generarInforme__p.apply(this, a)); }
+
+        // ==================================================================================
+        // v8.41 · COMPROBACIÓN FINAL POR COMPONENTE (Excel que acompaña al informe) y revisión de ambos documentos
+        // ==================================================================================
+        
+        const nfMenos = x => x == null || !isFinite(x) ? '' : (+x).toFixed(3);
+
+        // revisión: el .docx (docx-preview) y el .xlsx (SheetJS) se muestran en una ventana con pestañas, con botones para abrirlos
+        const URL_DOCX_PREVIEW = 'https://cdn.jsdelivr.net/npm/docx-preview@0.3.5/dist/docx-preview.min.js';
+        
+        let revisionInforme = null;
 
         // ---------- Figuras (croquis SVG -> PNG) ----------
         function aPantalla(el, px, py) {
@@ -11231,8 +11312,8 @@
                 ...(guias.length ? [{ icono: 'fa-eraser', texto: `Borrar trayectorias guía de la hoja (${guias.length})`, accion: () => borrarGuias() }] : []),
                 'sep',
                 { icono: 'fa-note-sticky', texto: 'Nota de texto', accion: () => insertarAnotacion('nota') },
-                { icono: 'fa-list', texto: 'Leyenda de componentes', accion: () => insertarAnotacion('leyenda') },
-                { icono: 'fa-table-list', texto: 'Listado de componentes', accion: () => insertarAnotacion('materiales') },
+                { icono: 'fa-list', texto: 'Leyenda', accion: () => insertarAnotacion('leyenda') },
+                { icono: 'fa-table-list', texto: 'Listado de materiales', accion: () => insertarAnotacion('materiales') },
                 'sep',
                 { icono: 'fa-flag', texto: 'Banderola de línea (tubería seleccionada)', accion: () => { const t = idSeleccionado && elementosRed.find(e => e.id === idSeleccionado); if (!t || t.type !== 'tuberia') { aviso('Selecciona una tubería.'); return; } if (!insertarBanderola(t)) aviso('Esta tubería ya tiene banderola.'); } },
                 { icono: 'fa-flag-checkered', texto: 'Banderolas en todas las líneas', accion: () => banderolasTodasLasLineas() },
@@ -11264,7 +11345,7 @@
             ]},
             { titulo: 'Tabla', items: [
                 { icono: 'fa-table', texto: 'Añadir tabla...', accion: () => anadirTabla() },
-                { icono: 'fa-table-list', texto: 'Listado de componentes', accion: () => insertarAnotacion('materiales') }
+                { icono: 'fa-table-list', texto: 'Listado de materiales', accion: () => insertarAnotacion('materiales') }
             ]},
             { titulo: 'Informe', items: [
                 { icono: 'fa-file-word', texto: 'Generar informe (*.docx)...', accion: () => generarInforme() },
