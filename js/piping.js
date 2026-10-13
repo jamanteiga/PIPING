@@ -1160,6 +1160,15 @@
         }
         // Puertos de entrada (el flujo entra al elemento por ellos)
         const esPuertoEntrada = (el, pid) => pid === 'a' || pid === 'succion' || (pid === 'c' && (esDeposito(el) || dosCircuitos(el)));
+        // v8.44 · una brida se une por su punto de soldadura (cuello / manguito, puerto b) salvo que el otro extremo sea una cara
+        // bridada (otra brida por su cara, una válvula, una bomba, un equipo o un depósito): entonces cara contra cara (puerto a)
+        function bocaBridaHacia(otro, pidOtro) {
+            const st = otro.subtype || '';
+            if (/^brida/.test(st)) return pidOtro === 'a' ? 'a' : 'b';
+            if (otro.type === 'tuberia' || otro.type === 'accesorio') return 'b';
+            if (otro.type === 'valvula' && /sold|tope|BW|SW/i.test(otro.conexValv || '')) return 'b';   // válvula soldada: también por la soldadura
+            return 'a';
+        }
         function conectarAlSoltar(el, cx, cy) {
             const t = puertoLibreCercano(cx, cy, el.id);
             if (!t) return false;
@@ -1167,7 +1176,7 @@
             if (!mios.length) return false;
             let mio;
             if (mios.length === 1 || sinFlujo(el)) mio = mios[0];
-            else if (/^brida/.test(el.subtype || '')) mio = t.el.type === 'tuberia' ? 'b' : 'a'; // la tubería se suelda al cuello (b); la cara (a) mira a la otra brida o al equipo
+            else if (/^brida/.test(el.subtype || '')) mio = bocaBridaHacia(t.el, t.id); // v8.44 · por la soldadura (b) a tubos y accesorios soldados; por la cara (a) a otra brida, válvula, bomba o equipo
             else if (esPuertoEntrada(t.el, t.id)) mio = mios.includes('b') ? 'b' : mios.includes('descarga') ? 'descarga' : mios[mios.length - 1];
             else mio = mios.includes('a') ? 'a' : mios.includes('succion') ? 'succion' : mios[0];
             const dT = dirPuertoLocal(t.el, t.id) + (t.el.rotation || 0), dM = dirPuertoLocal(el, mio);
@@ -2113,6 +2122,8 @@
         const LETRAS_ZONA = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
         const formatoActual = () => FORMATOS[opciones.formato] || FORMATOS.A3;
         const MARGEN_IZQ = 10, MARGEN = 10, BANDA = 6; // mm (marco a 10 mm, línea exterior de referencias a 4 mm del borde)
+        const FACTOR_TRAZO = 0.8;
+        const afinarTrazos = d => d.replace(/stroke-width="([\d.]+)"/g, (m, w) => `stroke-width="${+(w * FACTOR_TRAZO).toFixed(2)}"`).replace(/stroke-width:\s*([\d.]+)/g, (m, w) => `stroke-width:${+(w * FACTOR_TRAZO).toFixed(2)}`);
         function marcoInterior() { return { x0: MARGEN_IZQ * PX_MM, y0: MARGEN * PX_MM, x1: ANCHO_A3 - MARGEN * PX_MM, y1: ALTO_A3 - MARGEN * PX_MM }; }
         function aplicarFormato() {
             const f = formatoActual();
@@ -2151,14 +2162,20 @@
             const T = (x, y, t) => `<text x="${x.toFixed(1)}" y="${(y + m(1.3)).toFixed(1)}" font-family="'Century Gothic', 'Avenir', 'Segoe UI', sans-serif" font-size="${m(3.6).toFixed(1)}" fill="${col}" text-anchor="middle">${t}</text>`;
             let h = '';
             // rejilla: líneas discontinuas finas (menores) y algo más marcadas (mayores)
-            if (opciones.rejillaVisible !== false && typeof vistaIso !== 'undefined' && vistaIso) {   // v8.42 · vista isométrica: rejilla isométrica (30°, 150° y vertical)
-                const may = m(+opciones.rejillaMayor > 0 ? +opciones.rejillaMayor : 10), cMay = F.oscuro ? '#5b6676' : '#a9a699', W = fr.x1 - fr.x0, Hh = fr.y1 - fr.y0, t30 = Math.tan(Math.PI / 6), dx = may;
+            if (opciones.rejillaVisible !== false && ((typeof vistaIso !== 'undefined' && vistaIso) || opciones.rejillaTipo === 'iso')) {
+                // v8.43 · rejilla isométrica de papel (como la plantilla A3-ISO.dwg): triángulos equiláteros de lado «s» (5 mm) con un lado
+                // vertical → verticales cada s·cos30 (4,33 mm), rectas a 30° y 150° y horizontales cada s (5 mm); línea fina gris; no entra en el cajetín
+                const s = m(+opciones.rejillaIsoMm > 0 ? +opciones.rejillaIsoMm : 5), hx = s * Math.cos(Math.PI / 6), t30 = Math.tan(Math.PI / 6), W = fr.x1 - fr.x0, Hh = fr.y1 - fr.y0;
+                const col = F.oscuro ? '#3f4856' : '#b4b2a8', f = v => v.toFixed(2);
                 let d = '';
-                for (let x = fr.x0; x <= fr.x1 + 0.1; x += dx) d += `M${x.toFixed(1)} ${fr.y0.toFixed(1)}V${fr.y1.toFixed(1)}`;
-                const n = Math.ceil((W * t30 + Hh) / may) + 2;
-                for (let i = -n; i <= n; i++) { const c = fr.y1 + i * may / Math.cos(Math.PI / 6);   // rectas a 30° y 150° separadas «may» (red de triángulos equiláteros)
-                    d += `M${fr.x0.toFixed(1)} ${(c).toFixed(1)}L${fr.x1.toFixed(1)} ${(c - W * t30).toFixed(1)}`; d += `M${fr.x0.toFixed(1)} ${(c).toFixed(1)}L${fr.x1.toFixed(1)} ${(c + W * t30).toFixed(1)}`; }
-                h += `<defs><clipPath id="clip-rejilla-iso"><rect x="${fr.x0.toFixed(1)}" y="${fr.y0.toFixed(1)}" width="${W.toFixed(1)}" height="${Hh.toFixed(1)}"/></clipPath></defs><path id="rejilla" d="${d}" clip-path="url(#clip-rejilla-iso)" fill="none" stroke="${cMay}" stroke-width="0.5" stroke-dasharray="3,2"/>`;
+                for (let x = fr.x0; x <= fr.x1 + 0.01; x += hx) d += `M${f(x)} ${f(fr.y0)}V${f(fr.y1)}`;
+                for (let y = fr.y1; y >= fr.y0 - 0.01; y -= s) d += `M${f(fr.x0)} ${f(y)}H${f(fr.x1)}`;
+                const n1 = Math.ceil(W * t30 / s) + 1, n2 = Math.ceil(Hh / s) + 1;
+                for (let j = -n1; j <= n2; j++) { const c = fr.y1 - j * s; d += `M${f(fr.x0)} ${f(c)}L${f(fr.x1)} ${f(c - W * t30)}`; }   // 30°
+                for (let j = 0; j <= n1 + n2; j++) { const c = fr.y1 - j * s; d += `M${f(fr.x0)} ${f(c)}L${f(fr.x1)} ${f(c + W * t30)}`; }   // 150°
+                let rec = `M${f(fr.x0)} ${f(fr.y0)}H${f(fr.x1)}V${f(fr.y1)}H${f(fr.x0)}Z`;
+                if (opciones.cajetin !== false) { try { const cj = cajaCajetin(); rec += `M${f(cj.x0)} ${f(cj.y0)}V${f(cj.y1)}H${f(cj.x1)}V${f(cj.y0)}Z`; } catch (e) { } }
+                h += `<defs><clipPath id="clip-rejilla-iso"><path d="${rec}" clip-rule="evenodd"/></clipPath></defs><path id="rejilla" d="${d}" clip-path="url(#clip-rejilla-iso)" fill="none" stroke="${col}" stroke-width="0.3"/>`;
             } else if (opciones.rejillaVisible !== false) {
                 const may = m(+opciones.rejillaMayor > 0 ? +opciones.rejillaMayor : 10), n = Math.max(1, Math.round(+opciones.rejillaMenores || 2)), men = may / n;
                 const cMen = F.oscuro ? "#3f4856" : "#bab8ac", cMay = F.oscuro ? '#5b6676' : '#a9a699';
@@ -2455,13 +2472,15 @@
                     const largoPx = largoPxTubo(el);
                     const ax = Math.max(largoPx / 2 + 6, 8);
                     d = `<line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/>
-                         <polygon points="${ax - 6},12.5 ${ax},15.5 ${ax - 6},18.5" fill="${P.flecha}"/>` + marcaFallo(largoPx / 2 - 8, 13);
+                         <polygon points="${ax - 6.5},16.9 ${ax},20 ${ax - 6.5},23.1" fill="${c}"/>` + marcaFallo(largoPx / 2 - 8, 13);   // v8.45 · flecha del sentido de flujo dentro de la línea
                 } else {
                     d = simboloSVG(el, c, P);
-                    if (el.type !== 'instrumento' && !sinFlujo(el) && !/^codo/.test(el.subtype)) d += flecha(18);
+                    if (el.subtype === 'tee') d += `<polygon points="31,22.4 36.5,25 31,27.6" fill="${c}"/><polygon points="22.4,31 25,36.5 27.6,31" fill="${c}"/>`;   // v8.45 · te: una flecha en cada salida (a → b y a → c)
+                    else if (el.type !== 'instrumento' && !sinFlujo(el) && !/^codo/.test(el.subtype)) d += flecha(18);
                     d += marcaFallo(25, 5);
                 }
                 if (!esAnotacion(el)) specs.push(specEtiqueta(el));
+                if (!esAnotacion(el)) d = afinarTrazos(d);   // v8.45 · líneas del P&ID un 20 % más finas
                 obtenerPuertosLocales(el).forEach(p => {
                     d += `<circle class="connection-port" cx="${p.x}" cy="${p.y}" r="2.6" data-portid="${p.id}"/>`;
                 });
@@ -7150,7 +7169,7 @@
         }
         
         // ---------- v8.33 · CAD > Exportar / Importar configuración del CAD (atajos, gestos, barra rápida, 3D, rejilla, unidades...) ----------
-        const OPC_CONFIG_CAD = ['fondo', 'norma', 'formato', 'rejillaVisible', 'rejillaMayor', 'rejillaMenores', 'rejilla', 'uPresion', 'uCaudal', 'cajetin', 'idiomaDoc', 'autoArchivoMin', 'calculoAuto', 'arbol'];
+        const OPC_CONFIG_CAD = ['fondo', 'norma', 'formato', 'rejillaVisible', 'rejillaMayor', 'rejillaMenores', 'rejilla', 'rejillaTipo', 'rejillaIsoMm', 'uPresion', 'uCaudal', 'cajetin', 'idiomaDoc', 'autoArchivoMin', 'calculoAuto', 'arbol'];
         function exportarConfigCAD() {
             cerrarMenus();
             let u = 'invitado'; try { const ss = sesionActual(); if (ss) u = ss.usuario || 'usuario'; } catch (e) { }
@@ -8657,7 +8676,7 @@
                 cont.appendChild(ov);
                 ['ox', 'oy', 'oz', 'cu', 'norte'].forEach(k => document.getElementById('v3d-' + k).addEventListener('change', e => { const { o } = cfg3D(), v = +e.target.value || 0; if (k === 'cu') { if (v > 0) proyecto.cuaderna = v; } else if (k === 'norte') proyecto.norte = v; else o[k[1]] = v; marcarCambios(true); construirEscena3D(); }));
             }
-            ov.style.display = 'flex'; ocultarTooltip(); { const est0 = document.getElementById('v3d-estado'); if (est0) est0.textContent = ayuda3D(); }
+            ov.style.display = 'flex'; ocultarTooltip(); arbolEn3D(true); { const est0 = document.getElementById('v3d-estado'); if (est0) est0.textContent = ayuda3D(); }
             const { o, c } = cfg3D(), loc = cfg3DLocal(), bq = !!proyecto.esBuque; document.getElementById('v3d-ox').value = o.x; document.getElementById('v3d-oy').value = o.y; document.getElementById('v3d-oz').value = o.z; document.getElementById('v3d-cu').value = c;
             document.getElementById('v3d-norte').value = proyecto.norte == null ? 90 : proyecto.norte; document.getElementById('v3d-buque').style.display = bq ? '' : 'none'; document.getElementById('v3d-ind').style.display = bq ? 'none' : '';
             document.getElementById('v3d-cua-t').textContent = bq ? 'Cuadernas' : 'Rejilla'; document.getElementById('v3d-etq').checked = loc.etiquetas !== false; document.getElementById('v3d-cua').checked = loc.cuadernas !== false;
@@ -8675,7 +8694,13 @@
             if (!V3) iniciarMotor3D();
             construirEscena3D(); vista3dCamara('iso');
         }
-        function cerrarVista3D() { const ov = document.getElementById('vista-3d'); if (ov) ov.style.display = 'none'; const bh = document.getElementById('barra-hojas'); if (bh) bh.style.display = ''; pistaDestino3D(null); }
+        // v8.44 · el árbol de la red también en el 3D (encima de la vista, con fondo claro), con las mismas operaciones que en el 2D
+        function arbolEn3D(si) {
+            const a = document.getElementById('arbol'); if (!a) return;
+            if (si) { if (opciones.arbol === false) return; const b = document.getElementById('v3d-barra'); a.classList.add('arbol-3d'); a.style.zIndex = '30'; a.style.top = ((b ? b.offsetHeight : 48) + 6) + 'px'; a.style.bottom = '140px';   /* deja ver la triada de la esquina */ renderArbol(); }
+            else { a.classList.remove('arbol-3d'); a.style.zIndex = ''; a.style.top = '6px'; a.style.bottom = '72px'; }
+        }
+        function cerrarVista3D() { arbolEn3D(false); const ov = document.getElementById('vista-3d'); if (ov) ov.style.display = 'none'; const bh = document.getElementById('barra-hojas'); if (bh) bh.style.display = ''; pistaDestino3D(null); }
         function iniciarMotor3D() {
             const T = window.THREE, cont = document.getElementById('v3d-lienzo');
             const renderer = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); renderer.setPixelRatio(window.devicePixelRatio || 1); renderer.setClearColor(0x0f172a);
@@ -8691,22 +8716,25 @@
                 if (e.button === 1) e.preventDefault();   // botón central: sin el desplazamiento automático del navegador
                 if (V3.zv && e.button === 0) { V3.zv.ini = { x: e.clientX, y: e.clientY }; e.preventDefault(); return; }
                 if (V3.zv && e.button === 2) { zoomVentana3D(false); return; }
-                arr = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, ct: e.ctrlKey || e.metaKey, mov: false }; cerrarMenus(); ocultarTooltip(); V3.tt = null;
+                arr = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, ct: e.ctrlKey || e.metaKey, mov: false, cubo: enCubo3D(e) }; cerrarMenus(); ocultarTooltip(); V3.tt = null;
+                if (arr.cubo) return;
                 if (e.button === 0 && !e.shiftKey && !enMano && !T3 && !planoCongelado) { const r = picar3D(e); if (r && esSuelto3D(r.el)) arr.mover = { el: r.el }; } });   // v8.42 · componente suelto: se arrastra
             el.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
             window.addEventListener('mouseup', e => {
                 if (V3.zv && V3.zv.ini) { aplicarZoomVentana3D(e); return; }
                 const a = arr; arr = null; if (a && a.mover && a.mov) { soltarSuelto3D(a); return; }
+                if (a && a.cubo && !a.mov && a.b === 0 && e.target === el) { clicCubo3D(e); return; }   // v8.43 · cubo de vistas
                 if (!a || a.mov || e.target !== el) return;
                 if (a.b === 0) { if (T3) clicTraza3D(e); else if (enMano) clicManoEn3D(e); else elegir3D(e, true); }
                 else if (a.b === 2) { if (T3) menuTraza3D(e); else if (enMano) soltarMano(true); else menu3D(e); }
                 else if (a.b === 1) { const t = Date.now(); if (t - ultCentral < 400) { encajar3D(); ultCentral = 0; } else ultCentral = t; }   // doble clic con la rueda: encajar
             });
             let ultCentral = 0;
-            el.addEventListener('dblclick', e => { e.preventDefault(); if (T3) { if (T3.pts.length > 1) finalizarTraza3D(); return; } const r = picar3D(e); if (!r) return; ocultarTooltip(); asegurarHojaDe(r.el.id); abrirVentanaElemento(r.el.id, e.clientX, e.clientY); });   // v8.42 · doble clic: atributos
+            el.addEventListener('dblclick', e => { e.preventDefault(); if (enCubo3D(e)) return; if (T3) { if (T3.pts.length > 1) finalizarTraza3D(); return; } const r = picar3D(e); if (!r) return; ocultarTooltip(); asegurarHojaDe(r.el.id); abrirVentanaElemento(r.el.id, e.clientX, e.clientY); });   // v8.42 · doble clic: atributos
             el.addEventListener('mousemove', e => {
                 if (V3.tt && Math.hypot(e.clientX - V3.tt.x, e.clientY - V3.tt.y) > 3) { ocultarTooltip(); V3.tt = null; }   // el tooltip de la selección se va al mover el ratón
                 if (V3.zv) { if (V3.zv.ini) rectZoom3D(V3.zv.ini, e); return; }
+                if (!arr && V3.cubo) { const rv = regionCubo3D(e); if (rv || V3.cubo.res.visible) { resaltarCubo3D(rv); if (rv || enCubo3D(e)) return; } }   // v8.43 · cubo de vistas
                 if (!arr && T3) { T3.ultE = { clientX: e.clientX, clientY: e.clientY }; if (T3.pts.length) { T3.raton = puntoTraza3D(e); pintarTraza3D(); } return; }   // v8.42 · trazado 3D
                 if (!arr) { elegir3D(e, false); if (enMano) pistaDestino3D(destino3D(e)); return; }
                 const dx = e.clientX - arr.x, dy = e.clientY - arr.y; if (Math.abs(dx) + Math.abs(dy) > 2) arr.mov = true; arr.x = e.clientX; arr.y = e.clientY;
@@ -8789,6 +8817,67 @@
                 const sp = etiqueta3D(t, col); sp.position.set(x * 1.3, y * 1.3, z * 1.3); sp.scale.set(0.3 * sp.userData.w, 0.3, 1); sc.add(sp); });
             V3.mini = { scene: sc, cam, buque };
         }
+        // ---------- v8.43 · cubo de vistas (como el ViewCube de Inventor / AutoCAD) en la esquina superior derecha ----------
+        // Clic en una cara: vista perpendicular a ese plano; en una arista o un vértice: vista intermedia (26 vistas). Arrastrar sobre
+        // el cubo: girar. Casita: vista isométrica. El giro es alrededor del centro actual de la vista (pivote).
+        const CUBO_PX = 104, CUBO_MARGEN = 10;
+        function construirCubo3D(buque) {
+            const T = V3.T, sc = new T.Scene(), cam = new T.PerspectiveCamera(30, 1, 0.1, 50); cam.up.set(0, 0, 1);
+            sc.add(new T.AmbientLight(0xffffff, 1));
+            const textos = buque ? { px: 'PROA', nx: 'POPA', py: 'BABOR', ny: 'ESTRIBOR', pz: 'SUPERIOR', nz: 'INFERIOR' } : { px: 'DERECHA', nx: 'IZQUIERDA', py: 'POSTERIOR', ny: 'FRONTAL', pz: 'SUPERIOR', nz: 'INFERIOR' };
+            const caras = [['px', [1, 0, 0], [0, 0, 1]], ['nx', [-1, 0, 0], [0, 0, 1]], ['py', [0, 1, 0], [0, 0, 1]], ['ny', [0, -1, 0], [0, 0, 1]], ['pz', [0, 0, 1], [0, 1, 0]], ['nz', [0, 0, -1], [0, 1, 0]]];
+            const mallas = [];
+            caras.forEach(([k, n, u]) => {
+                const cv = document.createElement('canvas'); cv.width = cv.height = 256; const c = cv.getContext('2d');
+                const g = c.createLinearGradient(0, 0, 256, 256); g.addColorStop(0, '#f1f5f9'); g.addColorStop(1, '#cbd5e1'); c.fillStyle = g; c.fillRect(0, 0, 256, 256);
+                c.strokeStyle = '#64748b'; c.lineWidth = 6; c.strokeRect(3, 3, 250, 250);
+                let fs = 54; c.font = `bold ${fs}px sans-serif`; const t = textos[k]; while (c.measureText(t).width > 228 && fs > 18) { fs -= 2; c.font = `bold ${fs}px sans-serif`; }
+                c.fillStyle = '#334155'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, 128, 128);
+                const m = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: new T.CanvasTexture(cv) }));
+                const N = new T.Vector3(...n), U = new T.Vector3(...u), Rt = new T.Vector3().crossVectors(U, N);
+                m.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(Rt, U, N)); m.position.copy(N.clone().multiplyScalar(0.5)); m.userData.cara = k; sc.add(m); mallas.push(m);
+            });
+            const aristas = new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(1.001, 1.001, 1.001)), new T.LineBasicMaterial({ color: 0x475569 })); sc.add(aristas);
+            const res = new T.Mesh(new T.BoxGeometry(1, 1, 1), new T.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.5, depthWrite: false })); res.visible = false; sc.add(res);
+            // brújula: ejes cortos bajo el cubo
+            [[1, 0, 0, '#ef4444'], [0, 1, 0, '#22c55e']].forEach(([x, y, z, col]) => sc.add(new T.ArrowHelper(new T.Vector3(x, y, z), new T.Vector3(-0.5, -0.5, -0.5), 0.45, new T.Color(col).getHex(), 0.12, 0.07)));
+            V3.cubo = { scene: sc, cam, mallas, res, buque, textos };
+            let bt = document.getElementById('v3d-casa');
+            if (!bt) { bt = document.createElement('button'); bt.id = 'v3d-casa'; bt.title = 'Vista isométrica (inicio)'; bt.innerHTML = '<i class="fa-solid fa-house"></i>'; bt.style.cssText = `position:absolute;top:${CUBO_MARGEN}px;right:${CUBO_MARGEN + CUBO_PX - 4}px;z-index:3;width:22px;height:22px;border:0;border-radius:4px;background:rgba(51,65,85,.85);color:#e2e8f0;font-size:11px;cursor:pointer`;
+                bt.onclick = () => { marcarPosicion3D(true); animarVista3D(-Math.PI / 4, 0.9553); }; V3.cont.appendChild(bt); }
+        }
+        // rectángulo del cubo en pantalla y región (cara, arista o vértice) bajo el cursor: vector con componentes −1, 0 o 1
+        function rectCubo3D() { const rc = V3.renderer.domElement.getBoundingClientRect(); return { x0: rc.right - CUBO_MARGEN - CUBO_PX, y0: rc.top + CUBO_MARGEN, x1: rc.right - CUBO_MARGEN, y1: rc.top + CUBO_MARGEN + CUBO_PX }; }
+        const enCubo3D = e => { if (!V3 || !V3.cubo) return false; const r = rectCubo3D(); return e.clientX >= r.x0 && e.clientX <= r.x1 && e.clientY >= r.y0 && e.clientY <= r.y1; };
+        function regionCubo3D(e) {
+            if (!enCubo3D(e)) return null; const r = rectCubo3D(), C = V3.cubo, T = V3.T;
+            const ray = new T.Raycaster(); ray.setFromCamera(new T.Vector2(((e.clientX - r.x0) / CUBO_PX) * 2 - 1, -((e.clientY - r.y0) / CUBO_PX) * 2 + 1), C.cam);
+            const h = ray.intersectObjects(C.mallas, false)[0]; if (!h) return null;
+            const p = h.point, lim = 0.5 - 0.18, v = [p.x, p.y, p.z].map(c => c > lim ? 1 : c < -lim ? -1 : 0);
+            return v.some(Boolean) ? v : null;
+        }
+        function nombreRegionCubo3D(v) { const t = V3.cubo.textos, n = [v[2] > 0 ? t.pz : v[2] < 0 ? t.nz : '', v[1] < 0 ? t.ny : v[1] > 0 ? t.py : '', v[0] > 0 ? t.px : v[0] < 0 ? t.nx : ''].filter(Boolean); return n.join(' + '); }
+        function resaltarCubo3D(v) {
+            const C = V3 && V3.cubo; if (!C) return; const R = C.res;
+            if (!v) { if (R.visible) { R.visible = false; pintar3D(); } V3.renderer.domElement.style.cursor = T3 ? 'crosshair' : ''; return; }
+            R.scale.set(...v.map(c => c ? 0.2 : 0.62)); R.position.set(...v.map(c => c * 0.415)); R.visible = true; V3.renderer.domElement.style.cursor = 'pointer';
+            const est = document.getElementById('v3d-estado'); if (est) est.textContent = `Cubo de vistas: ${nombreRegionCubo3D(v)} (clic) · arrastra para girar · casita: isométrica`;
+            pintar3D();
+        }
+        function clicCubo3D(e) {
+            const v = regionCubo3D(e); if (!v) return false;
+            const d = v3.norm(v), H = Math.PI / 2; let th = Math.atan2(d[1], d[0]), ph = Math.acos(Math.max(-1, Math.min(1, d[2])));
+            if (Math.abs(d[2]) > 0.999) th = -H;   // planta / desde abajo: +X a la derecha
+            marcarPosicion3D(true); animarVista3D(th, ph);
+            const est = document.getElementById('v3d-estado'); if (est) est.textContent = `Vista: ${nombreRegionCubo3D(v)} · F: vista anterior`;
+            return true;
+        }
+        function animarVista3D(th1, ph1) {
+            if (!V3) return; const th0 = V3.th, ph0 = V3.ph; let dth = ((th1 - th0) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+            ph1 = Math.min(Math.PI - 0.001, Math.max(0.001, ph1)); V3.rol = 0; const t0 = performance.now(), dur = 320;
+            const paso = ahora => { const k = Math.min(1, (ahora - t0) / dur), s = k * k * (3 - 2 * k); V3.th = th0 + dth * s; V3.ph = ph0 + (ph1 - ph0) * s; pintar3D(); if (k < 1) requestAnimationFrame(paso); };
+            requestAnimationFrame(paso);
+        }
         function pintar3D() {
             if (!V3) return; const { camera, target, r, th, ph } = V3;
             camera.position.set(target.x + r * Math.sin(ph) * Math.cos(th), target.y + r * Math.sin(ph) * Math.sin(th), target.z + r * Math.cos(ph));
@@ -8801,6 +8890,11 @@
                 M.cam.position.copy(d.multiplyScalar(5.8)); M.cam.up.copy(camera.up); M.cam.lookAt(0, 0, 0); if (V3.rol) M.cam.rotateZ(V3.rol); M.cam.updateMatrixWorld();
                 R.autoClear = false; R.clearDepth(); R.setScissorTest(true); R.setScissor(0, 0, s, s); R.setViewport(0, 0, s, s); R.render(M.scene, M.cam);
                 R.setScissorTest(false); const w = V3.cont.clientWidth || 800, h = V3.cont.clientHeight || 500; R.setViewport(0, 0, w, h); R.autoClear = true; }
+            if (V3.cubo) { const C = V3.cubo, w = V3.cont.clientWidth || 800, h = V3.cont.clientHeight || 500, d = new V3.T.Vector3().subVectors(camera.position, target).normalize();
+                C.cam.position.copy(d.multiplyScalar(3.4)); C.cam.up.copy(camera.up); C.cam.lookAt(0, 0, 0); if (V3.rol) C.cam.rotateZ(V3.rol); C.cam.updateMatrixWorld();
+                const x = w - CUBO_MARGEN - CUBO_PX, y = h - CUBO_MARGEN - CUBO_PX;
+                R.autoClear = false; R.clearDepth(); R.setScissorTest(true); R.setScissor(x, y, CUBO_PX, CUBO_PX); R.setViewport(x, y, CUBO_PX, CUBO_PX); R.render(C.scene, C.cam);
+                R.setScissorTest(false); R.setViewport(0, 0, w, h); R.autoClear = true; }
         }
         function vista3dCamara(k) {
             if (!V3 || !V3.caja) return; const b = V3.caja, c = b.getCenter(new V3.T.Vector3()), tam = b.getSize(new V3.T.Vector3()), rr = Math.max(tam.x, tam.y, tam.z, 1) * 1.6;
@@ -8927,6 +9021,7 @@
             V3.renderer.setClearColor(new T.Color(loc.fondo || CFG3D_DEF.fondo));
             const G = new T.Group(); V3.grupo = G; V3.scene.add(G); V3.objetos = [];
             if (!V3.mini || V3.mini.buque !== buque) construirTriada(buque);
+            if (!V3.cubo || V3.cubo.buque !== buque) construirCubo3D(buque);
             // v8.33 · el 3D es un espacio único: se monta con todas las hojas (las continuaciones entre hojas unen la red)
             V3.hojaDe = {}; const multi = hojas.length > 1, despl = {};
             const conTodas = fn => { if (!multi) return fn(); sincronizarHoja(); const gE = elementosRed, gL = lineas, todos = [], movidos = [];
@@ -8943,14 +9038,14 @@
             const cil = (a, b, r1, r2, mat, seg = 20) => { const A = V(a), B = V(b), d = new T.Vector3().subVectors(B, A), L = d.length(); if (L < 1e-5) return null; const m = new T.Mesh(new T.CylinderGeometry(r2 == null ? r1 : r2, r1, L, seg), mat); m.position.copy(A).addScaledVector(d, 0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); return m; };
             const disco = (centro, eje, r, e, mat) => cil(v3.sum(centro, v3.mul(eje, -e / 2)), v3.sum(centro, v3.mul(eje, e / 2)), r, r, mat, 28);
             const perp = d => { const z = [0, 0, 1]; const p = Math.abs(v3.dot(d, z)) > 0.9 ? [0, 1, 0] : z; return v3.norm(v3.cross(v3.cross(d, p), d)); };
-            const etq = (texto, pos, alto, col) => { if (!conEtq) return; const sp = etiqueta3D(texto, col); sp.material.sizeAttenuation = false; sp.material.opacity = 0.85; sp.material.transparent = true; const h = Math.max(0.0055, Math.min(0.0095, alto * 0.07));   /* v8.42 · más pequeñas y discretas */ sp.position.copy(V(pos)); sp.scale.set(h * sp.userData.w, h, 1); G.add(sp); };
+            const etq = (texto, pos, alto, col) => { if (!conEtq) return; const sp = etiqueta3D(texto, col); sp.material.sizeAttenuation = false; sp.material.opacity = 0.85; sp.material.transparent = true; const h = Math.max(0.0085, Math.min(0.0135, alto * 0.1));   /* v8.42 · más pequeñas y discretas */ sp.position.copy(V(pos)); sp.scale.set(h * sp.userData.w, h, 1); G.add(sp); };
             Object.values(geo).forEach(gg => {
                 const el = gg.el, st = el.subtype || '', mm = x => x / 1000, M = matDe(el), grp = new T.Group();
                 const add = o => { if (o) grp.add(o); };
                 if (gg.tubo) {
                     const a = gg.ports.a.p, b = gg.ports.b.p, r = mm((datosTuberia(el).od || 60) / 2);
                     add(cil(a, b, r, r, M)); reg(grp, el);
-                    const L = v3.len(v3.sum(b, v3.mul(a, -1))); if (L > 0.5) etq(`${tagDe(el)} · ${el.longitud} mm`, v3.sum(v3.mul(v3.sum(a, b), 0.5), [0, 0, r * 3 + 0.08]), Math.max(0.06, Math.min(0.16, L * 0.05)), '#cbd5e1');
+                    const L = v3.len(v3.sum(b, v3.mul(a, -1))); if (L > 0.5) etq(`${tagDe(el)} · ${el.longitud} mm`, v3.sum(v3.mul(v3.sum(a, b), 0.5), [0, 0, r * 1.3 + 0.012]), Math.max(0.06, Math.min(0.16, L * 0.05)), '#cbd5e1');
                     return;
                 }
                 const C = gg.C, ports = gg.ports, od = mm(odMm(el.dn || el.dnImp || 'DN 50')), r = od / 2, pa = ports.a || ports.succion, pb = ports.b || ports.descarga;
@@ -8969,41 +9064,41 @@
                             else { const vo = new T.Mesh(new T.TorusGeometry(r * 1.8, r * 0.18, 8, 28), gris(el)); vo.position.copy(V(top)); vo.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), V(arriba)); add(vo); }
                         } else { const fl = new T.Mesh(new T.ConeGeometry(r * 0.7, r * 1.4, 12), gris(el)); fl.position.copy(V(v3.sum(C, v3.mul(arriba, r * 2.2)))); fl.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), V(eje)); add(fl); }
                     } else { const s = new T.Mesh(new T.SphereGeometry(r * 1.5, 16, 12), M); s.position.copy(V(C)); add(s); }
-                    reg(grp, el); etq(tagDe(el), v3.sum(C, v3.mul(arriba, r * 6 + 0.15)), 0.12, el.estado === 'fallo' ? '#fca5a5' : '#fde68a'); return;
+                    reg(grp, el); etq(tagDe(el), v3.sum(C, v3.mul(arriba, r * 2.6 + 0.02)), 0.12, el.estado === 'fallo' ? '#fca5a5' : '#fde68a'); return;
                 }
                 if (/^codo/.test(st) && pa && pb) { const curva = new T.QuadraticBezierCurve3(V(pa.p), V(C), V(pb.p)); add(new T.Mesh(new T.TubeGeometry(curva, 16, r, 16, false), M)); reg(grp, el); return; }
-                if ((st === 'tee' || st === 'cruce' || st === 'injerto') && pa) { Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); const s = new T.Mesh(new T.SphereGeometry(r * 1.02, 16, 12), M); s.position.copy(V(C)); add(s); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, r * 3 + 0.1]), 0.09, '#fde68a'); return; }
+                if ((st === 'tee' || st === 'cruce' || st === 'injerto') && pa) { Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); const s = new T.Mesh(new T.SphereGeometry(r * 1.02, 16, 12), M); s.position.copy(V(C)); add(s); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, r * 1.6 + 0.015]), 0.09, '#fde68a'); return; }
                 if (st === 'reduccion' && pa && pb) { add(cil(pa.p, pb.p, r, mm(odMm(el.dnMenor || el.dn)) / 2, M)); reg(grp, el); return; }
                 if (SUBTIPOS_BRIDA.includes(st)) {
                     const f = ports.a, b = ports.b, O2 = mm(gg.m.O) / 2, e = mm(gg.m.e), dd = b ? v3.norm(v3.sum(b.p, v3.mul(f.p, -1))) : v3.mul(f.d, -1);
                     add(disco(v3.sum(f.p, v3.mul(dd, e / 2)), dd, O2, e, M));
                     if (b && st === 'bridawn') add(cil(v3.sum(f.p, v3.mul(dd, e)), b.p, r * 1.35, r, M));
                     else if (b) add(cil(f.p, b.p, r * 1.08, r * 1.08, M));
-                    reg(grp, el); etq(tagDe(el), v3.sum(f.p, [0, 0, O2 + 0.08]), 0.08, '#fde68a'); return;
+                    reg(grp, el); etq(tagDe(el), v3.sum(f.p, [0, 0, O2 + 0.012]), 0.08, '#fde68a'); return;
                 }
                 if (['machon', 'manguito', 'tuerca', 'racor'].includes(st) && pa && pb) { add(cil(pa.p, pb.p, r * 1.25, r * 1.25, M, 6)); reg(grp, el); return; }
-                if ((st === 'junta' || st === 'antivibratorio') && pa && pb) { for (let i = 0; i <= 4; i++) { const t = new T.Mesh(new T.TorusGeometry(r * 1.1, r * 0.22, 8, 24), M); t.position.copy(V(v3.sum(pa.p, v3.mul(v3.sum(pb.p, v3.mul(pa.p, -1)), i / 4)))); t.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), V(eje)); add(t); } add(cil(pa.p, pb.p, r * 0.95, r * 0.95, M)); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, r * 3]), 0.09, '#fde68a'); return; }
-                if ((st === 'filtro' || st === 'strainer') && pa && pb) { add(cil(pa.p, pb.p, r * 1.2, r * 1.2, M)); const y = v3.sum(C, v3.mul(v3.norm(v3.sum(v3.mul(arriba, -1), v3.mul(eje, 0.6))), r * 4)); add(cil(C, y, r * 1.1, r * 1.1, M)); reg(grp, el); etq(tagDe(el), v3.sum(C, v3.mul(arriba, r * 3)), 0.09, '#fde68a'); return; }
+                if ((st === 'junta' || st === 'antivibratorio') && pa && pb) { for (let i = 0; i <= 4; i++) { const t = new T.Mesh(new T.TorusGeometry(r * 1.1, r * 0.22, 8, 24), M); t.position.copy(V(v3.sum(pa.p, v3.mul(v3.sum(pb.p, v3.mul(pa.p, -1)), i / 4)))); t.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), V(eje)); add(t); } add(cil(pa.p, pb.p, r * 0.95, r * 0.95, M)); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, r * 1.6 + 0.012]), 0.09, '#fde68a'); return; }
+                if ((st === 'filtro' || st === 'strainer') && pa && pb) { add(cil(pa.p, pb.p, r * 1.2, r * 1.2, M)); const y = v3.sum(C, v3.mul(v3.norm(v3.sum(v3.mul(arriba, -1), v3.mul(eje, 0.6))), r * 4)); add(cil(C, y, r * 1.1, r * 1.1, M)); reg(grp, el); etq(tagDe(el), v3.sum(C, v3.mul(arriba, r * 2)), 0.09, '#fde68a'); return; }
                 if (el.type === 'bomba') {
                     const R = mm(gg.m.R), asp = ports.succion, imp = ports.descarga, ejeB = asp ? v3.mul(asp.d, -1) : [1, 0, 0], arr = gg.Rg && gg.d0 && gg.d0.succion ? v3.norm(gg.Rg(perp(v3.mul(gg.d0.succion, -1)))) : perp(ejeB), lado = v3.norm(v3.cross(ejeB, arr));
                     const vol = disco(C, lado, R, R * 0.7, M); add(vol);   // bomba en línea: voluta con eje horizontal y motor vertical encima
                     if (asp) add(cil(asp.p, C, r * 1.1, r * 1.1, M)); if (imp) add(cil(C, imp.p, mm(odMm(el.dnImp || el.dn || 'DN 50')) / 2, mm(odMm(el.dnImp || el.dn || 'DN 50')) / 2, M));
                     const mo0 = v3.sum(C, v3.mul(arr, R * 0.9)), mo1 = v3.sum(C, v3.mul(arr, R * 3.2)); add(cil(mo0, mo1, R * 0.62, R * 0.62, matDe(el, { color: new T.Color('#2563eb') }), 24)); add(cil(C, mo0, R * 0.3, R * 0.3, gris(el), 16));
                     const base = new T.Mesh(new T.BoxGeometry(R * 2.4, R * 2.4, R * 0.15), gris(el)); base.position.copy(V(v3.sum(C, v3.mul(arr, -R * 1.1)))); base.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), V(arr)); add(base);
-                    reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, R * 1.6]), 0.14, el.estado === 'fallo' ? '#fca5a5' : '#fde68a'); return;
+                    reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, R * 1.15]), 0.14, el.estado === 'fallo' ? '#fca5a5' : '#fde68a'); return;
                 }
                 if (gg.m.h) { const R = mm(gg.m.R), h = mm(gg.m.h), pc = Object.entries(ports)[0], hb = pc ? (pc[0] === 'c' ? +el.hC || 0 : +el.hB || 0) : 0, z0 = (pc ? pc[1].p[2] : C[2]) - hb;
-                    const t = cil([C[0], C[1], z0], [C[0], C[1], z0 + h], R, R, matDe(el, { transparent: true, opacity: 0.6 }), 36); add(t); reg(grp, el); etq(tagDe(el), [C[0], C[1], z0 + h + 0.2], 0.16, '#fde68a'); return; }
-                if (esEquipo(el)) { const s = mm(gg.m.def); const bx = new T.Mesh(new T.BoxGeometry(s * 2, s * 1.4, s * 1.4), M); bx.position.copy(V(C)); add(bx); Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, s]), 0.14, '#fde68a'); return; }
-                if (el.subtype === 'consumo') { const p = (pa || Object.values(ports)[0]); const cn = new T.Mesh(new T.ConeGeometry(Math.max(r * 2, 0.05), Math.max(r * 3, 0.08), 16), M); cn.position.copy(V(v3.sum(p.p, v3.mul(p.d, -Math.max(r * 1.5, 0.04))))); cn.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), V(p.d)); add(cn); reg(grp, el); etq(tagDe(el), v3.sum(p.p, [0, 0, 0.15]), 0.12, '#fde68a'); return; }
-                if (el.type === 'instrumento') { const p = Object.values(ports)[0]; const top = v3.sum(p.p, [0, 0, 0.12]); add(cil(p.p, top, 0.008, 0.008, gris(el), 8)); add(disco(top, [0, -1, 0], 0.04, 0.02, M)); reg(grp, el); etq(tagDe(el), v3.sum(top, [0, 0, 0.08]), 0.07, '#fde68a'); return; }
+                    const t = cil([C[0], C[1], z0], [C[0], C[1], z0 + h], R, R, matDe(el, { transparent: true, opacity: 0.6 }), 36); add(t); reg(grp, el); etq(tagDe(el), [C[0], C[1], z0 + h + 0.05], 0.16, '#fde68a'); return; }
+                if (esEquipo(el)) { const s = mm(gg.m.def); const bx = new T.Mesh(new T.BoxGeometry(s * 2, s * 1.4, s * 1.4), M); bx.position.copy(V(C)); add(bx); Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, s * 0.8 + 0.02]), 0.14, '#fde68a'); return; }
+                if (el.subtype === 'consumo') { const p = (pa || Object.values(ports)[0]); const cn = new T.Mesh(new T.ConeGeometry(Math.max(r * 2, 0.05), Math.max(r * 3, 0.08), 16), M); cn.position.copy(V(v3.sum(p.p, v3.mul(p.d, -Math.max(r * 1.5, 0.04))))); cn.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), V(p.d)); add(cn); reg(grp, el); etq(tagDe(el), v3.sum(p.p, [0, 0, 0.05]), 0.12, '#fde68a'); return; }
+                if (el.type === 'instrumento') { const p = Object.values(ports)[0]; const top = v3.sum(p.p, [0, 0, 0.12]); add(cil(p.p, top, 0.008, 0.008, gris(el), 8)); add(disco(top, [0, -1, 0], 0.04, 0.02, M)); reg(grp, el); etq(tagDe(el), v3.sum(top, [0, 0, 0.03]), 0.07, '#fde68a'); return; }
                 Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); const s = new T.Mesh(new T.SphereGeometry(r * 1.2, 16, 12), M); s.position.copy(V(C)); add(s); reg(grp, el);
             });
             // v8.32 · extremos libres (esferas azules): ahí se suelta un componente de la librería para insertarlo desde el 3D
             V3.libres = [];
             try { const mLib = new T.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.75, depthTest: false });
                 libres0.forEach(p => { const gg = geo[p.el.id], q = gg && gg.ports[p.id]; if (!q) return;
-                    const od = (p.el.type === 'tuberia' ? (datosTuberia(p.el).od || 60) : odMm(p.el.dn || p.el.dnImp || 'DN 50')) / 1000, s = new T.Mesh(new T.SphereGeometry(Math.max(0.015, od * 0.45), 14, 10), mLib);
+                    const od = (p.el.type === 'tuberia' ? (datosTuberia(p.el).od || 60) : odMm(p.el.dn || p.el.dnImp || 'DN 50')) / 1000, s = new T.Mesh(new T.SphereGeometry(Math.max(0.006, od * 0.22), 14, 10), mLib);
                     s.position.copy(V(q.p)); s.renderOrder = 5; G.add(s); V3.libres.push({ el: p.el, id: p.id, x: p.x, y: p.y, p: q.p }); }); } catch (e) { console.warn(e); }
             // v8.32 · tuberías cuyo desnivel en 3D (por un giro en el espacio) no coincide con sus cotas: el cálculo usa las cotas
             V3.desfases = Object.values(geo).filter(gg => gg.tubo && gg.ports.a && gg.ports.b).map(gg => ({ el: gg.el, dz: gg.ports.b.p[2] - gg.ports.a.p[2] })).filter(x => Math.abs(x.dz - ((+x.el.cotaB || 0) - (+x.el.cotaA || 0))) > 0.005);
@@ -9071,6 +9166,12 @@
         const esMultieje = d => (d.collections || []).some(c => c.usagePage === 1 && c.usage === 8);
         // v8.42 · opciones del ratón 3D solo con un ratón 3D conectado; búsqueda más amplia (cualquier dispositivo 3Dconnexion o el
         // controlador multieje de Logitech; Mayús+clic en «Ratón 3D…»: todos los dispositivos HID) y avisos de por qué no aparece
+        // v8.44 · conexión automática: al arrancar la aplicación y al enchufarlo se abre el ratón 3D ya autorizado en este navegador
+        // (la primera vez el navegador exige elegirlo una vez con «Ratón 3D…»; luego queda recordado para este sitio)
+        if (navigator.hid) {
+            window.addEventListener('load', () => setTimeout(() => { conectarSpaceMouse(false).catch(() => { }); }, 1200));
+            navigator.hid.addEventListener('connect', () => setTimeout(() => conectarSpaceMouse(false).catch(() => { }), 300));
+        }
         function pintarOpcionesSM() { const o = document.getElementById('v3d-smopc'); if (o) o.style.display = SM.devs.length ? 'inline-flex' : 'none'; }
         const VENDOR_3DX = [0x256f, 0x046d];
         async function conectarSpaceMouse(pedir, todos) {
@@ -9102,7 +9203,7 @@
             const h = V3.ray.intersectObjects(V3.objetos, false)[0]; if (!h) return null;
             const el = todosLosElementos().find(x => x.id === h.object.userData.id); return el ? { el, h } : null;
         }
-        const ayuda3D = () => 'Izquierdo: girar · derecho, central o Mayús: desplazar · rueda: zoom al cursor · W: zoom ventana · clic: seleccionar y centrar · doble clic: atributos · X/Y/Z y R (90°) / Mayús+R (15°): girar · L: trazar tubería · arrastrar un componente suelto: moverlo y unirlo · T: encajar · F: vista anterior · F2: calcular · Alt+1: 2D/3D' + (V3 && V3.desfases && V3.desfases.length ? ` · ⚠ ${V3.desfases.length} tubería(s) con desnivel en 3D distinto de sus cotas: ${V3.desfases.slice(0, 4).map(x => tagDe(x.el) + ' ' + (x.dz >= 0 ? '+' : '') + Math.round(x.dz * 1000) + ' mm').join(', ')}${V3.desfases.length > 4 ? '…' : ''} (el cálculo usa las cotas)` : '');
+        const ayuda3D = () => 'Izquierdo: girar · derecho, central o Mayús: desplazar · rueda: zoom al cursor · W: zoom ventana · clic: seleccionar y centrar · doble clic: atributos · X/Y/Z y R (90°) / Mayús+R (15°): girar · L: trazar tubería · arrastrar un componente suelto: moverlo y unirlo · cubo de vistas (arriba a la derecha): clic en cara, arista o vértice · T: encajar · F: vista anterior · F2: calcular · Alt+1: 2D/3D' + (V3 && V3.desfases && V3.desfases.length ? ` · ⚠ ${V3.desfases.length} tubería(s) con desnivel en 3D distinto de sus cotas: ${V3.desfases.slice(0, 4).map(x => tagDe(x.el) + ' ' + (x.dz >= 0 ? '+' : '') + Math.round(x.dz * 1000) + ' mm').join(', ')}${V3.desfases.length > 4 ? '…' : ''} (el cálculo usa las cotas)` : '');
         function elegir3D(e, clic) {
             if (!V3) return; const r = picar3D(e), est = document.getElementById('v3d-estado');
             if (!r) { if (est) est.textContent = ayuda3D(); if (clic && (idSeleccionado || seleccion.size)) { seleccion.clear(); idSeleccionado = null; construirEscena3D(); } return; }
@@ -9264,6 +9365,29 @@
         // cara) o un punto del plano 0. Cada tramo va en un eje (X, Y o Z) perpendicular al anterior; X / Y / Z lo bloquean y se
         // teclea la longitud en mm. Intro o doble clic termina: se crean las tuberías y los codos de 90° (los tramos verticales
         // pasan al 2D como cambios de cota) y cada codo se orienta en el 3D para seguir el trazado.
+        // v8.44 · con la ventana de inserción abierta, R / Mayús+R giran el componente que se está insertando (si el cursor no está
+        // escribiendo en un campo de texto); en el 3D, 90° / 15° sobre el eje de su conexión
+        window.addEventListener('keydown', e => {
+            if (e.code !== 'KeyR' || e.ctrlKey || e.metaKey || e.altKey || !nuevoPendiente || document.getElementById('modal-nuevo').style.display !== 'flex') return;
+            const a = document.activeElement; if (a && (a.tagName === 'TEXTAREA' || a.isContentEditable || (a.tagName === 'INPUT' && !/^(checkbox|radio|button|range|color)$/i.test(a.type)))) return;
+            e.preventDefault(); e.stopImmediatePropagation();
+            const el = nuevoPendiente.el; if (!el) return;
+            if (vista3d && V3) { seleccion.clear(); idSeleccionado = el.id; construirEscena3D(); girar3D(e.shiftKey ? 15 : 90); return; }
+            girarElemento(el, e.shiftKey ? -45 : 45); invalidarResultados(); renderizarVectorial(); aviso(`${nombreTipo(el)}: ${el.rotation}° · R / Mayús+R: girar 45°`);
+        }, true);
+        // la ventana de inserción se arrastra por su título y se abre donde se dejó la última vez
+        (function () {
+            const ov = document.getElementById('modal-nuevo'), pan = ov && ov.firstElementChild, tit = pan && pan.querySelector('h3'); if (!tit) return;
+            ov.classList.remove('bg-black/40'); ov.style.background = 'rgba(15,23,42,.12)';
+            let pos = null; try { pos = JSON.parse(localStorage.getItem('piping-pos-nuevo') || 'null'); } catch (e) { }
+            const poner = () => { pan.style.position = 'relative'; pan.style.left = (pos ? pos.x : 0) + 'px'; pan.style.top = (pos ? pos.y : 0) + 'px'; };
+            poner(); tit.style.cursor = 'move'; tit.title = 'Arrastra para mover la ventana';
+            let arr = null;
+            tit.addEventListener('mousedown', e => { if (e.button !== 0) return; e.preventDefault(); arr = { x: e.clientX, y: e.clientY, x0: pos ? pos.x : 0, y0: pos ? pos.y : 0 }; });
+            window.addEventListener('mousemove', e => { if (!arr) return; const r = pan.getBoundingClientRect(); pos = { x: arr.x0 + e.clientX - arr.x, y: arr.y0 + e.clientY - arr.y };
+                const mx = (window.innerWidth - r.width) / 2, my = (window.innerHeight - r.height) / 2; pos.x = Math.max(-mx, Math.min(mx, pos.x)); pos.y = Math.max(-my, Math.min(my, pos.y)); poner(); });
+            window.addEventListener('mouseup', () => { if (arr) { arr = null; try { localStorage.setItem('piping-pos-nuevo', JSON.stringify(pos)); } catch (e) { } } });
+        })();
         let T3 = null;
         function iniciarTraza3D() {
             if (!V3) return; if (planoCongelado) { avisarCongelado(); return; }
@@ -9873,12 +9997,26 @@
             return it.sort((a, b) => a.texto.localeCompare(b.texto, 'es'));
         }; }
         // árbol: botón derecho sobre una línea
+        // v8.44 · líneas vacías: se pueden borrar desde el árbol (2D y 3D)
+        function borrarLineaVacia(id) {
+            if (elementosRed.some(x => x.linea === id)) { aviso(`La línea ${id} tiene componentes: no se borra.`, 'error'); return; }
+            guardarEstado(); lineas = lineas.filter(l => l.id !== id); arbolPlegados.delete(id); marcarCambios(true); renderizarVectorial(); renderArbol(); aviso(`Línea ${id} borrada.`, 'ok');
+        }
+        // v8.44 · botón derecho sobre un componente del árbol: el mismo menú que sobre el componente en el plano (2D o 3D)
+        document.getElementById('arbol-cuerpo')?.addEventListener('contextmenu', e => {
+            const n = e.target.closest && e.target.closest('[data-arbol-el]'); if (!n) return;
+            const el = elementosRed.find(x => x.id === n.getAttribute('data-arbol-el')); if (!el) return;
+            e.preventDefault(); e.stopPropagation();
+            if (!seleccion.has(el.id) && idSeleccionado !== el.id) { seleccion.clear(); seleccionarElemento(el.id); if (vista3d && V3) construirEscena3D(); }
+            mostrarMenuContextual(e.clientX, e.clientY, itemsMenuElemento(el));
+        }, true);
         document.getElementById('arbol-cuerpo')?.addEventListener('contextmenu', e => {
             const n = e.target.closest && e.target.closest('.nodo'); if (!n) return;
             const m = (n.getAttribute('onclick') || '').match(/seleccionarLinea\('([^']+)'\)/); if (!m) return;
             e.preventDefault(); e.stopPropagation();
-            const id = m[1];
+            const id = m[1], vacia = !elementosRed.some(x => x.linea === id);
             mostrarMenuContextual(e.clientX, e.clientY, [
+                ...(vacia ? [{ icono: 'fa-trash-can', texto: `Borrar la línea ${id} (vacía)`, accion: () => borrarLineaVacia(id) }, 'sep'] : []),
                 { icono: 'fa-object-group', texto: `Seleccionar la línea ${id}`, accion: () => seleccionarLinea(id) },
                 { icono: 'fa-clone', texto: 'Duplicar línea', accion: () => duplicarLinea(id) },
                 { icono: 'fa-cube', texto: 'Isométrico de la línea', accion: () => isometricoLinea(id) },
@@ -9892,7 +10030,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.42';
+        const VERSION_WEB = '8.45';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -10030,6 +10168,7 @@
         function irAElemento(id) {
             const el = elementosRed.find(e => e.id === id);
             if (!el) return;
+            if (vista3d && typeof V3 !== 'undefined' && V3) { seleccion.clear(); seleccionarElemento(id); construirEscena3D(); pivote3D(id); estadoGiro3D(); return; }   // v8.44 · desde el árbol en 3D
             seleccionarElemento(id);
             centrarVistaEnPunto(el.x + 25, mundoAScreenY(el.y) + 25);
         }
@@ -11327,7 +11466,7 @@
             document.getElementById('panel-propiedades').innerHTML = `<p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>`;
         }
         function seleccionarTodo() { seleccion.clear(); elementosRed.forEach(e => seleccion.add(e.id)); actualizarSeleccion(); }
-        function seleccionarLinea(id) { seleccion.clear(); elementosRed.filter(e => e.linea === id).forEach(e => seleccion.add(e.id)); actualizarSeleccion(); }
+        function seleccionarLinea(id) { seleccion.clear(); elementosRed.filter(e => e.linea === id).forEach(e => seleccion.add(e.id)); actualizarSeleccion(); if (vista3d && typeof V3 !== 'undefined' && V3) construirEscena3D(); }
         function eliminarSeleccion() {
             const ids = idsSeleccion();
             if (!ids.length) return;
@@ -11622,7 +11761,10 @@
                 { icono: 'fa-border-all', texto: 'Rejilla', sub: () => [
                     { icono: opciones.rejillaVisible !== false ? 'fa-check' : 'fa-square', texto: 'Mostrar rejilla', accion: () => alternarRejilla('rejillaVisible') },
                     { icono: opciones.rejilla ? 'fa-check' : 'fa-square', texto: 'Ajuste a rejilla (líneas menores)', accion: () => alternarRejilla('rejilla') },
-                    { icono: 'fa-ruler', texto: `Espaciado... (${opciones.rejillaMayor || 10} mm / ${opciones.rejillaMenores || 2})`, accion: () => configurarRejilla() }] },
+                    { icono: 'fa-ruler', texto: `Espaciado... (${opciones.rejillaMayor || 10} mm / ${opciones.rejillaMenores || 2})`, accion: () => configurarRejilla() },
+                    'sep',
+                    { icono: opciones.rejillaTipo === 'iso' ? 'fa-check' : 'fa-square', texto: `Rejilla isométrica de papel (triángulos de ${opciones.rejillaIsoMm || 5} mm)`, accion: () => { opciones.rejillaTipo = opciones.rejillaTipo === 'iso' ? '' : 'iso'; opciones.rejillaVisible = true; marcarCambios(true); renderizarVectorial(); } },
+                    { icono: 'fa-ruler', texto: 'Lado del triángulo isométrico...', accion: () => { const v = prompt('Lado del triángulo de la rejilla isométrica (mm de papel):', opciones.rejillaIsoMm || 5); if (v == null) return; if (!(+String(v).replace(',', '.') > 0)) { aviso('Valor no válido.', 'error'); return; } opciones.rejillaIsoMm = +String(v).replace(',', '.'); marcarCambios(true); renderizarVectorial(); } }] },
                 { icono: 'fa-scale-balanced', texto: 'Unidades', sub: () => [
                     ...Object.entries(UNIDADES.p).map(([k, u]) => ({ icono: (opciones.uPresion || 'bar') === k ? 'fa-check' : 'fa-square', texto: 'Presión: ' + u[1], accion: () => cambiarUnidad('uPresion', k) })),
                     'sep',
