@@ -1,34 +1,17 @@
-# PIPING v8.38 · Iconos propios (Opciones > Iconos)
+# PIPING 8.45 · flechas de flujo en la línea y trazos un 20 % más finos
 
-Etiqueta: `8.38-iconos`. Ficheros cambiados: `index.html`, `js/piping.js`, `i18n/en.js`, `i18n/pt.js`, `i18n/ko.js`. Copia de la versión anterior: `copias\v837`.
+Entregado en C:\Users\jaman\Documents\PROYECTOS\PIPING (index.html y js/piping.js). La versión anterior queda en copias\v844. md5 verificado.
 
-## Decisión de José
-Estilo por defecto: **B · baldosa con degradado**. Se puede cambiar en cualquier momento a A · bicolor o C · línea técnica. También queda la opción Clásico (Font Awesome).
-
-## Implementación
-- **Glifos:** `GLIFOS_P`, 101 glifos SVG de 24×24 con trazo (clase `t`) y acento (clase `a`).
-- **Correspondencias:** `FA_A_GLIFO` (135 iconos de Font Awesome → glifo), `FAMILIA_FA` (familia de color de cada uno) y `COLORES_FAMILIA`:
-  - Dibujo, azul;
-  - Cálculo, verde;
-  - Vista y 3D, naranja;
-  - Edición, gris (por defecto);
-  - Eliminar, rojo;
-  - Sistema y archivos, violeta.
-- **Iconos sin glifo propio** (unos 30 poco usados): se muestra el de Font Awesome dentro del mismo estilo; en B, blanco sobre la baldosa de color.
-- **Zonas donde se aplican** (`ZONAS_ICONO`): menús y submenús, menú del botón derecho, órdenes alrededor del cursor, barra rápida, barras flotantes y paleta de comandos.
-  - Las casillas ✓/□ de los menús y los iconos auxiliares (flechas, bloqueos) no se tocan (`NO_ICONO`).
-- **Aplicación:**
-  - `aplicarIconos()` cambia cada `<i class="fa-solid fa-…">` de esas zonas por `<span class="icp" data-fa>` con el SVG.
-  - La lanza un `MutationObserver` agrupado por microtarea, así que también se aplica a los menús que se crean al vuelo.
-  - Salta los `<i>` que ya están dentro de un `.icp`; sin esa comprobación había un bucle infinito en la paleta.
-- **Estilos:** CSS inyectado (`#estilo-iconos`) con las clases `body.ic-A`, `body.ic-B` y `body.ic-C`. `ponerEstiloIconos(e)` cambia la clase, restaura los `<i>` originales al pasar a Clásico y vuelve a pintar las barras.
-- **Persistencia:** `CONF_ATAJOS.iconos`, por usuario. Viaja con CAD > Exportar / Importar configuración del CAD.
+## Cambios en el 2D
+- **Tubería:** la flecha del sentido de flujo va dentro de la propia línea, centrada, con el color de la línea. Antes era verde y estaba por encima.
+- **Te:** lleva dos flechas, una en cada salida (a → b y a → c), dentro de sus tramos y con el color del componente.
+- **Resto de componentes:** conservan la flecha verde de referencia por encima del símbolo.
+- **Grosor de los trazos:** todos los trazos de los componentes del P&ID son un 20 % más finos. Se aplica con `afinarTrazos` y `FACTOR_TRAZO = 0,8` sobre los `stroke-width` de los símbolos. Las anotaciones (leyenda, listado, notas, cajetín) no cambian.
+- Los trazos más finos también pasan a la impresión, el PDF y el DXF, porque todos salen del mismo dibujo.
 
 ## Pruebas
-- t_838, en carga normal y diferida, comprueba:
-  - estilo B por defecto;
-  - menú Cálculo: 22 iconos SVG, 2 iconos de Font Awesome en estilo y las 4 casillas sin tocar;
-  - menú del botón derecho: 13 iconos; barras flotantes: 12; paleta: 44;
-  - el paso a Clásico deja 0 iconos convertidos, y la vuelta a B los recupera.
-- Capturas de A, B y C revisadas.
-- Regresión: solo cambian el menú Opciones (test13) y el número de órdenes de la paleta (test14). t_832 a t_837 sin errores.
+- **test45:** la flecha de la tubería queda en la línea (y = 20) con el color de la línea, la línea tiene 1,76 de grosor (antes 2,2), la te lleva 2 flechas y las líneas de la te tienen 1,6 (antes 2).
+- **Regresión (test10–23, test41–44):** sin cambios, salvo el tamaño del DXF, que cambia como se esperaba.
+
+## Pendiente de 8.43
+- El cubo de vistas no se ve en el equipo de José, con la 8.44. En las pruebas aparece a escala 100 % y 150 %. Se le ha pedido una captura del 3D para ver qué lo tapa.
