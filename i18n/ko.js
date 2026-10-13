@@ -120,3 +120,6 @@ Object.assign(window.PIPING_I18N.ko.d, {"Relación de todos los componentes con 
 
 // v8.41
 Object.assign(window.PIPING_I18N.ko.d, {"Leyenda": "범례", "Listado de materiales": "자재 목록", "LEYENDA": "범례", "LISTADO DE MATERIALES": "자재 목록", "VERSIÓN DE PRUEBA SIN VALIDEZ COMERCIAL": "평가판 – 상업적 효력 없음", "Imprimir todas": "모두 인쇄", "Revisión del informe": "보고서 검토", "Informe (.docx)": "보고서 (.docx)", "Comprobación por componente (.xlsx)": "구성품별 검토 (.xlsx)", "Abrir el .docx": ".docx 열기", "Abrir el .xlsx": ".xlsx 열기", "Guardados:": "저장됨:", "Comprobación": "검토", "DATOS PARA SELECCIONAR LA BOMBA": "펌프 선정 데이터", "BOMBAS": "펌프", "DATOS DE LA BOMBA": "펌프 데이터", "Pérdida de carga total de la línea crítica": "임계 라인 총 손실수두", "Recorrido de la línea crítica": "임계 라인 경로", "Altura manométrica total (m c.l.)": "전양정 (m l.c.)", "Presión de salida (bar g)": "토출 압력 (bar g)", "NPSH disponible (m)": "유효 NPSH (m)", "Movido a la línea": "라인으로 이동", "Numeración duplicada corregida": "중복 번호 수정됨"});
+
+// v8.42
+Object.assign(window.PIPING_I18N.ko.d, {"Ratón 3D…": "3D 마우스…", "Arrastra la etiqueta para moverla (siempre cerca del componente) · R / Mayús+R: girar 45°": "라벨을 끌어 이동 (항상 구성품 근처) · R / Shift+R: 45° 회전"});
