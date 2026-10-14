@@ -8657,22 +8657,24 @@
             let ov = document.getElementById('vista-3d');
             if (!ov) {
                 const cont = document.getElementById('canvas-container').parentElement;
-                ov = document.createElement('div'); ov.id = 'vista-3d'; ov.style.cssText = 'position:absolute;inset:0;z-index:25;display:flex;flex-direction:column;background:#0f172a';
-                ov.innerHTML = `<div id="v3d-barra" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 8px;background:#1e293b;color:#e2e8f0;font:11px sans-serif">
-                    <b style="margin-right:4px">3D</b><span id="v3d-vistas" style="display:inline-flex;gap:4px;flex-wrap:wrap"></span>
-                    <span id="v3d-buque" style="margin-left:8px">Inicio de P01 respecto al eje del timón (mm): X <input id="v3d-ox" type="number" style="width:80px;color:#000"> Y <input id="v3d-oy" type="number" style="width:70px;color:#000"> Z <input id="v3d-oz" type="number" style="width:70px;color:#000">
-                    Cuaderna (mm) <input id="v3d-cu" type="number" style="width:60px;color:#000"></span>
-                    <span id="v3d-ind" style="margin-left:8px">Norte (° desde +X) <input id="v3d-norte" type="number" style="width:60px;color:#000"></span>
-                    <label><input id="v3d-etq" type="checkbox" onchange="guardarCfg3DLocal({ etiquetas: this.checked }); construirEscena3D()"> Etiquetas</label><label><input id="v3d-cua" type="checkbox" onchange="guardarCfg3DLocal({ cuadernas: this.checked }); construirEscena3D()"> <span id="v3d-cua-t">Cuadernas</span></label>
-                    <select id="v3d-paso" title="Densidad de la rejilla" style="color:#000;font-size:11px" onchange="guardarCfg3DLocal(proyecto.esBuque ? { cadaCuadernas: +this.value } : { pasoMayor: +this.value }); construirEscena3D()"></select><span id="v3d-pfino" style="color:#94a3b8"></span>
-                    <label title="Color de fondo (selector de color del sistema)">Fondo <input id="v3d-fondo" type="color" style="width:34px;height:20px;padding:0;border:0;vertical-align:middle" oninput="guardarCfg3DLocal({ fondo: this.value }); if (V3) { V3.renderer.setClearColor(new V3.T.Color(this.value)); pintar3D(); }"></label>
-                    <button onclick="conectarSpaceMouse(true, event.shiftKey)" title="Conectar un ratón 3D 3Dconnexion (SpaceMouse) por WebHID: Chrome o Edge" style="padding:2px 8px;border:1px solid #475569;border-radius:4px;background:#334155;color:#fff">Ratón 3D…</button><span id="v3d-sm" style="color:#94a3b8"></span>
-                    <span id="v3d-smopc" style="display:none;gap:6px;align-items:center"><span>Sens. <input id="v3d-sens" type="number" step="0.1" min="0.1" style="width:46px;color:#000" onchange="guardarCfg3DLocal({ sens: Math.max(0.1, +this.value || 1) })"></span>
+                ov = document.createElement('div'); ov.id = 'vista-3d'; ov.className = 'v3d'; ov.style.cssText = 'position:absolute;inset:0;z-index:25;display:flex;flex-direction:column;background:#dde5ee';
+                ov.innerHTML = `<div id="v3d-barra" class="v3d-cinta">
+                    <div class="v3d-grupo"><div class="v3d-fila" id="v3d-vistas"></div><div class="v3d-tit">Vistas</div></div>
+                    <div class="v3d-grupo"><div class="v3d-fila"><label class="v3d-chk"><input id="v3d-etq" type="checkbox" onchange="guardarCfg3DLocal({ etiquetas: this.checked }); construirEscena3D()"> Etiquetas</label><label class="v3d-chk"><input id="v3d-cua" type="checkbox" onchange="guardarCfg3DLocal({ cuadernas: this.checked }); construirEscena3D()"> <span id="v3d-cua-t">Cuadernas</span></label>
+                        <select id="v3d-paso" class="v3d-sel" title="Densidad de la rejilla" onchange="guardarCfg3DLocal(proyecto.esBuque ? { cadaCuadernas: +this.value } : { pasoMayor: +this.value }); construirEscena3D()"></select><span id="v3d-pfino" class="v3d-nota"></span></div><div class="v3d-tit">Mostrar</div></div>
+                    <div class="v3d-grupo"><div class="v3d-fila"><select id="v3d-tema" class="v3d-sel" onchange="cambiarFondo3D(this.value)"><option value="claro">Claro (degradado)</option><option value="oscuro">Oscuro</option><option value="color">Color…</option></select><input id="v3d-fondo" type="color" class="v3d-color" title="Color de fondo" oninput="cambiarFondo3D('color', this.value)"></div><div class="v3d-tit">Fondo</div></div>
+                    <div class="v3d-grupo"><div class="v3d-fila"><button class="v3d-b" onclick="alternarAjustes3D()" title="Origen del buque, cuadernas, norte y ratón 3D">${svgIco('ajustes')}<span>Ajustes</span></button><button class="v3d-b" onclick="conectarSpaceMouse(true, event.shiftKey)" title="Conectar un ratón 3D 3Dconnexion (SpaceMouse) por WebHID: Chrome o Edge · Mayús+clic: todos los dispositivos">${svgIco('raton')}<span>Ratón 3D…</span></button><span id="v3d-sm" class="v3d-nota"></span></div><div class="v3d-tit">Configurar</div></div>
+                    </div>
+                    <div id="v3d-ajustes" class="v3d-pop" style="display:none">
+                    <span id="v3d-buque">Inicio de P01 respecto al eje del timón (mm): X <input id="v3d-ox" type="number" style="width:80px"> Y <input id="v3d-oy" type="number" style="width:70px"> Z <input id="v3d-oz" type="number" style="width:70px"> · Cuaderna (mm) <input id="v3d-cu" type="number" style="width:60px"></span>
+                    <span id="v3d-ind">Norte (° desde +X) <input id="v3d-norte" type="number" style="width:60px"></span>
+                    <span id="v3d-smopc" style="display:none;gap:8px;align-items:center"><b>Ratón 3D</b><span>Sens. <input id="v3d-sens" type="number" step="0.1" min="0.1" style="width:50px" onchange="guardarCfg3DLocal({ sens: Math.max(0.1, +this.value || 1) })"></span>
                     <label title="Sin alabeo: la vertical +Z queda siempre hacia arriba"><input id="v3d-hor" type="checkbox" onchange="guardarCfg3DLocal({ horizonteFijo: this.checked }); if (this.checked && V3) { V3.rol = 0; pintar3D(); }"> Horizonte fijo</label>
                     <span title="Ratón 3D: invierte el sentido de cada giro si no te resulta natural">Invertir: <label><input id="v3d-invRz" type="checkbox" onchange="guardarCfg3DLocal({ invRz: this.checked })"> giro</label> <label><input id="v3d-invRx" type="checkbox" onchange="guardarCfg3DLocal({ invRx: this.checked })"> cabeceo</label> <label><input id="v3d-invRy" type="checkbox" onchange="guardarCfg3DLocal({ invRy: this.checked })"> alabeo</label></span>
-                    <label title="Muestra en la barra inferior lo que envía el ratón 3D"><input id="v3d-smdiag" type="checkbox"> Diagnóstico</label></span></div>
+                    <label title="Muestra en la barra inferior lo que envía el ratón 3D"><input id="v3d-smdiag" type="checkbox"> Diagnóstico</label></span>
+                    <button class="v3d-b mini" onclick="alternarAjustes3D()">Cerrar</button></div>
                     <div id="v3d-lienzo" style="flex:1;position:relative;overflow:hidden"></div>
-                    <div id="v3d-estado" style="padding:3px 8px;background:#1e293b;color:#cbd5e1;font:11px sans-serif;min-height:18px">Izquierdo: girar · derecho, central o Mayús: desplazar · Ctrl/Mayús+central: girar · rueda: zoom al cursor · W: zoom ventana · clic: seleccionar · doble clic: pivote · Ctrl+doble clic: propiedades · R / Mayús+R: girar 45° · T: encajar · F: vista anterior · Alt+1: 2D/3D</div>`;
+                    <div id="v3d-estado" class="v3d-estado"></div>`;
                 cont.appendChild(ov);
                 ['ox', 'oy', 'oz', 'cu', 'norte'].forEach(k => document.getElementById('v3d-' + k).addEventListener('change', e => { const { o } = cfg3D(), v = +e.target.value || 0; if (k === 'cu') { if (v > 0) proyecto.cuaderna = v; } else if (k === 'norte') proyecto.norte = v; else o[k[1]] = v; marcarCambios(true); construirEscena3D(); }));
             }
@@ -8680,11 +8682,12 @@
             const { o, c } = cfg3D(), loc = cfg3DLocal(), bq = !!proyecto.esBuque; document.getElementById('v3d-ox').value = o.x; document.getElementById('v3d-oy').value = o.y; document.getElementById('v3d-oz').value = o.z; document.getElementById('v3d-cu').value = c;
             document.getElementById('v3d-norte').value = proyecto.norte == null ? 90 : proyecto.norte; document.getElementById('v3d-buque').style.display = bq ? '' : 'none'; document.getElementById('v3d-ind').style.display = bq ? 'none' : '';
             document.getElementById('v3d-cua-t').textContent = bq ? 'Cuadernas' : 'Rejilla'; document.getElementById('v3d-etq').checked = loc.etiquetas !== false; document.getElementById('v3d-cua').checked = loc.cuadernas !== false;
-            document.getElementById('v3d-fondo').value = loc.fondo || CFG3D_DEF.fondo; document.getElementById('v3d-sens').value = loc.sens || 1; document.getElementById('v3d-hor').checked = loc.horizonteFijo !== false; ['invRz', 'invRx', 'invRy'].forEach(k => { document.getElementById('v3d-' + k).checked = !!loc[k]; }); conectarSpaceMouse(false);
+            document.getElementById('v3d-sens').value = loc.sens || 1; document.getElementById('v3d-hor').checked = loc.horizonteFijo !== false; ['invRz', 'invRx', 'invRy'].forEach(k => { document.getElementById('v3d-' + k).checked = !!loc[k]; }); conectarSpaceMouse(false);
             // v8.33 · vistas según el tipo de proyecto (las navales solo en buques) y densidad de la rejilla
             const VB = [['planta', 'Planta (desde arriba)'], ['abajo', 'Desde abajo'], ['estribor', 'Perfil desde estribor'], ['babor', 'Perfil desde babor'], ['proa', 'Desde proa'], ['popa', 'Desde popa'], ['iso', 'Isométrica'], ['ajustar', 'Encajar (T)']];
             const VI = [['planta', 'Planta (desde arriba)'], ['abajo', 'Desde abajo'], ['alzado', 'Alzado'], ['perfil', 'Perfil'], ['iso', 'Isométrica'], ['ajustar', 'Encajar (T)']];
-            document.getElementById('v3d-vistas').innerHTML = (bq ? VB : VI).map(([k, t]) => `<button onclick="vista3dCamara('${k}')" style="padding:2px 8px;border:1px solid #475569;border-radius:4px;background:#334155;color:#fff">${t}</button>`).join('');
+            const CORTO = { planta: 'Planta', abajo: 'Inferior', alzado: 'Alzado', perfil: 'Perfil', estribor: 'Estribor', babor: 'Babor', proa: 'Proa', popa: 'Popa', iso: 'Isométrica' };
+            document.getElementById('v3d-vistas').innerHTML = (bq ? VB : VI).filter(([k]) => k !== 'ajustar').map(([k, t]) => `<button class="v3d-b" onclick="vista3dCamara('${k}')" title="${t}">${icoVista(k)}<span>${CORTO[k] || t}</span></button>`).join('');
             const sp = document.getElementById('v3d-paso');
             sp.innerHTML = bq ? [1, 2, 5, 10].map(n => `<option value="${n}" ${(loc.cadaCuadernas || 1) === n ? 'selected' : ''}>cada ${n} cuaderna${n > 1 ? 's' : ''}</option>`).join('')
                 : [500, 1000, 2000, 5000].map(n => `<option value="${n}" ${(loc.pasoMayor || 1000) === n ? 'selected' : ''}>líneas mayores ${n} mm</option>`).join('');
@@ -8697,13 +8700,13 @@
         // v8.44 · el árbol de la red también en el 3D (encima de la vista, con fondo claro), con las mismas operaciones que en el 2D
         function arbolEn3D(si) {
             const a = document.getElementById('arbol'); if (!a) return;
-            if (si) { if (opciones.arbol === false) return; const b = document.getElementById('v3d-barra'); a.classList.add('arbol-3d'); a.style.zIndex = '30'; a.style.top = ((b ? b.offsetHeight : 48) + 6) + 'px'; a.style.bottom = '140px';   /* deja ver la triada de la esquina */ renderArbol(); }
+            if (si) { if (opciones.arbol === false) return; const b = document.getElementById('v3d-barra'); a.classList.add('arbol-3d'); a.style.zIndex = '30'; const sit = () => { const p = document.getElementById('v3d-ajustes'), hp = p && p.style.display !== 'none' ? p.offsetHeight : 0; a.style.top = ((b ? b.offsetHeight : 58) + hp + 8) + 'px'; }; sit(); requestAnimationFrame(sit); setTimeout(sit, 300); a.style.bottom = '140px';   /* deja ver la triada de la esquina */ renderArbol(); }
             else { a.classList.remove('arbol-3d'); a.style.zIndex = ''; a.style.top = '6px'; a.style.bottom = '72px'; }
         }
         function cerrarVista3D() { arbolEn3D(false); const ov = document.getElementById('vista-3d'); if (ov) ov.style.display = 'none'; const bh = document.getElementById('barra-hojas'); if (bh) bh.style.display = ''; pistaDestino3D(null); }
         function iniciarMotor3D() {
             const T = window.THREE, cont = document.getElementById('v3d-lienzo');
-            const renderer = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); renderer.setPixelRatio(window.devicePixelRatio || 1); renderer.setClearColor(0x0f172a);
+            const renderer = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true }); renderer.setPixelRatio(window.devicePixelRatio || 1); renderer.setClearColor(0x0f172a);
             cont.appendChild(renderer.domElement);
             const scene = new T.Scene(), camera = new T.PerspectiveCamera(40, 1, 0.01, 5000); camera.up.set(0, 0, 1);
             scene.add(new T.AmbientLight(0xffffff, 0.55)); const dl = new T.DirectionalLight(0xffffff, 0.8); dl.position.set(5, -8, 10); scene.add(dl); const dl2 = new T.DirectionalLight(0xffffff, 0.3); dl2.position.set(-6, 6, 4); scene.add(dl2);
@@ -8739,7 +8742,7 @@
                 if (!arr) { elegir3D(e, false); if (enMano) pistaDestino3D(destino3D(e)); return; }
                 const dx = e.clientX - arr.x, dy = e.clientY - arr.y; if (Math.abs(dx) + Math.abs(dy) > 2) arr.mov = true; arr.x = e.clientX; arr.y = e.clientY;
                 if (arr.mover) { if (arr.mov) moverSuelto3D(arr, e); return; }
-                const girar = (arr.b === 0 && !arr.sh) || (arr.b === 1 && (arr.sh || arr.ct));
+                const girar = (arr.b === 0 && !arr.sh && V3.modoNav !== 'pan') || (arr.b === 1 && (arr.sh || arr.ct));
                 if (!girar) { const k = V3.r * 0.0016, cam = V3.camera, der = new T.Vector3().subVectors(cam.position, V3.target).cross(cam.up).normalize(), arriba = new T.Vector3().crossVectors(der, new T.Vector3().subVectors(V3.target, cam.position)).normalize();
                     V3.target.addScaledVector(der, dx * k).addScaledVector(arriba, dy * k); }
                 else { marcarPosicion3D(); orbitar3D(-dx * 0.008, -dy * 0.008); }   // v8.34 · el ratón normal también gira, con o sin ratón 3D
@@ -8878,6 +8881,121 @@
             const paso = ahora => { const k = Math.min(1, (ahora - t0) / dur), s = k * k * (3 - 2 * k); V3.th = th0 + dth * s; V3.ph = ph0 + (ph1 - ph0) * s; pintar3D(); if (k < 1) requestAnimationFrame(paso); };
             requestAnimationFrame(paso);
         }
+        // ==================================================================================
+        // v8.46 · INTERFAZ 3D (estilo Inventor): fondo claro en degradado, cinta de herramientas por grupos, cubo de vistas
+        // vectorial (HTML/CSS 3D, nítido a cualquier escala), barra de navegación y triada de ejes en SVG
+        // ==================================================================================
+        const ICO3D = {
+            encajar: '<path d="M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5"/><rect x="8" y="8" width="8" height="8" rx="1"/>',
+            zoomv: '<rect x="3" y="3" width="11" height="9" rx="1" stroke-dasharray="2.5 2"/><circle cx="15" cy="15" r="4"/><path d="M18 18l3.5 3.5"/>',
+            anterior: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/>',
+            pan: '<path d="M12 3v18M3 12h18"/><path d="M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
+            orbita: '<ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M12 3a9 9 0 0 1 0 18"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>',
+            centrar: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
+            ajustes: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+            raton: '<ellipse cx="12" cy="17" rx="8" ry="3.5"/><rect x="8" y="5" width="8" height="10" rx="4"/>',
+            casa: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
+            menu: '<path d="M6 9l6 6 6-6"/>'
+        };
+        const svgIco = (k, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICO3D[k]}</svg>`;
+        // icono de vista: cubo isométrico con la cara que se mira resaltada
+        function icoVista(k) {
+            const caras = { sup: 'M12 3l8 4.5-8 4.5-8-4.5z', fro: 'M4 7.5l8 4.5v9l-8-4.5z', der: 'M20 7.5v9l-8 4.5v-9z' };
+            const f = { planta: ['sup'], abajo: ['sup'], alzado: ['fro'], estribor: ['fro'], perfil: ['der'], proa: ['der'], babor: ['fro'], popa: ['der'], iso: ['sup', 'fro', 'der'], ajustar: [] }[k] || [];
+            return `<svg viewBox="0 0 24 24" width="20" height="20" stroke="#475569" stroke-width="1.2" stroke-linejoin="round">${Object.entries(caras).map(([c, d]) => `<path d="${d}" fill="${f.includes(c) ? (k === 'abajo' || k === 'babor' || k === 'popa' ? '#94a3b8' : '#3b82f6') : '#f1f5f9'}" fill-opacity="${f.includes(c) ? 0.85 : 1}"/>`).join('')}</svg>`;
+        }
+        const lumHex = h => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h || '')); if (!m) return 0.5; const n = parseInt(m[1], 16); return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255; };
+        const fondo3D = () => { const f = cfg3DLocal().fondo; return !f || f === '#0f172a' ? 'claro' : f; };   // el antiguo fondo oscuro por defecto pasa al claro
+        function aplicarFondo3D() {
+            if (!V3) return; const f = fondo3D(), cont = V3.cont, ov = document.getElementById('vista-3d');
+            if (f === 'claro') { V3.claro = true; V3.renderer.setClearColor(0xffffff, 0); cont.style.background = 'linear-gradient(180deg, #f4f7fa 0%, #dde5ee 48%, #c4d0de 100%)'; }
+            else { const c = f === 'oscuro' ? '#0f172a' : f; V3.claro = lumHex(c) > 0.55; V3.renderer.setClearColor(new V3.T.Color(c), 1); cont.style.background = c; }
+            if (ov) { ov.classList.toggle('v3d-claro', !!V3.claro); ov.classList.toggle('v3d-oscuro', !V3.claro); }
+            const t = document.getElementById('v3d-tema'); if (t) t.value = f === 'claro' || f === 'oscuro' ? f : 'color';
+            const ci = document.getElementById('v3d-fondo'); if (ci) { ci.style.display = f === 'claro' || f === 'oscuro' ? 'none' : ''; if (/^#/.test(f)) ci.value = f; }
+        }
+        function cambiarFondo3D(modo, color) {
+            const f = modo === 'color' ? (color || (/^#/.test(fondo3D()) ? fondo3D() : '#3a4a5c')) : modo;
+            guardarCfg3DLocal({ fondo: f }); construirEscena3D();
+        }
+        function alternarAjustes3D(e) { const p = document.getElementById('v3d-ajustes'); if (!p) return; p.style.display = p.style.display === 'none' ? 'flex' : 'none'; if (vista3d) arbolEn3D(true); }
+        // ---------- cubo de vistas vectorial ----------
+        const CUBO_CARAS = [['px', [1, 0, 0], [0, 0, 1]], ['nx', [-1, 0, 0], [0, 0, 1]], ['py', [0, 1, 0], [0, 0, 1]], ['ny', [0, -1, 0], [0, 0, 1]], ['pz', [0, 0, 1], [0, 1, 0]], ['nz', [0, 0, -1], [0, 1, 0]]];
+        function textosCubo3D() { return proyecto.esBuque ? { px: 'PROA', nx: 'POPA', py: 'BABOR', ny: 'ESTRIBOR', pz: 'SUPERIOR', nz: 'INFERIOR' } : { px: 'DERECHA', nx: 'IZQUIERDA', py: 'POSTERIOR', ny: 'FRONTAL', pz: 'SUPERIOR', nz: 'INFERIOR' }; }
+        function construirCuboDom() {
+            const cont = V3.cont; document.getElementById('v3d-cubo')?.remove(); document.getElementById('v3d-casa')?.remove();
+            const H = 29, tx = textosCubo3D(), m3 = c => `matrix3d(${c.map(v => +v.toFixed(6)).join(',')})`;
+            let caras = '';
+            CUBO_CARAS.forEach(([k, n, u]) => {
+                const r = v3.cross(u, n), M = [...r, 0, ...v3.mul(u, -1), 0, ...n, 0, ...v3.mul(n, H), 1];
+                let z = ''; [1, 0, -1].forEach(cy => [-1, 0, 1].forEach(cx => { const v = v3.sum(v3.sum(n, v3.mul(r, cx)), v3.mul(u, cy)); z += `<div class="z${!cx && !cy ? ' c' : ''}" data-v="${v.join(',')}"></div>`; }));
+                caras += `<div class="cara" data-k="${k}" style="transform:${m3(M)}">${z}<span class="rot">${tx[k]}</span></div>`;
+            });
+            const d = document.createElement('div'); d.id = 'v3d-cubo'; d.className = 'v3d-cubo';
+            d.innerHTML = `<div class="esc">${caras}<div class="sombra"></div></div><button class="cb casa" title="Vista de inicio (isométrica)">${svgIco('casa', 14)}</button><button class="cb mas" title="Más vistas">${svgIco('menu', 12)}</button>`;
+            cont.appendChild(d); V3.cuboDom = { el: d, esc: d.querySelector('.esc'), buque: !!proyecto.esBuque };
+            const zonas = [...d.querySelectorAll('.z')];
+            d.addEventListener('mouseover', e => { const z = e.target.closest('.z'); zonas.forEach(x => x.classList.toggle('on', !!z && x.dataset.v === z.dataset.v)); if (z) { const est = document.getElementById('v3d-estado'); if (est) est.textContent = 'Cubo de vistas: ' + nombreVistaCubo(z.dataset.v.split(',').map(Number)) + ' (clic) · arrastra para girar'; } });
+            d.addEventListener('mouseleave', () => zonas.forEach(x => x.classList.remove('on')));
+            let a = null;
+            d.addEventListener('mousedown', e => { if (e.button !== 0 || e.target.closest('.cb')) return; e.preventDefault(); e.stopPropagation(); a = { x: e.clientX, y: e.clientY, mov: false, z: e.target.closest('.z') }; });
+            window.addEventListener('mousemove', e => { if (!a) return; const dx = e.clientX - a.x, dy = e.clientY - a.y; if (!a.mov && Math.abs(dx) + Math.abs(dy) < 3) return; if (!a.mov) { a.mov = true; marcarPosicion3D(true); } a.x = e.clientX; a.y = e.clientY; orbitar3D(-dx * 0.012, -dy * 0.012); pintar3D(); });
+            window.addEventListener('mouseup', () => { if (!a) return; const z = a.z, mov = a.mov; a = null; if (!mov && z) irVistaCubo3D(z.dataset.v.split(',').map(Number)); });
+            d.querySelector('.casa').onclick = e => { e.stopPropagation(); marcarPosicion3D(true); animarVista3D(-Math.PI / 4, 0.9553); };
+            d.querySelector('.mas').onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); mostrarMenuContextual(r.left, r.bottom + 2, [
+                { icono: 'fa-house', texto: 'Vista de inicio (isométrica)', accion: () => { marcarPosicion3D(true); animarVista3D(-Math.PI / 4, 0.9553); } },
+                { icono: 'fa-expand', texto: 'Encajar toda la red (T)', accion: () => encajar3D() },
+                { icono: 'fa-clock-rotate-left', texto: 'Vista anterior (F)', accion: () => volverAntesRaton3D() },
+                'sep', ...[['planta', 'Planta'], [proyecto.esBuque ? 'estribor' : 'alzado', proyecto.esBuque ? 'Perfil desde estribor' : 'Alzado'], [proyecto.esBuque ? 'proa' : 'perfil', proyecto.esBuque ? 'Desde proa' : 'Perfil']].map(([k, t]) => ({ icono: 'fa-cube', texto: t, accion: () => vista3dCamara(k) }))]); };
+        }
+        function nombreVistaCubo(v) { const t = textosCubo3D(); return [v[2] > 0 ? t.pz : v[2] < 0 ? t.nz : '', v[1] < 0 ? t.ny : v[1] > 0 ? t.py : '', v[0] > 0 ? t.px : v[0] < 0 ? t.nx : ''].filter(Boolean).join(' + '); }
+        function irVistaCubo3D(v) {
+            const d = v3.norm(v), H = Math.PI / 2; let th = Math.atan2(d[1], d[0]); const ph = Math.acos(Math.max(-1, Math.min(1, d[2])));
+            if (Math.abs(d[2]) > 0.999) th = -H;
+            marcarPosicion3D(true); animarVista3D(th, ph);
+            const est = document.getElementById('v3d-estado'); if (est) est.textContent = `Vista: ${nombreVistaCubo(v)} · F: vista anterior`;
+        }
+        function actualizarCuboDom() {
+            const C = V3 && V3.cuboDom; if (!C) return; if (C.buque !== !!proyecto.esBuque) { construirCuboDom(); return actualizarCuboDom(); }
+            V3.camera.updateMatrixWorld(); const e = V3.camera.matrixWorldInverse.elements, m = [];
+            for (let j = 0; j < 3; j++) m.push(e[j * 4], -e[j * 4 + 1], e[j * 4 + 2], 0); m.push(0, 0, 0, 1);
+            C.esc.style.transform = `matrix3d(${m.map(v => +v.toFixed(6)).join(',')})`;
+        }
+        // ---------- triada de ejes en SVG (esquina inferior izquierda) ----------
+        function construirTriadaSvg() {
+            document.getElementById('v3d-triada')?.remove();
+            const d = document.createElement('div'); d.id = 'v3d-triada'; d.className = 'v3d-triada'; d.innerHTML = '<svg viewBox="0 0 100 100" width="100" height="100"></svg>'; V3.cont.appendChild(d); V3.triada = d.firstChild;
+        }
+        function actualizarTriadaSvg() {
+            const s = V3 && V3.triada; if (!s) return; V3.camera.updateMatrixWorld(); const e = V3.camera.matrixWorldInverse.elements, bq = !!proyecto.esBuque;
+            const ejes = [[0, '#d63c3c', 'X', bq ? '+X proa' : '+X'], [1, '#2f9e44', 'Y', bq ? '+Y babor' : '+Y'], [2, '#2f62d6', 'Z', '+Z arriba']].map(([j, col, t, tt]) => ({ x: e[j * 4], y: -e[j * 4 + 1], z: e[j * 4 + 2], col, t, tt }));
+            ejes.sort((a, b) => a.z - b.z);
+            const O = 50, L = 30, f = v => v.toFixed(2);
+            let h = `<defs><filter id="tri-s" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0.6" stdDeviation="0.7" flood-color="#0f172a" flood-opacity="0.35"/></filter></defs>`;
+            ejes.forEach(a => {
+                const lx = a.x * L, ly = a.y * L, l = Math.hypot(lx, ly), ux = l > 0.01 ? lx / l : 0, uy = l > 0.01 ? ly / l : 0, op = a.z < -0.2 ? 0.55 : 1;
+                const tx = O + lx, ty = O + ly, hb = Math.min(8, Math.max(3, l * 0.32)), w = 3.6, bx = tx - ux * hb, by = ty - uy * hb;
+                h += `<g opacity="${op}" filter="url(#tri-s)"><title>${a.tt}</title>`;
+                if (l > 2) h += `<line x1="${O}" y1="${O}" x2="${f(bx)}" y2="${f(by)}" stroke="${a.col}" stroke-width="2.4" stroke-linecap="round"/><polygon points="${f(tx)},${f(ty)} ${f(bx - uy * w)},${f(by + ux * w)} ${f(bx + uy * w)},${f(by - ux * w)}" fill="${a.col}"/>`;
+                else h += `<circle cx="${O}" cy="${O}" r="4.2" fill="none" stroke="${a.col}" stroke-width="1.6"/><circle cx="${O}" cy="${O}" r="1.4" fill="${a.col}"/>`;
+                const qx = O + (l > 2 ? ux : 0.7) * (l + 9), qy = O + (l > 2 ? uy : -0.7) * (l + 9);
+                h += `<text x="${f(qx)}" y="${f(qy + 4)}" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="11.5" font-weight="700" fill="${a.col}" stroke="rgba(255,255,255,.9)" stroke-width="2" paint-order="stroke">${a.t}</text></g>`;
+            });
+            h += `<circle cx="${O}" cy="${O}" r="2.6" fill="#f8fafc" stroke="#64748b" stroke-width="1.1"/>`;
+            s.innerHTML = h;
+        }
+        // ---------- barra de navegación (derecha, bajo el cubo) ----------
+        function construirNav3D() {
+            document.getElementById('v3d-nav')?.remove();
+            const d = document.createElement('div'); d.id = 'v3d-nav'; d.className = 'v3d-nav';
+            const b = (k, t, fn) => `<button data-k="${k}" title="${t}" onclick="${fn}">${svgIco(k, 17)}</button>`;
+            d.innerHTML = b('encajar', 'Encajar toda la red (T)', 'encajar3D()') + b('zoomv', 'Zoom ventana (W)', 'zoomVentana3D(true)') + b('pan', 'Desplazar con el botón izquierdo (Esc: salir)', 'modoNav3D(\'pan\')') + b('orbita', 'Girar con el botón izquierdo', 'modoNav3D(null)') + b('centrar', 'Centrar la vista en el componente seleccionado', 'centrarSeleccion3D()') + b('anterior', 'Vista anterior (F)', 'volverAntesRaton3D()');
+            V3.cont.appendChild(d); pintarNav3D();
+        }
+        function modoNav3D(m) { if (!V3) return; V3.modoNav = m; pintarNav3D(); const est = document.getElementById('v3d-estado'); if (est) est.textContent = m === 'pan' ? 'Desplazar: arrastra con el botón izquierdo · Esc o «Girar»: volver a girar' : ayuda3D(); }
+        function pintarNav3D() { const d = document.getElementById('v3d-nav'); if (!d) return; d.querySelectorAll('button').forEach(b => b.classList.toggle('act', (b.dataset.k === 'pan' && V3.modoNav === 'pan') || (b.dataset.k === 'orbita' && V3.modoNav !== 'pan'))); }
+        function centrarSeleccion3D() { const id = idSeleccionado || [...seleccion][0]; if (!id) { aviso('Selecciona antes un componente (clic en el 3D o en el árbol).'); return; } pivote3D(id); }
+        window.addEventListener('keydown', e => { if (e.key === 'Escape' && V3 && V3.modoNav === 'pan' && vista3d) modoNav3D(null); });
         function pintar3D() {
             if (!V3) return; const { camera, target, r, th, ph } = V3;
             camera.position.set(target.x + r * Math.sin(ph) * Math.cos(th), target.y + r * Math.sin(ph) * Math.sin(th), target.z + r * Math.cos(ph));
@@ -8890,6 +9008,7 @@
                 M.cam.position.copy(d.multiplyScalar(5.8)); M.cam.up.copy(camera.up); M.cam.lookAt(0, 0, 0); if (V3.rol) M.cam.rotateZ(V3.rol); M.cam.updateMatrixWorld();
                 R.autoClear = false; R.clearDepth(); R.setScissorTest(true); R.setScissor(0, 0, s, s); R.setViewport(0, 0, s, s); R.render(M.scene, M.cam);
                 R.setScissorTest(false); const w = V3.cont.clientWidth || 800, h = V3.cont.clientHeight || 500; R.setViewport(0, 0, w, h); R.autoClear = true; }
+            actualizarCuboDom(); actualizarTriadaSvg();
             if (V3.cubo) { const C = V3.cubo, w = V3.cont.clientWidth || 800, h = V3.cont.clientHeight || 500, d = new V3.T.Vector3().subVectors(camera.position, target).normalize();
                 C.cam.position.copy(d.multiplyScalar(3.4)); C.cam.up.copy(camera.up); C.cam.lookAt(0, 0, 0); if (V3.rol) C.cam.rotateZ(V3.rol); C.cam.updateMatrixWorld();
                 const x = w - CUBO_MARGEN - CUBO_PX, y = h - CUBO_MARGEN - CUBO_PX;
@@ -8911,10 +9030,16 @@
             else if (k === 'iso') { V3.th = -Math.PI / 4; V3.ph = 0.96; }
             pintar3D();
         }
-        function etiqueta3D(texto, color) {
-            const T = V3.T, cv = document.createElement('canvas'), ctx = cv.getContext('2d'); ctx.font = 'bold 26px sans-serif'; const w = Math.ceil(ctx.measureText(texto).width) + 12; cv.width = w; cv.height = 36;
-            const c2 = cv.getContext('2d'); c2.font = 'bold 26px sans-serif'; c2.fillStyle = 'rgba(15,23,42,0.45)'; c2.fillRect(0, 0, w, 36); c2.fillStyle = color || '#f8fafc'; c2.fillText(texto, 6, 27);
-            const sp = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(cv), depthTest: false })); sp.renderOrder = 10; sp.userData.esEtiqueta = true; sp.userData.w = w / 36; return sp;
+        function etiqueta3D(texto, color) {   // v8.46 · texto a 3× (nítido) y colores según el fondo claro u oscuro
+            const T = V3.T, K = 3, fs = 26 * K, hh = 36 * K, pad = 7 * K, fuente = `600 ${fs}px "Segoe UI", system-ui, -apple-system, sans-serif`;
+            const cv = document.createElement('canvas'), c0 = cv.getContext('2d'); c0.font = fuente; const w = Math.ceil(c0.measureText(texto).width) + pad * 2; cv.width = w; cv.height = hh;
+            const c = cv.getContext('2d'), claro = !!V3.claro, r = 7 * K;
+            c.beginPath(); c.moveTo(r, 0); c.arcTo(w, 0, w, hh, r); c.arcTo(w, hh, 0, hh, r); c.arcTo(0, hh, 0, 0, r); c.arcTo(0, 0, w, 0, r); c.closePath();
+            c.fillStyle = claro ? 'rgba(255,255,255,0.88)' : 'rgba(15,23,42,0.6)'; c.fill(); if (claro) { c.lineWidth = 1.5 * K; c.strokeStyle = 'rgba(100,116,139,0.55)'; c.stroke(); }
+            const col = claro ? (lumHex(color || '#ffffff') > 0.6 ? '#1e293b' : color) : (color || '#f8fafc');
+            c.font = fuente; c.fillStyle = col; c.textBaseline = 'middle'; c.fillText(texto, pad, hh / 2 + K);
+            const tex = new T.CanvasTexture(cv); tex.generateMipmaps = false; tex.minFilter = T.LinearFilter; tex.magFilter = T.LinearFilter; try { tex.anisotropy = V3.renderer.capabilities.getMaxAnisotropy(); } catch (e) { }
+            const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, depthTest: false, transparent: true })); sp.renderOrder = 10; sp.userData.esEtiqueta = true; sp.userData.w = w / hh; return sp;
         }
         // ---------- v8.31 · geometría 3D con medidas reales y orientación de cada puerto ----------
         // Cada componente ocupa su longitud real (cara a cara, centro-extremo de codos y tes, longitud de reducciones y bridas).
@@ -9018,10 +9143,11 @@
         function construirEscena3D() {
             if (!V3) return; const T = V3.T, P = paleta(), loc = cfg3DLocal(), buque = !!proyecto.esBuque;
             if (V3.grupo) { V3.scene.remove(V3.grupo); V3.grupo.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.material) { if (x.material.map) x.material.map.dispose(); x.material.dispose(); } }); }
-            V3.renderer.setClearColor(new T.Color(loc.fondo || CFG3D_DEF.fondo));
+            aplicarFondo3D();
             const G = new T.Group(); V3.grupo = G; V3.scene.add(G); V3.objetos = [];
-            if (!V3.mini || V3.mini.buque !== buque) construirTriada(buque);
-            if (!V3.cubo || V3.cubo.buque !== buque) construirCubo3D(buque);
+            if (!V3.triada) construirTriadaSvg();
+            if (!V3.cuboDom) construirCuboDom();
+            if (!document.getElementById('v3d-nav')) construirNav3D();
             // v8.33 · el 3D es un espacio único: se monta con todas las hojas (las continuaciones entre hojas unen la red)
             V3.hojaDe = {}; const multi = hojas.length > 1, despl = {};
             const conTodas = fn => { if (!multi) return fn(); sincronizarHoja(); const gE = elementosRed, gL = lineas, todos = [], movidos = [];
@@ -9105,7 +9231,8 @@
             G.updateMatrixWorld(true); const caja = new T.Box3(); V3.objetos.forEach(o => caja.expandByObject(o)); if (caja.isEmpty()) caja.set(new T.Vector3(-1, -1, 0), new T.Vector3(1, 1, 1));
             caja.expandByPoint(V(O)); if (buque) caja.expandByPoint(new T.Vector3(0, 0, 0)); V3.caja = caja.clone();
             const ejeL = Math.max(0.6, caja.getSize(new T.Vector3()).length() * 0.1), ori = buque ? new T.Vector3(0, 0, 0) : V(O);
-            (buque ? [[1, 0, 0, '#ef4444', '+X PROA'], [0, 1, 0, '#22c55e', '+Y BABOR'], [0, 0, 1, '#3b82f6', '+Z']] : [[1, 0, 0, '#ef4444', '+X'], [0, 1, 0, '#22c55e', '+Y'], [0, 0, 1, '#3b82f6', '+Z']]).forEach(([x, y, z, col, t]) => { G.add(new T.ArrowHelper(new T.Vector3(x, y, z), ori, ejeL, new T.Color(col).getHex(), ejeL * 0.15, ejeL * 0.07)); etq(t, [ori.x + x * ejeL * 1.2, ori.y + y * ejeL * 1.2, ori.z + z * ejeL * 1.2], 0.09 * ejeL, col); });
+            (buque ? [[1, 0, 0, '#ef4444', '+X PROA'], [0, 1, 0, '#22c55e', '+Y BABOR'], [0, 0, 1, '#3b82f6', '+Z']] : [[1, 0, 0, '#ef4444', '+X'], [0, 1, 0, '#22c55e', '+Y'], [0, 0, 1, '#3b82f6', '+Z']]).forEach(([x, y, z, col, t]) => { const dE = new T.Vector3(x, y, z), mE = new T.MeshStandardMaterial({ color: new T.Color(col), metalness: 0.15, roughness: 0.45 }), ast = new T.Mesh(new T.CylinderGeometry(ejeL * 0.009, ejeL * 0.009, ejeL * 0.86, 16), mE), pun = new T.Mesh(new T.ConeGeometry(ejeL * 0.032, ejeL * 0.14, 24), mE);
+                ast.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), dE); ast.position.copy(ori).addScaledVector(dE, ejeL * 0.43); pun.quaternion.copy(ast.quaternion); pun.position.copy(ori).addScaledVector(dE, ejeL * 0.93); G.add(ast); G.add(pun); etq(t, [ori.x + x * ejeL * 1.2, ori.y + y * ejeL * 1.2, ori.z + z * ejeL * 1.2], 0.09 * ejeL, col); });
             // v8.42 · semiejes negativos: −X POPA, −Y ESTRIBOR y −Z (línea discontinua con punta, algo más apagada)
             (buque ? [[-1, 0, 0, '#f87171', '−X POPA'], [0, -1, 0, '#4ade80', '−Y ESTRIBOR'], [0, 0, -1, '#60a5fa', '−Z']] : [[-1, 0, 0, '#f87171', '−X'], [0, -1, 0, '#4ade80', '−Y'], [0, 0, -1, '#60a5fa', '−Z']]).forEach(([x, y, z, col, t]) => {
                 const fin = new T.Vector3(ori.x + x * ejeL, ori.y + y * ejeL, ori.z + z * ejeL), ln = new T.Line(new T.BufferGeometry().setFromPoints([ori.clone(), fin]), new T.LineDashedMaterial({ color: new T.Color(col).getHex(), dashSize: ejeL * 0.06, gapSize: ejeL * 0.04 })); ln.computeLineDistances(); G.add(ln);
@@ -9119,14 +9246,14 @@
                 if (conCua) { const cm = c / 1000, i0 = Math.floor(Math.min(caja.min.x, 0) / cm) - 1, i1 = Math.ceil(caja.max.x / cm) + 1, y0 = Math.min(caja.min.y, 0) - 1, y1 = Math.max(caja.max.y, 0) + 1, z0 = 0, a = [], f = [];   // v8.42 · las cuadernas en el plano 0,0,0
                     const nC = Math.max(1, loc.cadaCuadernas || 1), nM = nC * 5;
                     for (let i = i0; i <= i1; i++) { if (i % nC) continue; (i % nM === 0 ? f : a).push(new T.Vector3(i * cm, y0, z0), new T.Vector3(i * cm, y1, z0)); }
-                    G.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(a), new T.LineBasicMaterial({ color: 0x475569 }))); G.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(f), new T.LineBasicMaterial({ color: 0x94a3b8 })));
+                    G.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(a), new T.LineBasicMaterial({ color: V3.claro ? 0x9aa8b9 : 0x475569 }))); G.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(f), new T.LineBasicMaterial({ color: V3.claro ? 0x5f6f84 : 0x94a3b8 })));
                     G.add(new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(i0 * cm, 0, z0), new T.Vector3(i1 * cm, 0, z0)]), new T.LineDashedMaterial({ color: 0x22c55e, dashSize: 0.2, gapSize: 0.1 })).computeLineDistances());
                     for (let i = i0; i <= i1; i++) if (i % nM === 0) etq('C' + i, [i * cm, y0 - 0.15, z0], 0.14, '#94a3b8'); }
-            } else if (conCua) { const paso = Math.max(0.1, (loc.pasoMayor || 1000) / 1000), tamG = Math.ceil((Math.max(caja.getSize(new T.Vector3()).x, caja.getSize(new T.Vector3()).y, 4) + 4) / paso) * paso, nDiv = Math.min(600, Math.round(tamG / paso)), grid = new T.GridHelper(nDiv * paso, nDiv, 0x64748b, 0x475569); grid.rotation.x = Math.PI / 2; grid.position.set(Math.round(caja.getCenter(new T.Vector3()).x / paso) * paso, Math.round(caja.getCenter(new T.Vector3()).y / paso) * paso, 0); G.add(grid); }
+            } else if (conCua) { const paso = Math.max(0.1, (loc.pasoMayor || 1000) / 1000), tamG = Math.ceil((Math.max(caja.getSize(new T.Vector3()).x, caja.getSize(new T.Vector3()).y, 4) + 4) / paso) * paso, nDiv = Math.min(600, Math.round(tamG / paso)), grid = new T.GridHelper(nDiv * paso, nDiv, V3.claro ? 0x8696aa : 0x64748b, V3.claro ? 0xa4b2c3 : 0x475569); grid.rotation.x = Math.PI / 2; grid.position.set(Math.round(caja.getCenter(new T.Vector3()).x / paso) * paso, Math.round(caja.getCenter(new T.Vector3()).y / paso) * paso, 0); G.add(grid); }
             // v8.42 · rejilla fina del plano XY a cota 0: 50 × 50 mm en buques, 25 × 25 mm en instalaciones industriales (se ve al acercarse)
             V3.fina = null;
             if (conCua) { const pf = pasoFino3D() / 1000, sz = caja.getSize(new T.Vector3()), cx = Math.round(caja.getCenter(new T.Vector3()).x / pf) * pf, cy = Math.round(caja.getCenter(new T.Vector3()).y / pf) * pf;
-                const ext = Math.min(Math.max(sz.x, sz.y, 2) + 2, pf * 3000), n = Math.max(2, Math.round(ext / pf)), gf = new T.GridHelper(n * pf, n, 0x334155, 0x273447);
+                const ext = Math.min(Math.max(sz.x, sz.y, 2) + 2, pf * 3000), n = Math.max(2, Math.round(ext / pf)), gf = new T.GridHelper(n * pf, n, V3.claro ? 0xbcc7d3 : 0x334155, V3.claro ? 0xc4ced9 : 0x273447);
                 gf.rotation.x = Math.PI / 2; gf.position.set(cx, cy, -0.0005); gf.material.transparent = true; gf.material.opacity = 0.55; G.add(gf); V3.fina = { obj: gf, paso: pf }; }
             V3.n = { elementos: Object.keys(geo).length, tubos: Object.values(geo).filter(x => x.tubo).length };
             V3.geo = geo; pintar3D();
@@ -10030,7 +10157,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.45';
+        const VERSION_WEB = '8.46';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -10272,7 +10399,7 @@
                 const anot = elementosRed.filter(esAnotacion);
                 if (sueltos.length) h += `<div class="fila"><span class="nodo"><i class="fa-solid fa-triangle-exclamation" style="color:#d97706;font-size:10px"></i><span class="txt" style="color:#d97706">Sin línea asignada</span></span><div class="hijos">${sueltos.map(filaEl).join('')}</div></div>`;
                 if (anot.length) { const aP = arbolPlegados.has('ANOT'); h += `<div class="fila">${mas('ANOT', aP)}<span class="nodo" onclick="alternarNodoArbol('ANOT')"><i class="fa-solid fa-note-sticky" style="color:${P.base};font-size:10px"></i><span class="txt">Anotaciones</span><span class="txt" style="opacity:.7">(${anot.length})</span></span>${aP ? '' : `<div class="hijos">${anot.map(filaEl).join('')}</div>`}</div>`; }
-                h += filaFmt;
+                if (!vista3d) h += filaFmt;   // v8.46 · en el 3D no hay formatos de papel
                 h += '</div>';
             }
             cuerpo.innerHTML = h + '</div>';
