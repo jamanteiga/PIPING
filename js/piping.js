@@ -839,7 +839,10 @@
             const c = codigoDe(el);
             if (el.codigo === c && el.num) return;
             el.codigo = c;
-            el.num = 1 + Math.max(0, ...lista.filter(e => e.id !== el.id && e.codigo === c).map(e => e.num || 0));
+            const usados = new Set(lista.filter(e => e.id !== el.id && e.codigo === c && !e.tagManual).map(e => e.num || 0));
+            const libres = ((proyecto.numLibres || {})[c] || []).filter(n => !usados.has(n)).sort((a, b) => a - b);   // v8.48 · números que dejó libres un componente renombrado
+            if (libres.length) { el.num = libres[0]; proyecto.numLibres[c] = proyecto.numLibres[c].filter(n => n !== el.num); return; }
+            el.num = 1 + Math.max(0, ...[...usados]);
         }
         const FRACCION = { '1/8': '⅛', '1/4': '¼', '3/8': '⅜', '1/2': '½', '3/4': '¾' };
         function pulgadas(nps) {
@@ -860,6 +863,7 @@
             return /^[0-9]+S?$/.test(s) ? 'S' + s : s;
         }
         function tagDe(el) {
+            if (el.tagManual) return el.tagManual;   // v8.48 · nombre puesto a mano
             const n = String(el.num || 0).padStart(2, '0');
             if (el.type === 'anotacion') return (el.codigo || codigoDe(el)) + n;
             if (el.accModelo && typeof modeloAcc === 'function') { const m = modeloAcc(el); if (m) return [(m.props.cod || el.codigo || codigoDe(el)) + n, el.linea || '??', ...partesCodigoAcc(el, m)].join('-'); }
@@ -982,9 +986,9 @@
             const puntoMundoY = (cursorEnContenedorY - offY) / zoomScale;
 
             if (e.deltaY < 0) {
-                zoomScale = Math.min(zoomScale + zoomIntensity, 3.0);
+                zoomScale = Math.min(zoomScale * 1.15, 60);   // v8.48 · se puede acercar hasta ver un solo componente
             } else {
-                zoomScale = Math.max(zoomScale - zoomIntensity, 0.2);
+                zoomScale = Math.max(zoomScale / 1.15, 0.05);
             }
             aplicarZoom();
 
@@ -1028,7 +1032,7 @@
             const wArbol = opciones.arbol ? (anchoArbol + 10) : 0;
             const scaleX = Math.max(containerWidth - wArbol, 200) / anchoContenido;
             const scaleY = containerHeight / altoContenido;
-            zoomScale = Math.min(scaleX, scaleY, 2.0);
+            zoomScale = Math.min(scaleX, scaleY, 12.0);
             aplicarZoom();
             // centrarVistaEnPunto espera coordenadas de pantalla (Y hacia abajo) -> convertir el centro Y
             centrarVistaEnPunto((minX + maxX) / 2 - wArbol / 2 / zoomScale, mundoAScreenY((minY + maxY) / 2));
@@ -1118,7 +1122,7 @@
             const scaleY = canvasContainer.clientHeight / altoSeleccion;
             // El zoom ventana sí permite acercarse más que el límite habitual de la rueda (3.0),
             // ya que su objetivo es precisamente encuadrar un detalle pequeño.
-            zoomScale = Math.min(scaleX, scaleY, 15.0);
+            zoomScale = Math.min(scaleX, scaleY, 60.0);
             aplicarZoom();
             centrarVistaEnPunto((x1 + x2) / 2, (y1 + y2) / 2);
         });
@@ -1475,7 +1479,7 @@
                 const gm = grupoMaterial(el), campoM = el.type === 'tuberia' ? 'gradoMaterial' : 'materialComp';
                 if (esTuboAceroNorma(el)) { const gr = gradosTubo(tipoTubo(el));
                     h += `<label class="flex items-center justify-between gap-2">Material<select id="nd-gradoMaterial" data-campo="gradoMaterial" class="border rounded p-1" style="max-width:250px" onchange="nuevoCambiarTubo('gradoMaterial', this.value)"><option value="">— sin indicar —</option>${FAMILIAS_ACC.map(f => { const g = gr.filter(x => x.familia === f); return g.length ? `<optgroup label="${f}">${g.map(x => `<option value="${esc(x.designacion)}" ${x.designacion === el.gradoMaterial ? 'selected' : ''}>${esc(x.designacion)}</option>`).join('')}</optgroup>` : ''; }).join('')}</select></label>`; }
-                else if (!mAcc) h += `<label class="flex items-center justify-between gap-2">${el.type === 'tuberia' ? 'Material (grado)' : 'Material'}<select id="nd-${campoM}" data-campo="${campoM}" class="border rounded p-1" style="max-width:250px" onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) this.add(new Option(t, t, true, true), 0); else this.value = ''; }">${opcionesMaterial(gm, el[campoM] || (el.type === 'tuberia' ? (CAT.materiales[el.material] || {}).grado || '' : ''))}</select></label>`;
+                else if (!mAcc) h += `<label class="flex items-center justify-between gap-2">${el.type === 'tuberia' ? 'Material (grado)' : 'Material'}<select id="nd-${campoM}" data-campo="${campoM}" class="border rounded p-1" style="max-width:250px" onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) this.add(new Option(t, t, true, true), 0); else this.value = ''; }">${opcionesMaterial(gm, el[campoM] || (el.type === 'tuberia' ? (CAT.materiales[el.material] || {}).grado || '' : ''), el)}</select></label>`;
                 h += nTxt('nd-url', 'url', 'URL del componente', el.url || '');
             }
             if (el.type === 'tuberia') {
@@ -2433,6 +2437,7 @@
             const specs = [];
             let lideresNotas = '';
             elementosRed.forEach(el => {
+                if (el.type === 'anotacion' && ((el.subtype === 'leyenda' && opciones.ocultarLeyenda) || (el.subtype === 'materiales' && opciones.ocultarListado))) return;   // v8.48
                 const isSelected = idSeleccionado === el.id || seleccion.has(el.id);
                 const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
                 g.setAttribute("class", `symbol-group ${isSelected ? 'symbol-selected' : ''}`);
@@ -2498,7 +2503,8 @@
                 } else if (el.type === 'tuberia') {
                     const largoPx = largoPxTubo(el);
                     const ax = Math.max(largoPx / 2 + 6, 8);
-                    d = `<line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/>
+                    const desnivel = Math.abs((+el.cotaB || 0) - (+el.cotaA || 0)) > 0.0005;   // v8.48 · sube o baja aunque se dibuje en horizontal
+                    d = `<line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="${desnivel ? 'butt' : 'round'}"${desnivel ? ' stroke-dasharray="7,2,1.6,2" class="tubo-desnivel"' : ''}/>
                          <polygon points="${ax - 6.5},16.9 ${ax},20 ${ax - 6.5},23.1" fill="${c}"/>` + marcaFallo(largoPx / 2 - 8, 13);   // v8.45 · flecha del sentido de flujo dentro de la línea
                 } else {
                     d = simboloSVG(el, c, P);
@@ -2506,7 +2512,7 @@
                     else if (el.type !== 'instrumento' && !sinFlujo(el) && !/^codo/.test(el.subtype)) d += flecha(18);
                     d += marcaFallo(25, 5);
                 }
-                if (!esAnotacion(el)) specs.push(specEtiqueta(el));
+                if (!esAnotacion(el) && !opciones.ocultarEtiquetas) specs.push(specEtiqueta(el));
                 if (!esAnotacion(el)) d = afinarTrazos(d);   // v8.45 · líneas del P&ID un 20 % más finas
                 obtenerPuertosLocales(el).forEach(p => {
                     d += `<circle class="connection-port" cx="${p.x}" cy="${p.y}" r="2.6" data-portid="${p.id}"/>`;
@@ -2735,6 +2741,7 @@
             }
             return [
                 { icono: 'fa-pen-to-square', texto: 'Editar...', accion: () => abrirVentanaElemento(el.id) },
+                ...(esAnotacion(el) ? [] : [{ icono: 'fa-i-cursor', texto: el.tagManual ? `Renombrar... (${el.tagManual})` : 'Renombrar...', accion: () => renombrarElemento(el) }]),
                 { icono: 'fa-rotate', texto: 'Girar', sub: [
                     { icono: 'fa-rotate-right', texto: '90° horario', accion: giro(90) },
                     { icono: 'fa-rotate-right', texto: '180° horario', accion: giro(180) },
@@ -3267,10 +3274,33 @@
 
         function actualizarAtributo(id, campo, valor) { cambiarCampoPanel(id, campo, valor); }
 
+        function renombrarElemento(el) {
+            if (!el || esAnotacion(el)) return;
+            const v = prompt(`Nuevo nombre de ${tagDe(el)} (vacío: volver a la nomenclatura automática):`, el.tagManual || tagDe(el));
+            if (v == null) return; guardarEstado();
+            const t = v.trim();
+            if (!t) { if (el.tagManual) { delete el.tagManual; el.num = null; asignarNumero(el); } }
+            else { if (!el.tagManual && el.num) { proyecto.numLibres = proyecto.numLibres || {}; const c = el.codigo || codigoDe(el); (proyecto.numLibres[c] = proyecto.numLibres[c] || []).push(el.num); } el.tagManual = t; el.num = 0; }
+            marcarCambios(true); renderizarVectorial(); renderArbol(); if (ventanaId === el.id) pintarVentana(); aviso(`Componente renombrado: ${tagDe(el)}.`, 'ok');
+        }
+        function alternarOcultar(k) { opciones[k] = !opciones[k]; marcarCambios(true); renderizarVectorial(); aviso({ ocultarLeyenda: 'Leyenda', ocultarListado: 'Listado de materiales', ocultarEtiquetas: 'Nomenclatura de los componentes' }[k] + (opciones[k] ? ': oculta (no sale en el plano ni al imprimir).' : ': visible.')); }
+        // v8.48 · al eliminar un componente intermedio (dos conexiones opuestas), lo que va a continuación se desplaza y se une al
+        // anterior: la línea queda continua. No se cierra si la red forma una malla por ese punto o si es un codo / una te.
+        function cerrarHuecoAlEliminar(el) {
+            const vs = vecinosDe(el); if (vs.length !== 2 || esAnotacion(el)) return null;
+            const pp = obtenerPuertosConexion(el), P = id => pp.find(p => p.id === id); if (!P(vs[0].puertoEl) || !P(vs[1].puertoEl)) return null;
+            const d1 = (dirPuertoLocal(el, vs[0].puertoEl) - dirPuertoLocal(el, vs[1].puertoEl) + 720) % 360; if (Math.abs(d1 - 180) > 1) return null;   // solo componentes en línea
+            const entrada = ['a', 'succion'], k = entrada.includes(vs[1].puertoEl) ? 1 : 0, up = vs[k], dn = vs[1 - k];
+            const grupo = grupoDesde([dn.otro], el); if (grupo.includes(up.otro)) return null;
+            const A = P(up.puertoEl), B = P(dn.puertoEl), dx = A.x - B.x, dy = A.y - B.y;
+            return () => { grupo.forEach(e => { e.x += dx; e.y -= dy; }); return grupo.length; };
+        }
         function eliminarElemento(id) {
+            const elX = elementosRed.find(e => e.id === id), cerrar = elX ? cerrarHuecoAlEliminar(elX) : null;   // v8.48
             guardarEstado();
             invalidarResultados();
             elementosRed = elementosRed.filter(item => item.id !== id);
+            if (cerrar) { const n = cerrar(); if (n) aviso(`${tagDe(elX)} eliminado: los ${n} elemento(s) siguientes se han unido al anterior.`, 'ok'); }
             if (ventanaId === id) cerrarModal();
             purgarLineasVacias();
             if(idSeleccionado === id) {
@@ -3354,6 +3384,10 @@
             await guardarComoProyecto(formato);
         }
 
+        // v8.48 · nombres por defecto: proyecto = NÚMERO_INSTALACIÓN_RevX; plano = NÚMERO-PLANO-Hhoja_RevX
+        const limpioNom = t => String(t || '').trim().replace(/[\\/:*?"<>|\r\n]+/g, '_').replace(/\s+/g, '_');
+        function nombreArchivoProyecto() { return [limpioNom(proyecto.numero) || 'PROYECTO', limpioNom(proyecto.instalacion), 'Rev' + (limpioNom(proyecto.revision) || '0')].filter(Boolean).join('_'); }
+        function nombreArchivoPlano(iHoja) { const h = hojas[iHoja == null ? hojaActual : iHoja]; return [limpioNom(proyecto.numero) || 'PROYECTO', limpioNom(proyecto.planoNumero) || 'PL', 'H' + ((h && h.id) || '00')].join('-') + '_Rev' + (limpioNom(proyecto.revision) || '0'); }
         async function guardarComoProyecto(formato) {
             if ((formato === 'pid' || formato === 'json') && !(await comprobarSueltosAntesDeGuardar())) return;
             if (formato === 'dxf') await cargarParte('cad');
@@ -3367,10 +3401,11 @@
                 png: { description: 'Imagen PNG (*.png)', accept: { 'image/png': ['.png'] } }
             };
 
+            const nombreSug = (['pid', 'json', 'xml'].includes(formato) ? nombreArchivoProyecto() : nombreArchivoPlano()) + '.' + formato;   // v8.48
             if (window.showSaveFilePicker) {
                 try {
                     const handle = await window.showSaveFilePicker({
-                        suggestedName: `${(proyecto.numero || 'proyecto').replace(/[^\w.-]+/g, '_')}.${formato}`,
+                        suggestedName: nombreSug,
                         types: [extensiones[formato]]
                     });
                     if (formato === 'pid') {
@@ -3383,11 +3418,11 @@
                     aviso("Archivo guardado: " + (handle.name || ''), 'ok');
                 } catch (err) {
                     if (err.name !== 'AbortError') {
-                        descargarArchivo(contenido, `proyecto_pid.${formato}`, 'text/plain');
+                        descargarArchivo(contenido, nombreSug, 'text/plain');
                     }
                 }
             } else {
-                let nombre = prompt("Introduce el nombre del archivo:", `proyecto_pid.${formato}`);
+                let nombre = prompt("Introduce el nombre del archivo:", nombreSug);
                 if (nombre) {
                     descargarArchivo(contenido, nombre, 'text/plain');
                     if (formato === 'pid') marcarCambios(false);
@@ -5334,14 +5369,29 @@
             const c = (TIPOS[el.subtype] || {}).cat;
             return { uniones: 'brida', accesorios: 'accesorio', valvulas: 'valvula', intercambiadores: 'equipo', equipos: 'equipo', tanques: 'tanque', terminales: 'tanque', instrumentos: 'instrumento' }[c] || 'accesorio';
         }
-        const opcionesMaterial = (grupo, actual) => {
-            const M = MATERIALES[grupo] || { ASME: [], EN: [] }, todos = [...M.ASME, ...M.EN];
-            return `<option value="">— sin indicar —</option>` + (M.ASME.length ? `<optgroup label="ASME / ASTM">${M.ASME.map(x => `<option ${x === actual ? 'selected' : ''}>${esc(x)}</option>`).join('')}</optgroup>` : '') +
-                `<optgroup label="Norma europea (EN)">${M.EN.map(x => `<option ${x === actual ? 'selected' : ''}>${esc(x)}</option>`).join('')}</optgroup>` +
+        // v8.48 · materiales según la norma del elemento (ASME o EN, no las dos) y, en redes de acero, solo aceros al carbono e inoxidables
+        const familiaMatTexto = t => /30[47]|31[06]|32[01]|34[17]|CF[38]|CF8M|1\.4\d{3}|X\d+Cr|duplex|dúplex|inox/i.test(t) ? 'inox' : /A126|A48|A536|A395|GJ[LS]|fundici|bronce|B6[12]|B148|lat[oó]n|Cu[SZ]n|CuAl|CC4|CW6|PVC|PP|PE-?\d|PE\b|PVDF|ABS|GRP|PRFV|cobre|alumin|nylon|EPDM|PTFE/i.test(t) ? 'otro' : 'carbono';
+        function sistemaMaterialDe(el, actual, M) {
+            if (!el) return null;
+            if (el.normaPN === 'ASME' || el.normaPN === 'EN') return el.normaPN;
+            if (actual) { if (M.ASME.includes(actual)) return 'ASME'; if (M.EN.includes(actual)) return 'EN'; }
+            const tv = el.type === 'tuberia' ? el : (typeof tuboVecino === 'function' ? tuboVecino(el) : null); if (!tv) return null;
+            if (tv.material === 'Acero al carbono EN') return 'EN';
+            if (tv.material === 'Acero al carbono' || tv.material === 'Acero inoxidable') return 'ASME';
+            return null;
+        }
+        function redDeAcero(el) { const tv = !el ? null : el.type === 'tuberia' ? el : (typeof tuboVecino === 'function' ? tuboVecino(el) : null); return !!tv && ['Acero al carbono', 'Acero inoxidable', 'Acero al carbono EN'].includes(tv.material); }
+        const opcionesMaterial = (grupo, actual, el) => {
+            const M0 = MATERIALES[grupo] || { ASME: [], EN: [] }, sis = sistemaMaterialDe(el, actual, M0), acero = redDeAcero(el) && !['bomba', 'plastico'].includes(grupo);
+            const filtra = l => acero ? l.filter(t => familiaMatTexto(t) !== 'otro' || t === actual) : l;
+            const M = { ASME: sis === 'EN' ? [] : filtra(M0.ASME), EN: sis === 'ASME' ? [] : filtra(M0.EN) }, todos = [...M.ASME, ...M.EN];
+            return `<option value="">— sin indicar —</option>` + (M.ASME.length ? `<optgroup label="ASME / ASTM${acero ? ' · aceros' : ''}">${M.ASME.map(x => `<option ${x === actual ? 'selected' : ''}>${esc(x)}</option>`).join('')}</optgroup>` : '') +
+                (M.EN.length ? `<optgroup label="Norma europea (EN)${acero ? ' · aceros' : ''}">${M.EN.map(x => `<option ${x === actual ? 'selected' : ''}>${esc(x)}</option>`).join('')}</optgroup>` : '') +
                 (actual && !todos.includes(actual) ? `<optgroup label="Otro"><option selected>${esc(actual)}</option></optgroup>` : '') + `<option value="__otro">Otro (escribir)...</option>`;
         };
-        function ctrlMaterial(fn, campo, valor, grupo, etiqueta = 'Material') {
-            return `<div>${etiqueta}: <select onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) ${fn}('${campo}', t); else this.value = ''; } else ${fn}('${campo}', this.value)" class="${CLS_CTRL}">${opcionesMaterial(grupo, valor)}</select></div>`;
+        function ctrlMaterial(fn, campo, valor, grupo, etiqueta = 'Material', el) {
+            if (!el && typeof idSeleccionado !== 'undefined') el = elementosRed.find(e => e.id === (fn === '__cambiarVentana' ? ventanaId : idSeleccionado));
+            return `<div>${etiqueta}: <select onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) ${fn}('${campo}', t); else this.value = ''; } else ${fn}('${campo}', this.value)" class="${CLS_CTRL}">${opcionesMaterial(grupo, valor, el)}</select></div>`;
         }
         // Grupos de la librería y sus tipos
         const TIPOS_BOMBA_LIB = [['centrifuga', 'Centrífuga'], ['peristaltica', 'Peristáltica'], ['piston', 'Alternativa / pistón'], ['dosificadora', 'Dosificadora'], ['membrana', 'Membrana'], ['engranajes', 'Engranajes'], ['tornillo', 'Tornillo / husillo'], ['lobulos', 'Lóbulos']];
@@ -5572,7 +5622,7 @@
         function camposTubo(obj, fn) {
             const tipo = tipoTubo(obj), acero = /^TUB-/.test(tipo);
             let h = ctrlSelect(fn, 'tuboTipo', opcionesTipoTubo(), tipo, 'Tipo de tubería');
-            if (!acero) return h + ctrlMaterial(fn, 'gradoMaterial', obj.gradoMaterial || (CAT.materiales[obj.material] || {}).grado || '', familiaMaterialTubo(obj.material), 'Material (grado)');
+            if (!acero) return h + ctrlMaterial(fn, 'gradoMaterial', obj.gradoMaterial || (CAT.materiales[obj.material] || {}).grado || '', familiaMaterialTubo(obj.material), 'Material (grado)', obj);
             const gr = gradosTubo(tipo);
             h += `<div>Material: <select onchange="${fn}('gradoMaterial', this.value)" class="${CLS_CTRL}"><option value="">— sin indicar —</option>${FAMILIAS_ACC.map(f => { const g = gr.filter(x => x.familia === f); return g.length ? `<optgroup label="${f}">${g.map(x => `<option value="${esc(x.designacion)}" ${x.designacion === obj.gradoMaterial ? 'selected' : ''}>${esc(x.designacion)}</option>`).join('')}</optgroup>` : ''; }).join('')}${obj.gradoMaterial && !gr.some(x => x.designacion === obj.gradoMaterial) ? `<option selected>${esc(obj.gradoMaterial)}</option>` : ''}</select></div>`;
             const c = codigoTubo(obj), g = gradoTubo(obj);
@@ -5584,9 +5634,9 @@
             if (!ACC_ORIGEN) { asegurarAccesorios().then(() => { try { if (idSeleccionado === obj.id) seleccionarElemento(obj.id); } catch (e) { } }); return `<div class="text-slate-400 italic">Cargando modelos de accesorio...</div>`; }
             const m = modeloAcc(obj), lista = modelosAcc(obj.subtype, obj);
             let h = `<div>Modelo: <select onchange="${fn}('accModelo', this.value)" class="${CLS_CTRL}"><option value="">— sin definir —</option>${lista.map(i => `<option value="${esc(i.id)}" ${i.id === obj.accModelo ? 'selected' : ''}>${esc(i.nombre)} · ${esc(i.norma)}</option>`).join('')}</select></div>`;
-            if (!m) return h + ctrlMaterial(fn, 'materialComp', obj.materialComp || '', grupoMaterial(obj));
+            if (!m) return h + ctrlMaterial(fn, 'materialComp', obj.materialComp || '', grupoMaterial(obj), 'Material', obj);
             const mats = materialesAcc(m), sch = schedulesAcc(obj, m);
-            if (!mats.length) h += ctrlMaterial(fn, 'materialComp', obj.materialComp || '', grupoMaterial(obj)); else h += `<div>Material: <select onchange="${fn}('materialComp', this.value)" class="${CLS_CTRL}"><option value="">— sin indicar —</option>${FAMILIAS_ACC.map(f => { const g = mats.filter(x => x.familia === f); return g.length ? `<optgroup label="${f}">${g.map(x => `<option value="${esc(x.designacion)}" ${x.designacion === obj.materialComp ? 'selected' : ''}>${esc(x.designacion)}</option>`).join('')}</optgroup>` : ''; }).join('')}${obj.materialComp && !mats.some(x => x.designacion === obj.materialComp) ? `<option selected>${esc(obj.materialComp)}</option>` : ''}</select></div>`;
+            if (!mats.length) h += ctrlMaterial(fn, 'materialComp', obj.materialComp || '', grupoMaterial(obj), 'Material', obj); else h += `<div>Material: <select onchange="${fn}('materialComp', this.value)" class="${CLS_CTRL}"><option value="">— sin indicar —</option>${FAMILIAS_ACC.map(f => { const g = mats.filter(x => x.familia === f); return g.length ? `<optgroup label="${f}">${g.map(x => `<option value="${esc(x.designacion)}" ${x.designacion === obj.materialComp ? 'selected' : ''}>${esc(x.designacion)}</option>`).join('')}</optgroup>` : ''; }).join('')}${obj.materialComp && !mats.some(x => x.designacion === obj.materialComp) ? `<option selected>${esc(obj.materialComp)}</option>` : ''}</select></div>`;
             const caras = carasAcc(m);
             if (caras.length) h += `<div>Cara: <select onchange="${fn}('cara', this.value)" class="${CLS_CTRL}"><option value="">— sin indicar —</option>${caras.map(x => `<option value="${esc(x)}" ${x === obj.cara ? 'selected' : ''}>${esc(NOMBRE_CARA[x] || x)}</option>`).join('')}</select></div>`;
             if (!sinEspesorAcc(m)) h += `<div>${SUBTIPOS_BRIDA.includes(obj.subtype) ? 'Schedule / espesor del cuello' : 'Schedule / espesor'}: <select onchange="${fn}('accSch', this.value)" class="${CLS_CTRL}"><option value="">— sin definir —</option>${sch.map(x => `<option value="${esc(x.schedule)}" ${x.schedule === obj.accSch ? 'selected' : ''}>${esc(x.schedule)}${/mm$/.test(x.schedule) ? '' : ' · ' + x.espesor + ' mm'}</option>`).join('')}</select></div>`;
@@ -5745,7 +5795,7 @@
                 const lista = itemsLib(obj.type === 'bomba' ? 'bomba' : obj.subtype);
                 h += `<div>Modelo de librería: <select data-previo="${esc(obj.libItem || '')}" onchange="${obj.type === 'bomba' ? `validarSeleccionBomba(this, v => ${fn}('libItem', v))` : `${fn}('libItem', this.value)`}" class="${CLS_CTRL}"><option value="">— ninguno (genérico) —</option>${lista.map(i => `<option value="${esc(i.id)}" ${i.id === obj.libItem ? 'selected' : ''}>${esc(i.nombre)}${i.material ? ' · ' + esc(i.material) : ''}</option>`).join('')}</select></div>`;
                 if (obj.type === 'bomba' && obj.libItem) { const vb = obj.validacionCurva; h += `<p class="text-[10px] ${vb ? 'text-emerald-700' : 'text-amber-700'}">${vb ? `<i class="fa-solid fa-circle-check mr-1"></i>Validada por ${esc(vb.usuario)} el ${esc(new Date(vb.fecha).toLocaleDateString())}` : '<i class="fa-solid fa-triangle-exclamation mr-1"></i>Bomba sin validar: vuelve a elegir el modelo para revisarla.'}${obj.curvaEc ? ' · ' + esc(textoEcuacion(obj.curvaEc.H, 'H')) : ''}</p>`; }
-                h += ctrlMaterial(fn, 'materialComp', obj.materialComp || '', grupoMaterial(obj));
+                h += ctrlMaterial(fn, 'materialComp', obj.materialComp || '', grupoMaterial(obj), 'Material', obj);
                 if (obj.type === 'valvula') h += camposDatosValvula(obj, fn);
             } else h += camposTubo(obj, fn);
             h += `<div>URL del componente: <div class="flex gap-1"><input type="text" value="${esc(obj.url || '')}" placeholder="https://..." onchange="${fn}('url', this.value)" class="${CLS_CTRL}">${obj.url ? `<a href="${esc(obj.url)}" target="_blank" rel="noopener" class="text-blue-600 mt-1.5" title="Abrir"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</div></div>`;
@@ -6900,6 +6950,7 @@
         }
         function abrirTablaPropiedades(grupo) {
             if (grupo) masivo.grupo = grupo;
+            else if (!elementosRed.some(e => e.type === masivo.grupo)) { const g = GRUPOS_MASIVO.find(([k]) => elementosRed.some(e => e.type === k)); if (g) masivo.grupo = g[0]; }   // v8.48
             document.getElementById('modal-masivo').style.display = 'flex';
             pintarTablaPropiedades();
         }
@@ -6913,7 +6964,7 @@
                 const lista = ops(el); if (!lista) return '<td class="px-1 text-slate-300">—</td>';
                 return `<td class="px-0.5"><select ${on('this.value')} class="border rounded p-0.5 text-[11px] max-w-[170px]">${lista.map(o => { const [v, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${String(v) === String(val == null ? '' : val) ? 'selected' : ''}>${esc(t)}</option>`; }).join('')}</select></td>`;
             }
-            if (tipo === 'mat') return `<td class="px-0.5"><select onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) cambioMasivo('${el.id}', '${campo}', t); else this.value = ''; } else cambioMasivo('${el.id}', '${campo}', this.value)" class="border rounded p-0.5 text-[11px] max-w-[170px]">${opcionesMaterial(grupoMaterial(el), val || '')}</select></td>`;
+            if (tipo === 'mat') return `<td class="px-0.5"><select onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) cambioMasivo('${el.id}', '${campo}', t); else this.value = ''; } else cambioMasivo('${el.id}', '${campo}', this.value)" class="border rounded p-0.5 text-[11px] max-w-[170px]">${opcionesMaterial(grupoMaterial(el), val || '', el)}</select></td>`;
             if (tipo === 'mag') return `<td class="px-0.5"><input type="number" step="any" value="${esc(mostrarCampo(campo, val))}" ${on('this.value')} class="border rounded p-0.5 w-20 text-[11px]"></td>`;
             if (tipo === 'num') return `<td class="px-0.5"><input type="number" step="any" value="${esc(val == null ? '' : val)}" ${on('this.value')} class="border rounded p-0.5 w-20 text-[11px]"></td>`;
             return `<td class="px-0.5"><input type="text" value="${esc(val || '')}" ${on('this.value')} class="border rounded p-0.5 w-40 text-[11px]"></td>`;
@@ -6924,7 +6975,7 @@
             const edit = cols.filter(c => c[2] !== 'ro');
             document.getElementById('masivo-cuerpo').innerHTML = `
                 <div class="flex flex-wrap gap-2 items-center mb-2">
-                    <div class="flex border rounded overflow-hidden">${GRUPOS_MASIVO.map(([g, t]) => `<button onclick="masivo.grupo='${g}'; masivo.marcados.clear(); pintarTablaPropiedades()" class="px-2 py-1 ${g === masivo.grupo ? 'bg-blue-600 text-white' : 'hover:bg-slate-50'}">${t} <span class="opacity-70">${elementosRed.filter(e => e.type === g).length}</span></button>`).join('')}</div>
+                    <div class="flex border rounded overflow-hidden">${GRUPOS_MASIVO.filter(([g]) => g === masivo.grupo || elementosRed.some(e => e.type === g)).map(([g, t]) => `<button onclick="masivo.grupo='${g}'; masivo.marcados.clear(); pintarTablaPropiedades()" class="px-2 py-1 ${g === masivo.grupo ? 'bg-blue-600 text-white' : 'hover:bg-slate-50'}">${t} <span class="opacity-70">${elementosRed.filter(e => e.type === g).length}</span></button>`).join('')}</div>
                     <select onchange="masivo.linea = this.value; pintarTablaPropiedades()" class="border rounded p-1"><option value="">Todas las líneas</option>${lineas.map(l => `<option ${l.id === masivo.linea ? 'selected' : ''}>${l.id}</option>`).join('')}</select>
                     <input value="${esc(masivo.texto)}" placeholder="Filtrar (etiqueta, tipo, material)" oninput="masivo.texto = this.value; clearTimeout(window.__tmF); window.__tmF = setTimeout(pintarTablaPropiedades, 250)" class="border rounded p-1 w-56">
                 </div>
@@ -7110,7 +7161,7 @@
             { id: '3D › Vista anterior', teclas: [], cuando: () => vista3d, accion: () => volverAntesRaton3D() },
             { id: '3D › Zoom ventana', teclas: [], cuando: () => vista3d, accion: () => zoomVentana3D(true) },
             { id: '3D › Ratón 3D', teclas: [], cuando: () => vista3d, accion: () => conectarSpaceMouse(true) },
-            { id: 'Vista › Alternar vista normal / 3D', teclas: ['Alt+1'], campo: true, accion: () => ponerVista(vista3d ? 'normal' : '3d') },
+            { id: 'Vista › Alternar vista normal / 3D', teclas: ['Alt+1'], campo: true, accion: () => ponerVista(vista3d ? 'normal' : vistaIso ? '3d' : 'iso') },
             { id: 'Hojas › Añadir hoja', teclas: ['Alt+A'], campo: true, accion: () => anadirHoja() },
             { id: 'Zoom › Ajustar', teclas: ['F'], accion: () => { if (vista3d && V3) volverAntesRaton3D(); else ajustarVistaVentana(); } },
             { id: 'Zoom › Todo', teclas: ['T'], accion: () => { if (vista3d && V3) encajar3D(); else zoomTodo(); } },
@@ -8694,8 +8745,9 @@
                     <div class="v3d-grupo"><div class="v3d-fila"><button class="v3d-b" onclick="alternarAjustes3D()" title="Origen del buque, cuadernas, norte y ratón 3D">${svgIco('ajustes')}<span>Ajustes</span></button><button class="v3d-b" onclick="conectarSpaceMouse(true, event.shiftKey)" title="Conectar un ratón 3D 3Dconnexion (SpaceMouse) por WebHID: Chrome o Edge · Mayús+clic: todos los dispositivos">${svgIco('raton')}<span>Ratón 3D…</span></button><span id="v3d-sm" class="v3d-nota"></span></div><div class="v3d-tit">Configurar</div></div>
                     </div>
                     <div id="v3d-ajustes" class="v3d-pop" style="display:none">
-                    <span id="v3d-buque" title="Coordenadas absolutas respecto al 0,0,0 del buque (eje del timón, crujía, línea base)">Punto de conexión inicial de la red (impulsión de la bomba si empieza en una bomba), absoluto (mm): X <input id="v3d-ox" type="number" style="width:80px"> Y <input id="v3d-oy" type="number" style="width:70px"> Z <input id="v3d-oz" type="number" style="width:70px"> · Cuaderna (mm) <input id="v3d-cu" type="number" style="width:60px"></span>
-                    <span id="v3d-ind">Norte (° desde +X) <input id="v3d-norte" type="number" style="width:60px"></span>
+                    <span id="v3d-buque" title="Coordenadas absolutas respecto al 0,0,0">Punto de conexión inicial de la red (impulsión de la bomba si empieza en una bomba), absoluto (mm): X <input id="v3d-ox" type="number" style="width:80px"> Y <input id="v3d-oy" type="number" style="width:70px"> Z <input id="v3d-oz" type="number" style="width:70px"> <span id="v3d-cu-w">· Cuaderna (mm) <input id="v3d-cu" type="number" style="width:60px"></span></span>
+                    <span id="v3d-ind">Norte (° desde +X) <input id="v3d-norte" type="number" style="width:60px"> · también se gira arrastrando la brújula</span>
+                    <span>Mover toda la red (mm): ΔX <input id="v3d-mx" type="number" value="0" style="width:70px"> ΔY <input id="v3d-my" type="number" value="0" style="width:70px"> ΔZ <input id="v3d-mz" type="number" value="0" style="width:70px"> <button class="v3d-b mini" onclick="moverTodo3D(+document.getElementById('v3d-mx').value || 0, +document.getElementById('v3d-my').value || 0, +document.getElementById('v3d-mz').value || 0)">Mover</button></span>
                     <span id="v3d-smopc" style="display:none;gap:8px;align-items:center"><b>Ratón 3D</b><span>Sens. <input id="v3d-sens" type="number" step="0.1" min="0.1" style="width:50px" onchange="guardarCfg3DLocal({ sens: Math.max(0.1, +this.value || 1) })"></span>
                     <label title="Sin alabeo: la vertical +Z queda siempre hacia arriba"><input id="v3d-hor" type="checkbox" onchange="guardarCfg3DLocal({ horizonteFijo: this.checked }); if (this.checked && V3) { V3.rol = 0; pintar3D(); }"> Horizonte fijo</label>
                     <span title="Ratón 3D: invierte el sentido de cada giro si no te resulta natural">Invertir: <label><input id="v3d-invRz" type="checkbox" onchange="guardarCfg3DLocal({ invRz: this.checked })"> giro</label> <label><input id="v3d-invRx" type="checkbox" onchange="guardarCfg3DLocal({ invRx: this.checked })"> cabeceo</label> <label><input id="v3d-invRy" type="checkbox" onchange="guardarCfg3DLocal({ invRy: this.checked })"> alabeo</label></span>
@@ -8708,7 +8760,7 @@
             }
             ov.style.display = 'flex'; ocultarTooltip(); arbolEn3D(true); { const est0 = document.getElementById('v3d-estado'); if (est0) est0.textContent = ayuda3D(); }
             const { o, c } = cfg3D(), loc = cfg3DLocal(), bq = !!proyecto.esBuque; document.getElementById('v3d-ox').value = o.x; document.getElementById('v3d-oy').value = o.y; document.getElementById('v3d-oz').value = o.z; document.getElementById('v3d-cu').value = c;
-            document.getElementById('v3d-norte').value = proyecto.norte == null ? 90 : proyecto.norte; document.getElementById('v3d-buque').style.display = bq ? '' : 'none'; document.getElementById('v3d-ind').style.display = bq ? 'none' : '';
+            document.getElementById('v3d-norte').value = proyecto.norte == null ? 90 : proyecto.norte; document.getElementById('v3d-buque').style.display = ''; document.getElementById('v3d-cu-w').style.display = bq ? '' : 'none'; document.getElementById('v3d-ind').style.display = bq ? 'none' : '';
             document.getElementById('v3d-cua-t').textContent = bq ? 'Cuadernas' : 'Rejilla'; document.getElementById('v3d-etq').checked = loc.etiquetas !== false; document.getElementById('v3d-cua').checked = loc.cuadernas !== false;
             document.getElementById('v3d-sens').value = loc.sens || 1; document.getElementById('v3d-hor').checked = loc.horizonteFijo !== false; ['invRz', 'invRx', 'invRy'].forEach(k => { document.getElementById('v3d-' + k).checked = !!loc[k]; }); conectarSpaceMouse(false);
             // v8.33 · vistas según el tipo de proyecto (las navales solo en buques) y densidad de la rejilla
@@ -8727,8 +8779,8 @@
         }
         // v8.44 · el árbol de la red también en el 3D (encima de la vista, con fondo claro), con las mismas operaciones que en el 2D
         function arbolEn3D(si) {
-            const a = document.getElementById('arbol'); if (!a) return;
-            if (si) { if (opciones.arbol === false) return; const b = document.getElementById('v3d-barra'); a.classList.add('arbol-3d'); a.style.zIndex = '30'; const sit = () => { const p = document.getElementById('v3d-ajustes'), hp = p && p.style.display !== 'none' ? p.offsetHeight : 0; a.style.top = ((b ? b.offsetHeight : 58) + hp + 8) + 'px'; }; sit(); requestAnimationFrame(sit); setTimeout(sit, 300); a.style.bottom = '140px';   /* deja ver la triada de la esquina */ renderArbol(); }
+            const a = document.getElementById('arbol'); if (!a) return; if (!si) a.classList.remove('arbol-3d-oscuro');
+            if (si) { if (opciones.arbol === false) return; const b = document.getElementById('v3d-barra'); a.classList.add('arbol-3d'); a.style.zIndex = '30'; const sit = () => { const p = document.getElementById('v3d-ajustes'), hp = p && p.style.display !== 'none' ? p.offsetHeight : 0; a.style.top = ((b ? b.offsetHeight : 58) + hp + 8 + (proyecto.esBuque ? 0 : 88)) + 'px'; };   /* la brújula va arriba a la izquierda */ sit(); requestAnimationFrame(sit); setTimeout(sit, 300); a.style.bottom = '140px';   /* deja ver la triada de la esquina */ renderArbol(); }
             else { a.classList.remove('arbol-3d'); a.style.zIndex = ''; a.style.top = '6px'; a.style.bottom = '72px'; }
         }
         function cerrarVista3D() { arbolEn3D(false); const ov = document.getElementById('vista-3d'); if (ov) ov.style.display = 'none'; const bh = document.getElementById('barra-hojas'); if (bh) bh.style.display = ''; pistaDestino3D(null); }
@@ -8939,6 +8991,7 @@
             if (f === 'claro') { V3.claro = true; V3.renderer.setClearColor(0xffffff, 0); cont.style.background = 'linear-gradient(180deg, #f4f7fa 0%, #dde5ee 48%, #c4d0de 100%)'; }
             else { const c = f === 'oscuro' ? '#0f172a' : f; V3.claro = lumHex(c) > 0.55; V3.renderer.setClearColor(new V3.T.Color(c), 1); cont.style.background = c; }
             if (ov) { ov.classList.toggle('v3d-claro', !!V3.claro); ov.classList.toggle('v3d-oscuro', !V3.claro); }
+            const ar = document.getElementById('arbol'); if (ar) ar.classList.toggle('arbol-3d-oscuro', !V3.claro);
             const t = document.getElementById('v3d-tema'); if (t) t.value = f === 'claro' || f === 'oscuro' ? f : 'color';
             const ci = document.getElementById('v3d-fondo'); if (ci) { ci.style.display = f === 'claro' || f === 'oscuro' ? 'none' : ''; if (/^#/.test(f)) ci.value = f; }
         }
@@ -8950,25 +9003,19 @@
         // ---------- cubo de vistas vectorial ----------
         const CUBO_CARAS = [['px', [1, 0, 0], [0, 0, 1]], ['nx', [-1, 0, 0], [0, 0, 1]], ['py', [0, 1, 0], [0, 0, 1]], ['ny', [0, -1, 0], [0, 0, 1]], ['pz', [0, 0, 1], [0, 1, 0]], ['nz', [0, 0, -1], [0, 1, 0]]];
         function textosCubo3D() { return proyecto.esBuque ? { px: 'PROA', nx: 'POPA', py: 'BABOR', ny: 'ESTRIBOR', pz: 'SUPERIOR', nz: 'INFERIOR' } : { px: 'DERECHA', nx: 'IZQUIERDA', py: 'POSTERIOR', ny: 'FRONTAL', pz: 'SUPERIOR', nz: 'INFERIOR' }; }
+        // v8.48 · cubo de vistas en SVG: proyección ortogonal de cada cara y textos con transformación afín → vectorial y nítido siempre
         function construirCuboDom() {
             const cont = V3.cont; document.getElementById('v3d-cubo')?.remove(); document.getElementById('v3d-casa')?.remove();
-            const H = 29, tx = textosCubo3D(), m3 = c => `matrix3d(${c.map(v => +v.toFixed(6)).join(',')})`;
-            let caras = '';
-            CUBO_CARAS.forEach(([k, n, u]) => {
-                const r = v3.cross(u, n), M = [...r, 0, ...v3.mul(u, -1), 0, ...n, 0, ...v3.mul(n, H), 1];
-                let z = ''; [1, 0, -1].forEach(cy => [-1, 0, 1].forEach(cx => { const v = v3.sum(v3.sum(n, v3.mul(r, cx)), v3.mul(u, cy)); z += `<div class="z${!cx && !cy ? ' c' : ''}" data-v="${v.join(',')}"></div>`; }));
-                caras += `<div class="cara" data-k="${k}" style="transform:${m3(M)}">${z}<span class="rot">${tx[k]}</span></div>`;
-            });
             const d = document.createElement('div'); d.id = 'v3d-cubo'; d.className = 'v3d-cubo';
-            d.innerHTML = `<div class="esc">${caras}<div class="sombra"></div></div><button class="cb casa" title="Vista de inicio (isométrica)">${svgIco('casa', 14)}</button><button class="cb mas" title="Más vistas">${svgIco('menu', 12)}</button>`;
-            cont.appendChild(d); V3.cuboDom = { el: d, esc: d.querySelector('.esc'), buque: !!proyecto.esBuque };
-            const zonas = [...d.querySelectorAll('.z')];
-            d.addEventListener('mouseover', e => { const z = e.target.closest('.z'); zonas.forEach(x => x.classList.toggle('on', !!z && x.dataset.v === z.dataset.v)); if (z) { const est = document.getElementById('v3d-estado'); if (est) est.textContent = 'Cubo de vistas: ' + nombreVistaCubo(z.dataset.v.split(',').map(Number)) + ' (clic) · arrastra para girar'; } });
-            d.addEventListener('mouseleave', () => zonas.forEach(x => x.classList.remove('on')));
+            d.innerHTML = `<svg viewBox="0 0 104 104" width="104" height="104"></svg><button class="cb casa" title="Vista de inicio (isométrica)">${svgIco('casa', 14)}</button><button class="cb mas" title="Más vistas">${svgIco('menu', 12)}</button>`;
+            cont.appendChild(d); V3.cuboDom = { el: d, svg: d.querySelector('svg'), buque: !!proyecto.esBuque, hover: null };
+            const C = V3.cuboDom;
+            d.addEventListener('mousemove', e => { const z = e.target.closest && e.target.closest('[data-v]'); const v = z ? z.getAttribute('data-v') : null; if (v !== C.hover) { C.hover = v; actualizarCuboDom(); if (v) { const est = document.getElementById('v3d-estado'); if (est) est.textContent = 'Cubo de vistas: ' + nombreVistaCubo(v.split(',').map(Number)) + ' (clic) · arrastra para girar'; } } });
+            d.addEventListener('mouseleave', () => { if (C.hover) { C.hover = null; actualizarCuboDom(); } });
             let a = null;
-            d.addEventListener('mousedown', e => { if (e.button !== 0 || e.target.closest('.cb')) return; e.preventDefault(); e.stopPropagation(); a = { x: e.clientX, y: e.clientY, mov: false, z: e.target.closest('.z') }; });
+            d.addEventListener('mousedown', e => { if (e.button !== 0 || e.target.closest('.cb')) return; e.preventDefault(); e.stopPropagation(); const z = e.target.closest && e.target.closest('[data-v]'); a = { x: e.clientX, y: e.clientY, mov: false, v: z ? z.getAttribute('data-v') : null }; });
             window.addEventListener('mousemove', e => { if (!a) return; const dx = e.clientX - a.x, dy = e.clientY - a.y; if (!a.mov && Math.abs(dx) + Math.abs(dy) < 3) return; if (!a.mov) { a.mov = true; marcarPosicion3D(true); } a.x = e.clientX; a.y = e.clientY; orbitar3D(-dx * 0.012, -dy * 0.012); pintar3D(); });
-            window.addEventListener('mouseup', () => { if (!a) return; const z = a.z, mov = a.mov; a = null; if (!mov && z) irVistaCubo3D(z.dataset.v.split(',').map(Number)); });
+            window.addEventListener('mouseup', () => { if (!a) return; const v = a.v, mov = a.mov; a = null; if (!mov && v) irVistaCubo3D(v.split(',').map(Number)); });
             d.querySelector('.casa').onclick = e => { e.stopPropagation(); marcarPosicion3D(true); animarVista3D(-Math.PI / 4, 0.9553); };
             d.querySelector('.mas').onclick = e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); mostrarMenuContextual(r.left, r.bottom + 2, [
                 { icono: 'fa-house', texto: 'Vista de inicio (isométrica)', accion: () => { marcarPosicion3D(true); animarVista3D(-Math.PI / 4, 0.9553); } },
@@ -8976,18 +9023,33 @@
                 { icono: 'fa-clock-rotate-left', texto: 'Vista anterior (F)', accion: () => volverAntesRaton3D() },
                 'sep', ...[['planta', 'Planta'], [proyecto.esBuque ? 'estribor' : 'alzado', proyecto.esBuque ? 'Perfil desde estribor' : 'Alzado'], [proyecto.esBuque ? 'proa' : 'perfil', proyecto.esBuque ? 'Desde proa' : 'Perfil']].map(([k, t]) => ({ icono: 'fa-cube', texto: t, accion: () => vista3dCamara(k) }))]); };
         }
+        function actualizarCuboDom() {
+            const C = V3 && V3.cuboDom; if (!C) return; if (C.buque !== !!proyecto.esBuque) { construirCuboDom(); return actualizarCuboDom(); }
+            V3.camera.updateMatrixWorld(); const e = V3.camera.matrixWorldInverse.elements, Rv = v => [e[0] * v[0] + e[4] * v[1] + e[8] * v[2], e[1] * v[0] + e[5] * v[1] + e[9] * v[2], e[2] * v[0] + e[6] * v[1] + e[10] * v[2]];
+            const H = 25, O = 52, S = p => { const q = Rv(p); return [O + q[0], O - q[1]]; }, f = x => x.toFixed(2), tx = textosCubo3D(), B = 0.36;
+            const caras = CUBO_CARAS.map(([k, n, u]) => ({ k, n, u, r: v3.cross(u, n), z: Rv(n)[2] })).filter(c => c.z > 0.02).sort((a, b) => a.z - b.z);
+            let h = `<defs><linearGradient id="cubo-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dfe4ea"/></linearGradient></defs>`;
+            caras.forEach(c => {
+                const P = (lx, ly) => S(v3.sum(v3.sum(v3.mul(c.n, H), v3.mul(c.r, lx * H)), v3.mul(c.u, ly * H)));   // lx, ly en [-1, 1] (ly hacia arriba)
+                const poly = pts => pts.map(q => f(q[0]) + ',' + f(q[1])).join(' '), luz = 0.82 + 0.18 * c.z;
+                h += `<polygon points="${poly([P(-1, 1), P(1, 1), P(1, -1), P(-1, -1)])}" fill="url(#cubo-g)" stroke="#6b7889" stroke-width="0.9" stroke-linejoin="round" style="filter:brightness(${luz.toFixed(3)})"/>`;
+                const cortes = [-1, -1 + B, 1 - B, 1];
+                [1, 0, -1].forEach((cy, iy) => [-1, 0, 1].forEach((cx, ix) => {
+                    const x0 = cortes[ix], x1 = cortes[ix + 1], y1 = cortes[3 - iy], y0 = cortes[2 - iy], v = v3.sum(v3.sum(c.n, v3.mul(c.r, cx)), v3.mul(c.u, cy)).join(',');
+                    h += `<polygon data-v="${v}" points="${poly([P(x0, y1), P(x1, y1), P(x1, y0), P(x0, y0)])}" fill="${C.hover === v ? 'rgba(37,118,235,.45)' : 'rgba(0,0,0,0)'}" style="cursor:pointer"/>`;
+                }));
+                const o = S(v3.mul(c.n, H)), a1 = Rv(c.r), a2 = Rv(v3.mul(c.u, -1));   // local x → r, local y (abajo) → −u
+                const t = tx[c.k], fs = Math.min(9.2, 34 / Math.max(4, t.length) * 1.55);
+                h += `<text transform="matrix(${f(a1[0])} ${f(-a1[1])} ${f(a2[0])} ${f(-a2[1])} ${f(o[0])} ${f(o[1])})" x="0" y="${f(fs * 0.36)}" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-weight="700" font-size="${f(fs)}" letter-spacing="0.3" fill="#2f3b4c" pointer-events="none">${t}</text>`;
+            });
+            C.svg.innerHTML = h;
+        }
         function nombreVistaCubo(v) { const t = textosCubo3D(); return [v[2] > 0 ? t.pz : v[2] < 0 ? t.nz : '', v[1] < 0 ? t.ny : v[1] > 0 ? t.py : '', v[0] > 0 ? t.px : v[0] < 0 ? t.nx : ''].filter(Boolean).join(' + '); }
         function irVistaCubo3D(v) {
             const d = v3.norm(v), H = Math.PI / 2; let th = Math.atan2(d[1], d[0]); const ph = Math.acos(Math.max(-1, Math.min(1, d[2])));
             if (Math.abs(d[2]) > 0.999) th = -H;
             marcarPosicion3D(true); animarVista3D(th, ph);
             const est = document.getElementById('v3d-estado'); if (est) est.textContent = `Vista: ${nombreVistaCubo(v)} · F: vista anterior`;
-        }
-        function actualizarCuboDom() {
-            const C = V3 && V3.cuboDom; if (!C) return; if (C.buque !== !!proyecto.esBuque) { construirCuboDom(); return actualizarCuboDom(); }
-            V3.camera.updateMatrixWorld(); const e = V3.camera.matrixWorldInverse.elements, m = [];
-            for (let j = 0; j < 3; j++) m.push(e[j * 4], -e[j * 4 + 1], e[j * 4 + 2], 0); m.push(0, 0, 0, 1);
-            C.esc.style.transform = `matrix3d(${m.map(v => +v.toFixed(6)).join(',')})`;
         }
         // ---------- triada de ejes en SVG (esquina inferior izquierda) ----------
         function construirTriadaSvg() {
@@ -9022,6 +9084,38 @@
         }
         function modoNav3D(m) { if (!V3) return; V3.modoNav = m; pintarNav3D(); const est = document.getElementById('v3d-estado'); if (est) est.textContent = m === 'pan' ? 'Desplazar: arrastra con el botón izquierdo · Esc o «Girar»: volver a girar' : ayuda3D(); }
         function pintarNav3D() { const d = document.getElementById('v3d-nav'); if (!d) return; d.querySelectorAll('button').forEach(b => b.classList.toggle('act', (b.dataset.k === 'pan' && V3.modoNav === 'pan') || (b.dataset.k === 'orbita' && V3.modoNav !== 'pan'))); }
+        // v8.48 · mover toda la red en bloque (origen de la red y componentes sueltos)
+        function moverTodo3D(dx, dy, dz) {
+            if (!dx && !dy && !dz) { aviso('Indica ΔX, ΔY o ΔZ en mm.'); return; }
+            guardarEstado(); const o = (proyecto.origen3D = proyecto.origen3D || { x: 0, y: 0, z: 0 }); o.x = (+o.x || 0) + dx; o.y = (+o.y || 0) + dy; o.z = (+o.z || 0) + dz;
+            todosLosElementos().forEach(e => { if (Array.isArray(e.pos3D)) e.pos3D = [e.pos3D[0] + dx, e.pos3D[1] + dy, e.pos3D[2] + dz]; });
+            ['x', 'y', 'z'].forEach(k => { const i = document.getElementById('v3d-o' + k); if (i) i.value = o[k]; });
+            marcarCambios(true); construirEscena3D(); aviso(`Red desplazada ΔX ${dx} · ΔY ${dy} · ΔZ ${dz} mm. Punto inicial: X ${o.x} · Y ${o.y} · Z ${o.z} mm.`, 'ok');
+        }
+        // v8.48 · brújula (instalaciones en tierra): esquina superior izquierda; arrastrarla gira el norte del proyecto
+        function construirBrujula3D() {
+            document.getElementById('v3d-brujula')?.remove(); if (proyecto.esBuque) { V3.brujula = null; return; }
+            const d = document.createElement('div'); d.id = 'v3d-brujula'; d.className = 'v3d-brujula'; d.title = 'Norte del proyecto · arrastra para girarlo (Mayús: sin ajuste a 5°)';
+            d.innerHTML = '<svg viewBox="0 0 80 80" width="80" height="80"></svg>'; V3.cont.appendChild(d); V3.brujula = d.firstChild;
+            let a = null;
+            d.addEventListener('mousedown', e => { if (e.button !== 0) return; e.preventDefault(); e.stopPropagation(); a = { n0: proyecto.norte == null ? 90 : +proyecto.norte }; guardarEstado(); });
+            window.addEventListener('mousemove', e => { if (!a) return; const r = d.getBoundingClientRect(), mx = e.clientX - (r.left + 40), my = e.clientY - (r.top + 40); if (Math.hypot(mx, my) < 4) return;
+                const quiero = Math.atan2(my, mx), ev = V3.camera.matrixWorldInverse.elements; let mejor = null;
+                for (let g = 0; g < 360; g += 0.5) { const t = g * Math.PI / 180, qx = ev[0] * Math.cos(t) + ev[4] * Math.sin(t), qy = -(ev[1] * Math.cos(t) + ev[5] * Math.sin(t)), dd = Math.abs(((Math.atan2(qy, qx) - quiero) + 3 * Math.PI) % (2 * Math.PI) - Math.PI); if (!mejor || dd < mejor.d) mejor = { g, d: dd }; }
+                let g = mejor.g; if (!e.shiftKey) g = Math.round(g / 5) * 5; proyecto.norte = ((g % 360) + 360) % 360; const inp = document.getElementById('v3d-norte'); if (inp) inp.value = proyecto.norte; actualizarBrujula3D();
+                const est = document.getElementById('v3d-estado'); if (est) est.textContent = `Norte: ${proyecto.norte}° desde +X`; });
+            window.addEventListener('mouseup', () => { if (!a) return; a = null; marcarCambios(true); construirEscena3D(); });
+        }
+        function actualizarBrujula3D() {
+            const s = V3 && V3.brujula; if (!s) return; const ev = V3.camera.matrixWorldInverse.elements, t = (proyecto.norte == null ? 90 : +proyecto.norte) * Math.PI / 180;
+            let qx = ev[0] * Math.cos(t) + ev[4] * Math.sin(t), qy = -(ev[1] * Math.cos(t) + ev[5] * Math.sin(t)); const l = Math.hypot(qx, qy) || 1; qx /= l; qy /= l;
+            const f = v => v.toFixed(2), C = 40, R = 27, tip = [C + qx * R, C + qy * R], tail = [C - qx * R * 0.55, C - qy * R * 0.55], px = -qy, py = qx, w = 6.5;
+            let h = `<circle cx="${C}" cy="${C}" r="31" fill="rgba(255,255,255,.82)" stroke="#94a3b8" stroke-width="1"/>`;
+            for (let k = 0; k < 36; k++) { const a = k * 10 * Math.PI / 180, r0 = k % 9 ? 28.5 : 26; h += `<line x1="${f(C + Math.cos(a) * r0)}" y1="${f(C + Math.sin(a) * r0)}" x2="${f(C + Math.cos(a) * 31)}" y2="${f(C + Math.sin(a) * 31)}" stroke="#94a3b8" stroke-width="${k % 9 ? 0.6 : 1.1}"/>`; }
+            h += `<polygon points="${f(tip[0])},${f(tip[1])} ${f(C + px * w)},${f(C + py * w)} ${f(C - px * w)},${f(C - py * w)}" fill="#dc2626"/><polygon points="${f(tail[0])},${f(tail[1])} ${f(C + px * w)},${f(C + py * w)} ${f(C - px * w)},${f(C - py * w)}" fill="#94a3b8"/><circle cx="${C}" cy="${C}" r="2.2" fill="#fff" stroke="#475569" stroke-width="1"/>`;
+            h += `<text x="${f(C + qx * 37)}" y="${f(C + qy * 37 + 4)}" text-anchor="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="11" font-weight="700" fill="#b91c1c" stroke="rgba(255,255,255,.9)" stroke-width="2.4" paint-order="stroke">N</text>`;
+            s.innerHTML = h;
+        }
         function centrarSeleccion3D() { const id = idSeleccionado || [...seleccion][0]; if (!id) { aviso('Selecciona antes un componente (clic en el 3D o en el árbol).'); return; } pivote3D(id); }
         window.addEventListener('keydown', e => { if (e.key === 'Escape' && V3 && V3.modoNav === 'pan' && vista3d) modoNav3D(null); });
         function pintar3D() {
@@ -9036,7 +9130,7 @@
                 M.cam.position.copy(d.multiplyScalar(5.8)); M.cam.up.copy(camera.up); M.cam.lookAt(0, 0, 0); if (V3.rol) M.cam.rotateZ(V3.rol); M.cam.updateMatrixWorld();
                 R.autoClear = false; R.clearDepth(); R.setScissorTest(true); R.setScissor(0, 0, s, s); R.setViewport(0, 0, s, s); R.render(M.scene, M.cam);
                 R.setScissorTest(false); const w = V3.cont.clientWidth || 800, h = V3.cont.clientHeight || 500; R.setViewport(0, 0, w, h); R.autoClear = true; }
-            actualizarCuboDom(); actualizarTriadaSvg();
+            actualizarCuboDom(); actualizarTriadaSvg(); actualizarBrujula3D();
             if (V3.cubo) { const C = V3.cubo, w = V3.cont.clientWidth || 800, h = V3.cont.clientHeight || 500, d = new V3.T.Vector3().subVectors(camera.position, target).normalize();
                 C.cam.position.copy(d.multiplyScalar(3.4)); C.cam.up.copy(camera.up); C.cam.lookAt(0, 0, 0); if (V3.rol) C.cam.rotateZ(V3.rol); C.cam.updateMatrixWorld();
                 const x = w - CUBO_MARGEN - CUBO_PX, y = h - CUBO_MARGEN - CUBO_PX;
@@ -9125,7 +9219,7 @@
             const enNodo = {}; g.puertosTodos.forEach(p => (enNodo[p.nodo] = enNodo[p.nodo] || []).push(p));
             const esq = (el, pid) => { const p = pts[el.id][pid]; if (el.type === 'tuberia') { const o = pts[el.id][pid === 'a' ? 'b' : 'a']; return v3.norm([p.x - o.x, -(p.y - o.y), 0]); }
                 const c = el.subtype === 'codo90' ? aPantalla(el, 15, 15) : centroElemento(el); let v = [p.x - c.x, -(p.y - c.y), 0];   /* codo de 90°: vértice en la esquina del símbolo */ if (v3.len(v) < 2) { const otro = Object.values(pts[el.id]).find(q => q.portId !== pid); v = otro ? [c.x - otro.x, -(c.y - otro.y), 0] : [1, 0, 0]; } return v3.norm(v); };
-            const geo = {}, { o } = cfg3D(), buque = !!proyecto.esBuque, O = buque ? [(+o.x || 0) / 1000, (+o.y || 0) / 1000, (+o.z || 0) / 1000] : [0, 0, 0];
+            const geo = {}, { o } = cfg3D(), buque = !!proyecto.esBuque, O = [(+o.x || 0) / 1000, (+o.y || 0) / 1000, (+o.z || 0) / 1000];   // v8.48 · también en industria
             const colocar = (el, pe, P, u, trasComp) => {
                 if (geo[el.id]) return;
                 if (el.type === 'tuberia') {
@@ -9176,6 +9270,7 @@
             if (!V3.triada) construirTriadaSvg();
             if (!V3.cuboDom) construirCuboDom();
             if (!document.getElementById('v3d-nav')) construirNav3D();
+            if (!!document.getElementById('v3d-brujula') === !!proyecto.esBuque) construirBrujula3D();
             // v8.33 · el 3D es un espacio único: se monta con todas las hojas (las continuaciones entre hojas unen la red)
             V3.hojaDe = {}; const multi = hojas.length > 1, despl = {};
             const conTodas = fn => { if (!multi) return fn(); sincronizarHoja(); const gE = elementosRed, gL = lineas, todos = [], movidos = [];
@@ -9269,8 +9364,7 @@
             if (!buque) { const an = (+(proyecto.norte == null ? 90 : proyecto.norte)) * Math.PI / 180, dN = new T.Vector3(Math.cos(an), Math.sin(an), 0), pN = new T.Vector3(caja.min.x, caja.max.y + ejeL * 0.6, caja.min.z);
                 G.add(new T.ArrowHelper(dN, pN, ejeL, 0xf59e0b, ejeL * 0.3, ejeL * 0.15)); etq('N', [pN.x + dN.x * ejeL * 1.3, pN.y + dN.y * ejeL * 1.3, pN.z], 0.14 * ejeL, '#f59e0b'); }
             if (buque) {
-                G.add(new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(0, 0, caja.min.z - 0.5), new T.Vector3(0, 0, caja.max.z + 0.5)]), new T.LineBasicMaterial({ color: 0xfbbf24 })));
-                etq('Eje del timón (C0)', [0, 0, caja.max.z + 0.7], 0.18, '#fbbf24');
+                // v8.48 · sin la línea ni el rótulo del eje del timón: el origen ya lo marcan los ejes y la cuaderna C0
                 if (conCua) { const cm = c / 1000, i0 = Math.floor(Math.min(caja.min.x, 0) / cm) - 1, i1 = Math.ceil(caja.max.x / cm) + 1, y0 = Math.min(caja.min.y, 0) - 1, y1 = Math.max(caja.max.y, 0) + 1, z0 = 0, a = [], f = [];   // v8.42 · las cuadernas en el plano 0,0,0
                     const nC = Math.max(1, loc.cadaCuadernas || 1), nM = nC * 5;
                     for (let i = i0; i <= i1; i++) { if (i % nC) continue; (i % nM === 0 ? f : a).push(new T.Vector3(i * cm, y0, z0), new T.Vector3(i * cm, y1, z0)); }
@@ -9530,6 +9624,21 @@
             if (vista3d && V3) { seleccion.clear(); idSeleccionado = el.id; construirEscena3D(); girar3D(e.shiftKey ? 15 : 90); return; }
             girarElemento(el, e.shiftKey ? -45 : 45); invalidarResultados(); renderizarVectorial(); aviso(`${nombreTipo(el)}: ${el.rotation}° · R / Mayús+R: girar 45°`);
         }, true);
+        // v8.48 · ventanas de resultados, tabla de propiedades y datos del proyecto: se arrastran por su título; las de resultados y
+        // la tabla de propiedades no bloquean el plano (se puede seguir trabajando en el 2D / 3D con ellas abiertas)
+        function hacerMovible(idOv, sinBloqueo) {
+            const ov = document.getElementById(idOv), pan = ov && ov.firstElementChild, tit = pan && pan.querySelector('h3'); if (!tit || ov._movible) return; ov._movible = true;
+            if (sinBloqueo) { ov.classList.remove('bg-black/40'); ov.style.background = 'transparent'; ov.style.pointerEvents = 'none'; pan.style.pointerEvents = 'auto'; pan.style.boxShadow = '0 10px 30px rgba(15,23,42,.28)'; }
+            let pos = null; try { pos = JSON.parse(localStorage.getItem('piping-pos-' + idOv) || 'null'); } catch (e) { }
+            const poner = () => { pan.style.position = 'relative'; pan.style.left = (pos ? pos.x : 0) + 'px'; pan.style.top = (pos ? pos.y : 0) + 'px'; };
+            poner(); tit.style.cursor = 'move'; tit.title = 'Arrastra para mover la ventana';
+            let arr = null;
+            tit.addEventListener('mousedown', e => { if (e.button !== 0 || e.target.closest('button, input, select')) return; e.preventDefault(); arr = { x: e.clientX, y: e.clientY, x0: pos ? pos.x : 0, y0: pos ? pos.y : 0 }; });
+            window.addEventListener('mousemove', e => { if (!arr) return; const r = pan.getBoundingClientRect(); pos = { x: arr.x0 + e.clientX - arr.x, y: arr.y0 + e.clientY - arr.y };
+                const mx = (window.innerWidth - r.width) / 2 + r.width * 0.4, my = (window.innerHeight - r.height) / 2 + r.height * 0.4; pos.x = Math.max(-mx, Math.min(mx, pos.x)); pos.y = Math.max(-my, Math.min(my, pos.y)); poner(); });
+            window.addEventListener('mouseup', () => { if (arr) { arr = null; try { localStorage.setItem('piping-pos-' + idOv, JSON.stringify(pos)); } catch (e) { } } });
+        }
+        setTimeout(() => { hacerMovible('modal-red', true); hacerMovible('modal-masivo', true); hacerMovible('modal-proyecto', false); }, 0);
         // la ventana de inserción se arrastra por su título y se abre donde se dejó la última vez
         (function () {
             const ov = document.getElementById('modal-nuevo'), pan = ov && ov.firstElementChild, tit = pan && pan.querySelector('h3'); if (!tit) return;
@@ -10185,7 +10294,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.47';
+        const VERSION_WEB = '8.48';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -11564,6 +11673,8 @@
             const ids = idsSeleccion();
             if (!ids.length) return;
             portapapeles = elementosRed.filter(e => ids.includes(e.id)).map(e => JSON.parse(JSON.stringify(e)));
+            // v8.48 · líneas copiadas enteras: al pegar se crean líneas nuevas (P02, R02...) con nomenclatura nueva
+            portapapelesLineas = lineas.filter(l => { const m = elementosRed.filter(e => e.linea === l.id); return m.length && m.every(e => ids.includes(e.id)); }).map(l => JSON.parse(JSON.stringify(l)));
             contadorPegado = 0; // cada pegado se desplaza 50 px respecto al original
         }
 
@@ -11574,9 +11685,12 @@
             eliminarSeleccion();
         }
 
+        let portapapelesLineas = [];
         function pegarPortapapeles() {
             if (!portapapeles || !portapapeles.length) return;
             guardarEstado();
+            const nuevasL = {}, orden = portapapelesLineas.slice().sort((a, b) => (a.tipo === 'principal' ? 0 : 1) - (b.tipo === 'principal' ? 0 : 1) || String(a.id).length - String(b.id).length);
+            orden.forEach(lo => { const padreN = lo.padre && nuevasL[lo.padre]; const nid = lo.tipo === 'principal' ? siguienteLinea('principal') : siguienteLinea('ramal', padreN || lo.padre); nuevasL[lo.id] = nid; lineas.push(Object.assign({}, lo, { id: nid, padre: padreN || lo.padre, desde: null })); });
             contadorPegado++;
             invalidarResultados();
             document.getElementById("empty-state")?.remove();
@@ -11584,7 +11698,8 @@
             const nuevos = portapapeles.map((orig, i) => {
                 const nuevo = JSON.parse(JSON.stringify(orig));
                 nuevo.id = 'sym_' + Date.now() + '_' + i + '_' + Math.floor(Math.random() * 1000);
-                nuevo.num = null; nuevo.inicioLinea = false;
+                nuevo.num = null; nuevo.inicioLinea = false; delete nuevo.tagManual;
+                if (nuevo.linea && nuevasL[nuevo.linea]) nuevo.linea = nuevasL[nuevo.linea];
                 if (nuevo.linea && !lineaPorId(nuevo.linea)) delete nuevo.linea;
                 nuevo.x += 50 * contadorPegado;
                 nuevo.y -= 50 * contadorPegado;
@@ -11610,6 +11725,8 @@
                 <div class="grid grid-cols-2 gap-1 mt-2">
                     <button onclick="girarSeleccion(90)" class="border rounded p-1 hover:bg-slate-50"><i class="fa-solid fa-rotate-right text-emerald-600 mr-1"></i>Girar 90°</button>
                     <button onclick="girarSeleccion(180)" class="border rounded p-1 hover:bg-slate-50"><i class="fa-solid fa-rotate text-emerald-600 mr-1"></i>Girar 180°</button>
+                    <button onclick="girarSeleccion(-90)" class="border rounded p-1 hover:bg-slate-50"><i class="fa-solid fa-rotate-left text-emerald-600 mr-1"></i>Girar −90°</button>
+                    <button onclick="escalarSeleccion()" class="border rounded p-1 hover:bg-slate-50"><i class="fa-solid fa-up-right-and-down-left-from-center text-violet-600 mr-1"></i>Escalar...</button>
                     <button onclick="copiarSeleccion()" class="border rounded p-1 hover:bg-slate-50"><i class="fa-solid fa-copy text-blue-600 mr-1"></i>Copiar</button>
                     <button onclick="eliminarSeleccion()" class="border rounded p-1 hover:bg-rose-50 text-rose-600"><i class="fa-solid fa-trash-can mr-1"></i>Eliminar</button>
                 </div>`;
@@ -11619,6 +11736,16 @@
             renderizarVectorial();
             document.getElementById('lbl-tipo-activo').innerText = 'Ninguno';
             document.getElementById('panel-propiedades').innerHTML = `<p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>`;
+        }
+        // v8.48 · escalar la selección respecto a su centro: símbolos y separaciones del dibujo (las longitudes reales no cambian)
+        function escalarSeleccion(f) {
+            const ids = idsSeleccion(); if (!ids.length) { aviso('Selecciona antes los elementos (Ctrl+A: todos).'); return; }
+            if (f == null) { const v = prompt('Factor de escala del dibujo (p. ej. 0,8 o 1,25):', '1'); if (v == null) return; f = +String(v).replace(',', '.'); }
+            if (!(f > 0.05 && f < 20) || f === 1) return;
+            const els = elementosRed.filter(e => ids.includes(e.id)), b = cajaDe(els), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+            guardarEstado();
+            els.forEach(e => { const sy = mundoAScreenY(e.y); e.x = cx + (e.x - cx) * f; e.y = screenAMundoY(cy + (sy - cy) * f); if (!esTablaHoja(e)) e.scale = +((e.scale || 1) * f).toFixed(4); });
+            marcarCambios(true); renderizarVectorial(); aviso(`Selección escalada ×${f} (dibujo; las longitudes reales de las tuberías no cambian).`, 'ok');
         }
         function seleccionarTodo() { seleccion.clear(); elementosRed.forEach(e => seleccion.add(e.id)); actualizarSeleccion(); }
         function seleccionarLinea(id) { seleccion.clear(); elementosRed.filter(e => e.linea === id).forEach(e => seleccion.add(e.id)); actualizarSeleccion(); if (vista3d && typeof V3 !== 'undefined' && V3) construirEscena3D(); }
@@ -11872,7 +11999,11 @@
                 { icono: vistaIso || vista3d ? 'fa-square' : 'fa-check', texto: 'Vista normal (P&ID)', accion: () => ponerVista('normal') },
                 { icono: vistaIso ? 'fa-check' : 'fa-square', texto: 'Vista isométrica (consulta)', accion: () => ponerVista('iso') },
                 { icono: vista3d ? 'fa-check' : 'fa-square', texto: 'Vista 3D', accion: () => ponerVista('3d') },
-                { icono: 'fa-repeat', texto: 'Alternar vista normal / 3D', atajo: 'Alt+1', accion: () => ponerVista(vista3d ? 'normal' : '3d') },
+                { icono: 'fa-repeat', texto: 'Alternar vista normal / 3D', atajo: 'Alt+1 (2D → isométrico → 3D)', accion: () => ponerVista(vista3d ? 'normal' : vistaIso ? '3d' : 'iso') },
+                'sep',
+                { icono: opciones.ocultarLeyenda ? 'fa-square' : 'fa-check', texto: 'Mostrar la leyenda', accion: () => alternarOcultar('ocultarLeyenda') },
+                { icono: opciones.ocultarListado ? 'fa-square' : 'fa-check', texto: 'Mostrar el listado de materiales', accion: () => alternarOcultar('ocultarListado') },
+                { icono: opciones.ocultarEtiquetas ? 'fa-square' : 'fa-check', texto: 'Mostrar la nomenclatura de los componentes', accion: () => alternarOcultar('ocultarEtiquetas') },
                 'sep',
                 { icono: 'fa-sitemap', texto: 'Árbol de estructura (mostrar/ocultar)', accion: () => alternarArbol() },
                 { icono: 'fa-triangle-exclamation', texto: 'Panel de avisos del cálculo (mostrar/ocultar)', accion: () => alternarPanelAvisos() },

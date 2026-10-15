@@ -159,9 +159,12 @@
 .v3d-oscuro .v3d-cubo .rot { color: #263243; }
 .v3d-oscuro .v3d-nav { background: rgba(30, 41, 59, .85); border-color: #475569; }
 .v3d-oscuro .v3d-nav button { color: #cbd5e1; }
-/* v8.46 · árbol de la red sobre la vista 3D: panel claro, texto nítido */
-#arbol.arbol-3d { --arbol-fondo: #ffffff; --arbol-texto: #1e293b; --arbol-linea: #a7b3c2; font-family: "Segoe UI", system-ui, sans-serif; font-size: 11.5px; }
-#arbol.arbol-3d #arbol-cuerpo { flex: 0 1 auto !important; max-height: 100%; background: rgba(255, 255, 255, .95); border: 1px solid #c3ccd7; border-radius: 6px; box-shadow: 0 2px 8px rgba(15, 23, 42, .15); padding: 6px 8px 6px 2px; pointer-events: auto !important; }
-#arbol.arbol-3d .txt { text-shadow: none !important; }
-#arbol.arbol-3d .nodo .txt[style*="color"] { filter: saturate(1.1) brightness(.85); }
-#arbol.arbol-3d .nodo.sel { background: #dbeafe; outline: 1px solid #93c5fd; }
+/* v8.48 · árbol de la red en el mismo lienzo del 3D (sin recuadro), texto nítido con halo del color del fondo */
+#arbol.arbol-3d { --arbol-fondo: #e9eff5; --arbol-texto: #1e293b; --arbol-linea: #8f9db0; font-family: "Segoe UI", system-ui, sans-serif; font-size: 11.5px; }
+#arbol.arbol-3d #arbol-cuerpo { flex: 0 1 auto !important; max-height: 100%; background: transparent; border: 0; box-shadow: none; padding: 2px 6px 2px 0; }
+#arbol.arbol-3d .txt { text-shadow: 0 0 2px rgba(255,255,255,.95), 0 0 3px rgba(255,255,255,.9), 0 0 5px rgba(255,255,255,.75) !important; font-weight: 600; }
+#arbol.arbol-3d .nodo.sel { background: rgba(219, 234, 254, .9); outline: 1px solid #93c5fd; }
+#arbol.arbol-3d.arbol-3d-oscuro { --arbol-fondo: #0f172a; --arbol-texto: #e2e8f0; --arbol-linea: #64748b; }
+#arbol.arbol-3d.arbol-3d-oscuro .txt { text-shadow: 0 0 2px #0f172a, 0 0 4px #0f172a !important; }
+.v3d-brujula { position: absolute; left: 10px; top: 8px; width: 80px; height: 80px; z-index: 5; cursor: grab; }
+.v3d-brujula:active { cursor: grabbing; }
