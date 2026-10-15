@@ -966,14 +966,15 @@ async function construirInforme(D, opc = {}) {
                     ]
             });
         }
-function datosListados() {
+function datosListados(filtroLin) {
+            const ELS = filtroLin ? elementosRed.filter(e => esAnotacion(e) || filtroLin.has(e.linea)) : elementosRed;   // v8.52 · solo las líneas elegidas
             const calc = ultimoCalculo && ultimoCalculo.huella === huellaRed() ? ultimoCalculo.resultado : null;
             const ars = calc ? calc.aristas : [], de = id => ars.filter(a => a.el.id === id);
             const r2 = x => x == null || !isFinite(x) ? '' : +(+x).toFixed(3);
             const cab = [['PIPING · ' + (proyecto.numero || '') + ' · ' + (proyecto.cliente || '')], [proyecto.instalacion || ''], ['Fluido: ' + document.getElementById('selector-fluido').value + ' a ' + document.getElementById('temp-fluido').value + ' °C' + (calc ? '' : ' · (sin resultados de cálculo)')], []];
             // Líneas
             const L = [['Línea', 'Tipo', 'Nombre', 'Sale de', 'Nº elementos', 'Materiales', 'Tamaños', 'Longitud de tubería (m)', 'Cota mín (m)', 'Cota máx (m)', 'Q máx (m³/h)', 'V máx (m/s)', 'p máx (bar)', 'PMA mín (bar)', 'Estado', 'PS (bar)', 'TS (°C)', 'Grupo PED', 'Categoría PED', 'Pt prueba (bar)', 'Clase buque']];
-            lineasEnOrden().forEach(o => {
+            lineasEnOrden().filter(o => !filtroLin || filtroLin.has(o.linea.id)).forEach(o => {
                 const l = o.linea, els = o.orden.map(id => elementosRed.find(e => e.id === id)), tubs = els.filter(e => e.type === 'tuberia');
                 const cotas = els.flatMap(e => e.type === 'tuberia' ? [+e.cotaA, +e.cotaB] : [+e.cota || 0]);
                 const aL = els.flatMap(e => de(e.id)).filter(a => !a.esBomba);
@@ -988,7 +989,7 @@ function datosListados() {
             });
             // Válvulas
             const V = [['Etiqueta', 'Tipo', 'Línea', 'DN', 'PN / Rating', 'Cálculo de K', 'Serie / tipo', 'Cv', 'Kv', 'K', 'Q (m³/h)', 'V (m/s)', 'Δp (kPa)', 'Estado']];
-            elementosRed.filter(e => e.type === 'valvula').forEach(e => {
+            ELS.filter(e => e.type === 'valvula').forEach(e => {
                 const a = de(e.id)[0], nps = npsDeDN(e.dn);
                 let cv = '';
                 if (e.modoK === 'cv') cv = +e.cvUsuario || '';
@@ -1001,11 +1002,12 @@ function datosListados() {
             });
             if (calc) (calc.terminales.elementos).forEach(e => { const r = ultimoResultado[e.id]; if (r && r.equilibrado) V.push([`VE-${tagDe(e)}`, 'Válvula de equilibrado (propuesta)', e.linea || '', '', '', 'Kv necesario', `Δp ${r2(r.equilibrado.dp)} bar`, r2(r.equilibrado.Cv), r2(r.equilibrado.Kv), '', r2(r.Q), '', r2(r.equilibrado.dp * 100), 'A instalar']); });
             // Materiales (mediciones)
-            const M = [['Grupo', 'Descripción', 'Norma / serie', 'Tamaño', 'Cantidad', 'Unidad']];
+            const M = [['Grupo', 'Descripción', 'Norma / serie', 'Tamaño', 'Cantidad', 'Unidad', `Precio unitario (${monedaProy()})`, `Importe (${monedaProy()})`]];
+            const pr = v => { const x = v.find(e => e.precio != null && !isNaN(+e.precio)); return x ? +x.precio : ''; }, imp = (q, p) => p === '' ? '' : +(q * p).toFixed(2);
             const agrupar = (lista, clave) => { const m = new Map(); lista.forEach(x => { const k = clave(x); m.set(k, (m.get(k) || []).concat([x])); }); return m; };
-            agrupar(elementosRed.filter(e => e.type === 'tuberia'), e => [e.material, e.serie, e.dn].join('|')).forEach((v, k) => {
-                const [mat, ser, dn] = k.split('|'), dt = datosTuberia(v[0]);
-                M.push(['Tubería', `${mat} · De ${dt.od} × e ${dt.e} mm`, `${dt.norma} · ${/^[0-9]+S?$/.test(ser) ? 'Sch ' + ser : ser}`, tamanoTubo(mat, dn), r2(v.reduce((s, e) => s + e.longitud / 1000, 0)), 'm']);
+            agrupar(ELS.filter(e => e.type === 'tuberia'), e => [e.material, e.serie, e.dn, e.precio == null ? '' : e.precio].join('|')).forEach((v, k) => {
+                const [mat, ser, dn] = k.split('|'), dt = datosTuberia(v[0]), q = r2(v.reduce((s, e) => s + e.longitud / 1000, 0)), p = pr(v);
+                M.push(['Tubería', `${mat} · De ${dt.od} × e ${dt.e} mm`, `${dt.norma} · ${/^[0-9]+S?$/.test(ser) ? 'Sch ' + ser : ser}`, tamanoTubo(mat, dn), q, 'm', p, imp(q, p)]);
             });
             if (calc && calc.termica) {
                 const ais = new Map();
@@ -1014,21 +1016,52 @@ function datosListados() {
                 const nS = calc.termica.lineas.reduce((s_, l) => s_ + l.nSop, 0); if (nS) M.push(['Soportes', 'Soportes / abrazaderas (separación máx. orientativa)', '', '', nS, 'ud']);
             }
             [['accesorio', 'Accesorio'], ['valvula', 'Válvula'], ['equipo', 'Equipo'], ['bomba', 'Bomba'], ['instrumento', 'Instrumento'], ['terminal', 'Terminal']].forEach(([t, g]) => {
-                agrupar(elementosRed.filter(e => e.type === t), e => [nombreTipo(e), e.subtype === 'reduccion' ? `${e.dn} × ${e.dnMenor}` : (e.dn || '')].join('|')).forEach((v, k) => {
-                    const [n, dn] = k.split('|'); M.push([g, n, '', dn.split(' × ').map(d => d ? etiquetaDN(d) : '').join(' × '), v.length, 'ud']);
+                agrupar(ELS.filter(e => e.type === t), e => [nombreTipo(e), e.subtype === 'reduccion' ? `${e.dn} × ${e.dnMenor}` : (e.dn || ''), e.precio == null ? '' : e.precio, e.fabricante || ''].join('|')).forEach((v, k) => {
+                    const [n, dn, , fab] = k.split('|'), p = pr(v); M.push([g, n + (fab ? ' · ' + fab : ''), '', dn.split(' × ').map(d => d ? etiquetaDN(d) : '').join(' × '), v.length, 'ud', p, imp(v.length, p)]);
                 });
             });
             // Equipos, bombas y consumos
             const E = [['Etiqueta', 'Tipo', 'Línea', 'Cota (m)', 'Datos de diseño', 'Q calc. (m³/h)', 'H / Δp / p calc.', 'Estado']];
-            elementosRed.filter(e => e.type === 'bomba' || e.type === 'equipo' || esTerminal(e)).forEach(e => {
+            ELS.filter(e => e.type === 'bomba' || e.type === 'equipo' || esTerminal(e)).forEach(e => {
                 const r = calc && ultimoResultado[e.id];
                 const dis = e.type === 'bomba' ? `${e.caudal} m³/h a ${e.presion} bar · H0 ${e.h0} bar · NPSHr ${e.npsh} m${e.reservaDe ? ' · reserva de ' + tagDe(elementosRed.find(x => x.id === e.reservaDe) || e) : ''}` : e.type === 'equipo' ? `Δp ${e.dpNom} kPa a ${e.qNom} m³/h` : esConsumoT(e) ? `${e.qCons} m³/h · p mín ${e.pMin} bar` : `lámina ${e.cotaLamina} m · ${e.presionDep} bar`;
                 const res = !r ? '' : e.type === 'bomba' ? `H ${r2(r.H)} m · NPSHd ${r2(r.npshd)} m` : e.type === 'equipo' ? `Δp ${r2(r.dp)} kPa` : `p ${r2(r.p)} bar`;
                 E.push([tagDe(e), nombreTipo(e), e.linea || '', e.type === 'bomba' ? e.cota || 0 : r2(e.cota), dis, r ? r2(r.Q) : '', res, calc ? (e.estado === 'fallo' ? 'NO CUMPLE' : e.estado ? 'OK' : '') : '']);
             });
+            { const tot = M.slice(1).reduce((t, f) => t + (typeof f[7] === 'number' ? f[7] : 0), 0); if (tot > 0) M.push(['TOTAL', '', '', '', '', '', '', +tot.toFixed(2)]); }   // v8.52
             return { cab, hojas: [['Líneas', L], ['Válvulas', V], ['Materiales', M], ['Equipos y consumos', E]] };
         }
+function cfgListados() { try { return JSON.parse(localStorage.getItem('piping-listados-cfg') || '{}'); } catch (e) { return {}; } }
+async function elegirListados() {
+            const d0 = datosListados(), cfg = cfgListados(), qc = cfg.quitar || {}, hs = cfg.hojasNo || [];
+            const lin = lineasEnOrden().map(o => o.linea), linNo = new Set(cfg.lineasNo || []);
+            const h = `<div class="text-xs space-y-2" style="max-height:62vh;overflow:auto">
+                <p class="text-slate-500">Marca las hojas y columnas que van al Excel. La elección se recuerda para la próxima vez.</p>
+                <label class="flex items-center gap-1.5"><input type="checkbox" id="lx-vacias" ${cfg.vacias === false ? '' : 'checked'}> Quitar las columnas sin datos (análisis automático)</label>
+                <div class="border rounded p-1.5"><p class="font-bold text-slate-600 mb-1">Líneas</p><div class="flex flex-wrap gap-x-3 gap-y-0.5">${lin.map(l => `<label class="flex items-center gap-1"><input type="checkbox" class="lx-lin" value="${esc(l.id)}" ${linNo.has(l.id) ? '' : 'checked'}>${esc(l.id)}${l.nombre ? ' · ' + esc(l.nombre) : ''}</label>`).join('')}</div></div>
+                ${d0.hojas.map(([n, f], i) => `<div class="border rounded p-1.5"><label class="flex items-center gap-1.5 font-bold text-slate-600"><input type="checkbox" class="lx-hoja" data-i="${i}" ${hs.includes(n) ? '' : 'checked'}> Hoja «${esc(n)}» (${f.length - 1} filas)</label>
+                    <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 pl-5">${f[0].map((c, k) => `<label class="flex items-center gap-1"><input type="checkbox" class="lx-col" data-i="${i}" data-k="${k}" ${(qc[n] || []).includes(c) ? '' : 'checked'}>${esc(c)}</label>`).join('')}</div></div>`).join('')}</div>`;
+            const r = await dialogo('<i class="fa-solid fa-file-excel text-emerald-600 mr-1.5"></i>Listados de líneas, válvulas y materiales', h, [{ texto: 'Cancelar', valor: null }, { texto: 'Generar Excel', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }]);
+            // el diálogo se cierra al pulsar: los checkboxes siguen en el DOM hasta el siguiente diálogo
+            if (r !== 'si') return null;
+            const q = sel => [...document.querySelectorAll('#dialogo-cuerpo ' + sel)];
+            const nueva = { vacias: document.getElementById('lx-vacias').checked, hojasNo: q('.lx-hoja').filter(x => !x.checked).map(x => d0.hojas[+x.dataset.i][0]), quitar: {}, lineasNo: q('.lx-lin').filter(x => !x.checked).map(x => x.value) };
+            q('.lx-col').filter(x => !x.checked).forEach(x => { const n = d0.hojas[+x.dataset.i][0]; (nueva.quitar[n] = nueva.quitar[n] || []).push(d0.hojas[+x.dataset.i][1][0][+x.dataset.k]); });
+            try { localStorage.setItem('piping-listados-cfg', JSON.stringify(nueva)); } catch (e) { }
+            return nueva;
+        }
+function aplicarCfgListados(d, cfg) {
+            if (!cfg) return d;
+            d.hojas = d.hojas.filter(([n]) => !(cfg.hojasNo || []).includes(n)).map(([n, f]) => {
+                const cab = f[0], quitar = new Set((cfg.quitar || {})[n] || []);
+                const vacia = k => cfg.vacias !== false && f.length > 1 && f.slice(1).every(r => { const v = r[k] && typeof r[k] === 'object' ? r[k].v : r[k]; return v === '' || v == null; });
+                const ks = cab.map((c, k) => k).filter(k => !quitar.has(cab[k]) && !vacia(k));
+                return [n, f.map(r => ks.map(k => r[k] === undefined ? '' : r[k]))];
+            }).filter(([, f]) => f[0].length);
+            return d;
+        }
 async function generarListados__p() {
+            const cfgL = await elegirListados(); if (!cfgL) return;   // v8.52
             const nombre = `Listados_${String(proyecto.numero || 'PIPING').replace(/[^\w.-]+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
             let handle = null;
             if (window.showSaveFilePicker) {
@@ -1037,7 +1070,8 @@ async function generarListados__p() {
             }
             try {
                 mostrarAvisoProgreso('Generando listados…');
-                const X = await cargarXLSX(), d = datosListados(), wb = X.utils.book_new();
+                const X = await cargarXLSX(), lin = lineasEnOrden().map(o => o.linea.id).filter(id => !(cfgL.lineasNo || []).includes(id)), d = aplicarCfgListados(datosListados(cfgL.lineasNo && cfgL.lineasNo.length ? new Set(lin) : null), cfgL), wb = X.utils.book_new();
+                if (!d.hojas.length) { mostrarAvisoProgreso(null); alert('No has elegido ninguna hoja ni columna.'); return; }
                 d.hojas.forEach(([n, filas]) => {
                     const aoa = d.cab.concat(filas.map(f => f.map(c => c && typeof c === 'object' ? c.v : c)));
                     const ws = X.utils.aoa_to_sheet(aoa);

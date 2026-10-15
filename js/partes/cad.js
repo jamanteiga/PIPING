@@ -172,7 +172,7 @@ async function isometricoLinea__p(idLinea) {
             const u0 = Math.min(...pts.map(p => p.u)), u1 = Math.max(...pts.map(p => p.u)), v0 = Math.min(...pts.map(p => p.v)), v1 = Math.max(...pts.map(p => p.v));
             const hojaOrigen = codigoHoja();
             anadirHoja();
-            const W = ANCHO_A3 - MM(60), H = ALTO_A3 - MM(95), k = Math.min(W / Math.max(u1 - u0, 1e-6), H / Math.max(v1 - v0, 1e-6), MM(60));
+            const W = ANCHO_A3 - MM(60) - (opciones.ocultarLeyenda ? 0 : MM(80)), H = ALTO_A3 - MM(95), k = Math.min(W / Math.max(u1 - u0, 1e-6), H / Math.max(v1 - v0, 1e-6), MM(60));   // v8.52 · hueco a la derecha para la leyenda
             const X = p => +((isoProy(p).u - u0) * k).toFixed(2), Y = p => +((isoProy(p).v - v0) * k).toFixed(2);
             const zTxt = z => 'EL ' + (z >= 0 ? '+' : '') + (+z).toFixed(2).replace('.', decimalDoc());
             const geo = { segs: g.segs.map(s => ({ x1: X(s.a), y1: Y(s.a), x2: X(s.b), y2: Y(s.b), L: Math.round(s.L), tag: s.tag, za: s.a.z, zb: s.b.z })),
