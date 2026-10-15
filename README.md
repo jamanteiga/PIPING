@@ -1,30 +1,44 @@
-# PIPING 8.53 · reparto del caudal en las salidas libres
+# PIPING 8.54 · flechas WN, puntos de conexión, desnivel, textos, giros y K de accesorios
 
-## Decisión de José (15/10/2026 22:24)
-- **Red sin bomba:**
-  - los puntos de consumo toman su caudal;
-  - las salidas libres se reparten **a partes iguales lo que falte hasta el caudal de diseño**: Qresto = máx(0, Qdiseño − ΣQconsumos) / n salidas;
-  - si los consumos ya llegan al caudal de diseño, las salidas libres quedan sin caudal;
-  - la presión en cada salida es el resultado del cálculo, y la ventana de puntos finales comprueba que sea ≥ 0.
-- **Red con bomba:**
-  - el caudal de la bomba debe ser ≥ el de diseño (motivo «Q de funcionamiento < caudal de diseño», ya existente);
-  - las salidas libres siguen a p = 0, así que el caudal de la bomba se reparte entre consumos y salidas según la hidráulica de la red;
-  - la ventana de puntos finales da por bueno el total si Q bombas ≥ Q diseño.
+Petición de José (15/10/2026 22:32), punto por punto:
 
-## Código
-- En `calcularResultado` (rama `sb`), las salidas siempre reciben una demanda impuesta: el resto hasta el caudal de diseño. Se guardan `sb.Qcons` y `sb.Qresto`.
-- `resultado.sinBomba.Qcons` y el Q de cada salida pasan a ser Qresto / n.
-- Avisos nuevos en el cálculo, en la ventana de condiciones de contorno y en el resumen de `mostrarPuntosFinales` (con o sin bomba).
-- Comprobado en test53:
-  - red sin bomba, 6 m³/h y 3 bar → salida libre 4,00 m³/h a 2,64 bar y consumo 2,00 m³/h a 2,73 bar;
-  - con bomba CP 200 → 12,15 m³/h repartidos.
+1. **Flecha de las bridas** (WN y demás): apunta hacia la cara (RF), dibujada en el lado del tubo («41,15 35,18 41,21» en el símbolo local).
+2. **Textos de los componentes:** todos del mismo tamaño (6,5); se quita la reducción al largo del componente en `specEtiqueta`.
+3. **Textos sin schedule ni material:** `tagPlano(el)` deja código, línea y tamaño (C90LR02-R01-2") y quita «-STD-WPB».
+   - 3.1 · Para verlos completos (`opciones.etqCompleta`):
+     - casilla **Sch/material** en la barra de vista, junto a Normal / Isométrico / 3D;
+     - **Vista › Textos de los componentes con schedule y material**.
+   - El árbol, los listados y los informes siguen con el código completo (`tagDe`).
+4. **Etiqueta seleccionada:** R gira 45° en sentido horario, Mayús+R 45° antihorario y Ctrl+R 15° horario. El ángulo ya es libre (`angNorm`); antes se forzaba a −90…90.
+5. **Botón derecho sobre una etiqueta:** submenú **Girar** con 15, 45, 90, 180 y 270°, en sentido horario y antihorario.
+6. **Componente:**
+   - R: 45° horario;
+   - **Mayús+R: 15° antihorario**;
+   - **Ctrl+R: 15° horario**;
+   - en 3D, Mayús+R y Ctrl+R giran 15° y R 90°.
+   - Búsqueda/Reemplazo pasa de Ctrl+R a **Ctrl+H**.
+7. **K de accesorios sin dato** (y de los roscados o de cobre): el más desfavorable de las fórmulas en régimen turbulento, mediante `kEmpirico` y la tabla `K_EMP`:
+   - Hooper 2-K: K∞·(1 + 1/D);
+   - Darby 3-K: Ki·(1 + Kd/D^0,3), con D interior en pulgadas;
+   - Perry (tabla 6-4);
+   - Crane n·fT cuando lo hay.
+   - Valores por tipo: codos 90°/45° roscados, de radio corto y de radio largo; te roscada y soldada (paso directo y derivación); manguitos, tuercas, racores, machones y transiciones K = 0,04 (Perry, único dato publicado); espiga portamanguera, contracción + expansión con β ≈ 0,8 (Crane).
+   - Las tes roscadas toman el máximo en paso directo y en derivación.
+   - Las bridas siguen con K = 0.
+   - En la justificación de cálculo se ve cada fórmula y cuál manda.
+   - Ejemplos con DN 25: codo 90° roscado ISO 4144 K = 0,78 (Hooper); te roscada, paso directo 0,45 (Darby) y derivación 1,37 (Hooper).
+8. **Puntos de conexión del 2D** un 60 % más pequeños (r = 1,04). No salen al imprimir ni al exportar a PDF, SVG o DXF (ya estaba así).
 
-## Entrega e incidencia
-- Al entregar se vio que la carpeta de José estaba otra vez en la **8.51** (ficheros con fecha 22:17 local). Además habían desaparecido las copias de seguridad v845–v850 de `copias`.
-- Se ha entregado el juego completo 8.53, que incluye los cambios de la 8.52: index.html, piping.js, cad.js, informe.js e i18n.
-- La copia hecha antes de entregar contenía la 8.51 y se ha renombrado `copias/v852_contiene_8.51`.
+**Tubería que sube o baja:** discontinua bien visible (9,4) y marca «▲ +x,xx m» / «▼ −x,xx m» sobre la línea.
+
+## Entrega
 - md5:
-  - index.html 40ea41c5e800dc0f3f85960babf780bd
-  - piping.js 7d8f24e998a65b44d4d74dccffb5a449
+  - index.html c702148ed8df9e156089486dcd093464
+  - piping.js 32cfe734224484bc1e5d2fa66defceee
   - cad.js d1abdd0718a872a78192a275b780617e
-  - informe.js 918f6b4b93a4614fe1ac3719c016ad29
+  - informe.js 95ef56a94407a033b1a7517ac316a9e9
+- **Incidencia repetida:** la carpeta volvió a la 8.51 a las 22:28 (UTC 20:28:36) con la fecha conservada. Además desapareció `copias/v851`.
+  - Parece una herramienta de sincronización que restaura desde otra copia.
+  - Se ha vuelto a entregar el juego completo desde la 8.51 y se ha comprobado en el equipo.
+  - Las copias que en realidad contenían la 8.51 se han renombrado `copias/v852_contiene_8.51` y `copias/v853_contiene_8.51`.
+- Pruebas: test54. En la regresión cambian, como se esperaba, test10 (etiquetas cortas), test17 (Mayús+R = −15°), test42 (ángulo de la etiqueta) y test48 (patrón de la línea discontinua).
