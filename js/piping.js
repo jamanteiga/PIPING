@@ -196,6 +196,21 @@
         const DN_A_PLASTICO = { 15: 20, 20: 25, 25: 32, 32: 40, 40: 50, 50: 63, 65: 75, 80: 90, 100: 110, 125: 140, 150: 160,
                                 200: 225, 250: 250, 300: 315, 350: 355, 400: 400, 450: 450, 500: 500 };
         const ACERO_TAM = CAT ? CAT.materiales[MATERIAL_DEF].tamanos : [];
+        // v8.50 · tubo de cobre EN 1057 y de cuproníquel 90/10 (buques: agua de mar, contraincendios). Claves dNN = diámetro exterior (mm).
+        const TUBOS_CU = {
+            'Cobre EN 1057': { norma: 'EN 1057 (Cu-DHP CW024A, R250 semiduro / R290 duro)', rug: 0.0015, tam: [[6, [0.8, 1]], [8, [0.8, 1]], [10, [0.8, 1]], [12, [0.8, 1]], [15, [0.8, 1]], [18, [0.8, 1]], [22, [1, 1.5]], [28, [1, 1.5]], [35, [1.2, 1.5]], [42, [1.2, 1.5]], [54, [1.5, 2]], [64, [2]], [76.1, [2]], [88.9, [2]], [108, [2.5]], [133, [3]], [159, [3]]], def: '1.0 mm' },
+            'Cuproníquel 90/10': { norma: 'DIN 86019 / EEMUA 144 (CuNi10Fe1,6Mn 2.1972 · CW352H)', rug: 0.03, tam: [[8, [1]], [10, [1]], [12, [1]], [16, [1]], [20, [1.5]], [25, [1.5]], [28, [1.5]], [30, [2]], [38, [2]], [44.5, [2]], [57, [2]], [76.1, [2]], [88.9, [2]], [108, [2.5]], [133, [2.5]], [159, [2.5]], [193.7, [3]], [219.1, [3]], [267, [3.5]], [323.9, [4]], [368, [5]], [419, [5.5]]], def: '2.0 mm' } };
+        if (CAT) Object.entries(TUBOS_CU).forEach(([k, d]) => { if (CAT.materiales[k]) return; const lab = e => e.toFixed(1) + ' mm', ser = [...new Set(d.tam.flatMap(t => t[1]))].sort((a, b) => a - b).map(lab);
+            CAT.materiales[k] = { norma: d.norma, rug: d.rug, series: ser, serieDef: d.def, tamanos: d.tam.map(([od, es]) => ({ clave: 'd' + Math.round(od), nps: '', od, e: Object.fromEntries(es.map(e => [lab(e), e])) })) }; });
+        // familia metálica de un material de tubería o de accesorio (para filtrar accesorios y avisar de pares galvánicos)
+        function familiaMetal(t) { t = String(t || ''); if (!t) return null;
+            if (/cupron|CuNi|CW35[24]|2\.1972|2\.0872|C70600|C71500/i.test(t)) return 'Cuproníquel';
+            if (/cobre|Cu-DHP|CW024|CW617|CuZn|lat[oó]n|bronce|CC49|CC76/i.test(t)) return 'Cobre';
+            if (/inox|30[47]|31[06]|32[01]|34[17]|CF8|1\.4\d{3}|X\d+Cr|d[uú]plex|WP3|F3[0-4]/i.test(t)) return 'Acero inoxidable';
+            if (/PVC|PE\d|PE\b|PP-|PVDF|ABS|pl[aá]stic|CPVC|GRP|PRFV/i.test(t)) return 'Plástico';
+            if (/fundici|GJ[LS]|A126|A536/i.test(t)) return 'Fundición';
+            if (/hormig/i.test(t)) return null;
+            return 'Acero al carbono'; }
         const LISTA_DN = ACERO_TAM.map(t => t.clave);                 // 'DN 6' ... 'DN 900'
         function dnNum(clave) { return parseInt(String(clave || '').replace(/[^0-9]/g, ''), 10) || 50; }
         function npsDeDN(clave) { const t = ACERO_TAM.find(x => x.clave === clave); return t ? t.nps : ''; }
@@ -591,6 +606,9 @@
             tuerca:        { type: 'accesorio', codigo: 'TU', nombre: 'Tuerca de unión', cat: 'uniones', calc: 'cero', puertos: [PA, PB] },
             machon:        { type: 'accesorio', codigo: 'MA', nombre: 'Machón', cat: 'uniones', calc: 'cero', puertos: [PA, PB] },
             racor:         { type: 'accesorio', codigo: 'RA', nombre: 'Racord', cat: 'uniones', calc: 'cero', puertos: [PA, PB] },
+            espiga:        { type: 'accesorio', codigo: 'ES', nombre: 'Espiga portamanguera', cat: 'uniones', calc: 'cero', puertos: [PA, PB] },
+            transicion:    { type: 'accesorio', codigo: 'TM', nombre: 'Transición entre materiales', cat: 'uniones', calc: 'cero', puertos: [PA, PB] },
+            tapon:         { type: 'accesorio', codigo: 'TP', nombre: 'Tapón roscado', cat: 'uniones', calc: 'sinflujo', puertos: [PA] },
             bridaunion:    { type: 'accesorio', codigo: 'BU', nombre: 'Brida unión', cat: 'uniones', calc: 'cero', puertos: [PBR, PB] },
             bridawn:       { type: 'accesorio', codigo: 'WN', nombre: 'Brida con cuello (WN)', cat: 'uniones', calc: 'cero', puertos: [PBR, PB] },
             bridaplana:    { type: 'accesorio', codigo: 'BP', nombre: 'Brida plana', cat: 'uniones', calc: 'cero', puertos: [PBR, PB] },
@@ -637,6 +655,17 @@
             enfriadora:    { type: 'equipo', codigo: 'ENF', nombre: 'Enfriadora (chiller)', cat: 'equipos', calc: 'equipo', puertos: [PA, PB] },
             fancoil:       { type: 'equipo', codigo: 'FC', nombre: 'Fan-coil / batería', cat: 'equipos', calc: 'equipo', puertos: [PA, PB] },
             equipo:        { type: 'equipo', codigo: 'EQ', nombre: 'Equipo genérico', cat: 'equipos', calc: 'equipo', puertos: [PA, PB] },
+            // v8.51 · filtros de proceso y equipos de buque (Δp nominal del fabricante; por defecto, filtro limpio)
+            filtrocestav:  { type: 'equipo', codigo: 'FCV', nombre: 'Filtro de cesta vertical', cat: 'equipos', calc: 'equipo', puertos: [PA, PB], dpDef: 20, orient: 'v', forma: 'cesta' },
+            filtrocestah:  { type: 'equipo', codigo: 'FCH', nombre: 'Filtro de cesta horizontal', cat: 'equipos', calc: 'equipo', puertos: [PA, PB], dpDef: 20, orient: 'h', forma: 'cesta' },
+            strainerv:     { type: 'equipo', codigo: 'STV', nombre: 'Strainer vertical (filtro en T)', cat: 'equipos', calc: 'equipo', puertos: [PA, PB], dpDef: 15, orient: 'v', forma: 'strainer' },
+            strainerh:     { type: 'equipo', codigo: 'STH', nombre: 'Strainer horizontal (filtro en Y)', cat: 'equipos', calc: 'equipo', puertos: [PA, PB], dpDef: 15, orient: 'h', forma: 'strainer' },
+            coalescentev:  { type: 'equipo', codigo: 'FKV', nombre: 'Filtro coalescente vertical', cat: 'equipos', calc: 'equipo', puertos: [PA, PB], dpDef: 50, orient: 'v', forma: 'coalescente' },
+            coalescenteh:  { type: 'equipo', codigo: 'FKH', nombre: 'Filtro coalescente horizontal', cat: 'equipos', calc: 'equipo', puertos: [PA, PB], dpDef: 50, orient: 'h', forma: 'coalescente' },
+            cps:           { type: 'equipo', codigo: 'CPS', nombre: 'Separador de sentinas CPS (placas coalescentes)', cat: 'equipos', calc: 'equipo', puertos: [PA, PB], dpDef: 30, forma: 'cps' },
+            stp:           { type: 'equipo', codigo: 'STP', nombre: 'Planta de tratamiento de aguas residuales (STP)', cat: 'equipos', calc: 'equipo', puertos: [PA, PB], dpDef: 20, forma: 'planta' },
+            vtp:           { type: 'equipo', codigo: 'VTP', nombre: 'Planta de vacío de aguas fecales (VTP)', cat: 'equipos', calc: 'equipo', puertos: [PA, PB], dpDef: 20, forma: 'planta' },
+            monitor:       { type: 'terminal', codigo: 'MON', nombre: 'Monitor contraincendios', cat: 'equipos', calc: 'consumo', puertos: [PA] },
             // --- terminales de la red ---
             consumo:       { type: 'terminal', codigo: 'CON', nombre: 'Punto de consumo', cat: 'terminales', calc: 'consumo', puertos: [PA] },
             // tanques: salida lateral b (40,25) y entrada superior c; altura fija = lámina + presión
@@ -740,7 +769,7 @@
         }
         const PN_LISTA = ['PN 2.5', 'PN 6', 'PN 10', 'PN 16', 'PN 25', 'PN 40', 'PN 63', 'PN 100', 'PN 160', 'PN 250', 'PN 320', 'PN 400', '75#', '150#', '300#', '400#', '600#', '900#', '1500#', '2500#', '2000#', '3000#', '6000#', '9000#'];
         // PN / Rating: lo tienen las bridas, las válvulas, los equipos y los componentes embridados. Tubos, codos, tes, cruces, reducciones y uniones roscadas no.
-        const SIN_RATING = new Set(['codo90', 'codo45', 'codo60', 'tee', 'cruce', 'reduccion', 'injerto', 'manguito', 'tuerca', 'machon', 'racor', 'continuacion']);
+        const SIN_RATING = new Set(['codo90', 'codo45', 'codo60', 'tee', 'cruce', 'reduccion', 'injerto', 'manguito', 'tuerca', 'machon', 'racor', 'espiga', 'tapon', 'transicion', 'continuacion']);
         function tieneRating(el) {
             if (!el) return false;
             const m = el.accModelo ? modeloAcc(el) : null;
@@ -805,6 +834,7 @@
         const esDeposito = el => (TIPOS[el.subtype] || {}).calc === 'deposito';
         const dosCircuitos = el => (TIPOS[el.subtype] || {}).circuitos === 2;
         const esEquipo = el => el.type === 'equipo';
+        function esConsumoT(e) { return !!e && (e.subtype === 'consumo' || e.subtype === 'monitor'); }   // v8.51 · el monitor contraincendios es un punto de consumo
         const sinFlujo = el => calcDe(el) === 'sinflujo';
 
         // ==================================================================================
@@ -818,7 +848,7 @@
         let lineas = []; // { id, tipo: 'principal'|'ramal', nombre, padre, desde }
         const CODIGO_MATERIAL = { 'Acero al carbono': 'TAC', 'Acero al carbono EN': 'TAC', 'Acero inoxidable': 'TAI', 'PVC-U': 'TPVC', 'PE100': 'TPE', 'PE80': 'TPE',
             'CPVC': 'TCPVC', 'PP-R': 'TPPR', 'PVDF': 'TPVDF', 'PP-H': 'TPPH',
-            'Cobre (Dint ref. Sch 40)': 'TCU', 'Fundición (Dint ref. Sch 40)': 'TFD', 'Hormigón (Dint ref. Sch 40)': 'THM' };
+            'Cobre (Dint ref. Sch 40)': 'TCU', 'Fundición (Dint ref. Sch 40)': 'TFD', 'Hormigón (Dint ref. Sch 40)': 'THM', 'Cobre EN 1057': 'TCU', 'Cuproníquel 90/10': 'TCN' };
         function codigoDe(el) {
             if (el.type === 'tuberia') return CODIGO_MATERIAL[el.material] || 'TAC';
             if (el.type === 'bomba') return 'BO';
@@ -1247,6 +1277,7 @@
                 nuevoElemento.dn = data.dn || "DN 50";
                 nuevoElemento.longitud = parseFloat(data.longitud) || 3000;
             } else if (data.type === 'bomba') {
+                if (!nuevoElemento.forma3D && (!data.bombaTipo || data.bombaTipo === 'centrifuga')) nuevoElemento.forma3D = 'horizontal';   // v8.51 · centrífuga horizontal por defecto
                 nuevoElemento.caudal = +proyecto.caudalDiseno > 0 ? +proyecto.caudalDiseno : (parseFloat(data.caudal) || 50); // m³/h, punto de diseño
                 nuevoElemento.presion = parseFloat(data.presion) || 3.5; // bar, altura en el punto de diseño
                 nuevoElemento.npsh = (parseFloat(data.npsh) || 2500) / 1000; // NPSH requerido, en metros
@@ -1518,7 +1549,7 @@
                     ${nSel('nv-normaPN', 'normaPN', 'Norma', NORMAS_PN, normaPN(el), 'onchange="nuevoCambiarNorma(this.value)"')}${nSel('nv-pn', 'pn', 'PN / Rating', listaPN(el), el.pn)}${nNum('nd-volumen', 'volumen', 'Volumen interior (l)', el.volumen || '')}
                     ${nNum('nd-cota', 'cota', 'Cota (mm)', mostrarCampo('cota', el.cota), '1')}
                     <p class="text-[10px] text-slate-400">Se aplica Δp = Δp nom · (Q/Q nom)².</p>`;
-            } else if (el.subtype === 'consumo') {
+            } else if (esConsumoT(el)) {
                 h += `<p class="font-bold text-slate-600">Punto de consumo</p>
                     ${nNum('nd-qCons', 'qCons', `Caudal demandado (${lQ()})`, mostrarCampo('qCons', el.qCons))}${nNum('nd-pMin', 'pMin', `Presión mínima requerida (${lP()} man.)`, mostrarCampo('pMin', el.pMin))}
                     ${nNum('nd-cota', 'cota', 'Cota del punto de consumo (mm)', mostrarCampo('cota', el.cota), '1')}`;
@@ -1730,9 +1761,10 @@
                 // sin caudal: no necesita DN ni K
             } else if (el.type === 'equipo') {
                 if (!(+el.qNom > 0)) el.qNom = 10;          // m³/h
-                if (!(+el.dpNom >= 0)) el.dpNom = 30;       // kPa a qNom
+                if (!(+el.dpNom >= 0)) el.dpNom = (TIPOS[el.subtype] || {}).dpDef || 30;       // kPa a qNom
                 if (dosCircuitos(el)) { if (!(+el.qNom2 > 0)) el.qNom2 = el.qNom; if (!(+el.dpNom2 >= 0)) el.dpNom2 = el.dpNom; }
-            } else if (el.subtype === 'consumo') {
+            } else if (esConsumoT(el)) {
+                if (el.subtype === 'monitor' && el.qCons == null) { el.qCons = 120; if (el.pMin == null) el.pMin = 7; }   // v8.51 · monitor: caudal y presión típicos en boquilla
                 if (!(+el.qCons >= 0)) el.qCons = 1;        // m³/h demandado
                 if (el.pMin == null || isNaN(+el.pMin)) el.pMin = 1; // bar man. mínima
             } else if (esDeposito(el)) {
@@ -1952,6 +1984,12 @@
                     return ln(10, 25, 17, 25, 2) + ln(33, 25, 40, 25, 2) + `<polygon points="19,19 31,19 34,25 31,31 19,31 16,25" ${st}/>`;
                 case 'racor':
                     return ln(10, 25, 18, 25, 2) + ln(32, 25, 40, 25, 2) + `<circle cx="21" cy="25" r="4" ${st}/><circle cx="29" cy="25" r="4" ${st}/>`;
+                case 'espiga':   // espiga portamanguera: rosca a la izquierda, dientes de sierra a la derecha
+                    return ln(10, 25, 16, 25, 2) + `<polygon points="16,20 22,20 24,25 22,30 16,30" ${st}/>` + `<polyline points="24,22 29,20 29,22 34,20 34,22 39,20 39,30 34,28 34,30 29,28 29,30 24,28" ${st}/>` + ln(39, 25, 40, 25, 2);
+                case 'transicion':   // v8.50 · transición entre materiales / manguito dieléctrico: dos mitades y el aislante en medio
+                    return ln(10, 25, 15, 25, 2) + ln(35, 25, 40, 25, 2) + `<rect x="15" y="19" width="9" height="12" ${st}/>` + `<rect x="26" y="19" width="9" height="12" fill="${c}" fill-opacity="0.35" stroke="${c}" stroke-width="1.3"/>` + ln(25, 16, 25, 34, 1.4);
+                case 'tapon':   // tapón roscado: hexágono que cierra la tubería
+                    return ln(10, 25, 17, 25, 2) + `<polygon points="19,19 29,19 32,25 29,31 19,31 16,25" ${st}/>` + ln(32, 18, 32, 32, 2);
                 case 'bridaciega':   // brida ciega: como la plana, pero solo el tramo vertical (ahí termina la tubería)
                     return `<line x1="27" y1="14" x2="27" y2="36" stroke="${c}" stroke-width="2.4"/>`;
                 case 'bridaunion': case 'bridawn': case 'bridaplana': case 'bridaroscada': case 'bridaloca': case 'bridaplastica': {
@@ -1978,6 +2016,22 @@
                         : `<rect x="13" y="14" width="24" height="22" rx="2" ${st}/><text x="25" y="27.5" font-family="sans-serif" font-size="${cod.length > 2 ? 6 : 7.5}" font-weight="bold" fill="${c}" text-anchor="middle">${cod}</text>`;
                     return ln(10, 25, 14, 25) + ln(36, 25, 40, 25) + dib;
                 }
+                case 'filtrocestav': case 'filtrocestah': case 'strainerv': case 'strainerh': case 'coalescentev': case 'coalescenteh': {   // v8.51
+                    const t = TIPOS[el.subtype], v = t.orient === 'v', cod = t.codigo;
+                    const cuerpo = v ? `<rect x="16" y="7" width="18" height="36" rx="4" ${st}/>` + ln(14, 9, 36, 9, 1.6) : `<rect x="12" y="15" width="26" height="20" rx="8" ${st}/>` + ln(38, 13, 38, 37, 1.6);
+                    const dentro = t.forma === 'cesta' ? (v ? `<rect x="19.5" y="12" width="11" height="24" fill="none" stroke="${c}" stroke-width="0.9" stroke-dasharray="1.8,1.2"/>` : `<rect x="16" y="18.5" width="18" height="13" fill="none" stroke="${c}" stroke-width="0.9" stroke-dasharray="1.8,1.2"/>`)
+                        : t.forma === 'strainer' ? (v ? ln(19, 34, 31, 14, 1) + ln(19, 28, 28, 14, 0.8) : ln(15, 31, 35, 19, 1) + ln(15, 25, 27, 19, 0.8))
+                        : (v ? [14, 19, 24, 29, 34].map(y => ln(18.5, y, 31.5, y - 2, 0.8)).join('') : [17, 21, 25, 29, 33].map(x => ln(x, 18, x - 2, 32, 0.8)).join(''));
+                    return ln(10, 25, v ? 16 : 12, 25) + ln(v ? 34 : 38, 25, 40, 25) + cuerpo + dentro + `<text x="25" y="${v ? 49 : 42}" font-family="sans-serif" font-size="5" font-weight="bold" fill="${c}" text-anchor="middle">${cod}</text>`;
+                }
+                case 'cps':   // separador de sentinas: depósito horizontal con paquete de placas inclinadas
+                    return ln(10, 25, 11, 25) + ln(39, 25, 40, 25) + `<rect x="11" y="13" width="28" height="22" rx="3" ${st}/>` + [17, 21, 25, 29].map(x => ln(x, 16, x + 5, 30, 0.9)).join('') + ln(14, 18, 36, 18, 0.7) + `<text x="25" y="41.5" font-family="sans-serif" font-size="5.5" font-weight="bold" fill="${c}" text-anchor="middle">CPS</text>`;
+                case 'stp': case 'vtp': {   // plantas de aguas fecales: caja con compartimentos
+                    const cod = TIPOS[el.subtype].codigo;
+                    return ln(10, 25, 11, 25) + ln(39, 25, 40, 25) + `<rect x="11" y="12" width="28" height="26" rx="1.5" ${st}/>` + ln(20, 12, 20, 38, 0.8) + ln(30, 12, 30, 38, 0.8) + (el.subtype === 'vtp' ? `<circle cx="25" cy="20" r="3" fill="none" stroke="${c}" stroke-width="0.9"/>` : `<path d="M 13 32 q 3 -2 6 0" fill="none" stroke="${c}" stroke-width="0.8"/>`) + `<text x="25" y="31" font-family="sans-serif" font-size="6" font-weight="bold" fill="${c}" text-anchor="middle">${cod}</text>`;
+                }
+                case 'monitor':   // monitor contraincendios: pedestal y lanza orientable
+                    return ln(10, 25, 22, 25) + `<circle cx="24" cy="25" r="3" ${st}/>` + `<polygon points="26,23 39,17 40,20 27,27" fill="${c}"/>` + ln(24, 28, 24, 38, 1.6) + ln(19, 38, 29, 38, 1.6) + `<text x="31" y="35" font-family="sans-serif" font-size="5" font-weight="bold" fill="${c}" text-anchor="middle">MON</text>`;
                 case 'consumo':
                     return ln(10, 25, 24, 25) + `<polygon points="24,18 38,25 24,32" fill="${c}"/><text x="31" y="41" font-family="sans-serif" font-size="6" font-weight="bold" fill="${c}" text-anchor="middle">Q</text>`;
                 case 'deposito': case 'tkalmacen': case 'tkdiario': case 'tksedim': case 'tkexp': case 'tkreboses': case 'tkagua': case 'hidroforo': {
@@ -2838,10 +2892,13 @@
                 let k, fila;
                 if (e.type === 'tuberia') { k = ['T', e.material, e.serie, e.dn, e.gradoMaterial || '', codigoTubo(e)].join('|'); fila = { desc: `${tradDoc('Tubería')} ${tradDoc(e.material)} ${/^[0-9]+S?$/.test(e.serie) ? 'Sch ' + e.serie : e.serie}${codigoTubo(e) ? ' · ' + codigoTubo(e) : ''}`, mat: e.gradoMaterial || trad(e.material) || '', tam: tamanoTubo(e.material, e.dn), pn: '', ud: 'm', n: 0 }; }
                 else if (e.type === 'bomba') { const pu = d => d && /^DN/.test(d) ? pulgadas(npsDeDN(d)) + '"' : '', tam = [pu(e.dnAsp), pu(e.dnImp)].filter(Boolean).join(' × '), pn = e.pnAsp && e.pnImp && e.pnAsp !== e.pnImp ? `${e.pnAsp} / ${e.pnImp}` : (e.pnAsp || e.pnImp || ''); k = ['B', tam, pn, e.materialComp || ''].join('|'); fila = { desc: tradDoc(nombreTipo(e)), mat: e.materialComp || '', tam, pn, ud: 'ud', n: 0 }; }
-                else { const tam = e.subtype === 'reduccion' ? `${pulgadas(npsDeDN(e.dn))}" × ${pulgadas(npsDeDN(e.dnMenor))}"` : (e.dn && /^DN/.test(e.dn) ? pulgadas(npsDeDN(e.dn)) + '"' : ''); const ca = e.accModelo ? codigoAccesorio(e) : '', ma = ca ? modeloAcc(e) : null; k = [e.type, e.subtype, tam, e.pn || '', e.craneTipo || '', e.materialComp || '', ca].join('|'); fila = { desc: ma ? `${tradDoc(ma.nombre)}${e.accSch ? ' ' + e.accSch : ''} · ${ma.norma} · ${ca}` : tradDoc(nombreTipo(e)), mat: e.materialComp || '', tam, pn: !tieneRating(e) || (e.accModelo && sinRatingAcc(modeloAcc(e))) ? '' : (e.pn || ''), ud: 'ud', n: 0 }; }
+                else { const tam = e.subtype === 'reduccion' ? `${pulgadas(npsDeDN(e.dn))}" × ${pulgadas(npsDeDN(e.dnMenor))}"` : (e.dn && /^DN/.test(e.dn) ? pulgadas(npsDeDN(e.dn)) + '"' : (e.dn && /^d\d/.test(e.dn) ? 'Ø' + odMm(e.dn) : '')); const ca = e.accModelo ? codigoAccesorio(e) : '', ma = ca ? modeloAcc(e) : null; k = [e.type, e.subtype, tam, e.pn || '', e.craneTipo || '', e.materialComp || '', ca].join('|'); fila = { desc: ma ? `${tradDoc(ma.nombre)}${e.accSch ? ' ' + e.accSch : ''} · ${ma.norma} · ${ca}` : tradDoc(nombreTipo(e)), mat: e.materialComp || '', tam, pn: !tieneRating(e) || (e.accModelo && sinRatingAcc(modeloAcc(e))) ? '' : (e.pn || ''), ud: 'ud', n: 0 }; }
                 if (!m.has(k)) m.set(k, Object.assign(fila, { tags: [] }));
                 const f = m.get(k); f.n += e.type === 'tuberia' ? e.longitud / 1000 : 1; f.tags.push(tagDe(e));
             });
+            if (proyecto.soloPID) [...m.keys()].forEach(k => { if (SUBTIPOS_BRIDA.some(b => k.startsWith('accesorio|' + b + '|'))) m.delete(k); });   // v8.50 · solo P&ID: sin bridas
+            try { juntasHoja().forEach(j => { const d = juntaDe(j), tam = j.dn && /^DN/.test(j.dn) ? pulgadas(npsDeDN(j.dn)) + '"' : (j.dn || ''), k = ['J', d.tipo, d.material, tam, j.pn].join('|');   // v8.50 · juntas
+                if (!m.has(k)) m.set(k, { desc: `${tradDoc('Junta')} ${tradDoc(d.tipo)}`, mat: d.material, tam, pn: j.pn, ud: 'ud', n: 0, tags: [] }); const f = m.get(k); f.n += 1; f.tags.push(`${tagDe(j.ea)}/${tagDe(j.eb)}`); }); } catch (e) { console.warn(e); }
             return [...m.values()].sort((a, b) => (a.ud === 'm' ? 0 : 1) - (b.ud === 'm' ? 0 : 1) || a.desc.localeCompare(b.desc, 'es') || a.tam.localeCompare(b.tam, 'es'));
         }
 
@@ -2918,7 +2975,7 @@
                 if (+obj.volumen > 0) h += ctrlMag(fn, 'psRecipiente', obj.psRecipiente || '', 'PS del recipiente', '; vacío = calculada') + infoRecipiente(obj);
                 return h + info('Pérdida de carga del fabricante: Δp = Δp nom · (Q/Q nom)².');
             }
-            if (obj.subtype === 'consumo') {
+            if (esConsumoT(obj)) {
                 h += ctrlMag(fn, 'qCons', obj.qCons, 'Caudal demandado') + ctrlMag(fn, 'pMin', obj.pMin, 'Presión mínima', ' man.');
                 return h + info('Extremo con caudal impuesto. Se comprueba p ≥ p mín. y se calcula la válvula de equilibrado para el exceso de presión.');
             }
@@ -3018,6 +3075,7 @@
                 const vol = esVolumetrica(obj), rhoB = fluidoActual().rho || 1000;
                 h += ctrlSelect(fn, 'bombaTipo', TIPOS_BOMBA, obj.bombaTipo || 'centrifuga', 'Tipo de bomba');
                 h += ctrlTexto(fn, 'fabricante', obj.fabricante || '', 'Fabricante') + ctrlTexto(fn, 'modelo', obj.modelo || '', 'Modelo');
+                if (!vol) h += ctrlSelect(fn, 'forma3D', FORMAS_BOMBA_3D, obj.forma3D || 'linea', 'Disposición en 3D') + (obj.forma3D === 'horizontal' ? ctrlTexto(fn, 'cotas3D', obj.cotas3D || '', 'Cotas 3D (mm): a, f, h1, h2, h3, n1, n2') : '');   // v8.51
                 h += ctrlMag(fn, 'caudal', obj.caudal, 'Caudal de diseño');
                 h += ctrlMag(fn, 'presion', obj.presion, vol ? 'Presión de descarga de diseño' : 'Presión de diseño');
                 h += info(`Altura manométrica: ${fmt((+obj.presion || 0) * 1e5 / (rhoB * G), 2)} m c.l.`);
@@ -4071,7 +4129,7 @@
             return { origen, clave: `${origen.puertoContorno.elId}:${origen.puertoContorno.portId}`, salidas: nodos.filter(n => n !== origen) };
         }
         function mostrarModalContorno(grafo, aristas, nodosContorno) {
-            const sb = origenSinBomba(grafo, aristas, terminalesRed(grafo)), sinConsumos = sb && !elementosRed.some(e => e.subtype === 'consumo' && +e.qCons > 0);
+            const sb = origenSinBomba(grafo, aristas, terminalesRed(grafo)), sinConsumos = sb && !elementosRed.some(e => esConsumoT(e) && +e.qCons > 0);
             const zN = cotasNodos(grafo).z;
             let filas = nodosContorno.map(n => {
                 let p = n.puertoContorno;
@@ -4317,15 +4375,15 @@
                 const Qb = bombas.reduce((s, a) => s + Math.abs(a.Qprev) * 3600, 0);
                 resultado.Qbombas = Qb; resultado.origenQ = 'bombas';
                 if (Qb < Qd * 0.999) bombas.forEach(a => {
-                    ultimoResultado[a.el.id].motivos.push(`Q de funcionamiento ${Qb.toFixed(2)} m³/h < caudal de diseño ${Qd} m³/h`);
+                    ultimoResultado[a.el.id].motivos.push(`Q de funcionamiento ${Qb.toFixed(2)} m³/h < caudal de diseño ${Qd} m³/h${Array.isArray(a.el.curva) && a.el.curva.length >= 3 ? '' : ' (la bomba no tiene curva del fabricante: se estima con una parábola desde Q y H; elige el modelo en Librería > Bombas o pega la curva Q-H)'}`);
                     a.el.estado = 'fallo';
                 });
             } else if (Qd > 0) {
                 // Red sin bombas (por gravedad o desde un depósito presurizado / hidróforo): el caudal de
                 // funcionamiento es el que aportan a la red los depósitos y extremos de alimentación
-                const fuentes = elementosRed.filter(e => esTerminal(e) && e.subtype !== 'consumo' && ultimoResultado[e.id] && /aporta/.test(ultimoResultado[e.id].sentido || ''));
+                const fuentes = elementosRed.filter(e => esTerminal(e) && !esConsumoT(e) && ultimoResultado[e.id] && /aporta/.test(ultimoResultado[e.id].sentido || ''));
                 let Qf = fuentes.reduce((s, e) => s + (ultimoResultado[e.id].Q || 0), 0);
-                if (!fuentes.length) Qf = elementosRed.filter(e => e.subtype === 'consumo' && ultimoResultado[e.id]).reduce((s, e) => s + (ultimoResultado[e.id].Q || 0), 0);
+                if (!fuentes.length) Qf = elementosRed.filter(e => esConsumoT(e) && ultimoResultado[e.id]).reduce((s, e) => s + (ultimoResultado[e.id].Q || 0), 0);
                 resultado.Qbombas = Qf; resultado.origenQ = fuentes.length ? 'fuentes' : 'consumos'; resultado.fuentesQ = fuentes.map(e => tagDe(e));
                 if (Qf < Qd * 0.999) fuentes.forEach(e => { ultimoResultado[e.id].motivos.push(`Q aportado por la alimentación ${Qf.toFixed(2)} m³/h < caudal de diseño ${Qd} m³/h`); e.estado = 'fallo'; });
                 const impuesto = resultado.sinBomba && resultado.sinBomba.salidas.length;   // el caudal de diseño ya está impuesto en las salidas
@@ -4506,7 +4564,7 @@
                     if (/caudal mínimo continuo/.test(txt)) alt.push('Caudal mínimo: recirculación de caudal mínimo (by-pass con orificio o válvula automática), variador o una bomba más pequeña.');
                     if (/Potencia en el eje/.test(txt)) alt.push('Motor: elige un motor mayor (con margen sobre la potencia en el fin de curva) o limita el caudal (variador, válvula de regulación).');
                 }
-                if (el.subtype === 'consumo' && /p mín/.test(txt)) alt.push(`Falta ${((+el.pMin || 0) - r.p).toFixed(2)} bar (${(((+el.pMin || 0) - r.p) * 1e5 / (fluido.rho * G)).toFixed(2)} m c.l.): aumenta la altura de la bomba (Herramientas > Dimensionar bomba) o reduce pérdidas en su ruta.`);
+                if (esConsumoT(el) && /p mín/.test(txt)) alt.push(`Falta ${((+el.pMin || 0) - r.p).toFixed(2)} bar (${(((+el.pMin || 0) - r.p) * 1e5 / (fluido.rho * G)).toFixed(2)} m c.l.): aumenta la altura de la bomba (Herramientas > Dimensionar bomba) o reduce pérdidas en su ruta.`);
                 if (/vaporización/.test(txt)) alt.push('Vaporización: aumenta la presión en ese punto (más altura de aspiración o de bomba) o reduce la cota del tramo.');
             });
         }
@@ -4701,7 +4759,7 @@
 
         // Módulo de elasticidad del material de la tubería (MPa), para la celeridad de la onda (orientativo)
         const E_MATERIAL = { 'Acero al carbono': 207000, 'Acero al carbono EN': 207000, 'Acero inoxidable': 193000, 'PVC-U': 3000, 'PE100': 1100, 'PE80': 900, 'CPVC': 2900,
-            'PP-R': 900, 'PVDF': 1800, 'PP-H': 1300, 'Cobre (Dint ref. Sch 40)': 117000, 'Fundición (Dint ref. Sch 40)': 170000, 'Hormigón (Dint ref. Sch 40)': 30000 };
+            'PP-R': 900, 'PVDF': 1800, 'PP-H': 1300, 'Cobre (Dint ref. Sch 40)': 117000, 'Fundición (Dint ref. Sch 40)': 170000, 'Hormigón (Dint ref. Sch 40)': 30000, 'Cobre EN 1057': 117000, 'Cuproníquel 90/10': 135000 };
         // Golpe de ariete en una tubería: celeridad de Korteweg a = √[(Kf/ρ)/(1 + Kf·D/(E·e))];
         // cierre rápido (tc ≤ 2L/a): Joukowsky Δp = ρ·a·V; cierre lento: Michaud Δp = 2·ρ·L·V/tc.
         // L = longitud de tuberías de la línea (distancia a la reflexión, criterio conservador).
@@ -4825,7 +4883,7 @@
                     return;
                 }
                 const r = ultimoResultado[e.id] = { motivos: [], ramas: [], p, z: z[n], H: Hnodo[n] };
-                if (e.subtype === 'consumo') {
+                if (esConsumoT(e)) {
                     const exceso = p - (+e.pMin || 0);
                     Object.assign(r, { Q: +e.qCons || 0, pMin: +e.pMin || 0, exceso });
                     if (exceso < -1e-4) { r.motivos.push(`p ${p.toFixed(2)} bar < p mín ${(+e.pMin).toFixed(2)} bar`); e.estado = 'fallo'; }
@@ -4838,7 +4896,7 @@
             // Equilibrado: el consumo con menor exceso de presión es el más desfavorable; el resto se
             // equilibra a su mismo exceso (Δp = exceso_i − exceso_mín). El exceso del más desfavorable es
             // el margen de la bomba (se ajusta con variador o válvula de regulación en la impulsión).
-            const cons = (terminales.elementos).filter(e => e.subtype === 'consumo' && e.estado === 'ok');
+            const cons = (terminales.elementos).filter(e => esConsumoT(e) && e.estado === 'ok');
             if (cons.length) {
                 const exMin = Math.min(...cons.map(e => ultimoResultado[e.id].exceso));
                 const crit = cons.find(e => ultimoResultado[e.id].exceso === exMin);
@@ -4943,7 +5001,7 @@
             // Altura necesaria en cada extremo: la de contorno (abiertos, depósitos) o la de consumo (z + p mín)
             const hreq = {};
             Object.entries(condiciones).forEach(([n, c]) => { hreq[n] = c.elevacion + (PRESION_ATM + (c.presion || 0) * 1e5) / (fluido.rho * G); });
-            Object.entries(term.porNodo).forEach(([n, e]) => { if (e.subtype === 'consumo') hreq[n] = (zNodo[n] || 0) + (PRESION_ATM + (+e.pMin || 0) * 1e5) / (fluido.rho * G); });
+            Object.entries(term.porNodo).forEach(([n, e]) => { if (esConsumoT(e)) hreq[n] = (zNodo[n] || 0) + (PRESION_ATM + (+e.pMin || 0) * 1e5) / (fluido.rho * G); });
             resultado.lineaCritica = identificarLineaCritica(grafo, resultado.aristas, hreq);
             if (resultado.lineaCritica) { const eFin = term.porNodo[resultado.lineaCritica.nodoFin]; if (eFin) { eFin.esLineaCritica = true; resultado.lineaCritica.terminal = eFin; } }
             if (resultado.lineaCritica) {
@@ -5138,7 +5196,7 @@
             const term = resultado.terminales || { porNodo: {} };
             const filasTerm = (term.elementos || []).map(e => {
                 const r = ultimoResultado[e.id] || {};
-                return e.subtype === 'consumo'
+                return esConsumoT(e)
                     ? `<tr><td class="py-1 pr-2">${esc(tagDe(e))}</td><td class="pr-2">Consumo</td><td class="pr-2">${fQ(r.Q, 2)}</td><td class="pr-2">${fmt(r.z, 2)}</td><td class="pr-2">${fP(r.p, 2)}</td><td class="pr-2">${fP(r.pMin, 2)}</td>
                        <td class="pr-2">${r.equilibrado ? `Δp ${fP(r.equilibrado.dp, 2)} ${lP()} · Kv ${fmt(r.equilibrado.Kv, 2)} m³/h` : (r.critico ? `más desfavorable · margen ${fP(r.exceso, 2)} ${lP()}` : '—')}</td><td>${marca(e)}</td></tr>`
                     : `<tr><td class="py-1 pr-2">${esc(tagDe(e))}</td><td class="pr-2">Depósito</td><td class="pr-2">${fQ(r.Q, 2)}</td><td class="pr-2">${fmt(r.z, 2)}</td><td class="pr-2">${fP(r.p, 2)}</td><td class="pr-2">—</td><td class="pr-2">${esc(r.sentido || '')} · lámina ${fmt(e.cotaLamina, 2)} m</td><td>${marca(e)}</td></tr>`;
@@ -5196,7 +5254,7 @@
             { material: 'Acero al carbono', serie: '40', dn: 'DN 50', texto: 'Acero ASME / EN', acero: true },
             { material: 'PE80', texto: 'PE80' }, { material: 'PE100', serie: 'SDR 11 (PN16)', dn: 'd63', texto: 'PE100' }, { material: 'PVC-U', serie: 'PN10', dn: 'd63', texto: 'PVC-U' },
             { material: 'CPVC', texto: 'CPVC' }, { material: 'PP-R', texto: 'PP-R' }, { material: 'PP-H', texto: 'PP-H' }, { material: 'PVDF', texto: 'PVDF' },
-            { material: 'Cobre (Dint ref. Sch 40)', texto: 'Cobre' }, { material: 'Fundición (Dint ref. Sch 40)', texto: 'Fundición' }, { material: 'Hormigón (Dint ref. Sch 40)', texto: 'Hormigón' }
+            { material: 'Cobre EN 1057', serie: '1.0 mm', dn: 'd22', texto: 'Cobre EN 1057' }, { material: 'Cuproníquel 90/10', serie: '2.0 mm', dn: 'd57', texto: 'Cuproníquel 90/10' }, { material: 'Fundición (Dint ref. Sch 40)', texto: 'Fundición' }, { material: 'Hormigón (Dint ref. Sch 40)', texto: 'Hormigón' }
         ];
         // schedule y medida por defecto de una tubería del panel (los que falten se toman del material)
         function tuboPanel(t) {
@@ -5223,6 +5281,9 @@
             { id: 'machones', titulo: 'Machones', subtipos: ['machon'] },
             { id: 'manguitos', titulo: 'Manguitos de unión', subtipos: ['manguito'] },
             { id: 'racord', titulo: 'Racord', subtipos: ['racor'] },
+            { id: 'espigas', titulo: 'Espigas portamanguera', subtipos: ['espiga'] },
+            { id: 'tapones', titulo: 'Tapones roscados', subtipos: ['tapon'] },
+            { id: 'transiciones', titulo: 'Transiciones entre materiales', subtipos: ['transicion'] },
             { id: 'redconc', titulo: 'Reducciones concéntricas', subtipos: ['reduccion'], excentrica: false },
             { id: 'redexc', titulo: 'Reducciones excéntricas', subtipos: ['reduccion'], excentrica: true },
             { id: 'tanques', titulo: 'Tanques y depósitos', cat: 'tanques' },
@@ -5257,7 +5318,7 @@
                 if (id === 'tuberias') items = TUBERIAS_LIBRERIA.map(tuboPanel).filter(Boolean).sort((a, b) => a.texto.localeCompare(b.texto, 'es')).map(t => item(`data-type="tuberia" data-material="${t.material}" data-serie="${t.serie}" data-dn="${t.dn}" data-longitud="3000" data-name="Tubería"`, `${t.texto}<span class="text-slate-400"> · ${t.acero ? 'TAC / TAI' : CODIGO_MATERIAL[t.material]}</span>`, `<svg viewBox="0 0 42 40" width="26" height="20" style="flex:none"><line x1="2" y1="20" x2="40" y2="20" stroke="#2563eb" stroke-width="2.5"/><polygon points="24,12 30,15 24,18" fill="#16a34a"/></svg>`)).join('');
                 else if (id === 'bombas') items = item(`data-type="bomba" data-name="Bomba centrífuga" data-caudal="50" data-presion="3.5" data-npsh="2500"`, 'Bomba centrífuga<span class="text-slate-400"> · BO</span>', `<svg viewBox="0 0 50 50" width="26" height="20" style="flex:none">${simboloBomba('#2563eb', { relleno: '#fff' })}</svg>`);
                 else if (id === 'accesorios') {
-                    FAMILIAS_PANEL.slice().sort((x, y) => x.titulo.localeCompare(y.titulo, 'es')).forEach(f => {
+                    FAMILIAS_PANEL.filter(f => !(proyecto.soloPID && f.id === 'bridas')).sort((x, y) => x.titulo.localeCompare(y.titulo, 'es')).forEach(f => {
                         const sts = porNombre(subtiposFamilia(f));
                         if (f.excentrica != null) { items += itemRed(f.excentrica, f.titulo); return; }
                         if (sts.length === 1) { items += itemTipo(sts[0], f.titulo); return; }
@@ -5394,13 +5455,15 @@
             return `<div>${etiqueta}: <select onchange="if (this.value === '__otro') { const t = prompt('Material:', ''); if (t) ${fn}('${campo}', t); else this.value = ''; } else ${fn}('${campo}', this.value)" class="${CLS_CTRL}">${opcionesMaterial(grupo, valor, el)}</select></div>`;
         }
         // Grupos de la librería y sus tipos
+        // v8.51 · disposición de la bomba en el 3D y cotas del dibujo del fabricante
+        const FORMAS_BOMBA_3D = [['horizontal', 'Centrífuga horizontal (aspiración axial, impulsión vertical)'], ['linea', 'En línea (aspiración e impulsión alineadas)']];
         const TIPOS_BOMBA_LIB = [['centrifuga', 'Centrífuga'], ['peristaltica', 'Peristáltica'], ['piston', 'Alternativa / pistón'], ['dosificadora', 'Dosificadora'], ['membrana', 'Membrana'], ['engranajes', 'Engranajes'], ['tornillo', 'Tornillo / husillo'], ['lobulos', 'Lóbulos']];
         const PN_LISTA_BRIDAS = PN_LISTA.filter(x => !/^(75|2000|3000|6000|9000)#$/.test(x));
-        const GRUPOS_MAT_ACC_LISTA = [['BW-ASME', 'Accesorios para soldar a tope ASME (SA-234, SA-420, SA-403)'], ['FORJ-ASME', 'Forjados ASME (SA-105, SA-350, SA-182)'], ['EN1', 'EN 10253-1 (S235, S265)'], ['EN2', 'EN 10253-2 (P235GH, P265GH...)'], ['EN34', 'EN 10253-3 / -4 (inoxidable: 1.4301, 1.4404...)'], ['TUBO-ASME', 'Tubos ASME (SA-53, SA-106, SA-333, SA-312...)'], ['TUBO-EN', 'Tubos EN (P235TR2, P235GH, P265GH...)'], ['FORJ-ASME,BRIDA-ASME', 'Bridas ASME (SA-105, SA-350, SA-181, SA-182...)'], ['BRIDA-ASME', 'Bridas ASME, además de los forjados (SA-181, SA-216, SA-351...)'], ['BRIDA-EN', 'Bridas EN (EN 10222-2 / -3 / -5, EN 10213)']];
+        const GRUPOS_MAT_ACC_LISTA = [['BW-ASME', 'Accesorios para soldar a tope ASME (SA-234, SA-420, SA-403)'], ['FORJ-ASME', 'Forjados ASME (SA-105, SA-350, SA-182)'], ['EN1', 'EN 10253-1 (S235, S265)'], ['EN2', 'EN 10253-2 (P235GH, P265GH...)'], ['EN34', 'EN 10253-3 / -4 (inoxidable: 1.4301, 1.4404...)'], ['ISO4144', 'Roscados inoxidables ISO 4144 (1.4408 / CF8M, 1.4308 / CF8)'], ['EN10241', 'Roscados de acero EN 10241 (S195T)'], ['CU', 'Cobre y latón EN 1254 (Cu-DHP, CW617N, CC491K)'], ['CUNI', 'Cuproníquel 90/10 – 70/30 (CW352H, 2.1972, CW354H)'], ['TUBO-ASME', 'Tubos ASME (SA-53, SA-106, SA-333, SA-312...)'], ['TUBO-EN', 'Tubos EN (P235TR2, P235GH, P265GH...)'], ['FORJ-ASME,BRIDA-ASME', 'Bridas ASME (SA-105, SA-350, SA-181, SA-182...)'], ['BRIDA-ASME', 'Bridas ASME, además de los forjados (SA-181, SA-216, SA-351...)'], ['BRIDA-EN', 'Bridas EN (EN 10222-2 / -3 / -5, EN 10213)']];
         const SUBTIPOS_BRIDA = ['bridawn', 'bridaplana', 'bridaroscada', 'bridaloca', 'bridaciega', 'bridaunion', 'bridaplastica'];   // bridas de acero con modelo por norma (ASME B16.5 / B16.47, EN 1092-1)
         const esGrupoTablas = g => g === 'accesorios' || g === 'tubosAcero' || g === 'bridas';
         const GRUPOS_LIB = {
-            accesorios: { titulo: 'Accesorios de tubería', cat: 'accesorios', mat: 'accesorio', excluir: ['continuacion', 'junta', 'antivibratorio', 'filtro', 'strainer', 'injerto'], extra: ['manguito'] },
+            accesorios: { titulo: 'Accesorios de tubería', cat: 'accesorios', mat: 'accesorio', excluir: ['continuacion', 'junta', 'antivibratorio', 'filtro', 'strainer', 'injerto'], extra: ['manguito', 'machon', 'tuerca', 'espiga', 'tapon', 'transicion'] },
             compensadores: { titulo: 'Filtros, injertos, juntas de expansión y manguitos', subtipos: ['filtro', 'strainer', 'injerto', 'junta', 'antivibratorio'], mat: 'accesorio' },
             intercambiadores: { titulo: 'Intercambiadores (buques)', cat: 'intercambiadores', mat: 'equipo' },
             tanques: { titulo: 'Tanques y depósitos', cat: 'tanques', mat: 'tanque' },
@@ -5408,7 +5471,7 @@
             equipos: { titulo: 'Equipos', cat: 'equipos', mat: 'equipo' },
             instrumentos: { titulo: 'Instrumentos', cat: 'instrumentos', mat: 'instrumento' },
             bridas: { titulo: 'Bridas', subtipos: SUBTIPOS_BRIDA, mat: 'brida' },
-            uniones: { titulo: 'Uniones', cat: 'uniones', mat: 'brida', excluir: [...SUBTIPOS_BRIDA, 'manguito'] },
+            uniones: { titulo: 'Uniones', cat: 'uniones', mat: 'brida', excluir: [...SUBTIPOS_BRIDA, 'manguito', 'machon', 'tuerca', 'espiga', 'tapon', 'transicion'] },
             valvulas: { titulo: 'Válvulas', cat: 'valvulas', mat: 'valvula' },
             tuberias: { titulo: 'Tuberías', subtipos: ['Acero al carbono', 'Acero inoxidable', 'PE100', 'PVC-U'], mat: 'tubo' },
             tubosAcero: { titulo: 'Tuberías de acero', subtipos: ['tuberia'], mat: 'tubo' }
@@ -5446,6 +5509,7 @@
                 ['potMotor', 'Potencia del motor (kW)', 'num'], ['eta', 'Rendimiento en el punto de diseño (%)', 'num'], ['tension', 'Tensión (V)', 'txt'], ['frecuencia', 'Frecuencia (Hz)', 'txt'], ['ip', 'Grado de protección (IP)', 'txt'],
                 ['impulsor', 'Diámetro del impulsor (mm)', 'num', null, 'cen'], ['impulsorMax', 'Diámetro máximo del impulsor (mm)', 'num', null, 'cen'],
                 ['volCilindrada', 'Volumen por ciclo / revolución (cm³)', 'num', null, 'vol'], ['volPmax', 'Presión máxima de trabajo (bar) *', 'num', null, 'vol'], ['volCiclos', 'Ciclos o revoluciones por minuto', 'num', null, 'vol'], ['volCilindros', 'N.º de cilindros / pulsaciones por ciclo', 'num', null, 'vol'], ['volMaterial', 'Material de manguera, válvulas o sellos', 'txt', null, 'vol'],
+                ['forma3D', 'Disposición en 3D', 'sel', FORMAS_BOMBA_3D], ['cotas3D', 'Cotas 3D del catálogo (mm): a, f, h1, h2, h3, n1, n2', 'txt'],
                 ['conexAsp', 'Aspiración · tipo de conexión', 'sel', CONEX_BOMBA], ['dnAsp', 'Aspiración · tamaño', 'dn'], ['normaAsp', 'Aspiración · norma de brida o rosca', 'sel', NORMAS_CONEX_BOMBA], ['ratingAsp', 'Aspiración · PN / rating', 'sel', PN_LISTA],
                 ['conexImp', 'Impulsión · tipo de conexión', 'sel', CONEX_BOMBA], ['dnImp', 'Impulsión · tamaño', 'dn'], ['normaImp', 'Impulsión · norma de brida o rosca', 'sel', NORMAS_CONEX_BOMBA], ['ratingImp', 'Impulsión · PN / rating', 'sel', PN_LISTA], ['apiPlan', 'Plan de sellado (API 682)', 'txt'], ['qMin', 'Caudal mínimo continuo (m³/h)', 'num', null, 'cen'], ['pCuerpo', 'Presión máxima del cuerpo (bar)', 'num'],
                 ['curva', 'Curva característica: una fila por punto con caudal (m³/h), altura (m), rendimiento (%), NPSHr (m) y potencia en el eje (kW)', 'curva', null, 'cen']],
@@ -5470,7 +5534,7 @@
         var ACC_T = null, ACC_BASE = [], ACC_POR_TIPO = {}, ACC_ORIGEN = null, CARGA_ACC = null;
         const SUBTIPOS_ACC = new Set([...subtiposGrupo('accesorios'), ...SUBTIPOS_BRIDA]);
         const esSubtipoAccesorio = st => SUBTIPOS_ACC.has(st);
-        const FAMILIAS_ACC = ['Acero al carbono', 'Acero inoxidable'];
+        const FAMILIAS_ACC = ['Acero al carbono', 'Acero inoxidable', 'Cobre', 'Cuproníquel'];
         const campoLibAplica = () => true;
         // administrador con sesión de Supabase y tablas leídas de la base de datos: sus cambios van a la base de datos
         function accEnBD() { const s = typeof sesionActual === 'function' ? sesionActual() : null; return ACC_ORIGEN === 'supabase' && !!s && s.origen === 'supabase' && s.rol === 'admin'; }
@@ -5505,10 +5569,19 @@
         function modelosAcc(subtipo, el) { let l; try { l = itemsLib(subtipo); } catch (e) { l = ACC_POR_TIPO[subtipo] || []; }
             // reducción: solo los modelos de su variante (concéntrica o excéntrica)
             if (subtipo === 'reduccion' && el) { const exc = !!el.excentrica; l = l.filter(i => i.id === el.accModelo || !/c[eé]ntrica/i.test((i.props || {}).variante || '') || /^exc/i.test(i.props.variante) === exc); }
+            // v8.50 · solo los modelos del material de la tubería a la que va (acero, inoxidable, cobre, cuproníquel, plástico)
+            if (el && !opciones.accTodosMateriales) { const fam = familiaTuboDe(el); if (fam) { const f = l.filter(i => i.id === el.accModelo || compatibleFamilia(i, fam)); if (f.length) l = f; } }
             return l; }
+        function familiaTuboDe(el) { const tv = el.type === 'tuberia' ? el : (typeof tuboVecino === 'function' ? tuboVecino(el) : null); return tv ? familiaMetal(tv.material) : null; }
+        function compatibleFamilia(i, fam) { const p = i.props || {};
+            if (fam === 'Plástico') return /PLASTICO/.test(p.matGrupo || '') || i.subtipo === 'bridaplastica';
+            const ms = materialesAcc(i); if (!ms.length) return !/PLASTICO/.test(p.matGrupo || '');
+            if (ms.some(x => x.familia === fam)) return true;
+            return false; }
         function materialesAcc(m) { const g = m && m.props.matGrupo ? String(m.props.matGrupo).split(',') : null; return ACC_T ? ACC_T.materiales.filter(x => !g || g.includes(x.grupo)) : []; }
         function materialAcc(designacion) { return ACC_T && designacion ? ACC_T.materiales.find(x => x.designacion === designacion) || null : null; }
-        function familiaAcc(el, m) { const mt = materialAcc(el.materialComp); if (mt) return mt.familia; const tv = tuboVecino(el), b = tv && ((CAT.materiales[tv.material] || {}).base || tv.material); return FAMILIAS_ACC.includes(b) ? b : 'Acero al carbono'; }
+        function familiaAcc(el, m) { const mt = materialAcc(el.materialComp); if (mt) return mt.familia; const tv = tuboVecino(el), b = tv && ((CAT.materiales[tv.material] || {}).base || tv.material); if (FAMILIAS_ACC.includes(b)) return b; const f = tv ? familiaMetal(tv.material) : null; if (f && FAMILIAS_ACC.includes(f)) { const ms = m ? materialesAcc(m) : []; if (!ms.length || ms.some(x => x.familia === f)) return f; } return ms0(m) || 'Acero al carbono'; }
+        const ms0 = m => { const ms = m ? materialesAcc(m) : []; return ms.length ? ms[0].familia : null; };
         function tablaEspAcc(el, m) { const t = m.props.espTabla || 'ASME'; return t === 'ASME' ? (familiaAcc(el, m) === 'Acero inoxidable' ? 'B36.19' : 'B36.10') : t; }
         function schedulesAcc(el, m, dnClave) { if (!ACC_T || !m || sinEspesorAcc(m)) return []; const t = tablaEspAcc(el, m), dn = dnNum(dnClave || el.dn); return ACC_T.espesores.filter(x => x.tabla === t && x.dn === dn); }
         function ratingsAcc(m) { const lim = m && m.props.ratings ? String(m.props.ratings).split(',').map(x => x.trim()).filter(Boolean) : null; if (lim && lim.length) return lim[0] === 'NO' ? [] : lim;
@@ -5539,6 +5612,7 @@
         function aplicarModeloAcc(el, id) {
             if (!id) { delete el.accModelo; delete el.accSch; return; }
             el.accModelo = id; delete el.libItem; const m = modeloAcc(el); if (!m) return;
+            if (m.fabricante) el.fabricante = m.fabricante; if (m.referencia) el.referencia = m.referencia;   // v8.50
             if (m.props.craneTipo && opcionesCrane(claveCrane(el)).some(o => o[0] === m.props.craneTipo)) { el.craneTipo = m.props.craneTipo; if (el.modoK === 'manual' || !el.modoK) el.modoK = 'crane'; }
             if (m.props.k !== '' && m.props.k != null && !isNaN(+m.props.k)) { el.modoK = 'manual'; el.k = +m.props.k; }
             if (el.subtype === 'reduccion' && /c[eé]ntrica/i.test(m.props.variante || '')) el.excentrica = /^exc/i.test(m.props.variante);
@@ -5657,7 +5731,7 @@
                 LIB.items.filter(i => i.grupo === 'tuberias' && i.props && i.props.base === subtipo && i.subtipo !== subtipo).forEach(i => base.push(i));
             }
             if (esSubtipoAccesorio(subtipo) || subtipo === 'tuberia') base = (typeof ACC_POR_TIPO === 'object' && ACC_POR_TIPO[subtipo]) || [];
-            if (subtipo === 'bomba' && typeof BOMBAS_BD !== 'undefined') base = BOMBAS_BD;
+            if (subtipo === 'bomba' && typeof BOMBAS_BD !== 'undefined') { const enBD = new Set(BOMBAS_BD.map(b => (b.nombre || '').toLowerCase())); base = BOMBAS_BD.concat(BOMBAS_CATALOGO.filter(b => !enBD.has(b.nombre.toLowerCase()))); }
             const ids = new Set(usuario.map(i => i.id));
             return [...base.filter(b => !ids.has(b.id)), ...usuario].filter(i => !LIB.ocultos.includes(i.id));
         }
@@ -5791,13 +5865,14 @@
             if (esAnotacion(obj)) return '';
             let h = '';
             if (obj.type !== 'tuberia') {
-                if (obj.type === 'accesorio' && esSubtipoAccesorio(obj.subtype)) return camposAccesorio(obj, fn) + `<div>URL del componente: <input type="text" value="${esc(obj.url || '')}" placeholder="https://..." onchange="${fn}('url', this.value)" class="${CLS_CTRL}"></div>`;
+                if (obj.type === 'accesorio' && esSubtipoAccesorio(obj.subtype)) return camposAccesorio(obj, fn) + ctrlTexto(fn, 'fabricante', obj.fabricante || '', 'Fabricante') + ctrlTexto(fn, 'referencia', obj.referencia || '', 'Referencia del fabricante') + `<div>URL del componente: <input type="text" value="${esc(obj.url || '')}" placeholder="https://..." onchange="${fn}('url', this.value)" class="${CLS_CTRL}"></div>`;
                 const lista = itemsLib(obj.type === 'bomba' ? 'bomba' : obj.subtype);
                 h += `<div>Modelo de librería: <select data-previo="${esc(obj.libItem || '')}" onchange="${obj.type === 'bomba' ? `validarSeleccionBomba(this, v => ${fn}('libItem', v))` : `${fn}('libItem', this.value)`}" class="${CLS_CTRL}"><option value="">— ninguno (genérico) —</option>${lista.map(i => `<option value="${esc(i.id)}" ${i.id === obj.libItem ? 'selected' : ''}>${esc(i.nombre)}${i.material ? ' · ' + esc(i.material) : ''}</option>`).join('')}</select></div>`;
                 if (obj.type === 'bomba' && obj.libItem) { const vb = obj.validacionCurva; h += `<p class="text-[10px] ${vb ? 'text-emerald-700' : 'text-amber-700'}">${vb ? `<i class="fa-solid fa-circle-check mr-1"></i>Validada por ${esc(vb.usuario)} el ${esc(new Date(vb.fecha).toLocaleDateString())}` : '<i class="fa-solid fa-triangle-exclamation mr-1"></i>Bomba sin validar: vuelve a elegir el modelo para revisarla.'}${obj.curvaEc ? ' · ' + esc(textoEcuacion(obj.curvaEc.H, 'H')) : ''}</p>`; }
                 h += ctrlMaterial(fn, 'materialComp', obj.materialComp || '', grupoMaterial(obj), 'Material', obj);
                 if (obj.type === 'valvula') h += camposDatosValvula(obj, fn);
             } else h += camposTubo(obj, fn);
+            if (obj.type !== 'bomba' && obj.type !== 'tuberia' && !esAnotacion(obj)) h += ctrlTexto(fn, 'fabricante', obj.fabricante || '', 'Fabricante') + ctrlTexto(fn, 'referencia', obj.referencia || '', 'Referencia del fabricante');   // v8.50
             h += `<div>URL del componente: <div class="flex gap-1"><input type="text" value="${esc(obj.url || '')}" placeholder="https://..." onchange="${fn}('url', this.value)" class="${CLS_CTRL}">${obj.url ? `<a href="${esc(obj.url)}" target="_blank" rel="noopener" class="text-blue-600 mt-1.5" title="Abrir"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</div></div>`;
             return h;
         }
@@ -6133,14 +6208,17 @@
                 { icono: 'fa-shapes', texto: 'Accesorios', sub: () => [
                     { icono: 'fa-ring', texto: 'Bridas...', accion: () => abrirLibreria('bridas') },
                     { icono: 'fa-grip-lines', texto: 'Codos...', accion: () => abrirLibreria('accesorios', null, 'codos') },
-                    { icono: 'fa-circle', texto: 'Machones...', accion: () => abrirLibreria('uniones', 'machon') },
+                    { icono: 'fa-circle', texto: 'Machones...', accion: () => abrirLibreria('accesorios', null, 'machones') },
                     { icono: 'fa-grip-lines', texto: 'Cruces...', accion: () => abrirLibreria('accesorios', null, 'cruces') },
                     { icono: 'fa-circle', texto: 'Manguitos de unión...', accion: () => abrirLibreria('accesorios', null, 'manguitos') },
                     { icono: 'fa-circle', texto: 'Racord...', accion: () => abrirLibreria('uniones', 'racor') },
+                    { icono: 'fa-circle', texto: 'Espigas portamanguera...', accion: () => abrirLibreria('accesorios', null, 'espigas') },
+                    { icono: 'fa-circle', texto: 'Tapones roscados...', accion: () => abrirLibreria('accesorios', null, 'tapones') },
+                    { icono: 'fa-circle', texto: 'Transiciones entre materiales...', accion: () => abrirLibreria('accesorios', null, 'transiciones') },
                     { icono: 'fa-grip-lines', texto: 'Reducciones concéntricas...', accion: () => abrirLibreria('accesorios', null, 'redconc') },
                     { icono: 'fa-grip-lines', texto: 'Reducciones excéntricas...', accion: () => abrirLibreria('accesorios', null, 'redexc') },
                     { icono: 'fa-grip-lines', texto: 'Tes...', accion: () => abrirLibreria('accesorios', null, 'tes') },
-                    { icono: 'fa-circle', texto: 'Tuercas de unión...', accion: () => abrirLibreria('uniones', 'tuerca') }].sort((x, y) => x.texto.localeCompare(y.texto, 'es')) },
+                    { icono: 'fa-circle', texto: 'Tuercas de unión...', accion: () => abrirLibreria('accesorios', null, 'tuercas') }].sort((x, y) => x.texto.localeCompare(y.texto, 'es')) },
                 { icono: 'fa-fan', texto: 'Bombas...', accion: () => abrirLibreria('bombas', 'bomba') },
                 { icono: 'fa-industry', texto: 'Equipos', sub: () => porGrupo('equipos') },
                 { icono: 'fa-arrows-left-right-to-line', texto: 'Filtros, injertos, juntas y manguitos...', accion: () => abrirLibreria('compensadores') },
@@ -6151,6 +6229,7 @@
                 { icono: 'fa-circle-half-stroke', texto: 'Válvulas', sub: () => porGrupo('valvulas') },
                 'sep',
                 { icono: 'fa-shapes', texto: 'Mostrar accesorios en el panel', accion: () => mostrarLibreriaAccesorios() },
+                { icono: opciones.accTodosMateriales ? 'fa-check' : 'fa-square', texto: 'Modelos de accesorio de todos los materiales', accion: () => { opciones.accTodosMateriales = !opciones.accTodosMateriales; marcarCambios(true); aviso(opciones.accTodosMateriales ? 'Al elegir el modelo de un accesorio se ven todos los materiales.' : 'Al elegir el modelo de un accesorio solo se ven los del material de su tubería.', 'ok'); } },
                 { icono: 'fa-file-export', texto: 'Exportar librería (*.json)', accion: () => exportarLibreria() },
                 { icono: 'fa-file-import', texto: 'Importar librería (*.json)...', accion: () => importarLibreria() }
             ];
@@ -6704,14 +6783,15 @@
         function tipoExtremo(el, pid) {
             if (!el || esAnotacion(el) || sinFlujo(el)) return null;
             if (el.type === 'tuberia') { const b = matBase(el.material) || '';
-                if (/Acero/.test(b)) return 'TUBO_AC'; if (/PVC/.test(b)) return 'TUBO_PLE'; if (/^(PE|PP|PVDF)/.test(b)) return 'TUBO_PLF'; if (/Cobre/.test(b)) return 'TUBO_CU'; if (/Fundici/.test(b)) return 'TUBO_FD'; return null; }
+                if (/Acero/.test(b)) return 'TUBO_AC'; if (/PVC/.test(b)) return 'TUBO_PLE'; if (/^(PE|PP|PVDF)/.test(b)) return 'TUBO_PLF'; if (/Cobre|Cupron/.test(b)) return 'TUBO_CU'; if (/Fundici/.test(b)) return 'TUBO_FD'; return null; }
             if (SUBTIPOS_BRIDA.includes(el.subtype)) {
                 if (pid === 'a') return 'BRIDA';
                 const m = typeof modeloAcc === 'function' ? modeloAcc(el) : null, c = m && m.props ? tipoConexTexto(m.props.conexion) : null;
                 if (el.subtype === 'bridaplastica') return 'PL'; if (el.subtype === 'bridaloca') return 'LOCA'; if (el.subtype === 'bridaroscada') return 'ROS'; if (el.subtype === 'bridawn') return c === 'SW' ? 'SW' : 'BW';
                 return c === 'SW' ? 'SW' : 'SO';   // brida plana / brida unión: slip-on (o socket si su modelo lo dice)
             }
-            if (['machon', 'manguito', 'tuerca', 'racor'].includes(el.subtype)) return 'ROS';
+            if (el.subtype === 'transicion') return 'TRANS';   // v8.50 · hecha para unir materiales distintos
+            if (['machon', 'manguito', 'tuerca', 'racor', 'espiga', 'tapon'].includes(el.subtype)) return 'ROS';
             if (el.type === 'valvula') return tipoConexTexto(el.conexValv);
             if (el.type === 'accesorio') { const m = el.accModelo && typeof modeloAcc === 'function' ? modeloAcc(el) : null; return m && m.props ? tipoConexTexto(m.props.conexion) : tipoConexTexto(el.conexValv); }
             if (el.type === 'bomba') { const c = conexBomba(el, pid === 'succion' ? 'Asp' : 'Imp'); return c.tipo && (el['conex' + (pid === 'succion' ? 'Asp' : 'Imp')]) ? tipoConexTexto(c.tipo) : null; }
@@ -6726,6 +6806,8 @@
         // [nivel, texto] con nivel 'error' | 'aviso', o null si la unión es correcta o no hay datos
         function reglaUnion(a, b, ea, eb) {
             if (!a || !b) return null;
+            if (a === 'TRANS' || b === 'TRANS') return null;
+            if (proyecto.soloPID && (['BRIDA', 'BRIDADO', 'WAFER', 'SO', 'LOCA'].includes(a) || ['BRIDA', 'BRIDADO', 'WAFER', 'SO', 'LOCA'].includes(b))) return null;   // v8.50 · modo solo P&ID: sin bridas ni juntas
             const P = (x, y) => (a === x && b === y) || (a === y && b === x), uno = x => a === x || b === x, otro = x => a === x ? b : a;
             if (uno('BRIDA')) { const o = otro('BRIDA'); if (['BRIDA', 'BRIDADO', 'WAFER'].includes(o)) return null;
                 const fl = [ea, eb].find(e => e && SUBTIPOS_BRIDA.includes(e.subtype || ''));
@@ -6757,6 +6839,49 @@
             if (P('BW', 'TUBO_CU') || P('BW', 'TUBO_FD') || P('SW', 'TUBO_FD')) return ['error', 'materiales que no se sueldan entre sí: usa bridas o una junta mecánica'];
             return null;
         }
+        // v8.50 · juntas: una en cada unión cara contra cara (brida–brida, brida–válvula bridada o wafer, brida–bomba / equipo bridado).
+        // Tipo y material por defecto del proyecto (Herramientas > Juntas...) y modificables en cada unión.
+        const TIPOS_JUNTA = ['Plana IBC (EN 1514-1)', 'Plana cara plana FF (ASME B16.21)', 'Plana cara con resalte RF (ASME B16.21)', 'Espirometálica (ASME B16.20 / EN 1514-2)', 'Anillo RTJ (ASME B16.20)', 'Kammprofile (EN 1514-6)', 'Junta tórica'];
+        const MATERIALES_JUNTA = ['Fibra sin amianto (NBR)', 'Grafito expandido', 'PTFE', 'EPDM', 'NBR', 'FKM (Viton)', 'Inox 316L + grafito', 'Hierro dulce (RTJ)', 'Inox 316 (RTJ)'];
+        const CARA_JUNTA = new Set(['BRIDA', 'BRIDADO', 'WAFER']);
+        function juntasHoja() {
+            if (proyecto.soloPID) return [];
+            const g = construirGrafoRed(), por = Object.fromEntries(elementosRed.map(e => [e.id, e])), out = [];
+            g.nodos.forEach(n => { const ps = n.puertos.filter(p => por[p.elId] && !esAnotacion(por[p.elId])); if (ps.length !== 2 || ps[0].elId === ps[1].elId) return;
+                const [p, q] = ps, ea = por[p.elId], eb = por[q.elId], ta = tipoExtremo(ea, p.portId) || (SUBTIPOS_BRIDA.includes(ea.subtype || '') && p.portId === 'a' ? 'BRIDA' : null), tb = tipoExtremo(eb, q.portId) || (SUBTIPOS_BRIDA.includes(eb.subtype || '') && q.portId === 'a' ? 'BRIDA' : null);
+                if (!CARA_JUNTA.has(ta) || !CARA_JUNTA.has(tb) || (ta !== 'BRIDA' && tb !== 'BRIDA')) return;
+                const fl = ta === 'BRIDA' ? ea : eb, key = [ea.id + ':' + p.portId, eb.id + ':' + q.portId].sort().join('|'), dn = [ea.dn, eb.dn].filter(Boolean).sort((x, y) => dnNum(y) - dnNum(x))[0] || '';
+                out.push({ key, ea, eb, fl, dn, pn: fl.pn || ea.pn || eb.pn || '', cara: fl.cara || '' }); });
+            return out;
+        }
+        function juntaDefecto(j) {
+            if (/RTJ/.test(j.cara || '')) return { tipo: 'Anillo RTJ (ASME B16.20)', material: 'Hierro dulce (RTJ)' };
+            const asme = /#$/.test(j.pn || '') || (sistemaMaterialDe && j.fl && j.fl.normaPN === 'ASME');
+            return { tipo: proyecto.juntaTipo || (asme ? (j.cara === 'FF' ? 'Plana cara plana FF (ASME B16.21)' : 'Plana cara con resalte RF (ASME B16.21)') : 'Plana IBC (EN 1514-1)'), material: proyecto.juntaMaterial || 'Fibra sin amianto (NBR)' };
+        }
+        function juntaDe(j) { return Object.assign(juntaDefecto(j), (proyecto.juntas || {})[j.key] || {}); }
+        function abrirJuntas() {
+            if (proyecto.soloPID) { aviso('El proyecto está en modo solo P&ID (Archivo > Datos del proyecto): no lleva bridas ni juntas.'); return; }
+            const js = juntasHoja(), sel = (id, l, v, extra) => `<select id="${id}" ${extra || ''} class="border rounded p-1 text-[11px] w-full"><option value="">— por defecto —</option>${l.map(x => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+            const h = `<p class="text-xs text-slate-500 mb-2">Una junta en cada unión cara contra cara. Por defecto: EN → plana IBC (EN 1514-1); ASME → plana B16.21 (RF o FF según la cara); cara RTJ → anillo B16.20.</p>
+                <div class="grid grid-cols-2 gap-2 mb-3 text-xs"><label>Tipo por defecto del proyecto${sel('jt-tipo', TIPOS_JUNTA, proyecto.juntaTipo || '')}</label><label>Material por defecto del proyecto${sel('jt-mat', MATERIALES_JUNTA, proyecto.juntaMaterial || '')}</label></div>
+                ${js.length ? `<div style="max-height:52vh;overflow:auto"><table class="w-full text-[11px]"><thead><tr class="text-left text-slate-500"><th>Unión</th><th>DN</th><th>PN</th><th>Tipo</th><th>Material</th></tr></thead><tbody>${js.map((j, i) => { const o = (proyecto.juntas || {})[j.key] || {}; return `<tr class="border-t"><td class="pr-1">${esc(tagDe(j.ea))} – ${esc(tagDe(j.eb))}</td><td>${esc(etiquetaDN(j.dn))}</td><td>${esc(j.pn)}</td><td>${sel('jt-t' + i, TIPOS_JUNTA, o.tipo || '')}</td><td>${sel('jt-m' + i, MATERIALES_JUNTA, o.material || '')}</td></tr>`; }).join('')}</tbody></table></div>` : '<p class="text-xs text-slate-500">En esta hoja no hay uniones bridadas cara contra cara.</p>'}`;
+            dialogo(`Juntas (${js.length})`, h, [{ texto: 'Cancelar', valor: null }, { texto: 'Aplicar', valor: 1, clase: 'bg-blue-600 text-white' }]).then(v => { if (!v) return;
+                guardarEstado(); const g = id => (document.getElementById(id) || {}).value || ''; proyecto.juntaTipo = g('jt-tipo'); proyecto.juntaMaterial = g('jt-mat'); proyecto.juntas = proyecto.juntas || {};
+                js.forEach((j, i) => { const t = g('jt-t' + i), m = g('jt-m' + i); if (t || m) proyecto.juntas[j.key] = Object.assign({}, t ? { tipo: t } : {}, m ? { material: m } : {}); else delete proyecto.juntas[j.key]; });
+                marcarCambios(true); renderizarVectorial(); if (vista3d) refrescar3D(); aviso(`${js.length} junta(s) actualizada(s).`, 'ok'); });
+            // el diálogo de Aplicar se pinta antes de leer los selects
+        }
+        // v8.50 · material (familia metálica) de un elemento: el de la tubería o el del componente
+        function familiaElemento(e) { if (!e || esAnotacion(e)) return null; if (e.type === 'tuberia') return familiaMetal(e.material); return e.materialComp ? familiaMetal(e.materialComp) : null; }
+        // pares de metales distintos unidos sin transición (serie galvánica en agua de mar)
+        function parGalvanico(ea, eb) {
+            const a = familiaElemento(ea), b = familiaElemento(eb); if (!a || !b || a === b || a === 'Plástico' || b === 'Plástico' || a === 'Fundición' || b === 'Fundición') return null;
+            const P = (x, y) => (a === x && b === y) || (a === y && b === x);
+            if (P('Acero al carbono', 'Cobre') || P('Acero al carbono', 'Cuproníquel')) return ['error', `${a.toLowerCase()} – ${b.toLowerCase()}: par galvánico, el acero se corroe. Intercala una transición (manguito dieléctrico o bridas con kit de aislamiento)`, 'transicion'];
+            if (P('Acero al carbono', 'Acero inoxidable')) return ['aviso', 'acero al carbono – inoxidable: par galvánico; en agua de mar o con electrolito intercala bridas aisladas o un carrete de transición'];
+            return ['aviso', `${a.toLowerCase()} – ${b.toLowerCase()}: metales distintos; comprueba la compatibilidad galvánica o intercala una transición`];
+        }
         // uniones de la hoja: cada nudo con dos puertos de elementos distintos
         function unionesHoja() {
             const g = construirGrafoRed(), por = Object.fromEntries(elementosRed.map(e => [e.id, e])), out = [];
@@ -6764,12 +6889,16 @@
                 const [p, q] = ps, ea = por[p.elId], eb = por[q.elId], ta0 = tipoExtremo(ea, p.portId), tb0 = tipoExtremo(eb, q.portId), ta = extremoInferido(ea, ta0, tb0), tb = extremoInferido(eb, tb0, ta0), r = reglaUnion(ta, tb, ea, eb);
                 let extra = null;
                 if (ta === 'BRIDA' && tb === 'BRIDA' && ea.pn && eb.pn && ea.pn !== eb.pn) extra = ['aviso', `bridas enfrentadas con distinto PN / clase (${ea.pn} y ${eb.pn}): deben coincidir norma, DN y rating`];
+                if (!r && !extra && ta !== 'TRANS' && tb !== 'TRANS') extra = parGalvanico(ea, eb);   // v8.50
                 if (r || extra) out.push({ ea, eb, ta, tb, pa: p.portId, pb: q.portId, nivel: (r || extra)[0], texto: (r || extra)[1], arreglo: (r || extra)[2] || null });
             });
             return out;
         }
         function comprobacionesUniones(resultado, fallo) {
             const avisos = resultado.avisosRed = resultado.avisosRed || [];
+            // v8.51 · centrífuga horizontal: la impulsión sale vertical; si la tubería que se le une es horizontal según sus cotas, falta el codo
+            elementosRed.filter(esBombaHorizontal).forEach(b => vecinosDe(b).filter(v => v.puertoEl === 'descarga' && v.otro.type === 'tuberia').forEach(v => { const t = v.otro, L = +t.longitud || 0, dz = Math.abs((+t.cotaB || 0) - (+t.cotaA || 0)) * 1000;
+                if (L > 0 && dz < 0.98 * L) avisos.push(`${tagDe(b)}: centrífuga horizontal con la impulsión vertical; ${tagDe(t)} es horizontal según sus cotas: intercala un codo de 90° a la salida (o cambia la disposición a «En línea» en sus atributos).`); }));
             unionesHoja().forEach(u => { const m = `unión ${tagDe(u.ea)} – ${tagDe(u.eb)}: ${u.texto}`; if (u.nivel === 'error') { const el = u.ea.type === 'tuberia' ? u.eb : u.ea; fallo(el, m); } else avisos.push(m + '.'); });
         }
         // al insertar: aviso inmediato si la unión con lo que toca no es correcta
@@ -6938,7 +7067,7 @@
                 accesorio: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['dn', 'DN', 'sel', () => LISTA_DN.map(d => [d, etiquetaDN(d)])], ['dnMenor', 'DN menor', 'sel', el => el.subtype === 'reduccion' ? LISTA_DN.filter(d => dnNum(d) < dnNum(el.dn)).map(d => [d, etiquetaDN(d)]) : null], ['pn', 'PN / Rating', 'sel', pn], ['craneTipo', 'Tipo (Crane)', 'sel', el => { const o = opcionesCrane(claveCrane(el)); return o.length > 1 ? o.map(x => x[0]) : null; }], ['libItem', 'Modelo de librería', 'sel', el => [['', '—'], ...itemsLib(el.subtype).map(i => [i.id, i.nombre])]], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt'], ['cota', 'Cota (mm)', 'mag']],
                 bomba: [['linea', 'Línea', 'sel', lin], ['caudal', `Q (${lQ()})`, 'mag'], ['presion', `p (${lP()})`, 'mag'], ['h0', `p₀ (${lP()})`, 'mag'], ['npsh', 'NPSHr (m)', 'num'], ['eta', 'η', 'num'], ['cota', 'Cota (mm)', 'mag'], ['dnAsp', 'DN entrada', 'sel', () => LISTA_DN.map(d => [d, etiquetaDN(d)])], ['pnAsp', 'Rating entrada', 'sel', pn], ['dnImp', 'DN salida', 'sel', () => LISTA_DN.map(d => [d, etiquetaDN(d)])], ['pnImp', 'Rating salida', 'sel', pn], ['libItem', 'Modelo de librería', 'sel', () => [['', '—'], ...itemsLib('bomba').map(i => [i.id, i.nombre])]], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
                 equipo: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['qNom', `Q nom (${lQ()})`, 'mag'], ['dpNom', `Δp nom (${lP()})`, 'mag'], ['pn', 'PN / Rating', 'sel', pn], ['volumen', 'V (l)', 'num'], ['cota', 'Cota (mm)', 'mag'], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
-                terminal: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['qCons', `Q cons. (${lQ()})`, 'mag', el => el.subtype === 'consumo'], ['pMin', `p mín (${lP()})`, 'mag', el => el.subtype === 'consumo'], ['cota', 'Cota (mm)', 'mag', el => el.subtype === 'consumo'], ['cotaFondo', 'Cota fondo (m)', 'num', el => esDeposito(el)], ['hLamina', 'Nivel (m)', 'num', el => esDeposito(el)], ['presionDep', `p lámina (${lP()})`, 'mag', el => esDeposito(el)], ['volumen', 'V (l)', 'num', el => esDeposito(el)], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
+                terminal: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['qCons', `Q cons. (${lQ()})`, 'mag', el => esConsumoT(el)], ['pMin', `p mín (${lP()})`, 'mag', el => esConsumoT(el)], ['cota', 'Cota (mm)', 'mag', el => esConsumoT(el)], ['cotaFondo', 'Cota fondo (m)', 'num', el => esDeposito(el)], ['hLamina', 'Nivel (m)', 'num', el => esDeposito(el)], ['presionDep', `p lámina (${lP()})`, 'mag', el => esDeposito(el)], ['volumen', 'V (l)', 'num', el => esDeposito(el)], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
                 instrumento: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['dnInstr', 'Conexión', 'sel', () => [['', '—'], ...LISTA_DN.slice(0, 8).map(d => [d, etiquetaDN(d)])]], ['rango', 'Rango', 'txt'], ['cota', 'Cota (mm)', 'mag'], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']]
             };
             return C[g];
@@ -8801,7 +8930,7 @@
                 if (V3.zv && e.button === 2) { zoomVentana3D(false); return; }
                 arr = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, ct: e.ctrlKey || e.metaKey, mov: false, cubo: enCubo3D(e) }; cerrarMenus(); ocultarTooltip(); V3.tt = null;
                 if (arr.cubo) return;
-                if (e.button === 0 && !e.shiftKey && !enMano && !T3 && !planoCongelado) { const r = picar3D(e); if (r && esSuelto3D(r.el)) arr.mover = { el: r.el }; } });   // v8.42 · componente suelto: se arrastra
+                if (e.button === 0 && !e.shiftKey && !enMano && !T3 && !planoCongelado) { const r = picar3D(e); if (r && esSuelto3D(r.el)) arr.mover = { el: r.el }; else if (r && arr.ct) { const rz = raizGrupo3D(r.el); if (rz) arr.mover = { el: r.el, raiz: rz }; } } });   // v8.50 · Ctrl + izquierdo: mover el componente (y lo que tiene unido) sin girar la vista   // v8.42 · componente suelto: se arrastra
             el.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
             window.addEventListener('mouseup', e => {
                 if (V3.zv && V3.zv.ini) { aplicarZoomVentana3D(e); return; }
@@ -9170,7 +9299,7 @@
         // B16.5 clase 150 y EN 558 series 1 y 20, si el modelo no da otras.
         const interpT = (tab, x) => { if (!(x > 0)) x = tab[0][0]; if (x <= tab[0][0]) return tab[0][1] * x / tab[0][0]; for (let i = 1; i < tab.length; i++) if (x <= tab[i][0]) return tab[i - 1][1] + (tab[i][1] - tab[i - 1][1]) * (x - tab[i - 1][0]) / (tab[i][0] - tab[i - 1][0]); const u = tab[tab.length - 1]; return u[1] * x / u[0]; };
         const npsNum = dn => { const t = npsDeDN(dn) || ''; const m = String(t).match(/^(\d+)?(?:-?(\d+)\/(\d+))?$/); if (!m) return dnNum(dn) / 25; return (+m[1] || 0) + (m[2] ? +m[2] / +m[3] : 0) || dnNum(dn) / 25; };
-        const odMm = dn => { const t = ACERO_TAM.find(x => x.clave === dn); return t ? t.od : Math.max(10, dnNum(dn) * 1.15); };
+        const odMm = dn => { const t = ACERO_TAM.find(x => x.clave === dn); if (t) return t.od; if (/^d\d/.test(dn || '') && CAT) { for (const m of Object.values(CAT.materiales)) { const u = (m.tamanos || []).find(x => x.clave === dn); if (u) return u.od; } return dnNum(dn); } return Math.max(10, dnNum(dn) * 1.15); };
         const T_TE = [[.5, 25], [.75, 29], [1, 38], [1.25, 48], [1.5, 57], [2, 64], [2.5, 76], [3, 86], [3.5, 95], [4, 105], [5, 124], [6, 143], [8, 178], [10, 216], [12, 254], [14, 279], [16, 305], [20, 381], [24, 432]];
         const T_RED = [[.75, 38], [1, 51], [1.5, 64], [2, 76], [2.5, 89], [3, 89], [4, 102], [5, 127], [6, 140], [8, 152], [10, 178], [12, 203], [14, 330], [16, 356], [20, 508], [24, 508]];
         const T_BRIDA_O = [[.5, 89], [.75, 98], [1, 108], [1.25, 117], [1.5, 127], [2, 152], [2.5, 178], [3, 190], [4, 229], [5, 254], [6, 279], [8, 343], [10, 406], [12, 483], [14, 533], [16, 597], [20, 699], [24, 813]];
@@ -9178,6 +9307,16 @@
         const T_WN = [[.5, 46], [1, 54], [2, 62], [3, 68], [4, 75], [6, 87], [8, 100], [10, 100], [12, 113], [16, 125], [24, 152]];
         const T_EN558_1 = [[15, 130], [20, 150], [25, 160], [32, 180], [40, 200], [50, 230], [65, 290], [80, 310], [100, 350], [125, 400], [150, 480], [200, 600], [250, 730], [300, 850], [350, 980], [400, 1100]];
         const T_EN558_20 = [[25, 33], [50, 43], [65, 46], [80, 46], [100, 52], [125, 56], [150, 56], [200, 60], [250, 68], [300, 78], [350, 78], [400, 102], [500, 127], [600, 154]];
+        // v8.51 · bomba centrífuga horizontal paramétrica: cotas del catálogo (letras habituales de las fichas) o estimadas por el DN
+        //  a: cara de aspiración – eje de impulsión · f: longitud total · h1: altura del eje · h2: cara de impulsión · h3: altura total · n1 × n2: base
+        const esBombaHorizontal = el => el && el.type === 'bomba' && el.forma3D === 'horizontal' && !esVolumetrica(el);
+        function cotasBomba(el) {
+            const oA = odMm(el.dnAsp || el.dn || 'DN 50'), oI = odMm(el.dnImp || el.dnAsp || el.dn || 'DN 50'), rd = Math.max(40, 1.7 * oI), k = { a: Math.max(40, 1.3 * oA), h1: Math.max(80, rd * 1.6) };
+            k.h2 = k.h1 + rd; k.h3 = k.h1 + Math.max(70, rd * 1.8); k.f = k.a + Math.max(200, 3.4 * (k.h3 - k.h1)); k.n1 = k.f * 0.62; k.n2 = (k.h3 - k.h1) * 1.15;
+            String(el.cotas3D || '').split(/[;,\s]+/).forEach(t => { const m = t.match(/^(a|f|h1|h2|h3|n1|n2)=([\d.]+)$/i); if (m && +m[2] > 0) k[m[1].toLowerCase()] = +m[2]; });
+            if (!(k.h2 > k.h1)) k.h2 = k.h1 + rd; if (!(k.h3 > k.h1)) k.h3 = k.h2 + 20; if (!(k.f > k.a)) k.f = k.a + 200;
+            k.estimadas = !el.cotas3D; return k;
+        }
         // longitudes (mm) del centro del componente a cada puerto
         function medidas3D(el) {
             const n = npsNum(el.dn || 'DN 50'), d = dnNum(el.dn || 'DN 50'), od = odMm(el.dn || 'DN 50'), st = el.subtype || '';
@@ -9187,14 +9326,18 @@
             if (st === 'injerto') return { def: 0, c: od * 0.6 + 20 };
             if (st === 'reduccion') { const H = interpT(T_RED, n); return { def: H / 2, L: H }; }
             if (SUBTIPOS_BRIDA.includes(st)) { const e = interpT(T_BRIDA_E, n), L = st === 'bridawn' ? interpT(T_WN, n) : st === 'bridaciega' ? e : e * 1.2; return { a: 0, b: L, def: L, O: interpT(T_BRIDA_O, n), e }; }
-            if (['machon', 'manguito', 'tuerca', 'racor'].includes(st)) return { def: Math.max(20, od * 0.75) };
+            if (['machon', 'manguito', 'tuerca', 'racor', 'espiga'].includes(st)) return { def: Math.max(20, od * 0.75) };
+            if (st === 'transicion') return { def: Math.max(30, od * 1.1) };
+            if (st === 'tapon') return { a: 0, def: Math.max(15, od * 0.6) };
             if (st === 'filtro' || st === 'strainer') { const L = interpT(T_EN558_1, d); return { def: L / 2, L }; }
             if (st === 'junta' || st === 'antivibratorio') { const L = Math.max(100, od * 1.2 + 80); return { def: L / 2, L }; }
+            if (el.type === 'bomba' && esBombaHorizontal(el)) { const k = cotasBomba(el); return { def: k.a, succion: k.a, descarga: k.h2 - k.h1, R: (k.h2 - k.h1) * 0.85, k }; }
             if (el.type === 'bomba') { const R = Math.max(130, 2.2 * odMm(el.dnImp || el.dn || 'DN 50')); return { def: R, R }; }
             if (el.type === 'instrumento') return { def: 0 };
             if (esDeposito(el) || (TIPOS[st] || {}).calc === 'deposito') { const vol = Math.max(+el.volumen || 1000, 50) / 1000, h = Math.max(+el.hC || 0, +el.hLamina || 0, 1), R = Math.max(0.3, Math.sqrt(vol / (Math.PI * h))) * 1000; return { def: R, R, h: h * 1000 }; }
-            if (esEquipo(el)) return { def: 350 };
-            if (el.subtype === 'consumo') return { def: 0 };
+            if (esEquipo(el)) return { def: TIPOS[st] && TIPOS[st].forma ? Math.max(220, od * 2.2) : 350 };
+            if (st === 'monitor') return { def: 300 };
+            if (esConsumoT(el)) return { def: 0 };
             return { def: Math.max(30, od * 0.6) };
         }
         const v3 = { sum: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], mul: (a, k) => [a[0] * k, a[1] * k, a[2] * k], dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
@@ -9232,6 +9375,16 @@
                     geo[el.id] = { el, tubo: true, ent: u, ports: { [pe]: { p: P, d: v3.mul(dir, -1) }, [otro]: { p: Pb, d: dir } } };
                     return;
                 }
+                if (esBombaHorizontal(el) && pts[el.id] && pts[el.id].succion && pts[el.id].descarga) {   // v8.51 · aspiración axial, impulsión vertical
+                    const m = medidas3D(el), k = m.k, g3 = (+el.giro3D || 0) * Math.PI / 180, hor = v => { const w = [v[0], v[1], 0]; return v3.len(w) > 1e-6 ? v3.norm(w) : [1, 0, 0]; };
+                    let sh, up;
+                    if (pe === 'succion') { sh = v3.mul(u, -1); up = Math.abs(sh[2]) < 0.9 ? v3.norm(v3.sum([0, 0, 1], v3.mul(sh, -sh[2]))) : hor(esq(el, 'descarga')); }
+                    else { up = u; const s0 = Math.abs(up[2]) > 0.5 ? v3.mul(hor(esq(el, 'succion')), -1) : [0, 0, 1]; sh = v3.norm(v3.sum(s0, v3.mul(up, -v3.dot(s0, up)))); }
+                    if (g3) { const Rg = rotarEje3D(sh, g3); up = v3.norm(Rg(up)); }
+                    const C = pe === 'succion' ? v3.sum(P, v3.mul(sh, k.a / 1000)) : v3.sum(P, v3.mul(up, -(k.h2 - k.h1) / 1000));
+                    const ports = { succion: { p: v3.sum(C, v3.mul(sh, -k.a / 1000)), d: v3.mul(sh, -1) }, descarga: { p: v3.sum(C, v3.mul(up, (k.h2 - k.h1) / 1000)), d: up } };
+                    ports[pe].p = P; geo[el.id] = { el, C, ports, m, eje: sh, up, ent: u, horizontal: true }; return;
+                }
                 const m = medidas3D(el), R0 = giroDe(esq(el, pe), u), g3 = (+el.giro3D || 0) * Math.PI / 180, Rg = g3 ? rotarEje3D(v3.mul(u, -1), g3) : null, R = Rg ? x => Rg(R0(x)) : R0, Lp = q => (q === 'c' && m.c != null ? m.c : m[q] != null ? m[q] : m.def) / 1000;
                 const C = v3.sum(P, v3.mul(u, -Lp(pe))), ports = {};
                 const d0 = {}; Object.keys(pts[el.id] || {}).forEach(q => { d0[q] = q === pe ? u : v3.norm(R0(esq(el, q))); const d = q === pe ? u : v3.norm(R(esq(el, q))); ports[q] = { p: q === pe ? P : v3.sum(C, v3.mul(d, Lp(q))), d }; });
@@ -9244,14 +9397,14 @@
                 if (!Q && dest === ref0) return;
                 const Tf = q => { const r = v3.sum(q, v3.mul(ref0, -1)); return v3.sum(dest, Q ? Q(r) : r); };
                 Object.values(gg.ports).forEach(q => { q.p = Tf(q.p); if (Q) q.d = Q(q.d); }); if (gg.C) gg.C = Tf(gg.C);
-                if (Q) { if (gg.R) { const R1 = gg.R; gg.R = x => Q(R1(x)); } const Rg0 = gg.Rg || (x => x); gg.Rg = x => Q(Rg0(x)); if (gg.ent) gg.ent = Q(gg.ent); } };
+                if (Q) { if (gg.R) { const R1 = gg.R; gg.R = x => Q(R1(x)); } const Rg0 = gg.Rg || (x => x); gg.Rg = x => Q(Rg0(x)); if (gg.ent) gg.ent = Q(gg.ent); if (gg.eje) gg.eje = Q(gg.eje); if (gg.up) gg.up = Q(gg.up); } };
             const cola = [], encolar = id => { const gg = geo[id]; Object.entries(gg.ports).forEach(([q, x]) => { const p = pts[id][q]; (enNodo[p.nodo] || []).forEach(w => { if (w.elId === id) return; const e2 = por[w.elId]; if (es3(e2) && !geo[e2.id]) cola.push([e2, w.portId, x.p, v3.mul(x.d, -1), !gg.tubo]); }); }); };
             const correr = () => { while (cola.length) { const [e, pe, P, u, tc] = cola.shift(); if (geo[e.id]) continue; colocar(e, pe, P, u, tc); encolar(e.id); } };
             // inicio: primer elemento de la línea principal (si es una bomba, su impulsión) en el punto de origen
             const pr = lineaPorId('P01') || lineas.find(l => l.tipo === 'principal');
             const orden = pr ? ordenarLinea(pr.id, mapaVecinos()).map(id => por[id]).filter(es3) : [];
             const libres = e => Object.keys(pts[e.id] || {}).filter(q => !(enNodo[pts[e.id][q].nodo] || []).some(w => w.elId !== e.id));
-            const arrancar = (e0, P) => { if (!pts[e0.id]) return; const pe = e0.type === 'bomba' && pts[e0.id].descarga ? 'descarga' : (libres(e0)[0] || Object.keys(pts[e0.id])[0]); colocar(e0, pe, P, esq(e0, pe)); raizTransf(e0); encolar(e0.id); correr(); };
+            const arrancar = (e0, P) => { if (!pts[e0.id]) return; const pe = e0.type === 'bomba' && pts[e0.id].descarga ? 'descarga' : (libres(e0)[0] || Object.keys(pts[e0.id])[0]); colocar(e0, pe, P, esBombaHorizontal(e0) && pe === 'descarga' ? [0, 0, 1] : esq(e0, pe)); raizTransf(e0); encolar(e0.id); correr(); };
             if (orden.length) arrancar(orden[0], O);
             let x0 = null;
             elementosRed.filter(es3).forEach(e => { if (geo[e.id] || !pts[e.id]) return; if (x0 == null) x0 = Math.max(O[0], ...Object.values(geo).flatMap(gg => Object.values(gg.ports).map(p => p.p[0]))) + 2; arrancar(e, [x0, O[1], O[2]]); x0 = Math.max(x0, ...Object.values(geo).flatMap(gg => Object.values(gg.ports).map(p => p.p[0]))) + 2; });
@@ -9283,6 +9436,7 @@
             const V = a => new T.Vector3(a[0], a[1], a[2]);
             const matDe = (el, extra) => new T.MeshStandardMaterial(Object.assign({ color: colorDe(el), metalness: 0.35, roughness: 0.5 }, extra || {}));
             const gris = el => matDe(el, { color: new T.Color('#64748b') });
+            const conJunta = new Set(); try { juntasHoja().forEach(j => conJunta.add(j.fl.id)); } catch (e) { }   // v8.50 · bridas con junta en su cara
             const reg = (obj, el) => { obj.traverse(x => { if (x.isMesh) { x.userData.id = el.id; V3.objetos.push(x); } }); G.add(obj); return obj; };
             const cil = (a, b, r1, r2, mat, seg = 20) => { const A = V(a), B = V(b), d = new T.Vector3().subVectors(B, A), L = d.length(); if (L < 1e-5) return null; const m = new T.Mesh(new T.CylinderGeometry(r2 == null ? r1 : r2, r1, L, seg), mat); m.position.copy(A).addScaledVector(d, 0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); return m; };
             const disco = (centro, eje, r, e, mat) => cil(v3.sum(centro, v3.mul(eje, -e / 2)), v3.sum(centro, v3.mul(eje, e / 2)), r, r, mat, 28);
@@ -9321,13 +9475,33 @@
                 if (SUBTIPOS_BRIDA.includes(st)) {
                     const f = ports.a, b = ports.b, O2 = mm(gg.m.O) / 2, e = mm(gg.m.e), dd = b ? v3.norm(v3.sum(b.p, v3.mul(f.p, -1))) : v3.mul(f.d, -1);
                     add(disco(v3.sum(f.p, v3.mul(dd, e / 2)), dd, O2, e, M));
+                    if (conJunta.has(el.id)) add(disco(f.p, dd, Math.min(O2 * 0.72, r * 1.9), Math.max(0.0015, e * 0.12), new T.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.9 })));   // junta
                     if (b && st === 'bridawn') add(cil(v3.sum(f.p, v3.mul(dd, e)), b.p, r * 1.35, r, M));
                     else if (b) add(cil(f.p, b.p, r * 1.08, r * 1.08, M));
                     reg(grp, el); etq(tagDe(el), v3.sum(f.p, [0, 0, O2 + 0.012]), 0.08, '#fde68a'); return;
                 }
                 if (['machon', 'manguito', 'tuerca', 'racor'].includes(st) && pa && pb) { add(cil(pa.p, pb.p, r * 1.25, r * 1.25, M, 6)); reg(grp, el); return; }
+                if (st === 'transicion' && pa && pb) { add(cil(pa.p, C, r * 1.3, r * 1.3, M, 16)); add(cil(C, pb.p, r * 1.3, r * 1.3, matDe(el, { color: new T.Color('#b87333') }), 16)); add(disco(C, eje, r * 1.6, r * 0.25, gris(el))); reg(grp, el); return; }
+                if (st === 'espiga' && pa && pb) { add(cil(pa.p, C, r * 1.3, r * 1.3, M, 6)); for (let i = 0; i < 3; i++) { const t0 = 0.5 + i / 6; add(cil(v3.sum(pa.p, v3.mul(v3.sum(pb.p, v3.mul(pa.p, -1)), t0)), v3.sum(pa.p, v3.mul(v3.sum(pb.p, v3.mul(pa.p, -1)), t0 + 1 / 6)), r * 1.1, r * 0.8, M, 16)); } reg(grp, el); return; }
+                if (st === 'tapon' && pa) { const L = mm(gg.m.def), dd = v3.mul(pa.d, -1); add(cil(pa.p, v3.sum(pa.p, v3.mul(dd, L)), r * 1.3, r * 1.3, M, 6)); reg(grp, el); return; }
                 if ((st === 'junta' || st === 'antivibratorio') && pa && pb) { for (let i = 0; i <= 4; i++) { const t = new T.Mesh(new T.TorusGeometry(r * 1.1, r * 0.22, 8, 24), M); t.position.copy(V(v3.sum(pa.p, v3.mul(v3.sum(pb.p, v3.mul(pa.p, -1)), i / 4)))); t.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), V(eje)); add(t); } add(cil(pa.p, pb.p, r * 0.95, r * 0.95, M)); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, r * 1.6 + 0.012]), 0.09, '#fde68a'); return; }
                 if ((st === 'filtro' || st === 'strainer') && pa && pb) { add(cil(pa.p, pb.p, r * 1.2, r * 1.2, M)); const y = v3.sum(C, v3.mul(v3.norm(v3.sum(v3.mul(arriba, -1), v3.mul(eje, 0.6))), r * 4)); add(cil(C, y, r * 1.1, r * 1.1, M)); reg(grp, el); etq(tagDe(el), v3.sum(C, v3.mul(arriba, r * 2)), 0.09, '#fde68a'); return; }
+                if (el.type === 'bomba' && gg.horizontal) {   // v8.51 · centrífuga horizontal paramétrica (cotas de catálogo)
+                    const k = gg.m.k, q = x => x / 1000, sh = gg.eje, up = gg.up, asp = ports.succion, imp = ports.descarga, lado = v3.norm(v3.cross(sh, up));
+                    const at = (ax, az, ay) => v3.sum(v3.sum(v3.sum(C, v3.mul(sh, q(ax))), v3.mul(up, q(az))), v3.mul(lado, q(ay || 0)));
+                    const Rv = (k.h2 - k.h1) * 0.78, eV = Math.max(q(k.a) * 0.9, q(Rv) * 0.7), Rm = (k.h3 - k.h1) * 0.47, oA = q(odMm(el.dnAsp || 'DN 50')) / 2, oI = q(odMm(el.dnImp || el.dnAsp || 'DN 50')) / 2;
+                    const gris2 = gris(el), azul = matDe(el, { color: new T.Color('#2563eb') });
+                    add(disco(C, sh, q(Rv), eV, M));   // voluta
+                    add(cil(asp.p, at(-eV * 500, 0), oA * 1.15, oA * 1.15, M, 20)); add(disco(asp.p, sh, oA * 1.6, q(6), gris2));   // tobera y boca de aspiración
+                    add(cil(at(0, Rv * 0.6), imp.p, oI * 1.15, oI * 1.15, M, 20)); add(disco(imp.p, up, oI * 1.6, q(6), gris2));   // tobera y boca de impulsión
+                    const xM0 = k.a * 0.55 + eV * 500, xM1 = k.f - k.a;
+                    add(cil(at(eV * 500, 0), at(xM0, 0), q(Rv) * 0.45, q(Rm) * 0.6, gris2, 24));   // linterna / soporte
+                    add(cil(at(xM0, 0), at(xM1 - Rm * 0.25, 0), q(Rm), q(Rm), azul, 32)); add(cil(at(xM1 - Rm * 0.25, 0), at(xM1, 0), q(Rm) * 0.95, q(Rm) * 0.7, gris2, 32));   // motor y tapa del ventilador
+                    const caja = new T.Mesh(new T.BoxGeometry(q(Rm) * 0.9, q(Rm) * 0.9, q(Rm) * 0.5), azul); caja.position.copy(V(at((xM0 + xM1) / 2, Rm + Rm * 0.2))); caja.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(V(sh), V(lado), V(up))); add(caja);   // caja de bornes
+                    const xb = (k.f / 2 - k.a), base = new T.Mesh(new T.BoxGeometry(q(k.n1), q(k.n2), q(12)), gris2); base.position.copy(V(at(xb, -k.h1 + 6))); base.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(V(sh), V(lado), V(up))); add(base);   // base
+                    [k.n1 * 0.32, -k.n1 * 0.32].forEach(dx => add(cil(at(xb + dx, -k.h1 + 12), at(xb + dx, -Rm * 0.7), q(18), q(14), gris2, 12)));   // pies
+                    reg(grp, el); etq(tagDe(el), at(k.f / 2 - k.a, k.h3 - k.h1 + 40), 0.14, el.estado === 'fallo' ? '#fca5a5' : '#fde68a'); return;
+                }
                 if (el.type === 'bomba') {
                     const R = mm(gg.m.R), asp = ports.succion, imp = ports.descarga, ejeB = asp ? v3.mul(asp.d, -1) : [1, 0, 0], arr = gg.Rg && gg.d0 && gg.d0.succion ? v3.norm(gg.Rg(perp(v3.mul(gg.d0.succion, -1)))) : perp(ejeB), lado = v3.norm(v3.cross(ejeB, arr));
                     const vol = disco(C, lado, R, R * 0.7, M); add(vol);   // bomba en línea: voluta con eje horizontal y motor vertical encima
@@ -9338,8 +9512,16 @@
                 }
                 if (gg.m.h) { const R = mm(gg.m.R), h = mm(gg.m.h), pc = Object.entries(ports)[0], hb = pc ? (pc[0] === 'c' ? +el.hC || 0 : +el.hB || 0) : 0, z0 = (pc ? pc[1].p[2] : C[2]) - hb;
                     const t = cil([C[0], C[1], z0], [C[0], C[1], z0 + h], R, R, matDe(el, { transparent: true, opacity: 0.6 }), 36); add(t); reg(grp, el); etq(tagDe(el), [C[0], C[1], z0 + h + 0.05], 0.16, '#fde68a'); return; }
+                if (esEquipo(el) && TIPOS[st] && TIPOS[st].forma) {   // v8.51 · filtros, CPS, STP y VTP
+                    const Zup = [0, 0, 1], t = TIPOS[st], s = mm(gg.m.def), ex = pa && pb ? v3.norm(v3.sum(pb.p, v3.mul(pa.p, -1))) : eje;
+                    if (t.orient === 'v') { const cuerpo = cil(v3.sum(C, v3.mul(Zup, -s * 0.9)), v3.sum(C, v3.mul(Zup, s * 1.1)), s * 0.55, s * 0.55, M, 28); add(cuerpo); add(disco(v3.sum(C, v3.mul(Zup, s * 1.15)), Zup, s * 0.7, s * 0.08, gris(el))); }
+                    else if (t.orient === 'h') { add(cil(v3.sum(C, v3.mul(ex, -s * 0.9)), v3.sum(C, v3.mul(ex, s * 0.9)), s * 0.5, s * 0.5, M, 28)); add(disco(v3.sum(C, v3.mul(ex, s * 0.95)), ex, s * 0.62, s * 0.08, gris(el))); if (t.forma === 'strainer') add(cil(C, v3.sum(C, v3.mul(v3.norm(v3.sum(v3.mul(Zup, -1), v3.mul(ex, 0.7))), s * 0.9)), s * 0.3, s * 0.3, M, 20)); }
+                    else { const bx = new T.Mesh(new T.BoxGeometry(s * 2.4, s * 1.5, s * 1.6), M); bx.position.copy(V(v3.sum(C, v3.mul(Zup, s * 0.3)))); add(bx); }
+                    Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, s * 1.4 + 0.02]), 0.13, '#fde68a'); return;
+                }
+                if (st === 'monitor' && pa) { const Zup = [0, 0, 1], s = mm(gg.m.def || 300); add(cil(pa.p, C, r, r, M)); add(cil(C, v3.sum(C, v3.mul(Zup, s * 0.8)), r * 1.4, r * 1.4, M)); const top = v3.sum(C, v3.mul(Zup, s * 0.8)), dirL = v3.norm(v3.sum(v3.mul(pa.d, -1), v3.mul(Zup, 0.5))); add(cil(top, v3.sum(top, v3.mul(dirL, s)), r * 1.1, r * 0.5, matDe(el, { color: new T.Color('#dc2626') }), 16)); reg(grp, el); etq(tagDe(el), v3.sum(top, [0, 0, 0.08]), 0.12, '#fde68a'); return; }
                 if (esEquipo(el)) { const s = mm(gg.m.def); const bx = new T.Mesh(new T.BoxGeometry(s * 2, s * 1.4, s * 1.4), M); bx.position.copy(V(C)); add(bx); Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, s * 0.8 + 0.02]), 0.14, '#fde68a'); return; }
-                if (el.subtype === 'consumo') { const p = (pa || Object.values(ports)[0]); const cn = new T.Mesh(new T.ConeGeometry(Math.max(r * 2, 0.05), Math.max(r * 3, 0.08), 16), M); cn.position.copy(V(v3.sum(p.p, v3.mul(p.d, -Math.max(r * 1.5, 0.04))))); cn.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), V(p.d)); add(cn); reg(grp, el); etq(tagDe(el), v3.sum(p.p, [0, 0, 0.05]), 0.12, '#fde68a'); return; }
+                if (esConsumoT(el)) { const p = (pa || Object.values(ports)[0]); const cn = new T.Mesh(new T.ConeGeometry(Math.max(r * 2, 0.05), Math.max(r * 3, 0.08), 16), M); cn.position.copy(V(v3.sum(p.p, v3.mul(p.d, -Math.max(r * 1.5, 0.04))))); cn.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), V(p.d)); add(cn); reg(grp, el); etq(tagDe(el), v3.sum(p.p, [0, 0, 0.05]), 0.12, '#fde68a'); return; }
                 if (el.type === 'instrumento') { const p = Object.values(ports)[0]; const top = v3.sum(p.p, [0, 0, 0.12]); add(cil(p.p, top, 0.008, 0.008, gris(el), 8)); add(disco(top, [0, -1, 0], 0.04, 0.02, M)); reg(grp, el); etq(tagDe(el), v3.sum(top, [0, 0, 0.03]), 0.07, '#fde68a'); return; }
                 Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); const s = new T.Mesh(new T.SphereGeometry(r * 1.2, 16, 12), M); s.position.copy(V(C)); add(s); reg(grp, el);
             });
@@ -9452,7 +9634,7 @@
             const h = V3.ray.intersectObjects(V3.objetos, false)[0]; if (!h) return null;
             const el = todosLosElementos().find(x => x.id === h.object.userData.id); return el ? { el, h } : null;
         }
-        const ayuda3D = () => 'Izquierdo: girar · derecho, central o Mayús: desplazar · rueda: zoom al cursor · W: zoom ventana · clic: seleccionar y centrar · doble clic: atributos · X/Y/Z y R (90°) / Mayús+R (15°): girar · L: trazar tubería · arrastrar un componente suelto: moverlo y unirlo · cubo de vistas (arriba a la derecha): clic en cara, arista o vértice · T: encajar · F: vista anterior · F2: calcular · Alt+1: 2D/3D' + (V3 && V3.desfases && V3.desfases.length ? ` · ⚠ ${V3.desfases.length} tubería(s) con desnivel en 3D distinto de sus cotas: ${V3.desfases.slice(0, 4).map(x => tagDe(x.el) + ' ' + (x.dz >= 0 ? '+' : '') + Math.round(x.dz * 1000) + ' mm').join(', ')}${V3.desfases.length > 4 ? '…' : ''} (el cálculo usa las cotas)` : '');
+        const ayuda3D = () => 'Izquierdo: girar · derecho, central o Mayús: desplazar · rueda: zoom al cursor · W: zoom ventana · clic: seleccionar y centrar · doble clic: atributos · X/Y/Z y R (90°) / Mayús+R (15°): girar · L: trazar tubería · arrastrar un componente suelto: moverlo y unirlo · Ctrl + arrastrar: mover cualquier componente con lo que tiene unido · cubo de vistas (arriba a la derecha): clic en cara, arista o vértice · T: encajar · F: vista anterior · F2: calcular · Alt+1: 2D/3D' + (V3 && V3.desfases && V3.desfases.length ? ` · ⚠ ${V3.desfases.length} tubería(s) con desnivel en 3D distinto de sus cotas: ${V3.desfases.slice(0, 4).map(x => tagDe(x.el) + ' ' + (x.dz >= 0 ? '+' : '') + Math.round(x.dz * 1000) + ' mm').join(', ')}${V3.desfases.length > 4 ? '…' : ''} (el cálculo usa las cotas)` : '');
         function elegir3D(e, clic) {
             if (!V3) return; const r = picar3D(e), est = document.getElementById('v3d-estado');
             if (!r) { if (est) est.textContent = ayuda3D(); if (clic && (idSeleccionado || seleccion.size)) { seleccion.clear(); idSeleccionado = null; construirEscena3D(); } return; }
@@ -9582,7 +9764,22 @@
         }
         const aPantalla3D = p => { const rc = V3.renderer.domElement.getBoundingClientRect(), v = new V3.T.Vector3(p[0], p[1], p[2]).project(V3.camera); return { x: (v.x + 1) / 2 * rc.width + rc.left, y: (1 - v.y) / 2 * rc.height + rc.top, z: v.z }; };
         const esSuelto3D = el => el && !esAnotacion(el) && el.type !== 'tuberia' && elementosRed.includes(el) && !vecinosDe(el).length;
+        // v8.50 · raíz del grupo de elementos unidos al que pertenece un componente (la que lleva pos3D / q3D)
+        function raizGrupo3D(el) {
+            if (!el || esAnotacion(el) || !V3 || !V3.geo) return null; const vis = new Set([el.id]), cola = [el];
+            while (cola.length) { const x = cola.shift(); if (V3.geo[x.id] && V3.geo[x.id].raiz) return x; vecinosDe(x).forEach(v => { const o = v.otro; if (o && !esAnotacion(o) && !vis.has(o.id)) { vis.add(o.id); cola.push(o); } }); }
+            return null;
+        }
+        function moverGrupo3D(a, e) {
+            const el = a.mover.el, rz = a.mover.raiz, gg = V3.geo[el.id], gr = V3.geo[rz.id]; if (!gg || !gr) return;
+            if (!a.mover.ini) { a.mover.ini = true; guardarEstado(); a.mover.z = gg.C ? gg.C[2] : Object.values(gg.ports)[0].p[2]; a.mover.P0 = puntoSuelo3D(e, a.mover.z, true); a.mover.R0 = (gr.tubo ? (gr.ports.a || Object.values(gr.ports)[0]).p : gr.C).slice(); }
+            const P = puntoSuelo3D(e, a.mover.z, true); if (!P || !a.mover.P0) return;
+            const g = pasoFino3D() / 1000, d = v3.sum(P, v3.mul(a.mover.P0, -1)).map((v, i) => i < 2 ? Math.round(v / g) * g : 0);
+            rz.pos3D = v3.sum(a.mover.R0, d).map(v => Math.round(v * 1000));
+            if (a.mover.raf) return; a.mover.raf = requestAnimationFrame(() => { a.mover.raf = 0; construirEscena3D(); const est = document.getElementById('v3d-estado'); if (est) est.textContent = `${tagDe(el)}${rz !== el ? ' y lo que tiene unido' : ''} · ΔX ${Math.round(d[0] * 1000)} · ΔY ${Math.round(d[1] * 1000)} mm (Ctrl + arrastrar)`; });
+        }
         function moverSuelto3D(a, e) {
+            if (a.mover.raiz) return moverGrupo3D(a, e);
             const el = a.mover.el, gg = V3.geo[el.id]; if (!gg) return;
             if (!a.mover.ini) { a.mover.ini = true; guardarEstado(); a.mover.z = gg.C[2]; a.mover.off = (() => { const P = puntoSuelo3D(e, a.mover.z, true); return P ? v3.sum(gg.C, v3.mul(P, -1)) : [0, 0, 0]; })(); }
             const P = puntoSuelo3D(e, a.mover.z, true); if (!P) return;
@@ -9597,6 +9794,7 @@
         }
         function soltarSuelto3D(a) {
             pistaDestino3D(null); if (a.mover.raf) cancelAnimationFrame(a.mover.raf);
+            if (a.mover.raiz) { marcarCambios(true); construirEscena3D(); estadoGiro3D('movido con Ctrl (solo en el 3D)'); return; }
             if (a.snap) { conectar3D(a.mover.el, a.snap.pid, a.snap.l); return; }
             marcarCambios(true); construirEscena3D(); estadoGiro3D('movido (solo en el 3D)');
         }
@@ -10294,7 +10492,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.48';
+        const VERSION_WEB = '8.51';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -10362,7 +10560,7 @@
                 if (res_ || sus) f('Función', res_ ? `Reserva de ${esc(tagDe(res_))}${bombaEnMarcha(el) ? ' · <b>en marcha</b>' : ' · parada'}` : `Servicio, con reserva ${esc(tagDe(sus))}${bombaEnMarcha(el) ? '' : ' · <b>parada</b>'}`);
             } else if (el.type === 'equipo') {
                 f('Δp fabricante', `${fP(el.dpNom / 100, 3)} ${lP()} a ${fQ(el.qNom, 2)} ${lQ()} · cota ${fmt(el.cota, 2)} m`);
-            } else if (el.subtype === 'consumo') {
+            } else if (esConsumoT(el)) {
                 f('Consumo', `${fQ(el.qCons, 2)} ${lQ()} · p mín ${fP(el.pMin, 2)} ${lP()} · cota ${fmt(el.cota, 2)} m`);
             } else if (esDeposito(el)) {
                 f('Tanque', `fondo ${fmt(el.cotaFondo, 2)} m · conexión b a ${fmt(el.hB, 2)} m del fondo (${esc(el.tipoConexion || '')}${el.dnConexion ? ' ' + etiquetaDN(el.dnConexion) : ''}) · c a ${fmt(el.hC, 2)} m`);
@@ -10378,7 +10576,7 @@
             if (r) {
                 if (el.type === 'bomba') { f('Resultado', `Q ${fQ(r.Q, 2)} ${lQ()} · H ${fmt(r.H, 2)} m · ${fmt(r.potencia, 2)} kW`); const okN = r.npshd != null && r.npshd - el.npsh >= opciones.margenNPSH; f('NPSH', `<b class="${okN ? 'text-emerald-300' : 'text-rose-300'}">NPSHd ${fmt(r.npshd, 2)} m · NPSHr ${fmt(el.npsh, 2)} m · margen ${fmt(r.npshd - el.npsh, 2)} m ${okN ? '✔' : '✘ cavitación'}</b>`); }
                 else if (r.ramas && r.ramas.length) r.ramas.forEach(x => f(`Rama ${x.rama}`, `Q ${fQ(x.Q, 2)} ${lQ()} · V ${fmt(x.V, 2)} m/s · K ${fmt(x.K)} · hf ${fmt(x.hf, 3)} m`));
-                else if (esTerminal(el)) f('Resultado', el.subtype === 'consumo' ? `Q ${fQ(r.Q, 2)} ${lQ()} · p ${fP(r.p, 2)} ${lP()} (mín ${fP(r.pMin, 2)})${r.equilibrado ? ` · equilibrado Δp ${fP(r.equilibrado.dp, 2)} ${lP()}, Kv ${fmt(r.equilibrado.Kv, 2)}` : ''}` : `Q ${fQ(r.Q, 2)} ${lQ()} (${esc(r.sentido)}) · p ${fP(r.p, 2)} ${lP()}`);
+                else if (esTerminal(el)) f('Resultado', esConsumoT(el) ? `Q ${fQ(r.Q, 2)} ${lQ()} · p ${fP(r.p, 2)} ${lP()} (mín ${fP(r.pMin, 2)})${r.equilibrado ? ` · equilibrado Δp ${fP(r.equilibrado.dp, 2)} ${lP()}, Kv ${fmt(r.equilibrado.Kv, 2)}` : ''}` : `Q ${fQ(r.Q, 2)} ${lQ()} (${esc(r.sentido)}) · p ${fP(r.p, 2)} ${lP()}`);
                 else f('Resultado', `Q ${fQ(r.Q, 2)} ${lQ()} · V ${fmt(r.V, 2)} m/s${r.Re ? ' · Re ' + Math.round(r.Re) : ''}${r.f ? ' · f ' + fmt(r.f, 4) : ''} · hf ${fmt(r.hf, 3)} m${r.sentido ? ' · ' + r.sentido : ''}${r.dp != null ? ' · Δp ' + fmt(r.dp, 1) + ' kPa' : ''}`);
                 { const pc = perdidaAcumuladaElemento(el); if (pc) { const rho = fluidoActual().rho || 1000, bar = m => m * rho * G / 1e5, t = (m) => `<b>${fmt(m, 3)} m</b> (${fP(bar(m), 3)} ${lP()})`;
                     f('Pérdida acumulada', `desde el inicio de ${esc(pc.linea)}${pc.origen ? ' (' + esc(pc.origen) + ')' : ''}: ${pc.n > 1 && pc.max - pc.min > 1e-6 ? `entrada ${t(pc.min)} · salida ${t(pc.max)}` : t(pc.max)}`); } }
@@ -10735,7 +10933,7 @@
             numero: '', revision: '', fecha: '', autor: '',
             cliente: '', refCliente: '', descripcion: '', instalacion: '', direccion: '', ciudad: '', provincia: '', pais: '',
             nombrePlano: '', nombrePlano2: '', planoNumero: '', letraRevision: '', grupoPlano: '', codigoPlano: '', planoCert: '', revisadoPor: '', fechaRevisado: '', aprobadoPor: '', fechaAprobado: '', escala: '', hoja: '', hojas: '',
-            esBuque: false,
+            esBuque: false, soloPID: false,
             buque: { astillero: '', construccion: '', nombre: '', armador: '', tipo: '', imo: '', bandera: '', clasificacion: '', esloraTotal: '', esloraPP: '', manga: '', puntal: '', calado: '', peMuerto: '' },
             fluido: '', temperatura: '',
             tipoInstalacion: '', caudalDiseno: '', presionDiseno: '', vAsp: '', vImp: '', tCierre: '', tsMax: '', grupoPED: 'auto', criterioPrueba: 'PED', tAmbiente: '', tMontaje: '', exterior: false, horasAnuales: '', precioEnergia: '', etaMotor: ''
@@ -10820,6 +11018,7 @@
                 <div class="grid grid-cols-2 gap-2 mb-3">${CAMPOS_PROYECTO.map(campoP).join('')}</div>
                 <label class="flex items-center gap-1.5 font-bold text-slate-600 mb-1"><input type="checkbox" id="dp-esBuque" ${p.esBuque ? 'checked' : ''} onchange="document.getElementById('dp-bloque-buque').style.display = this.checked ? '' : 'none'; document.getElementById('dp-ref-buque').style.display = this.checked ? '' : 'none'; document.getElementById('dp-ref-ind').style.display = this.checked ? 'none' : ''"> El cliente es un astillero (instalación en un buque)</label>
                 <div id="dp-bloque-buque" class="grid grid-cols-2 gap-2 mb-3 border border-slate-200 rounded p-2" style="${p.esBuque ? '' : 'display:none'}">${CAMPOS_BUQUE.map(([k, e, t]) => campoHTML(k, e, t, p.buque[k], 'b')).join('')}</div>
+                <label class="flex items-start gap-1.5 mb-3 border border-slate-200 rounded p-2"><input type="checkbox" id="dp-soloPID" class="mt-0.5" ${p.soloPID ? 'checked' : ''}><span><b class="text-slate-600">Solo P&amp;ID (sin bridas ni juntas)</b><br><span class="text-[10px] text-slate-500">Las válvulas y equipos se unen directamente a la tubería, no se comprueban las uniones bridadas y el listado de materiales no lleva bridas ni juntas.</span></span></label>
                 <div class="mb-3 border border-slate-200 rounded p-2"><p class="font-bold text-slate-600 mb-1">Referencia 3D</p>
                     <div id="dp-ref-buque" class="grid grid-cols-4 gap-2" style="${p.esBuque ? '' : 'display:none'}"><p class="col-span-4 text-[10px] text-slate-500">Origen 0,0,0 en el eje del timón (cuaderna 0); +X proa, +Y babor, −Y estribor, +Z arriba. Punto inicial de la línea principal P01 (si su primer elemento es una bomba, su conexión de impulsión):</p>
                         ${[['x', 'X (mm, + a proa)'], ['y', 'Y (mm, + a babor)'], ['z', 'Z (mm)']].map(([k, t]) => `<div><label class="block text-slate-500 mb-0.5">${t}</label><input id="dp-o3-${k}" type="number" value="${esc(((p.origen3D || {})[k]) || 0)}" class="w-full border rounded p-1.5"></div>`).join('')}
@@ -10887,6 +11086,7 @@
             if (!copia.revision) copia.revision = '0';
             if (!copia.fecha) copia.fecha = new Date().toISOString().slice(0, 10);
             copia.esBuque = document.getElementById('dp-esBuque').checked;
+            { const sp = document.getElementById('dp-soloPID'); if (sp) copia.soloPID = sp.checked; }   // v8.50
             CAMPOS_BUQUE.forEach(([k]) => { copia.buque[k] = (v('dp-b-' + k) || '').trim(); });
             copia.origen3D = { x: +v('dp-o3-x') || 0, y: +v('dp-o3-y') || 0, z: +v('dp-o3-z') || 0 }; copia.cuaderna = +v('dp-cuaderna') > 0 ? +v('dp-cuaderna') : 750; copia.norte = v('dp-norte') === '' || v('dp-norte') == null ? 90 : +v('dp-norte');
             copia.tipoInstalacion = v('dp-tipoInstalacion');
@@ -11043,9 +11243,9 @@
         //    termoplásticos por diámetro exterior), nº de soportes = ceil(L/s).
         // ==================================================================================
         const ALFA_MAT = { 'Acero al carbono': 0.012, 'Acero al carbono EN': 0.012, 'Acero inoxidable': 0.016, 'PVC-U': 0.08, 'PE100': 0.2, 'PE80': 0.2, 'CPVC': 0.07, 'PP-R': 0.15, 'PVDF': 0.12, 'PP-H': 0.15,
-            'Cobre (Dint ref. Sch 40)': 0.017, 'Fundición (Dint ref. Sch 40)': 0.011, 'Hormigón (Dint ref. Sch 40)': 0.012 }; // mm/(m·K)
+            'Cobre (Dint ref. Sch 40)': 0.017, 'Fundición (Dint ref. Sch 40)': 0.011, 'Hormigón (Dint ref. Sch 40)': 0.012, 'Cobre EN 1057': 0.017, 'Cuproníquel 90/10': 0.017 }; // mm/(m·K)
         const DENS_MAT = { 'Acero al carbono': 7850, 'Acero al carbono EN': 7850, 'Acero inoxidable': 7950, 'PVC-U': 1400, 'PE100': 955, 'PE80': 950, 'CPVC': 1550, 'PP-R': 900, 'PVDF': 1780, 'PP-H': 905,
-            'Cobre (Dint ref. Sch 40)': 8940, 'Fundición (Dint ref. Sch 40)': 7100, 'Hormigón (Dint ref. Sch 40)': 2400 };
+            'Cobre (Dint ref. Sch 40)': 8940, 'Fundición (Dint ref. Sch 40)': 7100, 'Hormigón (Dint ref. Sch 40)': 2400, 'Cobre EN 1057': 8940, 'Cuproníquel 90/10': 8900 };
         const CP_FLUIDO = n => /glicol/i.test(n) ? 3700 : /mar/.test(n) ? 3990 : /^Agua/.test(n) ? 4186 : /Aceite|Gasóleo|Queroseno|Fuelóleo|Gasolina/.test(n) ? 2000 : /NaOH/.test(n) ? 3200 : /sulfúrico/.test(n) ? 1400 : 4000;
         const RITE_CAL = { T: [60, 100, 180], D: [35, 60, 90, 140, 1e9], e: [[25, 25, 30], [30, 30, 40], [30, 30, 40], [30, 40, 50], [35, 40, 50]] };
         const RITE_FRIO = { e: [[30, 20, 20], [40, 30, 20], [40, 30, 30], [50, 40, 30], [50, 40, 30]] }; // columnas: −10…0, 0…10, >10 °C
@@ -11147,7 +11347,7 @@
                 const els = [...c.els];
                 const Vtub = els.filter(e => e.type === 'tuberia').reduce((s, e) => { const d = datosTuberia(e).Dint / 1000; return s + Math.PI / 4 * d * d * e.longitud / 1000; }, 0) * 1000;
                 const Veq = els.filter(e => e.type === 'equipo').reduce((s, e) => s + (+e.volumen || 0), 0);
-                const abierto = els.some(e => esDeposito(e) && !(+e.presionDep > 0) || e.subtype === 'consumo');
+                const abierto = els.some(e => esDeposito(e) && !(+e.presionDep > 0) || esConsumoT(e));
                 const cotas = els.flatMap(e => e.type === 'tuberia' ? [+e.cotaA, +e.cotaB] : [+e.cota || 0]);
                 circs.push({ lineas: [...new Set(els.map(e => e.linea).filter(Boolean))].sort(), Vtub, Veq, V: Vtub + Veq, abierto, zmin: Math.min(...cotas), zmax: Math.max(...cotas), vaso: els.find(e => e.subtype === 'vasoexp') });
             });
@@ -11194,13 +11394,13 @@
                 if (!circ.elementos.includes(e.id)) return;
                 // curva casi plana que da exactamente dH al caudal objetivo (pendiente suave: sistema bien condicionado)
                 if (e.type === 'bomba') { e.presion = bar; e.h0 = bar * 1.05 + 1e-4; e.caudal = Math.max((Qobj || 0) / circ.bombas.length, 0.5); }
-                if (e.subtype === 'consumo') { if (e._q0 == null) e._q0 = +e.qCons || 0; e.qCons = e._q0 * factor; }
+                if (esConsumoT(e)) { if (e._q0 == null) e._q0 = +e.qCons || 0; e.qCons = e._q0 * factor; }
             });
             const grafo = construirGrafoRed(), aristas = construirAristas(grafo);
             const r = calcularResultado(grafo, aristas);
             if (r.error) return { error: r.error };
             const res = r.resultado, Q = res.aristas.filter(a => a.esBomba && circ.bombas.includes(a.el.id)).reduce((s, a) => s + a.Qprev * 3600, 0);
-            const cons = res.terminales.elementos.filter(e => e.subtype === 'consumo' && circ.elementos.includes(e.id));
+            const cons = res.terminales.elementos.filter(e => esConsumoT(e) && circ.elementos.includes(e.id));
             const consOk = cons.every(e => (ultimoResultado[e.id] || {}).exceso >= -1e-4);
             return { Q, consOk, res };
         }
@@ -11231,7 +11431,7 @@
             circuitos.forEach((circ, ic) => {
                 try {
                     const els = elementosRed.filter(e => circ.elementos.includes(e.id));
-                    const cons = els.filter(e => e.subtype === 'consumo'), sumaCons = cons.reduce((s, e) => s + (+e.qCons || 0), 0);
+                    const cons = els.filter(e => esConsumoT(e)), sumaCons = cons.reduce((s, e) => s + (+e.qCons || 0), 0);
                     const bombasEl = els.filter(e => e.type === 'bomba');
                     const Qd = circ === principal ? (+proyecto.caudalDiseno || 0) : 0;
                     const Qbase = bombasEl.reduce((s, e) => s + (+e.caudal || 0), 0);
@@ -12079,6 +12279,7 @@
                 { icono: 'fa-temperature-half', texto: 'Aplicar aislamiento mínimo RITE a las tuberías', accion: () => aplicarAislamientoRITE() },
                 { icono: 'fa-flask', texto: 'Volumen, vaso de expansión y glicol...', accion: () => abrirVolumenVaso() },
                 'sep',
+                { icono: 'fa-ring', texto: 'Juntas de las uniones bridadas...', accion: () => abrirJuntas() },
                 { icono: 'fa-link', texto: 'Corregir conexiones casi unidas', accion: () => corregirConexiones() },
                 { icono: 'fa-cube', texto: 'Isométrico de línea...', accion: () => isometricoLinea() },
                 { icono: 'fa-magnifying-glass', texto: 'Buscar en el catálogo del fabricante...', accion: () => buscarCatalogo() },
@@ -12567,6 +12768,7 @@
             if (num(p.eta) != null) el.eta = num(p.eta) > 1 ? num(p.eta) / 100 : num(p.eta);
             ['rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros', 'qMin', 'pCuerpo'].forEach(k => { if (num(p[k]) != null) el[k] = num(p[k]); else delete el[k]; });
             ['tension', 'frecuencia', 'ip', 'volMaterial', 'apiPlan', 'fluidoDiseno'].forEach(k => { if (p[k]) el[k] = p[k]; else delete el[k]; });
+            if (p.forma3D) el.forma3D = p.forma3D; if (p.cotas3D) el.cotas3D = p.cotas3D; else delete el.cotas3D;   // v8.51
             if (p.dnAsp) el.dnAsp = p.dnAsp; if (p.dnImp) el.dnImp = p.dnImp;
             ['Asp', 'Imp'].forEach(l => { const c = conexBomba(p, l); if (c.tipo) el['conex' + l] = c.tipo; if (c.norma) el['norma' + l] = c.norma; if (c.rating) el['pn' + l] = c.rating; });
             const ec = ecuacionesDe(p); let pts = leerTextoCurva(p.curva);
@@ -12624,6 +12826,19 @@
         }
         // ---- base de datos de bombas (Supabase: piping_pumps, piping_pump_curves, piping_volumetric_pump_specs) ----
         var BOMBAS_BD = [], BOMBAS_ORIGEN = null, CARGA_BOMBAS = null;
+        // Catálogo incorporado: Pedrollo serie CP (50 Hz, HS = 0 m, tolerancia EN ISO 9906 grado 3B). Columnas Q = 0, 0.6 … 9.6 m³/h; null = sin dato en la hoja.
+        const PEDROLLO_CP = [['100', 0.25, 'DN 25', 6, [16, 15, 14, 12.5, 11, 9, 7]], ['130', 0.37, 'DN 25', 6, [23, 22, 21, 20, 19, 18, 17, 15.5, 14]],
+            ['132', 0.55, 'DN 25', 6, [23, null, 22.5, 22, 21.5, 21, 20.5, 19.5, 18.5, 17.5, 16, 14, 12]], ['150', 0.75, 'DN 25', 6, [29.5, null, 29, 28.5, 28, 27.5, 26.5, 26, 24.5, 23, 21, 18, 15]],
+            ['158', 0.75, 'DN 25', 6, [36, 34, 33.5, 33, 32.5, 31.5, 30, 28.5, 27, 25]], ['170', 1.1, 'DN 32', 10, [41, null, null, 38, 37, 36, 35, 33.5, 32, 30, 27.5, 25, 22]],
+            ['170M', 1.1, 'DN 32', 10, [36, null, null, 35, 34.5, 33.5, 33, 32, 31, 30, 29, 28, 26.5, 25, 23, 21, 19]], ['190', 1.5, 'DN 32', 10, [48, null, null, 46, 44.5, 43, 41.5, 40, 38, 36, 34.5, 32.5, 30.5, 28, 26]],
+            ['200', 2.2, 'DN 32', 10, [56, null, null, 55, 54.5, 53.5, 52, 51, 49.5, 48, 46, 44.5, 42.5, 40.5, 38.5, 36]]];
+        const COTAS_CP = m => /^1(00|30|32)$/.test(m) ? 'a=42; f=257; h1=82; h2=123; h3=205; n1=165; n2=135' : /^15[08]$/.test(m) ? 'a=42; f=286; h1=92; h2=148; h3=240; n1=190; n2=160' : /^170/.test(m) ? 'a=51; f=367; h1=110; h2=150; h3=260; n1=206; n2=165' : m === '190' ? 'a=47.5; f=364; h1=115; h2=175; h3=290; n1=242; n2=206' : 'a=47.5; f=384; h1=115; h2=175; h3=290; n1=242; n2=206';
+        const BOMBAS_CATALOGO = PEDROLLO_CP.map(([m, kw, dnA, pc, H]) => {
+            const pts = H.map((h, i) => h == null ? null : [+(i * 0.6).toFixed(1), h]).filter(Boolean), ult = pts[pts.length - 1], med = pts[Math.floor(pts.length / 2)];
+            return { id: 'cat:pedrollo-cp' + m.toLowerCase(), subtipo: 'bomba', grupo: 'bombas', origen: 'catálogo', nombre: `Pedrollo CPm/CP ${m}`, fabricante: 'Pedrollo', referencia: `CPm ${m} (1~) / CP ${m} (3~)`, url: 'https://www.pedrollo.com',
+                notas: `Centrífuga horizontal, 50 Hz. Cuerpo de fundición con bocas roscadas ISO 228/1, rodete AISI 304. P2 ${kw} kW. Presión máxima del cuerpo ${pc} bar. Curva de la hoja del fabricante (HS = 0 m, EN ISO 9906 3B).`,
+                props: { bombaTipo: 'centrifuga', caudal: med[0], altura: med[1], alturaCero: H[0], potMotor: kw, frecuencia: '50', ip: 'IPX4', dnAsp: dnA, dnImp: 'DN 25', conexAsp: 'Roscada', normaAsp: 'BSPP', conexImp: 'Roscada', normaImp: 'BSPP', pCuerpo: pc, qMin: '', npsh: '', eta: '', curva: textoDeCurva(pts), ecuaciones: '', qMax: ult[0], forma3D: 'horizontal', cotas3D: COTAS_CP(m) } };
+        });
         const TIPO_BD_BOMBA = { centrifuga: 'Centrifugal', peristaltica: 'Peristaltic', piston: 'Piston', dosificadora: 'Metering', membrana: 'Diaphragm', engranajes: 'Gear', tornillo: 'Screw', lobulos: 'Lobe' };
         const tipoDeBD = t => Object.keys(TIPO_BD_BOMBA).find(k => TIPO_BD_BOMBA[k].toLowerCase() === String(t || '').toLowerCase()) || 'centrifuga';
         function itemDeBombaBD(r) {
@@ -12633,14 +12848,14 @@
                     potMotor: r.motor_power_kw == null ? '' : r.motor_power_kw, eta: r.efficiency_pct == null ? '' : r.efficiency_pct, tension: r.voltage || '', frecuencia: r.frequency_hz || '', ip: r.ip_rating || '', impulsor: r.impeller_mm == null ? '' : r.impeller_mm, impulsorMax: r.impeller_max_mm == null ? '' : r.impeller_max_mm,
                     dnAsp: r.suction_size || '', dnImp: r.discharge_size || '', normaBridas: r.flange_standard || '', rating: r.pressure_rating || '', apiPlan: r.api_plan || '',
                     ...(() => { const c = r.connections || {}, a = c.asp || {}, i = c.imp || {}; return migrarConexLib({ conexAsp: a.tipo || '', normaAsp: a.norma || '', ratingAsp: a.rating || '', conexImp: i.tipo || '', normaImp: i.norma || '', ratingImp: i.rating || '', dnAsp: r.suction_size || '', dnImp: r.discharge_size || '', normaBridas: r.flange_standard || '', rating: r.pressure_rating || '' }); })(),
-                    curva: textoDeCurva(c.map(x => [x.flow_m3h, x.head_m, x.efficiency_pct, x.npshr_m, x.power_kw])), ecuaciones: r.curve_equations && r.curve_equations.H ? JSON.stringify(r.curve_equations) : '', qMin: r.min_flow_m3h == null ? '' : r.min_flow_m3h, pCuerpo: r.casing_max_pressure_bar == null ? '' : r.casing_max_pressure_bar,
+                    curva: textoDeCurva(c.map(x => [x.flow_m3h, x.head_m, x.efficiency_pct, x.npshr_m, x.power_kw])), ecuaciones: r.curve_equations && r.curve_equations.H ? JSON.stringify(r.curve_equations) : '', forma3D: (r.connections || {}).forma3D || '', cotas3D: (r.connections || {}).cotas3D || '', qMin: r.min_flow_m3h == null ? '' : r.min_flow_m3h, pCuerpo: r.casing_max_pressure_bar == null ? '' : r.casing_max_pressure_bar,
                     volCilindrada: v.displacement_per_stroke_cm3 == null ? '' : v.displacement_per_stroke_cm3, volPmax: v.max_discharge_pressure_bar == null ? '' : v.max_discharge_pressure_bar, volCiclos: v.strokes_per_minute == null ? '' : v.strokes_per_minute, volCilindros: v.cylinders == null ? '' : v.cylinders, volMaterial: v.internal_material || '' } };
         }
         function bombaBDDeItem(b) {
             const p = b.props || {}, n = v => v === '' || v == null || isNaN(+String(v).replace(',', '.')) ? null : +String(v).replace(',', '.'), vol = p.bombaTipo && p.bombaTipo !== 'centrifuga';
             return { pump_id: /^usr:/.test(b.id) ? '' : b.id, tag_name: p.tag || '', pump_type: TIPO_BD_BOMBA[p.bombaTipo || 'centrifuga'], manufacturer: b.fabricante || '', model: b.referencia || b.nombre || '', design_fluid: p.fluidoDiseno || '',
                 design_flow_m3h: n(p.caudal), design_head_m: n(p.altura), shutoff_head_m: n(p.alturaCero), npshr_m: n(p.npsh), operational_rpm: n(p.rpm), motor_power_kw: n(p.potMotor), efficiency_pct: n(p.eta) == null ? null : (n(p.eta) <= 1 ? n(p.eta) * 100 : n(p.eta)),
-                voltage: p.tension || '', frequency_hz: p.frecuencia || '', ip_rating: p.ip || '', impeller_mm: n(p.impulsor), impeller_max_mm: n(p.impulsorMax), suction_size: p.dnAsp || '', discharge_size: p.dnImp || '', ...(() => { const a = conexBomba(p, 'Asp'), i = conexBomba(p, 'Imp'), nb = i.norma || a.norma; return { flange_standard: esNormaBrida(nb) ? (/^ASME/.test(nb) ? 'ASME' : /^EN/.test(nb) ? 'EN' : '') : (p.normaBridas || ''), pressure_rating: i.rating || a.rating || '', connections: { asp: { tipo: a.tipo, norma: a.norma, rating: a.rating }, imp: { tipo: i.tipo, norma: i.norma, rating: i.rating } } }; })(), api_plan: p.apiPlan || '', min_flow_m3h: n(p.qMin), casing_max_pressure_bar: n(p.pCuerpo), url: b.url || '', notes: b.notas || '', curve_equations: vol ? null : ecuacionesDe(p),
+                voltage: p.tension || '', frequency_hz: p.frecuencia || '', ip_rating: p.ip || '', impeller_mm: n(p.impulsor), impeller_max_mm: n(p.impulsorMax), suction_size: p.dnAsp || '', discharge_size: p.dnImp || '', ...(() => { const a = conexBomba(p, 'Asp'), i = conexBomba(p, 'Imp'), nb = i.norma || a.norma; return { flange_standard: esNormaBrida(nb) ? (/^ASME/.test(nb) ? 'ASME' : /^EN/.test(nb) ? 'EN' : '') : (p.normaBridas || ''), pressure_rating: i.rating || a.rating || '', connections: { asp: { tipo: a.tipo, norma: a.norma, rating: a.rating }, imp: { tipo: i.tipo, norma: i.norma, rating: i.rating }, forma3D: p.forma3D || '', cotas3D: p.cotas3D || '' } }; })(), api_plan: p.apiPlan || '', min_flow_m3h: n(p.qMin), casing_max_pressure_bar: n(p.pCuerpo), url: b.url || '', notes: b.notas || '', curve_equations: vol ? null : ecuacionesDe(p),
                 curves: vol ? [] : leerTextoCurva(p.curva).map(q => ({ flow_m3h: q[0], head_m: q[1], efficiency_pct: q[2], npshr_m: q[3], power_kw: q[4] })),
                 volumetric: vol ? { displacement_per_stroke_cm3: n(p.volCilindrada), max_discharge_pressure_bar: n(p.volPmax), strokes_per_minute: n(p.volCiclos), cylinders: n(p.volCilindros), internal_material: p.volMaterial || '' } : null };
         }
@@ -12845,6 +13060,8 @@
               [['Asp', d.conexion_aspiracion, d.dn_aspiracion_mm], ['Imp', d.conexion_impulsion, d.dn_impulsion_mm]].forEach(([l, c, dn]) => { if (CONEX_BOMBA.includes(c)) prop('conex' + l, c); else if (nn(dn) > 0 && esNormaBrida(nm)) prop('conex' + l, 'Bridada'); });
               if (P.rating && campos.includes('p.rating')) { prop('ratingAsp', P.rating); prop('ratingImp', P.rating); } }
             prop('apiPlan', tt(d.plan_sellado)); prop('qMin', red(d.caudal_minimo_m3h)); prop('pCuerpo', red(d.presion_max_cuerpo_bar));
+            if (d.disposicion === 'horizontal') prop('forma3D', 'horizontal'); else if (d.disposicion === 'en_linea') prop('forma3D', 'linea');   // v8.51 · cotas para el 3D
+            { const cs = ['a', 'f', 'h1', 'h2', 'h3', 'n1', 'n2'].map(k => [k, red(d['cota_' + k + '_mm'])]).filter(x => x[1] > 0); if (cs.length >= 3) prop('cotas3D', cs.map(([k, v]) => `${k}=${v}`).join('; ')); }
             const pts = (Array.isArray(d.curva_tabulada) ? d.curva_tabulada : []).map(q => [nn(q.q_m3h), nn(q.h_m), nn(q.eta_pct), nn(q.npshr_m)]).filter(q => q[0] != null && q[0] >= 0 && q[1] > 0).sort((x, y) => x[0] - y[0]);
             const vol = P.bombaTipo && P.bombaTipo !== 'centrifuga';
             if (pts.length >= 2 && !vol) prop('curva', textoDeCurva(pts));

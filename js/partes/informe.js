@@ -214,10 +214,10 @@ function datosComprobacionRed() {
             if (!bombas.length && lc && lc.aristasCamino.length) {
                 const cam = lc.aristasCamino, cnt = {}; cam.forEach(a => { cnt[a.nodoA] = (cnt[a.nodoA] || 0) + 1; cnt[a.nodoB] = (cnt[a.nodoB] || 0) + 1; });
                 const extremos = Object.keys(cnt).filter(n => cnt[n] === 1).map(Number), porNodo = (res.terminales && res.terminales.porNodo) || {};
-                const esFuente = n => { const t = porNodo[n]; return t && t.subtype !== 'consumo' && !/consumo|descarga|salida/i.test(t.subtype || ''); };
+                const esFuente = n => { const t = porNodo[n]; return t && !esConsumoT(t) && !/consumo|descarga|salida/i.test(t.subtype || ''); };
                 const nA = extremos.find(esFuente) ?? (extremos.length ? extremos[0] : cam[0].nodoA), nZ = extremos.find(n => n !== nA) ?? cam[cam.length - 1].nodoB, a0 = cam[0];
                 const zN = n => (res.z || {})[n] || 0, pM = n => (res.pMan || {})[n] || 0, pAbs = res.pAbs || {}, PATM = 101325;
-                const ultT = cam.find(a => a.nodoA === nZ || a.nodoB === nZ), fin = porNodo[nZ] || (ultT && vecinosDe(ultT.el).map(v => v.otro).find(o => o.subtype === 'consumo')), pMinZ = fin && fin.subtype === 'consumo' ? (+fin.pMin || 0) * 1e5 : 0;
+                const ultT = cam.find(a => a.nodoA === nZ || a.nodoB === nZ), fin = porNodo[nZ] || (ultT && vecinosDe(ultT.el).map(v => v.otro).find(o => esConsumoT(o))), pMinZ = fin && esConsumoT(fin) ? (+fin.pMin || 0) * 1e5 : 0;
                 const Hdisp = zN(nA) + pM(nA) / rg, Hreq = zN(nZ) + pMinZ / rg;      // altura disponible en el origen y necesaria en el final (m c.l.)
                 const TDH = lc.hfTotal + Hreq - Hdisp, tubos = cam.map(a => a.el).filter(e => e.type === 'tuberia'), pA = pM(nA), z = zN;
                 const Q = Math.max(+res.Qdiseno || 0, Math.abs(a0.Qprev || 0) * 3600);
@@ -396,7 +396,7 @@ function justificacion(el, ars) {
             if (esTerminal(el)) {
                 const r = ultimoResultado[el.id];
                 if (!r) { F.push(['—', 'Terminal sin conectar', '', '—']); return { filas: F, k: '—' }; }
-                if (el.subtype === 'consumo') {
+                if (esConsumoT(el)) {
                     F.push(['Caudal demandado', 'Q (dato)', '', `${nf(r.Q, 3)} m³/h`]);
                     F.push(['Presión en el punto de consumo', 'p = (H − z)·ρ·g − p_atm', `(${nf(r.H, 3)} − ${nf(r.z, 2)}) × ${rhoG} − 101 325 Pa`, `${nf(r.p, 3)} bar`]);
                     F.push(['Comprobación de presión', 'p ≥ p mín', `${nf(r.p, 3)} ≥ ${nf(r.pMin, 2)} bar`, r.exceso >= -1e-4 ? 'CUMPLE' : 'NO CUMPLE']);
@@ -714,7 +714,7 @@ async function construirInforme(D, opc = {}) {
                 cuerpo.push(par(`La ruta crítica es el camino desde ${ars.some(a => a.esBomba) ? 'la descarga de la bomba' : 'el depósito de alimentación'} hasta un extremo abierto con mayor pérdida de carga acumulada: ${nf(lc.hfTotal, 3)} m. Recorrido: ${nombres.join(' → ')}. Su balance detallado figura en el apartado 7.`));
             } else cuerpo.push(par('No se ha identificado ruta crítica (la red no tiene extremos aguas abajo de una bomba o de un depósito de alimentación).'));
             const termV = (res.terminales || { elementos: [] }).elementos;
-            const consumos = termV.filter(e => e.subtype === 'consumo'), depositos = termV.filter(e => esDeposito(e));
+            const consumos = termV.filter(e => esConsumoT(e)), depositos = termV.filter(e => esDeposito(e));
             if (consumos.length) {
                 titulo(2, '3.5. Puntos de consumo y válvulas de equilibrado');
                 cuerpo.push(par(`Cada punto de consumo recibe su caudal con una presión igual o superior a la mínima. El consumo más desfavorable${res.consumoCritico ? ` (${tagDe(res.consumoCritico.el)}, con ${nf(res.consumoCritico.margen, 2)} bar de margen)` : ''} no lleva válvula; en el resto, la diferencia de presión respecto a él se absorbe con una válvula de equilibrado cuyo Kv se indica.`));
@@ -764,7 +764,7 @@ async function construirInforme(D, opc = {}) {
                     if (e.type === 'tuberia') { const dt = datosTuberia(e); desc = `${e.material} · ${etiquetaTuberia(e)} · De ${nf(dt.od, 1)} × e ${nf(dt.e, 2)} mm · ε ${nf(dt.rug, 3)} mm (${dt.norma})`; }
                     else if (e.type === 'bomba') desc = `Diseño ${nf(e.caudal, 1)} m³/h a ${nf(e.presion, 2)} bar · H₀ ${nf(e.h0, 2)} bar · NPSHr ${nf(e.npsh, 2)} m · cota ${nf(e.cota || 0, 2)} m`;
                     else if (sinFlujo(e)) desc = 'Sin caudal (no interviene en el cálculo)';
-                    else if (e.subtype === 'consumo') desc = `Q ${nf(e.qCons, 2)} m³/h · p mín ${nf(e.pMin, 2)} bar · cota ${nf(e.cota, 2)} m`;
+                    else if (esConsumoT(e)) desc = `Q ${nf(e.qCons, 2)} m³/h · p mín ${nf(e.pMin, 2)} bar · cota ${nf(e.cota, 2)} m`;
                     else if (esDeposito(e)) desc = `Lámina ${nf(e.cotaLamina, 2)} m · conexión ${nf(e.cota, 2)} m · ${nf(e.presionDep, 2)} bar man.`;
                     else if (e.type === 'equipo') desc = `Δp ${nf(e.dpNom, 1)} kPa a ${nf(e.qNom, 2)} m³/h (fabricante) · cota ${nf(e.cota, 2)} m`;
                     else desc = `${e.subtype === 'reduccion' ? `${etiquetaDN(e.dn)} × ${etiquetaDN(e.dnMenor)}` : (e.dn ? etiquetaDN(e.dn) : '')}${a && a.origenK ? ' · ' + a.origenK.replace(/ · rama \w+$/, '') : ''}`;
@@ -1022,7 +1022,7 @@ function datosListados() {
             const E = [['Etiqueta', 'Tipo', 'Línea', 'Cota (m)', 'Datos de diseño', 'Q calc. (m³/h)', 'H / Δp / p calc.', 'Estado']];
             elementosRed.filter(e => e.type === 'bomba' || e.type === 'equipo' || esTerminal(e)).forEach(e => {
                 const r = calc && ultimoResultado[e.id];
-                const dis = e.type === 'bomba' ? `${e.caudal} m³/h a ${e.presion} bar · H0 ${e.h0} bar · NPSHr ${e.npsh} m${e.reservaDe ? ' · reserva de ' + tagDe(elementosRed.find(x => x.id === e.reservaDe) || e) : ''}` : e.type === 'equipo' ? `Δp ${e.dpNom} kPa a ${e.qNom} m³/h` : e.subtype === 'consumo' ? `${e.qCons} m³/h · p mín ${e.pMin} bar` : `lámina ${e.cotaLamina} m · ${e.presionDep} bar`;
+                const dis = e.type === 'bomba' ? `${e.caudal} m³/h a ${e.presion} bar · H0 ${e.h0} bar · NPSHr ${e.npsh} m${e.reservaDe ? ' · reserva de ' + tagDe(elementosRed.find(x => x.id === e.reservaDe) || e) : ''}` : e.type === 'equipo' ? `Δp ${e.dpNom} kPa a ${e.qNom} m³/h` : esConsumoT(e) ? `${e.qCons} m³/h · p mín ${e.pMin} bar` : `lámina ${e.cotaLamina} m · ${e.presionDep} bar`;
                 const res = !r ? '' : e.type === 'bomba' ? `H ${r2(r.H)} m · NPSHd ${r2(r.npshd)} m` : e.type === 'equipo' ? `Δp ${r2(r.dp)} kPa` : `p ${r2(r.p)} bar`;
                 E.push([tagDe(e), nombreTipo(e), e.linea || '', e.type === 'bomba' ? e.cota || 0 : r2(e.cota), dis, r ? r2(r.Q) : '', res, calc ? (e.estado === 'fallo' ? 'NO CUMPLE' : e.estado ? 'OK' : '') : '']);
             });

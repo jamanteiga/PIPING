@@ -451,7 +451,7 @@ async function exportarPDFCapas__p(indices, opc = {}) {
                 aviso('Generando el PDF vectorial…');
                 const paginas = indices.map(i => conHoja(i, paginaPDF, !!opc.marcaAgua));
                 const blob = await escribirPDF(paginas, [proyecto.numero, proyecto.nombrePlano].filter(Boolean).join(' - '));
-                const nombre = `${(proyecto.planoNumero || proyecto.numero || 'plano').replace(/[^\w.-]+/g, '_')}.pdf`;
+                const nombre = (indices && indices.length > 1 ? nombreArchivoPlano().replace(/-H[^_]*_/, '-H' + hojas[indices[0]].id + 'a' + hojas[indices[indices.length - 1]].id + '_') : nombreArchivoPlano(indices && indices.length ? indices[0] : null)) + '.pdf';
                 const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
                 window.__ultimoPDF = blob;
                 const coreano = paginas.some(p => [...p.capas.values()].some(ops => ops.some(o => typeof o === 'string' && /\(\?+/.test(o))));
