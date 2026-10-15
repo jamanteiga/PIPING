@@ -1393,6 +1393,30 @@
             abrirModalNuevo(el, necesitaLinea ? propuesta : null, necesitaK, true, { pedirPN: conPN, pedirValv: el.type === 'valvula' && !sinFlujo(el) });
         }
 
+        // v8.47 · buques: el punto de conexión inicial de la red (la impulsión si el primer componente es una bomba) se da con
+        // coordenadas absolutas X, Y, Z (mm) respecto al 0,0,0 del buque (eje del timón, crujía, línea base); es proyecto.origen3D
+        function primeroRed3D() {
+            const pr = lineaPorId('P01') || lineas.find(l => l.tipo === 'principal'); if (!pr) return null;
+            try { const o = ordenarLinea(pr.id, mapaVecinos()).map(id => elementosRed.find(e => e.id === id)).filter(e => e && !esAnotacion(e) && e.subtype !== 'continuacion'); return o.length ? o[0].id : null; } catch (e) { return null; }
+        }
+        function esInicioRed(el) {
+            if (!proyecto.esBuque || !el || esAnotacion(el)) return false;
+            const otros = (typeof todosLosElementos === 'function' ? todosLosElementos() : elementosRed).filter(e => !esAnotacion(e) && e.id !== el.id);
+            return !otros.length || primeroRed3D() === el.id;
+        }
+        function camposOrigen3DHTML(el) {
+            const o = (proyecto.origen3D = proyecto.origen3D || { x: 0, y: 0, z: 0 }), punto = el.type === 'bomba' ? 'boca de impulsión de la bomba' : 'primera conexión libre del componente';
+            const inp = k => `<label class="flex items-center gap-1"><b>${k.toUpperCase()}</b><input type="number" step="1" value="${+o[k] || 0}" oninput="fijarOrigen3D('${k}', this.value)" class="w-24 border border-slate-300 rounded px-1 py-0.5 text-right"></label>`;
+            return `<div class="mb-3 p-2 rounded border border-sky-300 bg-sky-50 text-[11px]"><div class="font-bold text-sky-800 mb-1"><i class="fa-solid fa-location-crosshairs mr-1"></i>Punto de conexión inicial de la red · ${punto}</div>
+                <div class="text-slate-600 mb-1.5">Coordenadas absolutas (mm) respecto al 0,0,0 del buque: X en el eje del timón (cuaderna 0, + a proa), Y en crujía (+ a babor), Z en la línea base (+ hacia arriba).</div>
+                <div class="flex gap-3">${inp('x')}${inp('y')}${inp('z')}</div><div id="og-txt" class="text-slate-500 mt-1">${esc(textoNaval(+o.x || 0, +o.y || 0, +o.z || 0))}</div></div>`;
+        }
+        function fijarOrigen3D(k, v) {
+            const o = (proyecto.origen3D = proyecto.origen3D || { x: 0, y: 0, z: 0 }); o[k] = +String(v).replace(',', '.') || 0; marcarCambios(true);
+            document.querySelectorAll('#og-txt').forEach(t => { t.textContent = textoNaval(+o.x || 0, +o.y || 0, +o.z || 0); });
+            ['x', 'y', 'z'].forEach(q => { const i = document.getElementById('v3d-o' + q); if (i && document.activeElement !== i) i.value = +o[q] || 0; });
+            if (vista3d) refrescar3D();
+        }
         let nuevoPendiente = null;
         const opt = (lista, actual) => lista.map(o => { const [v, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${String(v) === String(actual) ? 'selected' : ''}>${esc(t)}</option>`; }).join('');
         // Controles de la ventana de inserción: data-campo = campo del elemento que rellenan
@@ -1413,7 +1437,8 @@
             if (!m.tamanos.some(t => t.clave === el.dn && t.e[el.serie] != null)) { const t = m.tamanos.find(x => x.e[el.serie] != null); if (t) el.dn = t.clave; }
             delete el._propuestaDN; pintarModalNuevo();
         }
-        function pintarModalNuevo() {
+        function pintarModalNuevo() { pintarModalNuevo0(); try { if (nuevoPendiente && esInicioRed(nuevoPendiente.el)) document.getElementById('modal-nuevo-body').insertAdjacentHTML('afterbegin', camposOrigen3DHTML(nuevoPendiente.el)); } catch (e) { } }   // v8.47 · buques: punto inicial XYZ
+        function pintarModalNuevo0() {
             const { el, propuesta, necesitaK, extra } = nuevoPendiente;
             const t = TIPOS[el.subtype] || {};
             const listaDN = LISTA_DN.map(d => [d, etiquetaDN(d)]);
@@ -2122,8 +2147,10 @@
         const LETRAS_ZONA = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
         const formatoActual = () => FORMATOS[opciones.formato] || FORMATOS.A3;
         const MARGEN_IZQ = 10, MARGEN = 10, BANDA = 6; // mm (marco a 10 mm, línea exterior de referencias a 4 mm del borde)
-        const FACTOR_TRAZO = 0.8;
-        const afinarTrazos = d => d.replace(/stroke-width="([\d.]+)"/g, (m, w) => `stroke-width="${+(w * FACTOR_TRAZO).toFixed(2)}"`).replace(/stroke-width:\s*([\d.]+)/g, (m, w) => `stroke-width:${+(w * FACTOR_TRAZO).toFixed(2)}`);
+        // v8.47 · grosor de las líneas del P&ID respecto al dibujo original (CAD › Grosor de las líneas): por defecto 48 % (un 40 % más fino que en la 8.45)
+        const factorTrazo = () => +opciones.grosorLineas > 0 ? +opciones.grosorLineas : 0.48;
+        const afinarTrazos = d => { const k = factorTrazo(); if (k === 1) return d; return d.replace(/stroke-width="([\d.]+)"/g, (m, w) => `stroke-width="${+(w * k).toFixed(2)}"`).replace(/stroke-width:\s*([\d.]+)/g, (m, w) => `stroke-width:${+(w * k).toFixed(2)}`); };
+        function ponerGrosorLineas(k) { opciones.grosorLineas = k; marcarCambios(true); renderizarVectorial(); aviso(`Grosor de las líneas del P&ID: ${Math.round(k * 100)} % del original.`, 'ok'); }
         function marcoInterior() { return { x0: MARGEN_IZQ * PX_MM, y0: MARGEN * PX_MM, x1: ANCHO_A3 - MARGEN * PX_MM, y1: ALTO_A3 - MARGEN * PX_MM }; }
         function aplicarFormato() {
             const f = formatoActual();
@@ -3150,6 +3177,7 @@
             if (el.subtype === 'tabla') h += editorTabla(el);
             else h += `<div class="space-y-1.5">${camposComunes(el, '__cambiarVentana')}${camposEspecificos(el, '__cambiarVentana')}</div>`;
             h += `<div class="flex justify-end pt-1"><button onclick="cerrarModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>`;
+            if (esInicioRed(el)) h = camposOrigen3DHTML(el) + h;   // v8.47
             document.getElementById('modal-content-body').innerHTML = h;
             const r = modalEdicion.getBoundingClientRect();
             if (r.right > window.innerWidth - 8) modalEdicion.style.left = Math.max(8, window.innerWidth - r.width - 8) + 'px';
@@ -7169,7 +7197,7 @@
         }
         
         // ---------- v8.33 · CAD > Exportar / Importar configuración del CAD (atajos, gestos, barra rápida, 3D, rejilla, unidades...) ----------
-        const OPC_CONFIG_CAD = ['fondo', 'norma', 'formato', 'rejillaVisible', 'rejillaMayor', 'rejillaMenores', 'rejilla', 'rejillaTipo', 'rejillaIsoMm', 'uPresion', 'uCaudal', 'cajetin', 'idiomaDoc', 'autoArchivoMin', 'calculoAuto', 'arbol'];
+        const OPC_CONFIG_CAD = ['fondo', 'norma', 'formato', 'rejillaVisible', 'rejillaMayor', 'rejillaMenores', 'rejilla', 'rejillaTipo', 'rejillaIsoMm', 'grosorLineas', 'uPresion', 'uCaudal', 'cajetin', 'idiomaDoc', 'autoArchivoMin', 'calculoAuto', 'arbol'];
         function exportarConfigCAD() {
             cerrarMenus();
             let u = 'invitado'; try { const ss = sesionActual(); if (ss) u = ss.usuario || 'usuario'; } catch (e) { }
@@ -8666,7 +8694,7 @@
                     <div class="v3d-grupo"><div class="v3d-fila"><button class="v3d-b" onclick="alternarAjustes3D()" title="Origen del buque, cuadernas, norte y ratón 3D">${svgIco('ajustes')}<span>Ajustes</span></button><button class="v3d-b" onclick="conectarSpaceMouse(true, event.shiftKey)" title="Conectar un ratón 3D 3Dconnexion (SpaceMouse) por WebHID: Chrome o Edge · Mayús+clic: todos los dispositivos">${svgIco('raton')}<span>Ratón 3D…</span></button><span id="v3d-sm" class="v3d-nota"></span></div><div class="v3d-tit">Configurar</div></div>
                     </div>
                     <div id="v3d-ajustes" class="v3d-pop" style="display:none">
-                    <span id="v3d-buque">Inicio de P01 respecto al eje del timón (mm): X <input id="v3d-ox" type="number" style="width:80px"> Y <input id="v3d-oy" type="number" style="width:70px"> Z <input id="v3d-oz" type="number" style="width:70px"> · Cuaderna (mm) <input id="v3d-cu" type="number" style="width:60px"></span>
+                    <span id="v3d-buque" title="Coordenadas absolutas respecto al 0,0,0 del buque (eje del timón, crujía, línea base)">Punto de conexión inicial de la red (impulsión de la bomba si empieza en una bomba), absoluto (mm): X <input id="v3d-ox" type="number" style="width:80px"> Y <input id="v3d-oy" type="number" style="width:70px"> Z <input id="v3d-oz" type="number" style="width:70px"> · Cuaderna (mm) <input id="v3d-cu" type="number" style="width:60px"></span>
                     <span id="v3d-ind">Norte (° desde +X) <input id="v3d-norte" type="number" style="width:60px"></span>
                     <span id="v3d-smopc" style="display:none;gap:8px;align-items:center"><b>Ratón 3D</b><span>Sens. <input id="v3d-sens" type="number" step="0.1" min="0.1" style="width:50px" onchange="guardarCfg3DLocal({ sens: Math.max(0.1, +this.value || 1) })"></span>
                     <label title="Sin alabeo: la vertical +Z queda siempre hacia arriba"><input id="v3d-hor" type="checkbox" onchange="guardarCfg3DLocal({ horizonteFijo: this.checked }); if (this.checked && V3) { V3.rol = 0; pintar3D(); }"> Horizonte fijo</label>
@@ -10157,7 +10185,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.46';
+        const VERSION_WEB = '8.47';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -11885,6 +11913,7 @@
                     { icono: 'fa-image', texto: 'Logotipo del cliente...', accion: () => elegirLogotipo() },
                     ...(proyecto.logo ? [{ icono: 'fa-xmark', texto: 'Quitar el logotipo', accion: () => quitarLogotipo() }] : [])] },
                 { icono: 'fa-file', texto: 'Formato de la hoja', sub: () => Object.entries(FORMATOS).map(([k, f]) => ({ icono: (opciones.formato || 'A3') === k ? 'fa-check' : 'fa-square', texto: `${k} (${f.w} × ${f.h} mm)`, accion: () => cambiarFormato(k) })) },
+                { icono: 'fa-pen', texto: 'Grosor de las líneas del P&ID', sub: () => [1, 0.8, 0.6, 0.48, 0.4, 0.3].map(k => ({ icono: Math.abs(factorTrazo() - k) < 0.001 ? 'fa-check' : 'fa-square', texto: `${Math.round(k * 100)} %${k === 0.48 ? ' (por defecto)' : k === 1 ? ' (original)' : ''}`, accion: () => ponerGrosorLineas(k) })) },
                 { icono: 'fa-border-all', texto: 'Rejilla', sub: () => [
                     { icono: opciones.rejillaVisible !== false ? 'fa-check' : 'fa-square', texto: 'Mostrar rejilla', accion: () => alternarRejilla('rejillaVisible') },
                     { icono: opciones.rejilla ? 'fa-check' : 'fa-square', texto: 'Ajuste a rejilla (líneas menores)', accion: () => alternarRejilla('rejilla') },
