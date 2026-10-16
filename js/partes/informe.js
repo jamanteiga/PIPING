@@ -355,7 +355,8 @@ function detalleK(el, a) {
                 F.push(['Coeficiente de resistencia', 'K = 891·d⁴/Cv²  (d en pulgadas)', `891 × (${nf(Dmm, 2)}/25,4)⁴ / ${nf(cv, 1)}²`, nf(a.K, 4)]);
                 return `K = ${nf(a.K, 3)} (Cv ${nf(cv, 0)})`;
             };
-            if (calcDe(el) === 'cero') { F.push(['Coeficiente de resistencia', 'K despreciable (unión/brida)', '', '0']); return { k: 'K = 0', filas: F }; }
+            if (calcDe(el) === 'cero' && !(a.K > 0)) { F.push(['Coeficiente de resistencia', 'K despreciable (unión/brida)', '', '0']); return { k: 'K = 0', filas: F }; }
+            if (/^máx\. |^espiga/.test(a.origenK || '')) { F.push(['Coeficiente de resistencia', 'El más desfavorable de las fórmulas empíricas (Hooper 2-K, Darby 3-K, Perry, Crane)', a.origenK, nf(a.K, 4)]); return { k: `K = ${nf(a.K, 3)} (empírico, máx.)`, filas: F }; }
             if (el.modoK === 'manual') { F.push(['Coeficiente de resistencia', 'K facilitado por el usuario', '', nf(a.K, 4)]); return { k: `K = ${nf(a.K, 3)} (usuario)`, filas: F }; }
             if (el.modoK === 'kvs') {
                 const kv = kvApertura(el), h = Math.min(Math.max((+el.apertura || 0) / 100, 0.02), 1);

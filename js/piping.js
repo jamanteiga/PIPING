@@ -402,9 +402,40 @@
         }
         // K de válvulas y accesorios de dos puertos para un diámetro interior D (mm).
         // Devuelve { K, origen, aviso }
+        // v8.54 · K de accesorios sin dato (o roscados / de cobre): el más desfavorable de las fórmulas empíricas, en régimen turbulento
+        //  Hooper 2-K (1981): K = K1/Re + K∞·(1 + 1/D)        · Darby 3-K (2001): K = K1/Re + Ki·(1 + Kd/D^0,3)   (D interior en pulgadas)
+        //  Perry (tabla 6-4): K constante                      · Crane TP-410M: n·fT (si hay dato)
+        //  Espiga portamanguera: contracción + expansión bruscas con β ≈ 0,8 (Crane fórm. 4 y 5).
+        const K_EMP = {
+            'codo90-ros': { H: 0.40, D: [0.14, 4.0], P: 0.75, n: 'codo 90° roscado estándar' }, 'codo90-sr': { H: 0.25, D: [0.091, 4.0], P: 0.75, n: 'codo 90° radio corto' }, 'codo90-lr': { H: 0.20, D: [0.071, 4.2], P: 0.45, n: 'codo 90° radio largo' },
+            'codo45-ros': { H: 0.20, D: [0.071, 4.2], P: 0.35, n: 'codo 45° roscado' }, 'codo45-lr': { H: 0.15, D: [0.052, 4.0], P: 0.20, n: 'codo 45°' },
+            'tee-ros-der': { H: 0.70, D: [0.274, 4.0], P: 1.0, n: 'te roscada, derivación' }, 'tee-ros-run': { H: 0.10, D: [0.091, 4.0], P: 0.4, n: 'te roscada, paso directo' },
+            'tee-sol-der': { H: 0.80, D: [0.231, 4.0], P: 1.0, n: 'te soldada, derivación' }, 'tee-sol-run': { H: 0.05, D: [0.017, 4.0], P: 0.4, n: 'te soldada, paso directo' },
+            'union': { P: 0.04, n: 'manguito / unión' } };
+        const esRoscadoAcc = el => { const m = el && el.accModelo && typeof modeloAcc === 'function' ? modeloAcc(el) : null, c = m && m.props ? m.props.conexion || '' : (el.conexValv || ''); return /rosca|capilar|compresi|prensar/i.test(c) || ['machon', 'manguito', 'tuerca', 'racor', 'espiga'].includes(el.subtype); };
+        function claveEmp(el, rama) {
+            const st = el.subtype || '', ros = esRoscadoAcc(el), lr = /LR|largo/i.test(el.craneTipo || '') || /LR/.test(((el.accModelo && typeof modeloAcc === 'function' && modeloAcc(el)) || {}).id || '');
+            if (st === 'codo90') return ros ? 'codo90-ros' : lr ? 'codo90-lr' : 'codo90-sr';
+            if (st === 'codo45') return ros ? 'codo45-ros' : 'codo45-lr';
+            if (st === 'codo60') return ros ? 'codo90-ros' : 'codo90-lr';
+            if (st === 'tee' || st === 'cruce') return `tee-${ros ? 'ros' : 'sol'}-${rama || 'der'}`;
+            if (['manguito', 'tuerca', 'racor', 'machon', 'transicion'].includes(st)) return 'union';
+            return null;
+        }
+        function kEmpirico(el, Dmm, rama, kCrane) {
+            const d = Math.max(0.2, (Dmm || dintReferencia(el.dn)) / 25.4), st = el.subtype || '', vals = [];
+            if (st === 'espiga') { const K = kCraneReducido(0, 0.8, 180, 180); return { K, origen: `espiga: contracción + expansión, β ≈ 0,8 (Crane) → K ${K.toFixed(2)}` }; }
+            const k = claveEmp(el, rama); if (!k) return null; const t = K_EMP[k];
+            if (t.H != null) vals.push(['Hooper 2-K', t.H * (1 + 1 / d)]);
+            if (t.D) vals.push(['Darby 3-K', t.D[0] * (1 + t.D[1] / Math.pow(d, 0.3))]);
+            if (t.P != null) vals.push(['Perry', t.P]);
+            if (kCrane > 0) vals.push(['Crane', kCrane]);
+            const mx = vals.reduce((a, b) => b[1] > a[1] ? b : a, ['', 0]);
+            return { K: mx[1], origen: `máx. (${t.n}, D ${d.toFixed(2)}"): ${vals.map(v => `${v[0]} ${v[1].toFixed(2)}`).join(' · ')} → ${mx[0]}` };
+        }
         function kElemento(el, Dmm) {
             const dn = dnNum(el.dn);
-            if (calcDe(el) === 'cero') return { K: 0, origen: 'Despreciable (K = 0)' };
+            if (calcDe(el) === 'cero' && el.modoK !== 'manual') { const e = kEmpirico(el, Dmm); return e ? { K: e.K, origen: e.origen } : { K: 0, origen: 'Despreciable (K = 0)' }; }   // v8.54
             if (el.modoK === 'manual') return { K: +el.k || 0, origen: 'K del usuario' };
             if (el.modoK === 'kvs') {
                 const kv = kvApertura(el);
@@ -428,6 +459,8 @@
                 const c = leerCurvaApertura(el.curvaApertura || CURVAS_TIPICAS_APERTURA[el.subtype] || '');
                 if (c.length) { const fr = Math.max(fraccionApertura(c, +el.apertura), 0.005); return Object.assign({}, rc, { K: rc.K / (fr * fr), origen: `${rc.origen} · apertura ${el.apertura} % → Cv ${(fr * 100).toFixed(1)} % (curva ${el.curvaApertura ? 'del modelo' : 'típica'})` }); }
             }
+            // v8.54 · accesorio sin dato de Crane, o roscado / de cobre: el más desfavorable de las fórmulas empíricas
+            if (el.type === 'accesorio' && (!(rc && rc.K > 0) || esRoscadoAcc(el))) { const e = kEmpirico(el, Dmm, null, rc && rc.K); if (e && e.K > ((rc && rc.K) || 0) + 1e-9) return { K: e.K, origen: e.origen }; }
             return rc;
         }
         // Te, cruce e injerto: K de paso directo y de derivación. Se reparten en ramas desde un nodo
@@ -438,6 +471,7 @@
             if (el.modoK === 'manual') return { run: +el.kRun || 0, der: +el.kBranch || 0, origen: 'K del usuario' };
             const f = fT(dn, dintReferencia(el.dn));
             if (el.subtype === 'injerto') return { run: 0, der: 60 * f, origen: 'Crane 60·fT derivación' };
+            if (esRoscadoAcc(el)) { const D = dintReferencia(el.dn), r = kEmpirico(el, D, 'run', 20 * f), dr = kEmpirico(el, D, 'der', 60 * f); return { run: r.K, der: dr.K, origen: `paso directo ${r.origen} | derivación ${dr.origen}` }; }   // v8.54
             return { run: 20 * f, der: 60 * f, origen: 'Crane 20·fT / 60·fT' };
         }
         // v8.24 · Tes e Y según Crane TP-410M (2009), ec. 2-35 a 2-38 (tablas 2-1 a 2-5). K referidos a la velocidad
@@ -2387,6 +2421,12 @@
         const ctxMedida = document.createElement('canvas').getContext('2d');
         function anchoTexto(t, fs) { ctxMedida.font = `${fs}px sans-serif`; return ctxMedida.measureText(t).width; }
         const angLegible = rot => { const a = ((rot % 180) + 180) % 180; return a >= 90 ? a - 180 : a; };
+        // v8.54 · texto del componente en el plano: código, línea y tamaño; schedule y material solo si se piden (Vista › Textos con schedule y material)
+        function sincronizarChkEtq() { const c = document.querySelector('#chk-etq-completa input'); if (c) c.checked = !!opciones.etqCompleta; }
+        function tagPlano(el) {
+            const t = tagDe(el); if (el.tagManual || opciones.etqCompleta) return t;
+            const p = t.split('-'); return p.length > 3 ? p.slice(0, 3).join('-') : t;
+        }
         function specEtiqueta(el) {
             const s = el.scale || 1, rot = el.rotation || 0, r = rot * Math.PI / 180;
             const ctr = el.type === 'instrumento' ? aPantalla(el, 25, 17) : centroElemento(el);
@@ -2396,12 +2436,12 @@
             else if (esDeposito(el)) { largo = 36 * s; off = 21 * s + 3; }
             else if (el.type === 'instrumento') { largo = 70; off = 9 * s + 3; }
             else { largo = 34 * s; off = 14 * s + 3; }
-            const lineas = [tagDe(el)];
+            const lineas = [tagPlano(el)];
             const rr = el.type === 'bomba' && ultimoResultado && ultimoResultado[el.id];
             if (rr && rr.npshd != null) lineas.push(`NPSHd ${fmt(rr.npshd, 1)} / NPSHr ${fmt(el.npsh, 1)} m`);
             let fs = 6.5;
             const w0 = anchoTexto(lineas[0], fs);
-            if (w0 > largo) fs = Math.max(3, fs * largo / w0); // la nomenclatura no supera el largo del componente
+            // v8.54 · todos los textos del mismo tamaño (antes se reducían al largo del componente)
             const fs2 = 5; // segunda línea (NPSH de la bomba): tamaño fijo, siempre legible
             const w = Math.max(anchoTexto(lineas[0], fs), lineas[1] ? anchoTexto(lineas[1], fs2) : 0), h = fs * 1.2 + (lineas.length > 1 ? fs2 * 1.25 : 0);
             const ang = el.type === 'instrumento' ? 0 : angLegible(rot);
@@ -2558,18 +2598,20 @@
                     const largoPx = largoPxTubo(el);
                     const ax = Math.max(largoPx / 2 + 6, 8);
                     const desnivel = Math.abs((+el.cotaB || 0) - (+el.cotaA || 0)) > 0.0005;   // v8.48 · sube o baja aunque se dibuje en horizontal
-                    d = `<line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="${desnivel ? 'butt' : 'round'}"${desnivel ? ' stroke-dasharray="7,2,1.6,2" class="tubo-desnivel"' : ''}/>
+                    const dz = (+el.cotaB || 0) - (+el.cotaA || 0);
+                    d = `<line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="${desnivel ? 'butt' : 'round'}"${desnivel ? ' stroke-dasharray="9,4" class="tubo-desnivel"' : ''}/>` + (desnivel && largoPx > 30 ? `<text x="${(largoPx * 0.78).toFixed(1)}" y="15.5" font-family="sans-serif" font-size="5" font-weight="bold" fill="${c}" text-anchor="middle">${dz > 0 ? '▲' : '▼'} ${dz > 0 ? '+' : '−'}${fmt(Math.abs(dz), 2)} m</text>` : '') + `
                          <polygon points="${ax - 6.5},16.9 ${ax},20 ${ax - 6.5},23.1" fill="${c}"/>` + marcaFallo(largoPx / 2 - 8, 13);   // v8.45 · flecha del sentido de flujo dentro de la línea
                 } else {
                     d = simboloSVG(el, c, P);
                     if (el.subtype === 'tee') d += `<polygon points="31,22.4 36.5,25 31,27.6" fill="${c}"/><polygon points="22.4,31 25,36.5 27.6,31" fill="${c}"/>`;   // v8.45 · te: una flecha en cada salida (a → b y a → c)
+                    else if (SUBTIPOS_BRIDA.includes(el.subtype || '')) { if (!sinFlujo(el)) d += `<polygon points="41,15 35,18 41,21" fill="${P.flecha}"/>`; }   // v8.54 · brida: la flecha apunta a su cara (RF), en el lado del tubo
                     else if (el.type !== 'instrumento' && !sinFlujo(el) && !/^codo/.test(el.subtype)) d += flecha(18);
                     d += marcaFallo(25, 5);
                 }
                 if (!esAnotacion(el) && !opciones.ocultarEtiquetas) specs.push(specEtiqueta(el));
                 if (!esAnotacion(el)) d = afinarTrazos(d);   // v8.45 · líneas del P&ID un 20 % más finas
                 obtenerPuertosLocales(el).forEach(p => {
-                    d += `<circle class="connection-port" cx="${p.x}" cy="${p.y}" r="2.6" data-portid="${p.id}"/>`;
+                    d += `<circle class="connection-port" cx="${p.x}" cy="${p.y}" r="1.04" data-portid="${p.id}"/>`;   // v8.54 · 60 % más pequeños
                 });
                 g.innerHTML = d;
                 // textos interiores del símbolo (códigos, A/I de la bomba...): siempre legibles, en horizontal
@@ -2583,7 +2625,7 @@
             // etiquetas: capa superior
             const gE = document.createElementNS("http://www.w3.org/2000/svg", "g");
             gE.setAttribute('id', 'capa-etiquetas');
-            gE.innerHTML = svgEtiquetas(colocarEtiquetas(specs), P);
+            gE.innerHTML = svgEtiquetas(colocarEtiquetas(specs), P) + svgPuntosFinales(P); sincronizarChkEtq();   // v8.52 · Q y p en los puntos finales
             svgCanvas.appendChild(gE);
 
             // Solo se trabaja dentro de la hoja: si algo queda fuera, se devuelve al borde y se redibuja
@@ -2604,7 +2646,8 @@
         // v8.42 · etiqueta seleccionada (clic): R / Mayús+R la giran 45° como a los componentes; clic fuera la suelta
         let etqSel = null;
         const etqActiva = () => !!(etqSel && elementosRed.some(x => x.id === etqSel));
-        function girarEtqSel(inc) { const el = elementosRed.find(x => x.id === etqSel); if (!el) return; const a0 = el.etq && el.etq.ang != null ? el.etq.ang : specEtiqueta(el).ang; girarEtiqueta(el, angLegible(a0 + inc)); marcarCambios(true); aviso(`Etiqueta de ${tagDe(el)}: ${angLegible(a0 + inc)}° · R / Mayús+R: girar 45° · arrástrala para moverla`, 'ok'); }
+        function girarEtqSel(inc) { const el = elementosRed.find(x => x.id === etqSel); if (!el) return; const a0 = el.etq && el.etq.ang != null ? el.etq.ang : specEtiqueta(el).ang, a = angNorm(a0 + inc); girarEtiqueta(el, a); marcarCambios(true); aviso(`Etiqueta de ${tagDe(el)}: ${a}° · R: 45° horario · Mayús+R: 45° antihorario · Ctrl+R: 15° horario · arrástrala para moverla`, 'ok'); }
+        const angNorm = a => { a = ((Math.round(a) % 360) + 360) % 360; return a > 180 ? a - 360 : a; };
         svgCanvas.addEventListener('mousedown', e => { if (!etqSel || (e.target.closest && e.target.closest('g.etiqueta'))) return; etqSel = null; setTimeout(() => renderizarVectorial(), 0); }, true);
         window.addEventListener('keydown', e => { if (e.key === 'Escape' && etqSel) { etqSel = null; renderizarVectorial(); } });
         svgCanvas.addEventListener('mousedown', e => {
@@ -2647,12 +2690,11 @@
         }
         function itemsMenuEtiqueta(el) {
             return [
-                { icono: 'fa-arrows-up-down-left-right', texto: 'Arrastra la etiqueta para moverla (siempre cerca del componente) · R / Mayús+R: girar 45°', accion: () => {} },
+                { icono: 'fa-arrows-up-down-left-right', texto: 'Arrastra la etiqueta para moverla (siempre cerca del componente) · R: 45° horario · Mayús+R: 45° antihorario', accion: () => {} },
                 'sep',
                 { icono: 'fa-text-width', texto: 'Texto horizontal', accion: () => girarEtiqueta(el, 0) },
                 { icono: 'fa-text-height', texto: 'Texto vertical (se lee desde la derecha)', accion: () => girarEtiqueta(el, -90) },
-                { icono: 'fa-rotate-left', texto: 'Girar 90° antihorario', accion: () => girarEtiqueta(el, angLegible(((el.etq && el.etq.ang != null ? el.etq.ang : specEtiqueta(el).ang) - 90))) },
-                { icono: 'fa-rotate-right', texto: 'Girar 90° horario', accion: () => girarEtiqueta(el, angLegible(((el.etq && el.etq.ang != null ? el.etq.ang : specEtiqueta(el).ang) + 90))) },
+                { icono: 'fa-rotate', texto: 'Girar', sub: [15, 45, 90, 180, 270].map(g => ({ icono: 'fa-rotate-right', texto: `${g}° horario`, accion: () => girarEtiqueta(el, angNorm((el.etq && el.etq.ang != null ? el.etq.ang : specEtiqueta(el).ang) + g)) })).concat(['sep'], [15, 45, 90, 180, 270].map(g => ({ icono: 'fa-rotate-left', texto: `${g}° antihorario`, accion: () => girarEtiqueta(el, angNorm((el.etq && el.etq.ang != null ? el.etq.ang : specEtiqueta(el).ang) - g)) }))) },
                 'sep',
                 { icono: 'fa-wand-magic-sparkles', texto: 'Posición automática', accion: () => { guardarEstado(); delete el.etq; renderizarVectorial(); } }
             ];
@@ -2910,7 +2952,7 @@
         // Tras cada cambio se redibujan los campos, porque unos dependen de otros (material -> serie
         // -> tamaño; modo de K -> tipo Crane / serie de catálogo / K manual).
         // ==================================================================================
-        const CAMPOS_NUMERICOS = ['tMinV', 'tMaxV', 'caraCaraMm', 'rpmTrabajo', 'impulsorTrabajo', 'qMin', 'pCuerpo', 'rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros', 'scale', 'rotation', 'longitud', 'caudal', 'presion', 'h0', 'npsh', 'cota', 'k', 'kRun', 'kBranch', 'theta', 'cvUsuario',
+        const CAMPOS_NUMERICOS = ['precio', 'tMinV', 'tMaxV', 'caraCaraMm', 'rpmTrabajo', 'impulsorTrabajo', 'qMin', 'pCuerpo', 'rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros', 'scale', 'rotation', 'longitud', 'caudal', 'presion', 'h0', 'npsh', 'cota', 'k', 'kRun', 'kBranch', 'theta', 'cvUsuario',
             'cotaA', 'cotaB', 'qNom', 'dpNom', 'qNom2', 'dpNom2', 'cotaEntrada', 'aislamiento', 'lambdaAisl', 'volumen', 'kvs', 'apertura', 'FL', 'eta', 'tamTexto', 'qCons', 'pMin', 'cotaLamina', 'presionDep', 'pmaManual', 'sobreespesor', 'cotaFondo', 'hB', 'hC', 'hLamina', 'pTarado', 'ox', 'oy', 'psRecipiente'];
         const CLS_CTRL = 'w-full bg-white border border-slate-300 rounded p-1 mt-0.5';
         const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -2923,6 +2965,12 @@
         function ctrlNum(fn, campo, valor, etiqueta, paso = 'any') {
             return `<div>${etiqueta}: <input type="number" step="${paso}" value="${esc(valor)}" onchange="${fn}('${campo}', this.value)" class="${CLS_CTRL}"></div>`;
         }
+        // v8.52 · precio: por unidad (componentes) o por metro lineal (tuberías); moneda del proyecto
+        const monedaProy = () => proyecto.moneda || '€';
+        function ctrlPrecio(fn, obj) { return ctrlNum(fn, 'precio', obj.precio == null ? '' : obj.precio, `Precio (${monedaProy()}/${obj.type === 'tuberia' ? 'm' : 'ud'})`, '0.01'); }
+        // v8.52 · fabricantes de bombas habituales (lista desplegable; se puede escribir otro)
+        const FABRICANTES_BOMBA = ['Alfa Laval', 'Allweiler', 'Azcue', 'Bombas Ideal', 'Calpeda', 'Caprari', 'DAB', 'Desmi', 'Ebara', 'Espa', 'Flowserve', 'Framo', 'Grundfos', 'Hasa', 'IMO', 'Itur', 'KSB', 'Leistritz', 'LEWA', 'Lowara (Xylem)', 'Milton Roy', 'Naniwa', 'Netzsch', 'Pedrollo', 'ProMinent', 'Ruhrpumpen', 'Saer', 'Seepex', 'Shinko', 'Sulzer', 'Svanehøj', 'Taiko Kikai', 'Teral', 'Verderflex', 'Viking Pump', 'Vogel (Xylem)', 'Watson-Marlow', 'Wilo', 'Xylem (Goulds, Flygt)', 'Zenit'];
+        function datalistFabBombas() { let d = document.getElementById('dl-fab-bombas'); if (!d) { d = document.createElement('datalist'); d.id = 'dl-fab-bombas'; document.body.appendChild(d); } const usu = (proyecto.fabricantesBomba || []).concat(typeof BOMBAS_BD !== 'undefined' ? BOMBAS_BD.map(b => b.fabricante) : []); d.innerHTML = [...new Set(FABRICANTES_BOMBA.concat(usu).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')).map(x => `<option value="${esc(x)}">`).join(''); return 'dl-fab-bombas'; }
         function ctrlTexto(fn, campo, valor, etiqueta) {
             return `<div>${etiqueta}: <input type="text" value="${esc(valor)}" onchange="${fn}('${campo}', this.value)" class="${CLS_CTRL}"></div>`;
         }
@@ -3025,7 +3073,7 @@
                     h += info(`θ ${fmt(r.theta, 1)}° · β ${fmt(r.beta, 3)}<br>K contracción ${fmt(r.kc)} · K expansión ${fmt(r.ke)}<br>(referidos al DN menor; el sentido lo fija el caudal calculado)`);
                     return h;
                 }
-                if (calcDe(obj) === 'cero') return h + info('K despreciable (K = 0).');
+                if (calcDe(obj) === 'cero') { const e = kEmpirico(obj, dintReferencia(obj.dn)); return h + info(e ? `K = ${fmt(e.K, 3)} · ${esc(e.origen)} (el más desfavorable de las fórmulas empíricas)` : 'K despreciable (K = 0).'); }
                 const modos = [];
                 if (opcionesCrane(claveCrane(obj)).length || esTee) modos.push(['crane', esTee ? 'Automático (Crane)' : (calcDe(obj) === 'pedir' ? 'Sin dato del fabricante (estimado)' : 'Automático (Crane)')]);
                 if (obj.type === 'valvula' && !esTee) modos.push(['catalogo', 'Catálogo de fabricante (Cv)']);
@@ -3074,7 +3122,7 @@
             } else if (obj.type === 'bomba') {
                 const vol = esVolumetrica(obj), rhoB = fluidoActual().rho || 1000;
                 h += ctrlSelect(fn, 'bombaTipo', TIPOS_BOMBA, obj.bombaTipo || 'centrifuga', 'Tipo de bomba');
-                h += ctrlTexto(fn, 'fabricante', obj.fabricante || '', 'Fabricante') + ctrlTexto(fn, 'modelo', obj.modelo || '', 'Modelo');
+                h += `<div>Fabricante: <input type="text" list="${datalistFabBombas()}" value="${esc(obj.fabricante || '')}" onchange="${fn}('fabricante', this.value)" class="${CLS_CTRL}"></div>` + ctrlTexto(fn, 'modelo', obj.modelo || '', 'Modelo');   // v8.52 · lista de fabricantes
                 if (!vol) h += ctrlSelect(fn, 'forma3D', FORMAS_BOMBA_3D, obj.forma3D || 'linea', 'Disposición en 3D') + (obj.forma3D === 'horizontal' ? ctrlTexto(fn, 'cotas3D', obj.cotas3D || '', 'Cotas 3D (mm): a, f, h1, h2, h3, n1, n2') : '');   // v8.51
                 h += ctrlMag(fn, 'caudal', obj.caudal, 'Caudal de diseño');
                 h += ctrlMag(fn, 'presion', obj.presion, vol ? 'Presión de descarga de diseño' : 'Presión de diseño');
@@ -4102,6 +4150,27 @@
             Object.entries(grafo.centroTee).forEach(([id, nid]) => { const e = elementosRed.find(x => x.id === id); z[nid] = e ? +e.cota || 0 : 0; });
             return { z, incoherencias };
         }
+        // v8.52 · puntos finales de cada rama: nudos con una sola conexión por los que sale (o no circula) el caudal; no los de alimentación.
+        // Q y p (manométrica) en el punto de salida y comprobación frente a las condiciones de proyecto:
+        //  consumo: p ≥ p mín y Q = Q demandado · salida libre: p ≥ 0 (descarga a la atmósfera) · depósito: p ≥ 0 en la boca de entrada.
+        function puntosFinalesRed(grafo, res, term, sb) {
+            const inc = {}; res.aristas.forEach(a => { if (a.nodoA != null) (inc[a.nodoA] = inc[a.nodoA] || []).push([a, -1]); if (a.nodoB != null) (inc[a.nodoB] = inc[a.nodoB] || []).push([a, 1]); });
+            const centros = new Set(Object.values(grafo.centroTee || {})), out = [], origenSB = sb && sb.origen ? sb.origen.id : null;
+            grafo.nodos.forEach(n => {
+                const l = inc[n.id]; if (!l || l.length !== 1 || centros.has(n.id) || n.id === origenSB) return;
+                const [a, sg] = l[0]; if (a.esBomba) return;
+                const Q = sg * (a.Qprev || 0) * 3600, t = term.porNodo[n.id];
+                if (Q < -1e-6) return;   // por aquí entra el caudal: es una alimentación
+                const pe = n.puertos.find(q => q.elId === a.el.id) || n.puertos[0], el = t || a.el, p = res.pMan[n.id] != null ? res.pMan[n.id] / 1e5 : null;
+                let req = '', ok = true;
+                if (t && esConsumoT(t)) { const pm = +t.pMin || 0; req = `p ≥ ${fP(pm, 2)} ${lP()} · Q ${fQ(+t.qCons || 0, 2)} ${lQ()}`; ok = p != null && p >= pm - 1e-4; }
+                else if (t && esDeposito(t)) { req = 'llega al depósito (p ≥ 0)'; ok = p != null && p >= -1e-4; }
+                else if (Q > 1e-6) { req = 'salida libre (p ≥ 0)'; ok = p != null && p >= -1e-4; }
+                else req = 'extremo cerrado (sin caudal)';
+                out.push({ nodo: n.id, elId: (t || a.el).id, portId: t ? term.puertoTerm[n.id] : pe.portId, elTubo: a.el.id, tag: tagDe(el), tipo: t ? nombreTipo(t) : (Q > 1e-6 ? 'Extremo abierto' : 'Extremo cerrado'), linea: el.linea || a.el.linea || '', Q: Math.max(0, Q), p, V: Math.abs(a.V || 0), tramo: tagDe(a.el), req, ok, z: res.z ? res.z[n.id] : null });
+            });
+            return out.sort((x, y) => String(x.linea).localeCompare(String(y.linea), 'es') || x.tag.localeCompare(y.tag, 'es'));
+        }
         // Depósitos (altura fija) y consumos (caudal impuesto) conectados a la red
         function terminalesRed(grafo) {
             const fijos = {}, demandas = {}, porNodo = {}, puertoTerm = {};
@@ -4149,7 +4218,7 @@
 
             document.getElementById('red-content').innerHTML = `
                 <p class="text-xs text-slate-500 mb-3">Indica la presión manométrica en cada extremo abierto de la red (0 = descarga/aspiración atmosférica). La cota es la del elemento en ese extremo. Los depósitos y los puntos de consumo usan sus propios datos.</p>
-                ${sb ? `<p class="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded p-2 mb-3"><i class="fa-solid fa-circle-info mr-1"></i>Red sin bomba: la línea parte de <b>${esc(tagDe(elementosRed.find(e => e.id === sb.origen.puertoContorno.elId) || {}))}</b> con la presión de diseño (${fP(+proyecto.presionDiseno || 0, 2)} ${lP()}) y el caudal de diseño (${fQ(+proyecto.caudalDiseno, 2)} ${lQ()}) del proyecto.${sinConsumos ? ' Como no hay puntos de consumo, ese caudal sale por ' + (sb.salidas.length > 1 ? 'las demás salidas, a partes iguales' : 'la otra salida') + ', y su presión es un resultado del cálculo.' : ' El reparto del caudal lo fijan los puntos de consumo.'}</p>` : ''}
+                ${sb ? `<p class="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded p-2 mb-3"><i class="fa-solid fa-circle-info mr-1"></i>Red sin bomba: la línea parte de <b>${esc(tagDe(elementosRed.find(e => e.id === sb.origen.puertoContorno.elId) || {}))}</b> con la presión de diseño (${fP(+proyecto.presionDiseno || 0, 2)} ${lP()}) y el caudal de diseño (${fQ(+proyecto.caudalDiseno, 2)} ${lQ()}) del proyecto.${sinConsumos ? ' Como no hay puntos de consumo, ese caudal sale por ' + (sb.salidas.length > 1 ? 'las demás salidas, a partes iguales' : 'la otra salida') + ', y su presión es un resultado del cálculo.' : ' Los puntos de consumo toman su caudal y las salidas libres se reparten a partes iguales lo que falte hasta el caudal de diseño.'}</p>` : ''}
                 ${filas ? `<table class="w-full text-xs mb-2">
                     <thead><tr class="text-left text-slate-500"><th class="pb-1">Extremo</th><th class="pb-1">Cota (mm)</th><th class="pb-1">Presión man. (${lP()})</th></tr></thead>
                     <tbody>${filas}</tbody>
@@ -4934,6 +5003,7 @@
             ultimoCalculo = { resultado: r.resultado, condiciones: r.condiciones, huella: huellaRed() };
             mostrarResultados(r.resultado);
             actualizarPanelAvisos();
+            mostrarPuntosFinales(r.resultado);   // v8.52 · ventana con los puntos finales
             // cálculo correcto: el diseñador decide si genera ya el informe
             const ci = comprobarInforme();
             if (!elementosRed.some(e => e.estado === 'fallo') && (!ci || ci.tipo === 'datos')) setTimeout(async () => {
@@ -4960,10 +5030,12 @@
             if (sb) {
                 // en el origen, una presión guardada de 0 equivale a «sin indicar»: se parte de la presión de diseño
                 if (!(condicionesContorno[sb.clave] && +condicionesContorno[sb.clave].presion > 0)) condiciones[sb.origen.id].presion = +proyecto.presionDiseno || 0;
-                const hayConsumos = Object.values(term.demandas).some(q => q > 0);
-                if (!hayConsumos && Qd0 > 0 && sb.salidas.length) {
-                    salidasQ = sb.salidas;
-                    salidasQ.forEach(n => { delete condiciones[n.id]; term.demandas[n.id] = (term.demandas[n.id] || 0) + Qd0 / 3600 / salidasQ.length; });
+                // v8.53 · las salidas libres se reparten a partes iguales lo que falte de los consumos hasta el caudal de diseño
+                const Qcons = Object.values(term.demandas).reduce((t, q) => t + (q > 0 ? q : 0), 0) * 3600;
+                if (Qd0 > 0 && sb.salidas.length) {
+                    salidasQ = sb.salidas; const Qresto = Math.max(0, Qd0 - Qcons);
+                    salidasQ.forEach(n => { delete condiciones[n.id]; term.demandas[n.id] = (term.demandas[n.id] || 0) + Qresto / 3600 / salidasQ.length; });
+                    sb.Qcons = Qcons; sb.Qresto = Qresto;
                 }
             }
 
@@ -4988,12 +5060,13 @@
             resultado.avisosRed = incoherencias.slice();
             if (sb) {
                 const tg = n => { const e = elementosRed.find(x => x.id === n.puertoContorno.elId); return e ? tagDe(e) : '?'; };
-                resultado.sinBomba = { origen: tg(sb.origen), presion: condiciones[sb.origen.id].presion, caudal: Qd0, salidas: salidasQ.map(n => ({ tag: tg(n), Q: Qd0 / salidasQ.length, p: resultado.pMan[n.id] / 1e5 })) };
+                resultado.sinBomba = { origen: tg(sb.origen), presion: condiciones[sb.origen.id].presion, caudal: Qd0, Qcons: sb.Qcons || 0, salidas: salidasQ.map(n => ({ tag: tg(n), Q: (sb.Qresto != null ? sb.Qresto : Qd0) / salidasQ.length, p: resultado.pMan[n.id] / 1e5 })) };
                 resultado.avisosRed.push(`Red sin bomba: parte de ${resultado.sinBomba.origen} con ${fP(resultado.sinBomba.presion, 2)} ${lP()}${salidasQ.length ? ` y ${fQ(Qd0, 2)} ${lQ()}` : ''} (presión y caudal de diseño del proyecto).`);
                 if (!(+proyecto.presionDiseno > 0)) resultado.avisosRed.push('Falta la presión de diseño del proyecto (Archivo > Datos del proyecto): las presiones se han calculado partiendo de la presión indicada en el origen. Los caudales, las velocidades y las pérdidas de carga no dependen de ella.');
                 resultado.sinBomba.salidas.forEach(x => resultado.avisosRed.push(`Salida ${x.tag}: ${fQ(x.Q, 2)} ${lQ()} a ${fP(x.p, 2)} ${lP()}${x.p < 0 && +proyecto.presionDiseno > 0 ? ' — PRESIÓN INSUFICIENTE: la presión de diseño no vence las pérdidas de carga y el desnivel' : ''}.`));
-                if (salidasQ.length > 1) resultado.avisosRed.push(`El caudal de diseño se ha repartido a partes iguales entre las ${salidasQ.length} salidas. Para fijar otro reparto, coloca un punto de consumo en cada salida (panel lateral > Consumos).`);
+                if (salidasQ.length) resultado.avisosRed.push(sb.Qcons > 0 ? (sb.Qresto > 0 ? `Los puntos de consumo toman ${fQ(sb.Qcons, 2)} ${lQ()}; las ${salidasQ.length} salida(s) libre(s) se reparten a partes iguales el resto hasta el caudal de diseño (${fQ(sb.Qresto, 2)} ${lQ()}).` : `Los puntos de consumo (${fQ(sb.Qcons, 2)} ${lQ()}) ya alcanzan el caudal de diseño: las salidas libres quedan sin caudal.`) : (salidasQ.length > 1 ? `El caudal de diseño se ha repartido a partes iguales entre las ${salidasQ.length} salidas. Para fijar otro reparto, coloca un punto de consumo en cada salida (panel lateral > Consumos).` : '')); resultado.avisosRed = resultado.avisosRed.filter(Boolean);
             }
+            try { resultado.puntosFinales = puntosFinalesRed(grafo, resultado, term, sb); } catch (e) { console.error(e); }   // v8.52
             evaluarCriterios(resultado);
             try { clasificacionPED(resultado); } catch (e) { console.error(e); }
             try { termicaYSoportes(resultado); } catch (e) { console.error(e); }
@@ -5139,6 +5212,38 @@
             document.getElementById('modal-red').style.display = 'flex';
         }
 
+        // v8.52 · ventana flotante (se arrastra por el título) con Q y p en el punto de salida de cada rama
+        function mostrarPuntosFinales(res, forzar) {
+            document.getElementById('pf-ventana')?.remove();
+            const pf = (res && res.puntosFinales) || []; if (!pf.length || (opciones.verPuntosFinales === false && !forzar)) return;
+            const d = document.createElement('div'); d.id = 'pf-ventana';
+            const pos = (() => { try { return JSON.parse(localStorage.getItem('piping-pos-pf') || 'null'); } catch (e) { return null; } })();
+            d.style.cssText = `position:fixed;z-index:2550;${pos ? `left:${pos.x}px;top:${pos.y}px` : 'right:24px;bottom:56px'};width:min(640px,94vw);max-height:60vh;display:flex;flex-direction:column;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 10px 30px rgba(15,23,42,.25);font-size:11px`;
+            const nOk = pf.filter(x => x.ok).length, sb = res.sinBomba;
+            d.innerHTML = `<div id="pf-cab" style="cursor:move" class="flex items-center justify-between px-3 py-2 border-b bg-slate-50 rounded-t-lg"><b class="text-slate-700"><i class="fa-solid fa-location-dot text-blue-600 mr-1.5"></i>Puntos finales de la red · ${nOk}/${pf.length} cumplen</b><button id="pf-cerrar" class="text-slate-500 hover:text-slate-800 px-1" title="Cerrar">✕</button></div>
+                ${sb ? `<p class="px-3 pt-2 text-slate-500">Red sin bomba: parte de <b>${esc(sb.origen)}</b> con ${fP(sb.presion, 2)} ${lP()} y ${fQ(sb.caudal, 2)} ${lQ()} (${esc(fluidoActual().nombre || '')} a ${esc(String(proyecto.temperatura || document.getElementById('temp-fluido')?.value || ''))} °C).</p>` : ''}
+                <div style="overflow:auto" class="px-3 py-2"><table class="w-full"><thead><tr class="text-left text-slate-500"><th class="pr-2">Punto</th><th class="pr-2">Tipo</th><th class="pr-2">Línea</th><th class="pr-2 text-right">Q (${lQ()})</th><th class="pr-2 text-right">p (${lP()})</th><th class="pr-2 text-right">V (m/s)</th><th class="pr-2">Condición</th><th>Estado</th></tr></thead><tbody>
+                ${pf.map((x, i) => `<tr class="border-t hover:bg-blue-50 cursor-pointer" data-i="${i}"><td class="pr-2 font-bold">${esc(x.tag)}</td><td class="pr-2">${esc(x.tipo)}</td><td class="pr-2">${esc(x.linea)}</td><td class="pr-2 text-right">${fQ(x.Q, 2)}</td><td class="pr-2 text-right">${x.p == null ? '—' : fP(x.p, 2)}</td><td class="pr-2 text-right" title="Velocidad en ${esc(x.tramo || '')}">${x.V != null ? fmt(x.V, 2) : '—'}</td><td class="pr-2 text-slate-500">${esc(x.req)}</td><td>${x.ok ? '<span class="text-emerald-600 font-bold">OK</span>' : '<span class="text-rose-600 font-bold">No cumple</span>'}</td></tr>`).join('')}</tbody></table>
+                ${(() => { const Qt = pf.reduce((t, x) => t + x.Q, 0), Qd = +proyecto.caudalDiseno || 0; if (!(Qd > 0)) return `<p class="mt-1 text-slate-600">Caudal total en los puntos finales: <b>${fQ(Qt, 2)} ${lQ()}</b>.</p>`;
+                    const conB = res.Qbombas != null, dif = (Qt - Qd) / Qd, bien = conB ? dif >= -0.001 : Math.abs(dif) <= 0.02;
+                    return `<p class="mt-1 ${bien ? 'text-emerald-700' : 'text-amber-700'}">Caudal total en los puntos finales: <b>${fQ(Qt, 2)} ${lQ()}</b> · caudal de diseño del proyecto ${fQ(Qd, 2)} ${lQ()}${conB ? ` · bomba(s) ${fQ(res.Qbombas, 2)} ${lQ()}` : ''}: ${bien ? (conB ? 'el caudal de la bomba cubre el de diseño y se reparte entre los consumos y las salidas libres según la red ✔' : 'los consumos toman su caudal y las salidas libres se reparten el resto ✔') : (conB ? 'la bomba no da el caudal de diseño' : 'no se alcanza el caudal de diseño')}.</p>`; })()}
+                <p class="text-[10px] text-slate-400 mt-1">p manométrica en el punto de salida; V en la tubería que llega a él. Clic en una fila: ir al punto. Cálculo › Puntos finales de la red vuelve a abrir esta ventana.</p></div>`;
+            document.body.appendChild(d);
+            d.querySelector('#pf-cerrar').onclick = () => d.remove();
+            d.querySelectorAll('tr[data-i]').forEach(tr => tr.onclick = () => { const x = pf[+tr.dataset.i]; try { irAElemento(x.elId); } catch (e) { seleccionarElemento(x.elId); } });
+            const cab = d.querySelector('#pf-cab'); cab.addEventListener('mousedown', e => { if (e.target.closest('button')) return; const r = d.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
+                const mv = ev => { d.style.left = Math.max(0, ev.clientX - ox) + 'px'; d.style.top = Math.max(0, ev.clientY - oy) + 'px'; d.style.right = 'auto'; d.style.bottom = 'auto'; };
+                const up = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); try { const q = d.getBoundingClientRect(); localStorage.setItem('piping-pos-pf', JSON.stringify({ x: Math.round(q.left), y: Math.round(q.top) })); } catch (er) { } };
+                window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up); e.preventDefault(); });
+        }
+        function abrirPuntosFinales() { if (!ultimoCalculo || ultimoCalculo.huella !== huellaRed()) { aviso('Calcula la red primero (F2).'); return; } mostrarPuntosFinales(ultimoCalculo.resultado, true); }
+        // v8.52 · en el 2D: Q y p junto a cada punto final (con el último cálculo vigente)
+        function svgPuntosFinales(P) {
+            if (opciones.verPuntosFinales2D === false || !ultimoCalculo || !ultimoCalculo.resultado.puntosFinales || ultimoCalculo.huella !== huellaRed()) return '';
+            return ultimoCalculo.resultado.puntosFinales.map(x => { const e = elementosRed.find(z => z.id === x.elId); if (!e) return ''; const q = obtenerPuertosConexion(e).find(z => z.id === x.portId) || centroElemento(e);
+                const t = `Q ${fQ(x.Q, 2)} ${lQ()} · p ${x.p == null ? '—' : fP(x.p, 2)} ${lP()} · V ${x.V != null ? fmt(x.V, 2) : '—'} m/s`, w = anchoTexto(t, 5) + 6, c = x.ok ? '#047857' : '#be123c', bx = q.x + 6, by = q.y - 16;
+                return `<g class="pf-badge" pointer-events="none"><line x1="${q.x}" y1="${q.y}" x2="${bx}" y2="${by + 9}" stroke="${c}" stroke-width="0.5"/><rect x="${bx}" y="${by}" width="${w.toFixed(1)}" height="9" rx="2" fill="#fff" fill-opacity="0.92" stroke="${c}" stroke-width="0.6"/><text x="${(bx + 3).toFixed(1)}" y="${by + 6.4}" font-family="sans-serif" font-size="5" font-weight="bold" fill="${c}">${esc(t)}</text></g>`; }).join('');
+        }
         function mostrarResultados(resultado) {
             const { aristas, Hnodo, fluido, fluidoNombre, lineaCritica } = resultado;
             const marca = el => el.estado === 'fallo'
@@ -5612,7 +5717,7 @@
         function aplicarModeloAcc(el, id) {
             if (!id) { delete el.accModelo; delete el.accSch; return; }
             el.accModelo = id; delete el.libItem; const m = modeloAcc(el); if (!m) return;
-            if (m.fabricante) el.fabricante = m.fabricante; if (m.referencia) el.referencia = m.referencia;   // v8.50
+            if (m.fabricante) el.fabricante = m.fabricante; if (m.referencia) el.referencia = m.referencia; if (m.precio !== '' && m.precio != null && !isNaN(+m.precio)) el.precio = +m.precio;   // v8.50 · v8.52 precio
             if (m.props.craneTipo && opcionesCrane(claveCrane(el)).some(o => o[0] === m.props.craneTipo)) { el.craneTipo = m.props.craneTipo; if (el.modoK === 'manual' || !el.modoK) el.modoK = 'crane'; }
             if (m.props.k !== '' && m.props.k != null && !isNaN(+m.props.k)) { el.modoK = 'manual'; el.k = +m.props.k; }
             if (el.subtype === 'reduccion' && /c[eé]ntrica/i.test(m.props.variante || '')) el.excentrica = /^exc/i.test(m.props.variante);
@@ -5629,7 +5734,7 @@
             tv = tv || tuboVecino(el); const st = tv ? (/^[0-9]+S?$/.test(tv.serie) ? 'Sch ' + tv.serie : tv.serie) : '';
             if (ops.includes(st)) el.accSch = st; else if (ops.length === 1) el.accSch = ops[0]; else delete el.accSch;
         }
-        { const _ac = aplicarCambio; aplicarCambio = function (obj, campo, valor) { if (obj && obj.type === 'tuberia' && campo === 'tuboTipo') { aplicarTipoTubo(obj, valor); return true; } if (obj && esTuboAceroNorma(obj) && campo === 'gradoMaterial') { aplicarGradoTubo(obj, String(valor).trim()); return true; } if (obj && obj.accModelo && campo === 'pn' && String(valor).trim() === '') { delete obj.pn; return true; } if (obj && campo === 'normaPN') { cambiarNormaPN(obj, valor); return true; } if (obj && obj.type === 'bomba' && ['fabricante', 'modelo', 'tension', 'frecuencia', 'ip', 'apiPlan', 'volMaterial', 'rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros'].includes(campo) && String(valor).trim() === '') { delete obj[campo]; return true; } if (obj && obj.type === 'bomba' && campo === 'bombaTipo') { if (valor && valor !== 'centrifuga') { obj.bombaTipo = valor; delete obj.curva; delete obj.curvaModo; } else delete obj.bombaTipo; return true; } if (obj && obj.accModelo && campo === 'cara') { if (valor) obj.cara = valor; else delete obj.cara; return true; } const r = _ac.apply(this, arguments); try { if (obj && obj.accModelo && ['materialComp', 'dn', 'dnMenor'].includes(campo)) ajustarScheduleAcc(obj); } catch (e) { } return r; }; }
+        { const _ac = aplicarCambio; aplicarCambio = function (obj, campo, valor) { if (obj && campo === 'precio') { const v = String(valor).replace(',', '.').trim(); if (v === '' || isNaN(+v)) delete obj.precio; else obj.precio = +(+v).toFixed(4); return true; } if (obj && obj.type === 'tuberia' && campo === 'tuboTipo') { aplicarTipoTubo(obj, valor); return true; } if (obj && esTuboAceroNorma(obj) && campo === 'gradoMaterial') { aplicarGradoTubo(obj, String(valor).trim()); return true; } if (obj && obj.accModelo && campo === 'pn' && String(valor).trim() === '') { delete obj.pn; return true; } if (obj && campo === 'normaPN') { cambiarNormaPN(obj, valor); return true; } if (obj && obj.type === 'bomba' && ['fabricante', 'modelo', 'tension', 'frecuencia', 'ip', 'apiPlan', 'volMaterial', 'rpm', 'potMotor', 'impulsor', 'impulsorMax', 'volCilindrada', 'volCiclos', 'volPmax', 'volCilindros'].includes(campo) && String(valor).trim() === '') { delete obj[campo]; return true; } if (obj && obj.type === 'bomba' && campo === 'bombaTipo') { if (valor && valor !== 'centrifuga') { obj.bombaTipo = valor; delete obj.curva; delete obj.curvaModo; } else delete obj.bombaTipo; return true; } if (obj && obj.accModelo && campo === 'cara') { if (valor) obj.cara = valor; else delete obj.cara; return true; } const r = _ac.apply(this, arguments); try { if (obj && obj.accModelo && ['materialComp', 'dn', 'dnMenor'].includes(campo)) ajustarScheduleAcc(obj); } catch (e) { } return r; }; }
         // ---------- tuberías de acero (v8.11): un modelo por norma (ASME, EN); la familia la da el material ----------
         const TUBO_EN = 'Acero al carbono EN';
         const MAT_CORTO_TUBO = { 'SA-53 Gr.B': 'SA53B', 'SA-106 Gr.B': 'SA106B', 'SA-333 Gr.6': 'SA333-6', 'SA-671': 'SA671', 'SA-672': 'SA672', 'SA-312 Gr.Tp304': 'TP304', 'SA-312 Gr.Tp304L': 'TP304L', 'SA-312 Gr.Tp316': 'TP316', 'SA-312 Gr.Tp316L': 'TP316L',
@@ -5776,7 +5881,7 @@
         function aplicarItemLib(el, item) {
             if (!item) { delete el.libItem; if (el.type === 'bomba') { delete el.validacionCurva; delete el.curvaEc; } return; }
             const p = item.props || {}, num = v => v !== '' && v != null && !isNaN(+v) ? +v : null;
-            const libAntes = el.libItem; el.libItem = item.id; el.fabricante = item.fabricante || ''; if (item.material) el.materialComp = item.material; if (item.url) el.url = item.url;
+            const libAntes = el.libItem; el.libItem = item.id; el.fabricante = item.fabricante || ''; if (item.precio !== '' && item.precio != null && !isNaN(+item.precio)) el.precio = +item.precio; /* v8.52 */ if (item.material) el.materialComp = item.material; if (item.url) el.url = item.url;
             if (item.pn && el.type !== 'tuberia') el.pn = item.pn;
             if (el.type === 'valvula') {
                 if (p.craneTipo) el.craneTipo = p.craneTipo;
@@ -5865,7 +5970,7 @@
             if (esAnotacion(obj)) return '';
             let h = '';
             if (obj.type !== 'tuberia') {
-                if (obj.type === 'accesorio' && esSubtipoAccesorio(obj.subtype)) return camposAccesorio(obj, fn) + ctrlTexto(fn, 'fabricante', obj.fabricante || '', 'Fabricante') + ctrlTexto(fn, 'referencia', obj.referencia || '', 'Referencia del fabricante') + `<div>URL del componente: <input type="text" value="${esc(obj.url || '')}" placeholder="https://..." onchange="${fn}('url', this.value)" class="${CLS_CTRL}"></div>`;
+                if (obj.type === 'accesorio' && esSubtipoAccesorio(obj.subtype)) return camposAccesorio(obj, fn) + ctrlTexto(fn, 'fabricante', obj.fabricante || '', 'Fabricante') + ctrlTexto(fn, 'referencia', obj.referencia || '', 'Referencia del fabricante') + ctrlPrecio(fn, obj) + `<div>URL del componente: <input type="text" value="${esc(obj.url || '')}" placeholder="https://..." onchange="${fn}('url', this.value)" class="${CLS_CTRL}"></div>`;
                 const lista = itemsLib(obj.type === 'bomba' ? 'bomba' : obj.subtype);
                 h += `<div>Modelo de librería: <select data-previo="${esc(obj.libItem || '')}" onchange="${obj.type === 'bomba' ? `validarSeleccionBomba(this, v => ${fn}('libItem', v))` : `${fn}('libItem', this.value)`}" class="${CLS_CTRL}"><option value="">— ninguno (genérico) —</option>${lista.map(i => `<option value="${esc(i.id)}" ${i.id === obj.libItem ? 'selected' : ''}>${esc(i.nombre)}${i.material ? ' · ' + esc(i.material) : ''}</option>`).join('')}</select></div>`;
                 if (obj.type === 'bomba' && obj.libItem) { const vb = obj.validacionCurva; h += `<p class="text-[10px] ${vb ? 'text-emerald-700' : 'text-amber-700'}">${vb ? `<i class="fa-solid fa-circle-check mr-1"></i>Validada por ${esc(vb.usuario)} el ${esc(new Date(vb.fecha).toLocaleDateString())}` : '<i class="fa-solid fa-triangle-exclamation mr-1"></i>Bomba sin validar: vuelve a elegir el modelo para revisarla.'}${obj.curvaEc ? ' · ' + esc(textoEcuacion(obj.curvaEc.H, 'H')) : ''}</p>`; }
@@ -5873,6 +5978,7 @@
                 if (obj.type === 'valvula') h += camposDatosValvula(obj, fn);
             } else h += camposTubo(obj, fn);
             if (obj.type !== 'bomba' && obj.type !== 'tuberia' && !esAnotacion(obj)) h += ctrlTexto(fn, 'fabricante', obj.fabricante || '', 'Fabricante') + ctrlTexto(fn, 'referencia', obj.referencia || '', 'Referencia del fabricante');   // v8.50
+            h += ctrlPrecio(fn, obj);   // v8.52
             h += `<div>URL del componente: <div class="flex gap-1"><input type="text" value="${esc(obj.url || '')}" placeholder="https://..." onchange="${fn}('url', this.value)" class="${CLS_CTRL}">${obj.url ? `<a href="${esc(obj.url)}" target="_blank" rel="noopener" class="text-blue-600 mt-1.5" title="Abrir"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</div></div>`;
             return h;
         }
@@ -6023,7 +6129,7 @@
                 der = `${V.grupo === 'bombas' || V.grupo === 'valvulas' ? cabeceraIABomba(b) : ''}<div id="lib-form" class="grid ${admin ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
                     ${admin ? `<label class="block col-span-2"><span class="text-slate-500">Tipo de accesorio *</span><select data-lib="subtipo" onchange="leerFormLib(); libVista.subtipo = this.value; pintarLibreria()" class="w-full border rounded p-1 mt-0.5">${subs.map(x => `<option value="${esc(x)}" ${x === stB ? 'selected' : ''}>${esc(nombreSubtipo(x))}</option>`).join('')}</select></label>` : ''}
                     ${f('nombre', esTub ? 'Nombre del tipo de tubería (aparece en Tuberías del panel derecho) *' : 'Nombre / modelo *', b.nombre, esBase ? 'readonly' : '')}
-                    ${f('fabricante', 'Fabricante', b.fabricante)}${f('referencia', 'Referencia del fabricante', b.referencia)}
+                    ${f('fabricante', 'Fabricante', b.fabricante, V.grupo === 'bombas' ? `list="${datalistFabBombas()}"` : '')}${f('referencia', 'Referencia del fabricante', b.referencia)}${f('precio', `Precio (${monedaProy()}/${V.grupo === 'tuberias' || V.grupo === 'tubosAcero' ? 'm' : 'ud'})`, b.precio, 'type="number" step="0.01"')}
                     ${esGrupoTablas(V.grupo) ? '' : matSel}${f('norma', 'Norma (fabricación / dimensional)', b.norma)}
                     ${esTub || esGrupoTablas(V.grupo) ? '' : sel('pn', 'PN / Rating', [['', '—'], ...PN_LISTA], b.pn)}
                     <label class="block col-span-2"><span class="text-slate-500">URL (dónde se ha encontrado el componente)</span><div class="flex gap-1 mt-0.5"><input data-lib="url" value="${esc(b.url || '')}" placeholder="https://..." class="w-full border rounded p-1">${b.url ? `<a href="${esc(b.url)}" target="_blank" rel="noopener" class="px-2 py-1 border rounded text-blue-600" title="Abrir"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : ''}</div></label>
@@ -7070,6 +7176,7 @@
                 terminal: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['qCons', `Q cons. (${lQ()})`, 'mag', el => esConsumoT(el)], ['pMin', `p mín (${lP()})`, 'mag', el => esConsumoT(el)], ['cota', 'Cota (mm)', 'mag', el => esConsumoT(el)], ['cotaFondo', 'Cota fondo (m)', 'num', el => esDeposito(el)], ['hLamina', 'Nivel (m)', 'num', el => esDeposito(el)], ['presionDep', `p lámina (${lP()})`, 'mag', el => esDeposito(el)], ['volumen', 'V (l)', 'num', el => esDeposito(el)], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']],
                 instrumento: [['linea', 'Línea', 'sel', lin], ['_tipo', 'Tipo', 'ro'], ['dnInstr', 'Conexión', 'sel', () => [['', '—'], ...LISTA_DN.slice(0, 8).map(d => [d, etiquetaDN(d)])]], ['rango', 'Rango', 'txt'], ['cota', 'Cota (mm)', 'mag'], ['materialComp', 'Material', 'mat'], ['url', 'URL', 'txt']]
             };
+            if (C[g]) C[g] = C[g].concat([['precio', `Precio (${monedaProy()}/${g === 'tuberia' ? 'm' : 'ud'})`, 'num']]);   // v8.52
             return C[g];
         }
         function elementosMasivo() {
@@ -7269,7 +7376,7 @@
             { id: 'Archivo › Proyecto existente...', teclas: ['Ctrl+O'], campo: true, accion: () => proyectoExistente() },
             { id: 'Archivo › Guardar', teclas: ['Ctrl+G'], campo: true, accion: () => guardarProyecto() },
             { id: 'Archivo › Imprimir...', teclas: ['Ctrl+P'], campo: true, accion: () => abrirImpresion() },
-            { id: 'Edición › Búsqueda/Reemplazo...', teclas: ['Ctrl+R'], campo: true, accion: () => abrirBuscarReemplazar() },
+            { id: 'Edición › Búsqueda/Reemplazo...', teclas: ['Ctrl+H'], campo: true, accion: () => abrirBuscarReemplazar() },
             { id: 'Edición › Paleta de comandos...', teclas: ['Ctrl+K'], campo: true, accion: () => abrirPaleta() },
             { id: 'Edición › Copiar', teclas: ['Ctrl+C'], cuando: () => haySeleccion(), accion: () => copiarSeleccion() },
             { id: 'Edición › Cortar', teclas: ['Ctrl+X'], cuando: () => haySeleccion(), accion: () => cortarSeleccion() },
@@ -7279,7 +7386,8 @@
             { id: 'Edición › Rehacer', teclas: ['Ctrl+Y', 'Ctrl+Mayús+Z'], accion: () => rehacer() },
             { id: 'Seleccionar › Todo', teclas: ['Ctrl+A'], accion: () => seleccionarTodo() },
             { id: 'Selección › Girar 45° horario', teclas: ['R'], cuando: () => haySeleccion() || etqActiva(), accion: () => etqActiva() && !vista3d ? girarEtqSel(45) : girar45(45) },
-            { id: 'Selección › Girar 45° antihorario', teclas: ['Mayús+R'], cuando: () => haySeleccion() || etqActiva(), accion: () => etqActiva() && !vista3d ? girarEtqSel(-45) : girar45(-45) },
+            { id: 'Selección › Girar 15° antihorario (etiqueta: 45°)', teclas: ['Mayús+R'], cuando: () => haySeleccion() || etqActiva(), accion: () => etqActiva() && !vista3d ? girarEtqSel(-45) : girar45(-15) },
+            { id: 'Selección › Girar 15° horario', teclas: ['Ctrl+R'], cuando: () => haySeleccion() || etqActiva(), accion: () => etqActiva() && !vista3d ? girarEtqSel(15) : girar45(15) },
             { id: 'Insertar › Trazar tubería (tramos y codos)', teclas: ['L'], accion: () => { if (vista3d && V3) { iniciarTraza3D(); return; } iniciarTrazado(); } },
             { id: 'Insertar › Trazar trayectoria guía', teclas: ['Mayús+L'], accion: () => { if (vista3d && V3) { iniciarTraza3D(); return; } iniciarTrazado(true); } },
             { id: 'Cálculo › Calcular red...', teclas: ['F2'], campo: true, accion: () => calcularRed() },
@@ -7705,6 +7813,7 @@
             document.getElementById('red-footer').innerHTML = '<button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button>';
             document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-layer-group text-blue-600 mr-1.5"></i> Cálculo del proyecto completo';
             document.getElementById('modal-red').style.display = 'flex';
+            if (!error && r && r.resultado) mostrarPuntosFinales(r.resultado);   // v8.55
         }
 
         // ==================================================================================
@@ -10063,6 +10172,7 @@
             // ejes del isométrico: +X este, +Y norte, +Z arriba
             const ax = MM(22), ay = ALTO_A3 - MM(30), dl = MM(10), eje = (dx, dy, col, t) => `<line x1="${ax}" y1="${ay}" x2="${(ax + dx).toFixed(2)}" y2="${(ay + dy).toFixed(2)}" stroke="${col}" stroke-width="1.4"/><circle cx="${(ax + dx).toFixed(2)}" cy="${(ay + dy).toFixed(2)}" r="1.2" fill="${col}"/><text x="${(ax + dx * 1.25).toFixed(2)}" y="${(ay + dy * 1.25 + MM(1)).toFixed(2)}" font-family="sans-serif" font-size="${MM(2.4)}" font-weight="bold" fill="${col}" text-anchor="middle">${t}</text>`;
             h += eje(dl * ISO_C, dl * ISO_S, '#dc2626', '+X') + eje(dl * ISO_C, -dl * ISO_S, '#16a34a', '+Y') + eje(0, -dl, '#2563eb', '+Z');
+            if (!opciones.ocultarLeyenda) { const L = leyendaIso((geo.comps || []).map(cm => ({ tipo: cm.el.type, sub: cm.el.subtype })), P.texto, P); h += `<g class="iso-leyenda" transform="translate(${(ANCHO_A3 - MM(12) - L.w).toFixed(2)} ${MM(12).toFixed(2)})">${L.svg}</g>`; }   // v8.52 · leyenda
             g.innerHTML = h; svgCanvas.appendChild(g);
             g.querySelectorAll('g.iso-el').forEach(n => {
                 const id = n.getAttribute('data-id');
@@ -10070,6 +10180,32 @@
                 n.addEventListener('dblclick', e => { e.stopPropagation(); abrirVentanaElemento(id, e.clientX, e.clientY); });
                 n.addEventListener('mouseenter', e => programarTooltip(id, e)); n.addEventListener('mousemove', e => moverTooltip(e)); n.addEventListener('mouseleave', () => ocultarTooltip());
             });
+        }
+        // v8.51+ · leyenda del isométrico: un renglón por tipo de componente con el símbolo simplificado que se usa en el isométrico
+        function claseIso(tipo, sub) { return tipo === 'valvula' ? 'valv' : tipo === 'bomba' ? 'bomba' : (tipo === 'equipo' || tipo === 'terminal' || /^tk|deposito|hidroforo/.test(sub || '')) ? 'equipo' : SUBTIPOS_BRIDA.includes(sub || '') ? 'brida' : /^codo/.test(sub || '') ? 'codo' : /^(tee|cruce|injerto)$/.test(sub || '') ? 'tee' : sub === 'reduccion' ? 'red' : 'otro'; }
+        function simboloIso(cl, c, r) {
+            if (cl === 'valv') return `<polygon points="${-r * 1.5},${-r} ${r * 1.5},${r} ${r * 1.5},${-r} ${-r * 1.5},${r}" fill="#fff" stroke="${c}" stroke-width="0.9"/>`;
+            if (cl === 'bomba') return `<circle r="${r * 1.8}" fill="#fff" stroke="${c}" stroke-width="1"/><polygon points="${-r * 0.8},${-r * 1.1} ${r * 1.1},0 ${-r * 0.8},${r * 1.1}" fill="${c}"/>`;
+            if (cl === 'equipo') return `<rect x="${-r * 1.6}" y="${-r * 1.6}" width="${r * 3.2}" height="${r * 3.2}" fill="#fff" stroke="${c}" stroke-width="1"/>`;
+            if (cl === 'brida') return `<line x1="0" y1="${-r * 1.4}" x2="0" y2="${r * 1.4}" stroke="${c}" stroke-width="1.2"/>`;
+            if (cl === 'codo') return `<circle r="${r * 0.5}" fill="${c}"/>`;
+            if (cl === 'tee') return `<circle r="${r * 0.65}" fill="${c}"/>`;
+            if (cl === 'red') return `<polygon points="${-r},${-r} ${r},${-r * 0.5} ${r},${r * 0.5} ${-r},${r}" fill="#fff" stroke="${c}" stroke-width="0.8"/>`;
+            return `<circle r="${r * 0.8}" fill="#fff" stroke="${c}" stroke-width="0.9"/>`;
+        }
+        // items: [{ tipo, sub }] · devuelve { svg, w, h } con la leyenda dibujada desde (0,0)
+        function leyendaIso(items, c, P) {
+            const vistos = new Map(); items.forEach(m => { const n = nombreLeyenda({ type: m.tipo, subtype: m.sub }); if (!vistos.has(n)) vistos.set(n, claseIso(m.tipo, m.sub)); });
+            const filas = [[tradDoc('Tubería').toUpperCase(), 'tubo'], ...[...vistos.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es')), [tradMayDoc('COTA DE ELEVACIÓN (M)'), 'el']];
+            const fs = MM(2.5), hF = MM(6), hT = MM(7), xT = MM(13); ctxMedida.font = `${fs}px sans-serif`;
+            const W = Math.max(MM(60), ...filas.map(f => ctxMedida.measureText(f[0]).width + xT + MM(3))), H = hT + filas.length * hF + MM(1);
+            let h = `<rect x="0" y="0" width="${W.toFixed(2)}" height="${H.toFixed(2)}" fill="${(P && P.relleno) || '#fff'}" stroke="${c}" stroke-width="0.8"/><text x="${(W / 2).toFixed(2)}" y="${(hT / 2 + MM(1.2)).toFixed(2)}" font-family="sans-serif" font-size="${MM(3.2)}" font-weight="bold" text-anchor="middle" fill="${c}">${esc(tradMayDoc('LEYENDA'))}</text><line x1="0" y1="${hT}" x2="${W.toFixed(2)}" y2="${hT}" stroke="${c}" stroke-width="0.6"/>`;
+            filas.forEach(([n, cl], i) => { const ym = hT + i * hF + hF / 2, xm = xT / 2;
+                const sim = cl === 'tubo' ? `<line x1="${MM(1.5)}" y1="${ym}" x2="${(xT - MM(1.5)).toFixed(2)}" y2="${ym}" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/>`
+                    : cl === 'el' ? `<text x="${xm}" y="${(ym + MM(0.9)).toFixed(2)}" font-family="sans-serif" font-size="${MM(2)}" font-style="italic" text-anchor="middle" fill="${c}">EL +0${decimalDoc()}00</text>`
+                    : `<line x1="${MM(1.5)}" y1="${ym}" x2="${(xT - MM(1.5)).toFixed(2)}" y2="${ym}" stroke="${c}" stroke-width="1.2"/><g transform="translate(${xm} ${ym})">${simboloIso(cl, c, MM(1.6))}</g>`;
+                h += sim + `<text x="${xT.toFixed(2)}" y="${(ym + fs * 0.36).toFixed(2)}" font-family="sans-serif" font-size="${fs.toFixed(2)}" fill="${c}">${esc(n)}</text>`; });
+            return { svg: h, w: W, h: H };
         }
         function dibujoIsometrico(el, c, P) {
             const g = el.iso; if (!g) return '';
@@ -10101,6 +10237,7 @@
                 if (!/^codo/.test(m.sub)) h += `<line x1="${m.x}" y1="${m.y}" x2="${m.x + MM(4)}" y2="${m.y - MM(6) - dyL}" stroke="${c}" stroke-width="0.4"/><text x="${m.x + MM(4.5)}" y="${m.y - MM(6.3) - dyL}" font-family="sans-serif" font-size="${MM(2.2)}" fill="${c}">${esc(m.tag)}${m.ramal ? ' ↳' : ''}</text>`;
             });
             (g.cotas || []).forEach(q => { h += `<text x="${(q.x + MM(1.5)).toFixed(2)}" y="${(q.y + MM(4)).toFixed(2)}" font-family="sans-serif" font-size="${MM(2.2)}" font-style="italic" fill="${c}">${esc(q.t)}</text>`; });
+            if (!opciones.ocultarLeyenda && el.isoLeyenda !== false) { const L = leyendaIso(g.marcas || [], c, P), dx = el.isoLeyendaDx != null ? +el.isoLeyendaDx : Math.max(g.w + MM(10), ANCHO_A3 - MM(20) - L.w - (+el.x || 0)), dy = el.isoLeyendaDy != null ? +el.isoLeyendaDy : 0; h += `<g class="iso-leyenda" transform="translate(${dx.toFixed(2)} ${dy.toFixed(2)})">${L.svg}</g>`; }   // v8.52 · leyenda
             return h;
         }
 
@@ -10492,7 +10629,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.51';
+        const VERSION_WEB = '8.55';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -11616,6 +11753,8 @@
             });
         }
         
+        // v8.52 · qué hojas, columnas y líneas van al Excel (se recuerda en el navegador); por defecto se quitan las columnas vacías
+
         function generarListados(...a) { return PARTES_OK.informe ? generarListados__p.apply(this, a) : cargarParte('informe').then(() => generarListados__p.apply(this, a)); }
 
         // ==================================================================================
@@ -11858,7 +11997,7 @@
         let contadorPegado = 0;
         // R: gira la selección 45° en sentido horario; Mayús+R, 45° en sentido antihorario
         function girar45(inc) {
-            if (vista3d && V3) { girar3D(inc > 0 ? 90 : 15); return; }   // v8.42 · en 3D: R 90°, Mayús+R 15° (sobre el eje elegido con X / Y / Z o el de la conexión)
+            if (vista3d && V3) { girar3D(Math.abs(inc) === 45 ? 90 : 15); return; }   // v8.54 · Mayús+R / Ctrl+R: 15°   // v8.42 · en 3D: R 90°, Mayús+R 15° (sobre el eje elegido con X / Y / Z o el de la conexión)
             const ids = idsSeleccion().filter(id => !esTablaHoja(elementosRed.find(e => e.id === id)));
             if (!ids.length) return;
             if (ids.length > 1) { girarSeleccion(inc); renderizarVectorial(); return; }
@@ -12148,7 +12287,7 @@
                 { icono: 'fa-print', texto: 'Imprimir...', atajo: 'Ctrl+P', accion: () => abrirImpresion() }
             ]},
             { titulo: 'Edición', items: [
-                { icono: 'fa-magnifying-glass', texto: 'Búsqueda/Reemplazo...', atajo: 'Ctrl+R', accion: () => abrirBuscarReemplazar() },
+                { icono: 'fa-magnifying-glass', texto: 'Búsqueda/Reemplazo...', atajo: 'Ctrl+H', accion: () => abrirBuscarReemplazar() },
                 { icono: 'fa-repeat', get texto() { return 'Repetir' + (typeof ultimaOrden !== 'undefined' && ultimaOrden ? ': ' + textoUltimaOrden() : ' la última orden'); }, atajo: 'Intro / Espacio', accion: () => repetirUltimaOrden() },
                 { icono: 'fa-terminal', texto: 'Paleta de comandos...', atajo: 'Ctrl+K', accion: () => abrirPaleta() },
                 { icono: 'fa-table-cells-large', texto: 'Tabla de propiedades...', accion: () => abrirTablaPropiedades() },
@@ -12170,6 +12309,9 @@
             { titulo: 'Cálculo', items: [
                 { icono: 'fa-calculator', texto: 'Calcular red...', atajo: 'F2', accion: () => calcularRed() },
                 { icono: 'fa-layer-group', texto: 'Calcular proyecto completo (todas las hojas)', accion: () => calcularProyectoCompleto() },
+                { icono: 'fa-location-dot', texto: 'Puntos finales de la red (Q y p de salida)...', accion: () => abrirPuntosFinales() },
+                { icono: opciones.verPuntosFinales === false ? 'fa-square' : 'fa-check', texto: 'Abrir la ventana de puntos finales al calcular', accion: () => { opciones.verPuntosFinales = opciones.verPuntosFinales === false; marcarCambios(true); } },
+                { icono: opciones.verPuntosFinales2D === false ? 'fa-square' : 'fa-check', texto: 'Mostrar Q y p en los puntos finales del plano', accion: () => { opciones.verPuntosFinales2D = opciones.verPuntosFinales2D === false; marcarCambios(true); renderizarVectorial(); } },
                 { icono: 'fa-up-right-and-down-left-from-center', texto: 'Redimensionar (componentes que cumplen y que no)...', atajo: 'F3', accion: () => abrirRedimensionar() },
                 { icono: 'fa-scale-balanced', texto: 'Escenarios A / B', sub: () => [
                     { icono: 'fa-a', texto: 'Guardar el cálculo como escenario A' + (proyecto.escenarios && proyecto.escenarios.A ? ' (' + proyecto.escenarios.A.nombre + ')' : ''), accion: () => guardarEscenario('A') },
@@ -12204,6 +12346,7 @@
                 { icono: opciones.ocultarLeyenda ? 'fa-square' : 'fa-check', texto: 'Mostrar la leyenda', accion: () => alternarOcultar('ocultarLeyenda') },
                 { icono: opciones.ocultarListado ? 'fa-square' : 'fa-check', texto: 'Mostrar el listado de materiales', accion: () => alternarOcultar('ocultarListado') },
                 { icono: opciones.ocultarEtiquetas ? 'fa-square' : 'fa-check', texto: 'Mostrar la nomenclatura de los componentes', accion: () => alternarOcultar('ocultarEtiquetas') },
+                { icono: opciones.etqCompleta ? 'fa-check' : 'fa-square', texto: 'Textos de los componentes con schedule y material (p. ej. -STD-WPB)', accion: () => { opciones.etqCompleta = !opciones.etqCompleta; marcarCambios(true); renderizarVectorial(); } },
                 'sep',
                 { icono: 'fa-sitemap', texto: 'Árbol de estructura (mostrar/ocultar)', accion: () => alternarArbol() },
                 { icono: 'fa-triangle-exclamation', texto: 'Panel de avisos del cálculo (mostrar/ocultar)', accion: () => alternarPanelAvisos() },
@@ -12843,7 +12986,7 @@
         const tipoDeBD = t => Object.keys(TIPO_BD_BOMBA).find(k => TIPO_BD_BOMBA[k].toLowerCase() === String(t || '').toLowerCase()) || 'centrifuga';
         function itemDeBombaBD(r) {
             const v = r.volumetric || {}, c = (r.curves || []).slice().sort((a, b) => a.flow_m3h - b.flow_m3h);
-            return { id: r.pump_id, subtipo: 'bomba', grupo: 'bombas', origen: 'empresa', nombre: [r.manufacturer, r.model].filter(Boolean).join(' ') || r.tag_name || r.pump_id, fabricante: r.manufacturer || '', referencia: r.model || '', url: r.url || '', notas: r.notes || '', modificado_por: r.modificado_por || '',
+            return { id: r.pump_id, subtipo: 'bomba', grupo: 'bombas', origen: 'empresa', nombre: [r.manufacturer, r.model].filter(Boolean).join(' ') || r.tag_name || r.pump_id, fabricante: r.manufacturer || '', precio: (r.connections || {}).precio == null ? '' : (r.connections || {}).precio, referencia: r.model || '', url: r.url || '', notas: r.notes || '', modificado_por: r.modificado_por || '',
                 props: { tag: r.tag_name || '', bombaTipo: tipoDeBD(r.pump_type), fluidoDiseno: r.design_fluid || '', caudal: r.design_flow_m3h, altura: r.design_head_m, alturaCero: r.shutoff_head_m == null ? '' : r.shutoff_head_m, npsh: r.npshr_m == null ? '' : r.npshr_m, rpm: r.operational_rpm == null ? '' : r.operational_rpm,
                     potMotor: r.motor_power_kw == null ? '' : r.motor_power_kw, eta: r.efficiency_pct == null ? '' : r.efficiency_pct, tension: r.voltage || '', frecuencia: r.frequency_hz || '', ip: r.ip_rating || '', impulsor: r.impeller_mm == null ? '' : r.impeller_mm, impulsorMax: r.impeller_max_mm == null ? '' : r.impeller_max_mm,
                     dnAsp: r.suction_size || '', dnImp: r.discharge_size || '', normaBridas: r.flange_standard || '', rating: r.pressure_rating || '', apiPlan: r.api_plan || '',
@@ -12855,7 +12998,7 @@
             const p = b.props || {}, n = v => v === '' || v == null || isNaN(+String(v).replace(',', '.')) ? null : +String(v).replace(',', '.'), vol = p.bombaTipo && p.bombaTipo !== 'centrifuga';
             return { pump_id: /^usr:/.test(b.id) ? '' : b.id, tag_name: p.tag || '', pump_type: TIPO_BD_BOMBA[p.bombaTipo || 'centrifuga'], manufacturer: b.fabricante || '', model: b.referencia || b.nombre || '', design_fluid: p.fluidoDiseno || '',
                 design_flow_m3h: n(p.caudal), design_head_m: n(p.altura), shutoff_head_m: n(p.alturaCero), npshr_m: n(p.npsh), operational_rpm: n(p.rpm), motor_power_kw: n(p.potMotor), efficiency_pct: n(p.eta) == null ? null : (n(p.eta) <= 1 ? n(p.eta) * 100 : n(p.eta)),
-                voltage: p.tension || '', frequency_hz: p.frecuencia || '', ip_rating: p.ip || '', impeller_mm: n(p.impulsor), impeller_max_mm: n(p.impulsorMax), suction_size: p.dnAsp || '', discharge_size: p.dnImp || '', ...(() => { const a = conexBomba(p, 'Asp'), i = conexBomba(p, 'Imp'), nb = i.norma || a.norma; return { flange_standard: esNormaBrida(nb) ? (/^ASME/.test(nb) ? 'ASME' : /^EN/.test(nb) ? 'EN' : '') : (p.normaBridas || ''), pressure_rating: i.rating || a.rating || '', connections: { asp: { tipo: a.tipo, norma: a.norma, rating: a.rating }, imp: { tipo: i.tipo, norma: i.norma, rating: i.rating }, forma3D: p.forma3D || '', cotas3D: p.cotas3D || '' } }; })(), api_plan: p.apiPlan || '', min_flow_m3h: n(p.qMin), casing_max_pressure_bar: n(p.pCuerpo), url: b.url || '', notes: b.notas || '', curve_equations: vol ? null : ecuacionesDe(p),
+                voltage: p.tension || '', frequency_hz: p.frecuencia || '', ip_rating: p.ip || '', impeller_mm: n(p.impulsor), impeller_max_mm: n(p.impulsorMax), suction_size: p.dnAsp || '', discharge_size: p.dnImp || '', ...(() => { const a = conexBomba(p, 'Asp'), i = conexBomba(p, 'Imp'), nb = i.norma || a.norma; return { flange_standard: esNormaBrida(nb) ? (/^ASME/.test(nb) ? 'ASME' : /^EN/.test(nb) ? 'EN' : '') : (p.normaBridas || ''), pressure_rating: i.rating || a.rating || '', connections: { asp: { tipo: a.tipo, norma: a.norma, rating: a.rating }, imp: { tipo: i.tipo, norma: i.norma, rating: i.rating }, forma3D: p.forma3D || '', cotas3D: p.cotas3D || '', precio: b.precio === '' || b.precio == null ? null : +b.precio } }; })(), api_plan: p.apiPlan || '', min_flow_m3h: n(p.qMin), casing_max_pressure_bar: n(p.pCuerpo), url: b.url || '', notes: b.notas || '', curve_equations: vol ? null : ecuacionesDe(p),
                 curves: vol ? [] : leerTextoCurva(p.curva).map(q => ({ flow_m3h: q[0], head_m: q[1], efficiency_pct: q[2], npshr_m: q[3], power_kw: q[4] })),
                 volumetric: vol ? { displacement_per_stroke_cm3: n(p.volCilindrada), max_discharge_pressure_bar: n(p.volPmax), strokes_per_minute: n(p.volCiclos), cylinders: n(p.volCilindros), internal_material: p.volMaterial || '' } : null };
         }
