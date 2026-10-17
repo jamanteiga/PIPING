@@ -1506,7 +1506,26 @@
             if (!m.tamanos.some(t => t.clave === el.dn && t.e[el.serie] != null)) { const t = m.tamanos.find(x => x.e[el.serie] != null); if (t) el.dn = t.clave; }
             delete el._propuestaDN; pintarModalNuevo();
         }
-        function pintarModalNuevo() { pintarModalNuevo0(); try { if (nuevoPendiente && esInicioRed(nuevoPendiente.el)) document.getElementById('modal-nuevo-body').insertAdjacentHTML('afterbegin', camposOrigen3DHTML(nuevoPendiente.el)); } catch (e) { } }   // v8.47 · buques: punto inicial XYZ
+        // v8.57 · con el caudal conocido (último cálculo, el del elemento conectado o el de diseño) y el Dint de la tubería: K, Cv, Kv y Δp por defecto
+        function hidraulicaPrevia(el) {
+            if (!el || !['valvula', 'accesorio', 'equipo'].includes(el.type) || sinFlujo(el) || SUBTIPOS_BRIDA.includes(el.subtype || '')) return null;
+            const res = (typeof ultimoResultado === 'object' && ultimoResultado) || {}, prev = (typeof ultimoResultadoPrevio === 'object' && ultimoResultadoPrevio) || {};
+            const vs = vecinosDe(el), rv = vs.map(v => res[v.otro.id] || prev[v.otro.id]).find(r => r && r.Q > 0);
+            const Q = (res[el.id] && res[el.id].Q > 0 ? res[el.id].Q : rv ? rv.Q : +proyecto.caudalDiseno || 0), origenQ = res[el.id] && res[el.id].Q > 0 ? 'último cálculo' : rv ? 'elemento conectado' : 'caudal de diseño';
+            if (!(Q > 0)) return null;
+            const tv = vs.map(v => v.otro).find(o => o.type === 'tuberia'), D = tv ? datosTuberia(tv).Dint : dintRed(el, el.dn, ultimoCalculo && ultimoCalculo.resultado ? ultimoCalculo.resultado.aristas : []), A = Math.PI * Math.pow(D / 1000, 2) / 4, V = Q / 3600 / A, rho = fluidoActual().rho || 1000;
+            let K = null, org = '';
+            try { if (esNodo(el)) { const t = kTee(el); K = t.run; org = `paso directo (derivación K ${fmt(t.der, 3)}) · ${t.origen}`; } else if (esEquipo(el)) { const qn = +el.qNom, dpn = +el.dpNom; if (qn > 0 && dpn >= 0) { const dp = dpn * Math.pow(Q / qn, 2); return { Q, V, D, dp: dp / 100, K: dp * 1000 / (rho * V * V / 2), Cv: null, org: `Δp nominal ${dpn} kPa a ${qn} m³/h`, origenQ }; } } else { const r = kElemento(el, D); K = r.K; org = r.origen; } } catch (e) { return null; }
+            if (K == null) return null;
+            const dp = K * rho * V * V / 2 / 1e5, d = D / 25.4, Cv = K > 0 ? Math.sqrt(891 * Math.pow(d, 4) / K) : null;
+            return { Q, V, D, K, dp, Cv, Kv: Cv ? Cv / 1.156 : null, org, origenQ };
+        }
+        function hidraulicaPreviaHTML(el) {
+            const h = hidraulicaPrevia(el); if (!h) return '';
+            return `<div class="mt-2 p-2 rounded border border-emerald-300 bg-emerald-50 text-[11px] text-emerald-900"><b><i class="fa-solid fa-calculator mr-1"></i>Pérdida de carga prevista</b> (Q ${fQ(h.Q, 2)} ${lQ()} del ${esc(h.origenQ)} · Dint ${fmt(h.D, 1)} mm · V ${fmt(h.V, 2)} m/s)<br>
+                K = <b>${fmt(h.K, 3)}</b>${h.Cv ? ` · Cv = <b>${fmt(h.Cv, 1)}</b> · Kv = <b>${fmt(h.Kv, 1)}</b>` : ''} · Δp = <b>${fP(h.dp, 3)} ${lP()}</b><br><span class="text-emerald-700">${esc(h.org)}</span></div>`;
+        }
+        function pintarModalNuevo() { pintarModalNuevo0(); try { if (nuevoPendiente && esInicioRed(nuevoPendiente.el)) document.getElementById('modal-nuevo-body').insertAdjacentHTML('afterbegin', camposOrigen3DHTML(nuevoPendiente.el)); } catch (e) { } try { const hh = nuevoPendiente && hidraulicaPreviaHTML(nuevoPendiente.el); if (hh) document.getElementById('modal-nuevo-body').insertAdjacentHTML('beforeend', hh); } catch (e) { } }   // v8.57 · K / Cv / Δp por defecto   // v8.47 · buques: punto inicial XYZ
         function pintarModalNuevo0() {
             const { el, propuesta, necesitaK, extra } = nuevoPendiente;
             const t = TIPOS[el.subtype] || {};
@@ -2147,8 +2166,11 @@
             return h + `<circle class="punto-enganche" cx="${g.W.toFixed(2)}" cy="${g.H.toFixed(2)}" r="2.2" fill="#2563eb" stroke="#fff" stroke-width="0.6"/>`;
         }
         // un renglón por tipo de componente (todas las tuberías en uno), solo con la definición
-        function usadosLeyenda() { return [...new Map(elementosRed.filter(e => !esAnotacion(e)).map(e => [e.type === 'tuberia' ? 'tub' : e.type === 'bomba' ? 'bomba' : e.subtype + (e.subtype === 'reduccion' && e.excentrica ? 'E' : ''), e])).values()]; }
-        const nombreLeyenda = e => tradDoc(e.type === 'tuberia' ? 'Tubería' : e.type === 'bomba' ? 'Bomba centrífuga' : e.subtype === 'codo90' ? 'Codo' : nombreTipo(e)).toUpperCase();
+        // v8.57 · tubería que sube: discontinua; que baja: trazo y punto (y ▲ / ▼ con el desnivel)
+        const DASH_SUBE = '9,4', DASH_BAJA = '10,3,2,3';
+        const dzTubo = e => e.type === 'tuberia' ? (+e.cotaB || 0) - (+e.cotaA || 0) : 0;
+        function usadosLeyenda() { return [...new Map(elementosRed.filter(e => !esAnotacion(e)).map(e => [e.type === 'tuberia' ? (dzTubo(e) > 0.0005 ? 'tubS' : dzTubo(e) < -0.0005 ? 'tubB' : 'tub') : e.type === 'bomba' ? 'bomba' : e.subtype + (e.subtype === 'reduccion' && e.excentrica ? 'E' : ''), e])).values()]; }
+        const nombreLeyenda = e => tradDoc(e.type === 'tuberia' ? (dzTubo(e) > 0.0005 ? 'Tubería ascendente' : dzTubo(e) < -0.0005 ? 'Tubería descendente' : 'Tubería') : e.type === 'bomba' ? 'Bomba centrífuga' : e.subtype === 'codo90' ? 'Codo' : nombreTipo(e)).toUpperCase();
         function geomLeyenda() {
             const us = usadosLeyenda(), fs = MM(TXT_MM), ft = MM(TIT_MM), hT = MM(8), hF = MM(9), xT = MM(14);
             ctxMedida.font = `bold ${ft}px sans-serif`; const wt = ctxMedida.measureText(tradMayDoc('LEYENDA')).width + MM(8);
@@ -2164,7 +2186,7 @@
             const esc_ = MM(7) * 1.25 / 50; // símbolos un 25 % mayores que en 7.9
             g.us.forEach((e, i) => {
                 const y0 = g.hT + i * g.hF, ym = y0 + g.hF / 2;
-                const sim = e.type === 'tuberia' ? `<line x1="${MM(1.5).toFixed(2)}" y1="${ym.toFixed(2)}" x2="${(g.xT - MM(1.5)).toFixed(2)}" y2="${ym.toFixed(2)}" stroke="${P.base}" stroke-width="2"/>`
+                const dzL = dzTubo(e), sim = e.type === 'tuberia' ? `<line x1="${MM(1.5).toFixed(2)}" y1="${ym.toFixed(2)}" x2="${(g.xT - MM(1.5)).toFixed(2)}" y2="${ym.toFixed(2)}" stroke="${P.base}" stroke-width="2"${Math.abs(dzL) > 0.0005 ? ` stroke-dasharray="${dzL > 0 ? DASH_SUBE : DASH_BAJA}"` : ''}/>`
                     : `<g transform="translate(${(g.xT / 2 - 25 * esc_).toFixed(2)} ${(ym - 25 * esc_).toFixed(2)}) scale(${esc_.toFixed(3)})">${(e.type === 'bomba' ? simboloBomba(P.base, P) : simboloSVG(e, P.base, P)).replace(/<text[\s\S]*?<\/text>/g, '')}</g>`; // sin códigos dentro del símbolo
                 h += sim + `<text x="${g.xT.toFixed(2)}" y="${(ym + fs * 0.36).toFixed(2)}" font-size="${fs.toFixed(2)}" ${F}>${esc(nombreLeyenda(e))}</text>`;
             });
@@ -2500,7 +2522,22 @@
             return `<g pointer-events="none">${lideres}</g>${txt}`;
         }
         let ultimoClic = {};
+        // v8.56 · sentido del flujo en una brida: +1 de la cara (a) al tubo (b), −1 del tubo a la cara. Con el cálculo vigente, el del
+        // caudal; sin él, el orden de los elementos en su línea (se empieza a recorrer desde el inicio de la línea).
+        let _ordenRender = null;
+        function sentidoBrida(el) {
+            try {
+                if (!_ordenRender) _ordenRender = { mapa: mapaVecinos(), lineas: {}, calc: !!(ultimoCalculo && ultimoCalculo.huella === huellaRed()) };
+                if (_ordenRender.calc) { const a = ultimoCalculo.resultado.aristas.find(x => x.el.id === el.id); if (a && Math.abs(a.Qprev) > 1e-9) return a.Qprev > 0 ? 1 : -1; }
+                const L = el.linea; if (!L) return -1;
+                const ord = _ordenRender.lineas[L] || (_ordenRender.lineas[L] = ordenarLinea(L, _ordenRender.mapa)), i = ord.indexOf(el.id); if (i < 0) return -1;
+                const v = vecinosDe(el), na = v.find(x => x.puertoEl === 'a'), nb = v.find(x => x.puertoEl === 'b'), ia = na ? ord.indexOf(na.otro.id) : -1, ib = nb ? ord.indexOf(nb.otro.id) : -1;
+                if (ib >= 0) return ib < i ? -1 : 1; if (ia >= 0) return ia < i ? 1 : -1;
+                return nb && !na ? -1 : na && !nb ? 1 : -1;
+            } catch (e) { return -1; }
+        }
         function renderizarVectorial() {
+            _ordenRender = null;
             if (!renderizarVectorial._nu) { renderizarVectorial._nu = true; try { const cb = numeracionUnica(); if (cb.length) aviso(`Nomenclatura repetida corregida: ${cb.slice(0, 4).join(' · ')}${cb.length > 4 ? '…' : ''}`, 'ok'); } catch (e) { } finally { renderizarVectorial._nu = false; } }
             if (!renderizarVectorial._aj && elementosRed.some(e => e.ajusteGuia)) { renderizarVectorial._aj = true; try { if (ajustarLongitudesGuia()) invalidarResultados(); } catch (e) { console.warn(e); } finally { renderizarVectorial._aj = false; } }
             recolocarTablasHoja();
@@ -2599,12 +2636,12 @@
                     const ax = Math.max(largoPx / 2 + 6, 8);
                     const desnivel = Math.abs((+el.cotaB || 0) - (+el.cotaA || 0)) > 0.0005;   // v8.48 · sube o baja aunque se dibuje en horizontal
                     const dz = (+el.cotaB || 0) - (+el.cotaA || 0);
-                    d = `<line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="${desnivel ? 'butt' : 'round'}"${desnivel ? ' stroke-dasharray="9,4" class="tubo-desnivel"' : ''}/>` + (desnivel && largoPx > 30 ? `<text x="${(largoPx * 0.78).toFixed(1)}" y="15.5" font-family="sans-serif" font-size="5" font-weight="bold" fill="${c}" text-anchor="middle">${dz > 0 ? '▲' : '▼'} ${dz > 0 ? '+' : '−'}${fmt(Math.abs(dz), 2)} m</text>` : '') + `
+                    d = `<line x1="0" y1="20" x2="${largoPx}" y2="20" stroke="${c}" stroke-width="2.2" stroke-linecap="${desnivel ? 'butt' : 'round'}"${desnivel ? ` stroke-dasharray="${dz > 0 ? DASH_SUBE : DASH_BAJA}" class="tubo-desnivel ${dz > 0 ? 'tubo-sube' : 'tubo-baja'}"` : ''}/>` + (desnivel && largoPx > 30 ? `<text x="${(largoPx * 0.78).toFixed(1)}" y="15.5" font-family="sans-serif" font-size="5" font-weight="bold" fill="${c}" text-anchor="middle">${dz > 0 ? '▲' : '▼'} ${dz > 0 ? '+' : '−'}${fmt(Math.abs(dz), 2)} m</text>` : '') + `
                          <polygon points="${ax - 6.5},16.9 ${ax},20 ${ax - 6.5},23.1" fill="${c}"/>` + marcaFallo(largoPx / 2 - 8, 13);   // v8.45 · flecha del sentido de flujo dentro de la línea
                 } else {
                     d = simboloSVG(el, c, P);
                     if (el.subtype === 'tee') d += `<polygon points="31,22.4 36.5,25 31,27.6" fill="${c}"/><polygon points="22.4,31 25,36.5 27.6,31" fill="${c}"/>`;   // v8.45 · te: una flecha en cada salida (a → b y a → c)
-                    else if (SUBTIPOS_BRIDA.includes(el.subtype || '')) { if (!sinFlujo(el)) d += `<polygon points="41,15 35,18 41,21" fill="${P.flecha}"/>`; }   // v8.54 · brida: la flecha apunta a su cara (RF), en el lado del tubo
+                    else if (SUBTIPOS_BRIDA.includes(el.subtype || '')) { if (!sinFlujo(el)) d += sentidoBrida(el) > 0 ? `<polygon points="35,15 41,18 35,21" fill="${P.flecha}"/>` : `<polygon points="41,15 35,18 41,21" fill="${P.flecha}"/>`; }   // v8.56 · brida: la flecha sigue el sentido real del flujo
                     else if (el.type !== 'instrumento' && !sinFlujo(el) && !/^codo/.test(el.subtype)) d += flecha(18);
                     d += marcaFallo(25, 5);
                 }
@@ -2837,6 +2874,8 @@
             }
             return [
                 { icono: 'fa-pen-to-square', texto: 'Editar...', accion: () => abrirVentanaElemento(el.id) },
+                ...(esAnotacion(el) ? [] : [{ icono: 'fa-up-right-and-down-left-from-center', texto: el.estado === 'fallo' ? 'Redimensionar componente (no cumple)...' : 'Redimensionar componente...', accion: () => redimensionarComponente(el.id) }]),   // v8.57
+                ...(!esAnotacion(el) && typeof primeroRed3D === 'function' && primeroRed3D() === el.id ? [{ icono: 'fa-location-crosshairs', texto: 'Posición de la red (X, Y, Z del punto inicial)...', accion: () => abrirPosicionRed() }] : []),
                 ...(esAnotacion(el) ? [] : [{ icono: 'fa-i-cursor', texto: el.tagManual ? `Renombrar... (${el.tagManual})` : 'Renombrar...', accion: () => renombrarElemento(el) }]),
                 { icono: 'fa-rotate', texto: 'Girar', sub: [
                     { icono: 'fa-rotate-right', texto: '90° horario', accion: giro(90) },
@@ -3007,7 +3046,9 @@
                 if (obj.subtype === 'nota') h += ctrlNum(fn, 'tamTexto', obj.tamTexto || 7, 'Tamaño de texto', '0.5');
                 return h + info(obj.subtype === 'leyenda' ? 'Se actualiza sola con los componentes del plano. Enganchada por su esquina superior derecha a la de la zona de trabajo; se recoloca al cambiar de formato. Para moverla: botón derecho sobre la tabla > Mover / Desconectar.' : obj.subtype === 'materiales' ? 'Tabla de materiales del plano (se actualiza sola). Enganchada por su esquina inferior derecha a la superior derecha del cajetín; se recoloca al cambiar de formato. Para moverla: botón derecho sobre la tabla > Mover / Desconectar.' : 'Anotación: no interviene en el cálculo.');
             }
+            if (obj.estado === 'fallo') h += `<div class="p-1.5 rounded border border-rose-300 bg-rose-50 text-[11px] text-rose-800"><b><i class="fa-solid fa-circle-xmark mr-1"></i>No cumple:</b> ${esc(((ultimoResultado || {})[obj.id] || {}).motivos ? ultimoResultado[obj.id].motivos.join('; ') : '')}<br><button onclick="redimensionarComponente('${obj.id}')" class="mt-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white"><i class="fa-solid fa-up-right-and-down-left-from-center mr-1"></i>Redimensionar componente</button></div>`;   // v8.57
             h += camposLibreria(obj, fn);
+            try { h += hidraulicaPreviaHTML(obj); } catch (e) { }   // v8.57 · K / Cv / Δp con el caudal conocido
             if (obj.subtype === 'continuacion') {
                 const otras = hojas.filter((x, i) => i !== hojaActual).map(x => [x.id, 'Hoja ' + x.id]);
                 h += ctrlSelect(fn, 'hojaDestino', [['', '— sin hoja —'], ...otras], obj.hojaDestino || '', 'Continúa en la hoja');
@@ -3868,6 +3909,12 @@
         }
 
         // Diámetro interior de una tubería conectada al nodo (la primera que se encuentre), en mm
+        // v8.57 · componente sin tubería pegada (p. ej. codo–brida–válvula): Dint de la tubería de su línea con el mismo DN (o de la red), no el Sch 40 de referencia
+        function dintRed(el, dn, aristas) {
+            const tubs = (aristas || []).filter(x => x.el.type === 'tuberia' && x.el.dn === dn && x.D > 0);
+            const t = tubs.find(x => x.el.linea === el.linea) || tubs.find(x => lineaPorId(el.linea) && x.el.linea === (lineaPorId(el.linea).padre || '')) || tubs[0];
+            return t ? t.D * 1000 : dintReferencia(dn);
+        }
         function dintTuberiaEnNodo(nodo, aristas, preferirDN) {
             const tubs = aristas.filter(x => x.el.type === 'tuberia' && (x.nodoA === nodo || x.nodoB === nodo));
             if (!tubs.length) return null;
@@ -3883,7 +3930,7 @@
                 const el = a.el;
                 if (a.esEquipo) {
                     // Δp = Δp nom·(Q/Qnom)²  ->  K referido a la tubería conectada: K = 2g·hf_nom/V_nom²
-                    const Dmm = dintTuberiaEnNodo(a.nodoA, aristas) || dintTuberiaEnNodo(a.nodoB, aristas) || dintReferencia(el.dn || 'DN 50');
+                    const Dmm = dintTuberiaEnNodo(a.nodoA, aristas) || dintTuberiaEnNodo(a.nodoB, aristas) || dintRed(el, el.dn || 'DN 50', aristas);
                     a.D = Dmm / 1000; a.A = Math.PI * a.D * a.D / 4;
                     const sec = a.rama === 'sec', dpN = sec ? +el.dpNom2 : +el.dpNom, qN = sec ? +el.qNom2 : +el.qNom;
                     const hfN = (dpN || 0) * 1000 / (fluido.rho * G), Vn = (qN || 1) / 3600 / a.A;
@@ -3892,19 +3939,19 @@
                     return;
                 }
                 if (el.subtype === 'reduccion') {
-                    const D1 = dintTuberiaEnNodo(a.nodoA, aristas) || dintReferencia(el.dn);
-                    const D2 = dintTuberiaEnNodo(a.nodoB, aristas) || dintReferencia(el.dnMenor);
+                    const D1 = dintTuberiaEnNodo(a.nodoA, aristas) || dintRed(el, el.dn, aristas);
+                    const D2 = dintTuberiaEnNodo(a.nodoB, aristas) || dintRed(el, el.dnMenor, aristas);
                     const r = kReduccion(el, Math.max(D1, D2), Math.min(D1, D2));
                     a.D = Math.min(D1, D2) / 1000; a.Kc = r.kc; a.Ke = r.ke; a.K = r.kc;
                     a.origenK = `Crane θ ${fmt(r.theta, 1)}° β ${fmt(r.beta, 2)}`;
                 } else if (esNodo(el)) {
-                    const Dmm = dintTuberiaEnNodo(a.nodoA, aristas, el.dn) || dintReferencia(el.dn);
+                    const Dmm = dintTuberiaEnNodo(a.nodoA, aristas, el.dn) || dintRed(el, el.dn, aristas);
                     const kt = kTee(el);
                     a.D = Dmm / 1000;
                     a.K = (a.rama === 'c' || a.rama === 'd') ? Math.max(kt.der - kt.run / 2, 0) : kt.run / 2;
                     a.origenK = `${kt.origen} · rama ${a.rama}`;
                 } else {
-                    const Dmm = dintTuberiaEnNodo(a.nodoA, aristas, el.dn) || dintTuberiaEnNodo(a.nodoB, aristas, el.dn) || dintReferencia(el.dn);
+                    const Dmm = dintTuberiaEnNodo(a.nodoA, aristas, el.dn) || dintTuberiaEnNodo(a.nodoB, aristas, el.dn) || dintRed(el, el.dn, aristas);
                     const kk = kElemento(el, Dmm);
                     a.D = Dmm / 1000; a.K = kk.K; a.origenK = kk.origen;
                     // v8.24 · las K de Crane van referidas al schedule de la clase de la válvula (≤ Class 300: Sch 40; 400/600: Sch 80;
@@ -4161,12 +4208,15 @@
                 const [a, sg] = l[0]; if (a.esBomba) return;
                 const Q = sg * (a.Qprev || 0) * 3600, t = term.porNodo[n.id];
                 if (Q < -1e-6) return;   // por aquí entra el caudal: es una alimentación
-                const pe = n.puertos.find(q => q.elId === a.el.id) || n.puertos[0], el = t || a.el, p = res.pMan[n.id] != null ? res.pMan[n.id] / 1e5 : null;
+                const pe = n.puertos.find(q => q.elId === a.el.id) || n.puertos[0], el = t || a.el, pv = res.fluido && res.fluido.pv > 0 ? (res.fluido.pv - PRESION_ATM) / 1e5 : null;
+                let p = res.pMan[n.id] != null ? res.pMan[n.id] / 1e5 : null, vapor = false;
+                if (p != null && pv != null && p < pv) { p = pv; vapor = true; }   // v8.57 · límite físico: la presión no baja de la de vapor (el líquido vaporiza)
                 let req = '', ok = true;
                 if (t && esConsumoT(t)) { const pm = +t.pMin || 0; req = `p ≥ ${fP(pm, 2)} ${lP()} · Q ${fQ(+t.qCons || 0, 2)} ${lQ()}`; ok = p != null && p >= pm - 1e-4; }
                 else if (t && esDeposito(t)) { req = 'llega al depósito (p ≥ 0)'; ok = p != null && p >= -1e-4; }
                 else if (Q > 1e-6) { req = 'salida libre (p ≥ 0)'; ok = p != null && p >= -1e-4; }
                 else req = 'extremo cerrado (sin caudal)';
+                if (vapor) { ok = false; req += ' · ¡presión limitada a la de vapor: el líquido vaporiza y el caudal no llega!'; }
                 out.push({ nodo: n.id, elId: (t || a.el).id, portId: t ? term.puertoTerm[n.id] : pe.portId, elTubo: a.el.id, tag: tagDe(el), tipo: t ? nombreTipo(t) : (Q > 1e-6 ? 'Extremo abierto' : 'Extremo cerrado'), linea: el.linea || a.el.linea || '', Q: Math.max(0, Q), p, V: Math.abs(a.V || 0), tramo: tagDe(a.el), req, ok, z: res.z ? res.z[n.id] : null });
             });
             return out.sort((x, y) => String(x.linea).localeCompare(String(y.linea), 'es') || x.tag.localeCompare(y.tag, 'es'));
@@ -4744,6 +4794,13 @@
             calculoSilencioso(); sincronizarHoja();
             return res;
         }
+        // v8.57 · redimensionar un solo componente: abre la ventana de Redimensionar con sus opciones ya calculadas
+        function redimensionarComponente(id) {
+            if (vista3d) ponerVista('normal'); try { asegurarHojaDe(id); } catch (e) { }
+            abrirRedimensionar(); if (document.getElementById('modal-red').style.display !== 'flex') return;
+            REDIM.filtro = 'todos'; opcionesRedim(id);
+            setTimeout(() => { const f = document.querySelector(`#red-content [data-redim="${id}"]`); if (f) f.scrollIntoView({ block: 'center' }); }, 120);
+        }
         function abrirRedimensionar() {
             cerrarMenus();
             const r = calculoSilencioso(); if (r.error) { alert('Redimensionar: ' + r.error); return; }
@@ -4770,11 +4827,11 @@
             ord.filter(x => REDIM.filtro !== 'fallo' || x.e.estado === 'fallo').forEach(({ e, linea, nivel }) => {
                 if (linea !== lin) { lin = linea; const L = lineaPorId(linea); h += `<tr class="bg-slate-200"><td colspan="7" class="px-1 py-0.5 font-bold text-slate-700" style="padding-left:${4 + nivel * 14}px">${nivel ? '↳ ' : ''}${esc(linea)}${L && L.nombre ? ' · ' + esc(L.nombre) : ''}</td></tr>`; }
                 const r = (ultimoResultado || {})[e.id] || {}, mot = (r.motivos || []).join('; '), des = desajusteMedida(e), op = REDIM.opciones[e.id];
-                h += `<tr class="border-t" style="background:${col(e)}"><td class="px-1 py-0.5" style="padding-left:${8 + nivel * 14}px"><a href="#" onclick="event.preventDefault(); cerrarModalRed(); irAElemento('${e.id}')" class="font-bold text-blue-700 hover:underline">${esc(tagDe(e))}</a></td>
+                h += `<tr class="border-t" data-redim="${e.id}" style="background:${col(e)}"><td class="px-1 py-0.5" style="padding-left:${8 + nivel * 14}px"><a href="#" onclick="event.preventDefault(); cerrarModalRed(); irAElemento('${e.id}')" class="font-bold text-blue-700 hover:underline">${esc(tagDe(e))}</a></td>
                     <td class="px-1">${esc(nombreTipo(e))}</td><td class="px-1">${esc(medidaDe(e))}${des ? `<br><span class="text-amber-700 text-[10px]"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>${esc(des)}</span>` : ''}</td><td class="px-1">${esc(e.pn || e.pnImp || '')}</td>
                     <td class="px-1">${esc([e.type === 'tuberia' ? e.material : e.materialComp, e.asiento ? 'asiento ' + e.asiento : ''].filter(Boolean).join(' · '))}</td>
                     <td class="px-1">${e.estado === 'fallo' ? `<span class="text-rose-700"><i class="fa-solid fa-circle-xmark mr-1"></i>${esc(mot || 'no cumple')}</span>` : e.estado === 'ok' ? '<span class="text-emerald-700"><i class="fa-solid fa-circle-check mr-1"></i>cumple</span>' : '<span class="text-slate-400">sin cálculo</span>'}</td>
-                    <td class="px-1 whitespace-nowrap">${e.estado === 'fallo' ? `<button onclick="opcionesRedim('${e.id}')" class="px-1.5 py-0.5 rounded border border-blue-300 text-blue-700 hover:bg-blue-50">${REDIM.abiertos[e.id] ? 'Ocultar' : 'Opciones que cumplen'}</button>` : ''}</td></tr>`;
+                    <td class="px-1 whitespace-nowrap">${e.estado === 'fallo' || REDIM.abiertos[e.id] ? `<button onclick="opcionesRedim('${e.id}')" class="px-1.5 py-0.5 rounded border border-blue-300 text-blue-700 hover:bg-blue-50">${REDIM.abiertos[e.id] ? 'Ocultar' : 'Opciones que cumplen'}</button>` : ''}</td></tr>`;
                 if (REDIM.abiertos[e.id]) {
                     const ok = (op || []).filter(c => c.ok), no = (op || []).filter(c => !c.ok);
                     h += `<tr><td colspan="7" class="px-2 py-1 bg-white" style="padding-left:${24 + nivel * 14}px">${!op ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Probando opciones...' : ok.length ? ok.map((c, k) => `<div class="flex items-center gap-2 py-0.5"><button onclick="aplicarOpcionRedim('${e.id}', ${op.indexOf(c)})" class="px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white">Aplicar</button><span>${esc(c.texto)}</span><span class="text-slate-400">· quedan ${c.quedan} fallo(s)</span>${c.medida ? `<span class="text-amber-700">· ${esc(c.medida)}</span>` : ''}</div>`).join('')
@@ -5029,7 +5086,10 @@
             let salidasQ = [];
             if (sb) {
                 // en el origen, una presión guardada de 0 equivale a «sin indicar»: se parte de la presión de diseño
-                if (!(condicionesContorno[sb.clave] && +condicionesContorno[sb.clave].presion > 0)) condiciones[sb.origen.id].presion = +proyecto.presionDiseno || 0;
+                // v8.57 · manda la presión de diseño del proyecto; la que quedó guardada en el extremo de origen solo se usa si el proyecto no la tiene
+                const pGuard = condicionesContorno[sb.clave] && +condicionesContorno[sb.clave].presion > 0 ? +condicionesContorno[sb.clave].presion : null;
+                if (+proyecto.presionDiseno > 0) { if (pGuard != null && Math.abs(pGuard - +proyecto.presionDiseno) > 1e-4) sb.avisoP = `En el origen había guardada una presión de ${fP(pGuard, 2)} ${lP()}; se usa la presión de diseño del proyecto (${fP(+proyecto.presionDiseno, 2)} ${lP()}).`; condiciones[sb.origen.id].presion = +proyecto.presionDiseno; if (condicionesContorno[sb.clave]) condicionesContorno[sb.clave].presion = +proyecto.presionDiseno; }
+                else if (pGuard == null) condiciones[sb.origen.id].presion = 0;
                 // v8.53 · las salidas libres se reparten a partes iguales lo que falte de los consumos hasta el caudal de diseño
                 const Qcons = Object.values(term.demandas).reduce((t, q) => t + (q > 0 ? q : 0), 0) * 3600;
                 if (Qd0 > 0 && sb.salidas.length) {
@@ -5062,6 +5122,7 @@
                 const tg = n => { const e = elementosRed.find(x => x.id === n.puertoContorno.elId); return e ? tagDe(e) : '?'; };
                 resultado.sinBomba = { origen: tg(sb.origen), presion: condiciones[sb.origen.id].presion, caudal: Qd0, Qcons: sb.Qcons || 0, salidas: salidasQ.map(n => ({ tag: tg(n), Q: (sb.Qresto != null ? sb.Qresto : Qd0) / salidasQ.length, p: resultado.pMan[n.id] / 1e5 })) };
                 resultado.avisosRed.push(`Red sin bomba: parte de ${resultado.sinBomba.origen} con ${fP(resultado.sinBomba.presion, 2)} ${lP()}${salidasQ.length ? ` y ${fQ(Qd0, 2)} ${lQ()}` : ''} (presión y caudal de diseño del proyecto).`);
+                if (sb.avisoP) resultado.avisosRed.push(sb.avisoP);
                 if (!(+proyecto.presionDiseno > 0)) resultado.avisosRed.push('Falta la presión de diseño del proyecto (Archivo > Datos del proyecto): las presiones se han calculado partiendo de la presión indicada en el origen. Los caudales, las velocidades y las pérdidas de carga no dependen de ella.');
                 resultado.sinBomba.salidas.forEach(x => resultado.avisosRed.push(`Salida ${x.tag}: ${fQ(x.Q, 2)} ${lQ()} a ${fP(x.p, 2)} ${lP()}${x.p < 0 && +proyecto.presionDiseno > 0 ? ' — PRESIÓN INSUFICIENTE: la presión de diseño no vence las pérdidas de carga y el desnivel' : ''}.`));
                 if (salidasQ.length) resultado.avisosRed.push(sb.Qcons > 0 ? (sb.Qresto > 0 ? `Los puntos de consumo toman ${fQ(sb.Qcons, 2)} ${lQ()}; las ${salidasQ.length} salida(s) libre(s) se reparten a partes iguales el resto hasta el caudal de diseño (${fQ(sb.Qresto, 2)} ${lQ()}).` : `Los puntos de consumo (${fQ(sb.Qcons, 2)} ${lQ()}) ya alcanzan el caudal de diseño: las salidas libres quedan sin caudal.`) : (salidasQ.length > 1 ? `El caudal de diseño se ha repartido a partes iguales entre las ${salidasQ.length} salidas. Para fijar otro reparto, coloca un punto de consumo en cada salida (panel lateral > Consumos).` : '')); resultado.avisosRed = resultado.avisosRed.filter(Boolean);
@@ -5240,10 +5301,29 @@
         // v8.52 · en el 2D: Q y p junto a cada punto final (con el último cálculo vigente)
         function svgPuntosFinales(P) {
             if (opciones.verPuntosFinales2D === false || !ultimoCalculo || !ultimoCalculo.resultado.puntosFinales || ultimoCalculo.huella !== huellaRed()) return '';
-            return ultimoCalculo.resultado.puntosFinales.map(x => { const e = elementosRed.find(z => z.id === x.elId); if (!e) return ''; const q = obtenerPuertosConexion(e).find(z => z.id === x.portId) || centroElemento(e);
+            const est = ultimoCalculo.pfEtq = ultimoCalculo.pfEtq || {};   // v8.57 · posición / borrado de cada etiqueta (hasta el siguiente cálculo)
+            return ultimoCalculo.resultado.puntosFinales.map(x => { const e = elementosRed.find(z => z.id === x.elId); if (!e) return ''; const k = x.elId + ':' + x.portId, o = est[k] || {}; if (o.oculta) return ''; const q0 = obtenerPuertosConexion(e).find(z => z.id === x.portId) || centroElemento(e), q = { x: q0.x + (o.dx || 0), y: q0.y + (o.dy || 0) };
                 const t = `Q ${fQ(x.Q, 2)} ${lQ()} · p ${x.p == null ? '—' : fP(x.p, 2)} ${lP()} · V ${x.V != null ? fmt(x.V, 2) : '—'} m/s`, w = anchoTexto(t, 5) + 6, c = x.ok ? '#047857' : '#be123c', bx = q.x + 6, by = q.y - 16;
-                return `<g class="pf-badge" pointer-events="none"><line x1="${q.x}" y1="${q.y}" x2="${bx}" y2="${by + 9}" stroke="${c}" stroke-width="0.5"/><rect x="${bx}" y="${by}" width="${w.toFixed(1)}" height="9" rx="2" fill="#fff" fill-opacity="0.92" stroke="${c}" stroke-width="0.6"/><text x="${(bx + 3).toFixed(1)}" y="${by + 6.4}" font-family="sans-serif" font-size="5" font-weight="bold" fill="${c}">${esc(t)}</text></g>`; }).join('');
+                return `<g class="pf-badge" data-k="${esc(k)}" style="cursor:move"><line x1="${q0.x}" y1="${q0.y}" x2="${bx}" y2="${by + 9}" stroke="${c}" stroke-width="0.5"/><rect x="${bx}" y="${by}" width="${w.toFixed(1)}" height="9" rx="2" fill="#fff" fill-opacity="0.92" stroke="${c}" stroke-width="0.6"/><text x="${(bx + 3).toFixed(1)}" y="${by + 6.4}" font-family="sans-serif" font-size="5" font-weight="bold" fill="${c}">${esc(t)}</text></g>`; }).join('');
         }
+        // v8.57 · etiquetas de los puntos finales: se arrastran; botón derecho o Supr: eliminar (vuelven al recalcular)
+        let pfArr = null, pfSel = null;
+        svgCanvas.addEventListener('mousedown', e => {
+            const g = e.target.closest && e.target.closest('g.pf-badge'); if (!g || e.button !== 0) return;
+            e.stopPropagation(); e.preventDefault(); pfSel = g.getAttribute('data-k'); const o = (ultimoCalculo.pfEtq = ultimoCalculo.pfEtq || {})[pfSel] = (ultimoCalculo.pfEtq[pfSel] || {});
+            pfArr = { k: pfSel, x: e.clientX, y: e.clientY, dx0: o.dx || 0, dy0: o.dy || 0 };
+        }, true);
+        window.addEventListener('mousemove', e => { if (!pfArr || !ultimoCalculo) return; const o = ultimoCalculo.pfEtq[pfArr.k]; o.dx = pfArr.dx0 + (e.clientX - pfArr.x) / (zoomScale || 1); o.dy = pfArr.dy0 + (e.clientY - pfArr.y) / (zoomScale || 1); const g = document.getElementById('capa-etiquetas'); if (g) { const n = [...g.querySelectorAll('g.pf-badge')].find(x => x.getAttribute('data-k') === pfArr.k); if (n) n.setAttribute('transform', `translate(${(o.dx - pfArr.dx0).toFixed(1)} ${(o.dy - pfArr.dy0).toFixed(1)})`); } });
+        window.addEventListener('mouseup', () => { if (pfArr) { pfArr = null; renderizarVectorial(); } });
+        svgCanvas.addEventListener('contextmenu', e => {
+            const g = e.target.closest && e.target.closest('g.pf-badge'); if (!g) return; e.preventDefault(); e.stopPropagation(); const k = g.getAttribute('data-k');
+            mostrarMenuContextual(e.clientX, e.clientY, [
+                { icono: 'fa-trash-can', texto: 'Eliminar esta etiqueta (vuelve al recalcular)', accion: () => { ultimoCalculo.pfEtq[k] = { oculta: true }; renderizarVectorial(); } },
+                { icono: 'fa-trash-can', texto: 'Eliminar todas las etiquetas de puntos finales', accion: () => { (ultimoCalculo.resultado.puntosFinales || []).forEach(x => { ultimoCalculo.pfEtq[x.elId + ':' + x.portId] = { oculta: true }; }); renderizarVectorial(); } },
+                { icono: 'fa-wand-magic-sparkles', texto: 'Posición automática', accion: () => { delete ultimoCalculo.pfEtq[k]; renderizarVectorial(); } }]);
+        }, true);
+        window.addEventListener('keydown', e => { if (!pfSel || !ultimoCalculo || (e.key !== 'Delete' && e.key !== 'Supr') || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) return; ultimoCalculo.pfEtq = ultimoCalculo.pfEtq || {}; ultimoCalculo.pfEtq[pfSel] = { oculta: true }; pfSel = null; e.preventDefault(); e.stopImmediatePropagation(); renderizarVectorial(); }, true);
+        svgCanvas.addEventListener('mousedown', e => { if (!(e.target.closest && e.target.closest('g.pf-badge'))) pfSel = null; });
         function mostrarResultados(resultado) {
             const { aristas, Hnodo, fluido, fluidoNombre, lineaCritica } = resultado;
             const marca = el => el.estado === 'fallo'
@@ -5284,8 +5364,13 @@
                     <td class="py-1 pr-2">${esc(tagDe(a.el))}${a.rama ? ` (rama ${a.rama})` : ''}${a.sentidoRed ? ` (${a.sentidoRed})` : ''}</td>
                     <td class="pr-2">${fQ(Math.abs(a.Qprev) * 3600, 2)}</td><td class="pr-2">${a.V.toFixed(2)}</td>
                     <td class="pr-2">${a.K.toFixed(3)}</td><td class="pr-2">${(a.K * a.V * a.V / (2 * G)).toFixed(3)}</td>
+                    <td class="pr-2">${(() => { const ps = (a.Qprev || 0) >= 0 ? a.pB : a.pA; return ps == null || !isFinite(ps) ? '—' : fP(ps, 2); })()}</td>
                     <td class="pr-2 text-slate-400">${esc(a.origenK || '')}</td><td>${marca(a.el)}</td>
                 </tr>`).join('');
+            // v8.56 · salidas libres (extremos abiertos con caudal) en la misma tabla: Q, V y presión de salida (si no es 0)
+            filasAcc += ((resultado.puntosFinales || []).filter(x => x.tipo === 'Extremo abierto' && x.p != null && Math.abs(x.p) >= 0.005)).map(x => `
+                <tr class="bg-blue-50/60"><td class="py-1 pr-2"><i class="fa-solid fa-right-from-bracket text-blue-600 mr-1"></i>Salida libre · ${esc(x.tag)}</td><td class="pr-2">${fQ(x.Q, 2)}</td><td class="pr-2">${fmt(x.V, 2)}</td><td class="pr-2">—</td><td class="pr-2">—</td>
+                    <td class="pr-2 font-bold">${fP(x.p, 2)}</td><td class="pr-2 text-slate-400">${esc(x.req)}</td><td>${x.ok ? '<span class="text-emerald-600 font-bold">OK</span>' : '<span class="text-rose-600 font-bold">No cumple</span>'}</td></tr>`).join('');
 
             let filasBomba = aristas.filter(a => a.el.type === 'bomba').map(a => {
                 const r = ultimoResultado[a.el.id];
@@ -5323,8 +5408,8 @@
                 </table>
                 <h4 class="text-xs font-bold text-slate-600 mb-1">Válvulas y Accesorios</h4>
                 <table class="w-full text-[11px] mb-3">
-                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Q (${lQ()})</th><th>V (m/s)</th><th>K</th><th>hf (m)</th><th>Origen de K</th><th>Estado</th></tr></thead>
-                    <tbody>${filasAcc || '<tr><td colspan="7" class="text-slate-400 italic py-1">Sin válvulas/accesorios</td></tr>'}</tbody>
+                    <thead><tr class="text-left text-slate-500"><th>Elemento</th><th>Q (${lQ()})</th><th>V (m/s)</th><th>K</th><th>hf (m)</th><th title="Presión manométrica a la salida del elemento (en las salidas libres: en el punto de descarga)">p salida (${lP()})</th><th>Origen de K</th><th>Estado</th></tr></thead>
+                    <tbody>${filasAcc || '<tr><td colspan="8" class="text-slate-400 italic py-1">Sin válvulas/accesorios</td></tr>'}</tbody>
                 </table>
                 ${filasTerm ? `<h4 class="text-xs font-bold text-slate-600 mb-1">Consumos y depósitos</h4>
                 <table class="w-full text-[11px] mb-3">
@@ -9323,6 +9408,31 @@
         function modoNav3D(m) { if (!V3) return; V3.modoNav = m; pintarNav3D(); const est = document.getElementById('v3d-estado'); if (est) est.textContent = m === 'pan' ? 'Desplazar: arrastra con el botón izquierdo · Esc o «Girar»: volver a girar' : ayuda3D(); }
         function pintarNav3D() { const d = document.getElementById('v3d-nav'); if (!d) return; d.querySelectorAll('button').forEach(b => b.classList.toggle('act', (b.dataset.k === 'pan' && V3.modoNav === 'pan') || (b.dataset.k === 'orbita' && V3.modoNav !== 'pan'))); }
         // v8.48 · mover toda la red en bloque (origen de la red y componentes sueltos)
+        // v8.57 · posición de la red: X, Y, Z absolutos (mm) del punto inicial (primera conexión del componente del que parte la red)
+        // v8.57 · Archivo › Enviar proyecto por email: el .pid (y, si se pide, el PDF del plano) adjuntos con el «Compartir» del sistema
+        // (Outlook / Correo de Windows, Gmail en Android...). Si el navegador no puede compartir archivos, se descarga el .pid y se abre el correo.
+        async function enviarProyectoEmail() {
+            const nombre = nombreArchivoProyecto() + '.pid', asunto = `PIPING · ${proyecto.numero || ''} ${proyecto.instalacion || ''} · Rev ${proyecto.revision || '0'}`.replace(/\s+/g, ' ').trim();
+            const cuerpo = `Adjunto el proyecto ${nombre} (PIPING ${VERSION_WEB}).\n\nCliente: ${proyecto.cliente || '—'}\nInstalación: ${proyecto.instalacion || '—'}\nCaudal de diseño: ${proyecto.caudalDiseno || '—'} m³/h · Presión de diseño: ${proyecto.presionDiseno || '—'} bar\n\nSe abre con PIPING: Archivo › Proyecto existente.`;
+            const r = await dialogo('<i class="fa-solid fa-envelope text-blue-600 mr-1.5"></i>Enviar proyecto por email', `<div class="text-xs space-y-2"><label class="block">Para<input id="em-para" type="email" multiple class="w-full border rounded p-1 mt-0.5" placeholder="destinatario@empresa.com"></label><label class="block">Asunto<input id="em-asunto" value="${esc(asunto)}" class="w-full border rounded p-1 mt-0.5"></label><label class="block">Mensaje<textarea id="em-cuerpo" rows="5" class="w-full border rounded p-1 mt-0.5">${esc(cuerpo)}</textarea></label><p class="text-slate-500">Se adjunta <b>${esc(nombre)}</b>. Si el navegador no permite adjuntar, se descarga el archivo y se abre tu programa de correo para que lo adjuntes.</p></div>`,
+                [{ texto: 'Cancelar', valor: null }, { texto: 'Enviar...', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }]);
+            if (r !== 'si') return;
+            const para = document.getElementById('em-para').value.trim(), as = document.getElementById('em-asunto').value, cu = document.getElementById('em-cuerpo').value;
+            const blob = new Blob([generarContenido('pid')], { type: 'application/json' }), file = new File([blob], nombre, { type: 'application/json' });
+            try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: as, text: cu }); aviso('Proyecto compartido.', 'ok'); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+            const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+            setTimeout(() => { location.href = `mailto:${encodeURIComponent(para)}?subject=${encodeURIComponent(as)}&body=${encodeURIComponent(cu + '\n\n(Adjunta el archivo ' + nombre + ' que se acaba de descargar.)')}`; }, 400);
+            aviso(`Descargado ${nombre}: adjúntalo al correo que se abre.`, 'ok');
+        }
+        async function abrirPosicionRed() {
+            const o = (proyecto.origen3D = proyecto.origen3D || { x: 0, y: 0, z: 0 }), p0 = primeroRed3D && primeroRed3D(), e0 = p0 && todosLosElementos().find(e => e.id === p0);
+            const inp = k => `<label class="flex items-center gap-1"><b>${k.toUpperCase()}</b><input id="pr-${k}" type="number" step="1" value="${+o[k] || 0}" class="w-28 border border-slate-300 rounded px-1 py-0.5 text-right"> mm</label>`;
+            const r = await dialogo('<i class="fa-solid fa-location-crosshairs text-blue-600 mr-1.5"></i>Posición de la red', `<p class="text-xs text-slate-600 mb-2">Punto inicial de la red${e0 ? `: <b>${esc(tagDe(e0))}</b> (${e0.type === 'bomba' ? 'boca de impulsión' : 'primera conexión libre'})` : ''}. ${proyecto.esBuque ? 'Respecto al 0,0,0 del buque: X en el eje del timón (+ a proa), Y en crujía (+ a babor), Z en la línea base.' : 'Respecto al 0,0,0 de la instalación.'} Toda la red (y los componentes sueltos del 3D) se desplaza con él.</p><div class="flex gap-3 text-xs">${inp('x')}${inp('y')}${inp('z')}</div>`,
+                [{ texto: 'Cancelar', valor: null }, { texto: 'Aplicar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }]);
+            if (r !== 'si') return; const v = k => +String(document.getElementById('pr-' + k).value).replace(',', '.') || 0;
+            const dx = v('x') - (+o.x || 0), dy = v('y') - (+o.y || 0), dz = v('z') - (+o.z || 0);
+            if (!dx && !dy && !dz) return; if (vista3d && V3) moverTodo3D(dx, dy, dz); else { guardarEstado(); o.x = v('x'); o.y = v('y'); o.z = v('z'); todosLosElementos().forEach(e => { if (Array.isArray(e.pos3D)) e.pos3D = [e.pos3D[0] + dx, e.pos3D[1] + dy, e.pos3D[2] + dz]; }); marcarCambios(true); aviso(`Punto inicial de la red: X ${o.x} · Y ${o.y} · Z ${o.z} mm.`, 'ok'); }
+        }
         function moverTodo3D(dx, dy, dz) {
             if (!dx && !dy && !dz) { aviso('Indica ΔX, ΔY o ΔZ en mm.'); return; }
             guardarEstado(); const o = (proyecto.origen3D = proyecto.origen3D || { x: 0, y: 0, z: 0 }); o.x = (+o.x || 0) + dx; o.y = (+o.y || 0) + dy; o.z = (+o.z || 0) + dz;
@@ -9391,7 +9501,7 @@
             pintar3D();
         }
         function etiqueta3D(texto, color) {   // v8.46 · texto a 3× (nítido) y colores según el fondo claro u oscuro
-            const T = V3.T, K = 3, fs = 26 * K, hh = 36 * K, pad = 7 * K, fuente = `600 ${fs}px "Segoe UI", system-ui, -apple-system, sans-serif`;
+            const T = V3.T, K = 5, fs = 26 * K, hh = 36 * K, pad = 7 * K, fuente = `600 ${fs}px "Segoe UI", system-ui, -apple-system, sans-serif`;
             const cv = document.createElement('canvas'), c0 = cv.getContext('2d'); c0.font = fuente; const w = Math.ceil(c0.measureText(texto).width) + pad * 2; cv.width = w; cv.height = hh;
             const c = cv.getContext('2d'), claro = !!V3.claro, r = 7 * K;
             c.beginPath(); c.moveTo(r, 0); c.arcTo(w, 0, w, hh, r); c.arcTo(w, hh, 0, hh, r); c.arcTo(0, hh, 0, 0, r); c.arcTo(0, 0, w, 0, r); c.closePath();
@@ -9550,7 +9660,7 @@
             const cil = (a, b, r1, r2, mat, seg = 20) => { const A = V(a), B = V(b), d = new T.Vector3().subVectors(B, A), L = d.length(); if (L < 1e-5) return null; const m = new T.Mesh(new T.CylinderGeometry(r2 == null ? r1 : r2, r1, L, seg), mat); m.position.copy(A).addScaledVector(d, 0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); return m; };
             const disco = (centro, eje, r, e, mat) => cil(v3.sum(centro, v3.mul(eje, -e / 2)), v3.sum(centro, v3.mul(eje, e / 2)), r, r, mat, 28);
             const perp = d => { const z = [0, 0, 1]; const p = Math.abs(v3.dot(d, z)) > 0.9 ? [0, 1, 0] : z; return v3.norm(v3.cross(v3.cross(d, p), d)); };
-            const etq = (texto, pos, alto, col) => { if (!conEtq) return; const sp = etiqueta3D(texto, col); sp.material.sizeAttenuation = false; sp.material.opacity = 0.85; sp.material.transparent = true; const h = Math.max(0.0085, Math.min(0.0135, alto * 0.1));   /* v8.42 · más pequeñas y discretas */ sp.position.copy(V(pos)); sp.scale.set(h * sp.userData.w, h, 1); G.add(sp); };
+            const etq = (texto, pos, alto, col) => { if (!conEtq) return; const sp = etiqueta3D(texto, col); sp.material.sizeAttenuation = false; sp.material.opacity = 0.85; sp.material.transparent = true; const h = 0.0135;   /* v8.57 · todas del mismo tamaño (el de las mayores) */ sp.position.copy(V(pos)); sp.scale.set(h * sp.userData.w, h, 1); G.add(sp); };
             Object.values(geo).forEach(gg => {
                 const el = gg.el, st = el.subtype || '', mm = x => x / 1000, M = matDe(el), grp = new T.Group();
                 const add = o => { if (o) grp.add(o); };
@@ -9644,13 +9754,13 @@
             V3.desfases = Object.values(geo).filter(gg => gg.tubo && gg.ports.a && gg.ports.b).map(gg => ({ el: gg.el, dz: gg.ports.b.p[2] - gg.ports.a.p[2] })).filter(x => Math.abs(x.dz - ((+x.el.cotaB || 0) - (+x.el.cotaA || 0))) > 0.005);
             G.updateMatrixWorld(true); const caja = new T.Box3(); V3.objetos.forEach(o => caja.expandByObject(o)); if (caja.isEmpty()) caja.set(new T.Vector3(-1, -1, 0), new T.Vector3(1, 1, 1));
             caja.expandByPoint(V(O)); if (buque) caja.expandByPoint(new T.Vector3(0, 0, 0)); V3.caja = caja.clone();
-            const ejeL = Math.max(0.6, caja.getSize(new T.Vector3()).length() * 0.1), ori = buque ? new T.Vector3(0, 0, 0) : V(O);
-            (buque ? [[1, 0, 0, '#ef4444', '+X PROA'], [0, 1, 0, '#22c55e', '+Y BABOR'], [0, 0, 1, '#3b82f6', '+Z']] : [[1, 0, 0, '#ef4444', '+X'], [0, 1, 0, '#22c55e', '+Y'], [0, 0, 1, '#3b82f6', '+Z']]).forEach(([x, y, z, col, t]) => { const dE = new T.Vector3(x, y, z), mE = new T.MeshStandardMaterial({ color: new T.Color(col), metalness: 0.15, roughness: 0.45 }), ast = new T.Mesh(new T.CylinderGeometry(ejeL * 0.009, ejeL * 0.009, ejeL * 0.86, 16), mE), pun = new T.Mesh(new T.ConeGeometry(ejeL * 0.032, ejeL * 0.14, 24), mE);
+            const ejeL = Math.max(0.25, caja.getSize(new T.Vector3()).length() * 0.045), ori = buque ? new T.Vector3(0, 0, 0) : V(O);
+            (buque ? [[1, 0, 0, '#ef4444', '+X PROA'], [0, 1, 0, '#22c55e', '+Y BABOR'], [0, 0, 1, '#3b82f6', '+Z']] : [[1, 0, 0, '#ef4444', '+X'], [0, 1, 0, '#22c55e', '+Y'], [0, 0, 1, '#3b82f6', '+Z']]).forEach(([x, y, z, col, t]) => { const dE = new T.Vector3(x, y, z), mE = new T.MeshStandardMaterial({ color: new T.Color(col), metalness: 0.15, roughness: 0.45 }), ast = new T.Mesh(new T.CylinderGeometry(ejeL * 0.006, ejeL * 0.006, ejeL * 0.9, 16), mE), pun = new T.Mesh(new T.ConeGeometry(ejeL * 0.02, ejeL * 0.09, 24), mE);   // v8.57 · triada más discreta
                 ast.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), dE); ast.position.copy(ori).addScaledVector(dE, ejeL * 0.43); pun.quaternion.copy(ast.quaternion); pun.position.copy(ori).addScaledVector(dE, ejeL * 0.93); G.add(ast); G.add(pun); etq(t, [ori.x + x * ejeL * 1.2, ori.y + y * ejeL * 1.2, ori.z + z * ejeL * 1.2], 0.09 * ejeL, col); });
             // v8.42 · semiejes negativos: −X POPA, −Y ESTRIBOR y −Z (línea discontinua con punta, algo más apagada)
             (buque ? [[-1, 0, 0, '#f87171', '−X POPA'], [0, -1, 0, '#4ade80', '−Y ESTRIBOR'], [0, 0, -1, '#60a5fa', '−Z']] : [[-1, 0, 0, '#f87171', '−X'], [0, -1, 0, '#4ade80', '−Y'], [0, 0, -1, '#60a5fa', '−Z']]).forEach(([x, y, z, col, t]) => {
                 const fin = new T.Vector3(ori.x + x * ejeL, ori.y + y * ejeL, ori.z + z * ejeL), ln = new T.Line(new T.BufferGeometry().setFromPoints([ori.clone(), fin]), new T.LineDashedMaterial({ color: new T.Color(col).getHex(), dashSize: ejeL * 0.06, gapSize: ejeL * 0.04 })); ln.computeLineDistances(); G.add(ln);
-                const cono = new T.Mesh(new T.ConeGeometry(ejeL * 0.035, ejeL * 0.12, 12), new T.MeshBasicMaterial({ color: new T.Color(col).getHex() })); cono.position.copy(fin); cono.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), new T.Vector3(x, y, z)); G.add(cono);
+                const cono = new T.Mesh(new T.ConeGeometry(ejeL * 0.018, ejeL * 0.07, 12), new T.MeshBasicMaterial({ color: new T.Color(col).getHex() })); cono.position.copy(fin); cono.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), new T.Vector3(x, y, z)); G.add(cono);
                 etq(t, [ori.x + x * ejeL * 1.25, ori.y + y * ejeL * 1.25, ori.z + z * ejeL * 1.25], 0.09 * ejeL, col); });
             if (!buque) { const an = (+(proyecto.norte == null ? 90 : proyecto.norte)) * Math.PI / 180, dN = new T.Vector3(Math.cos(an), Math.sin(an), 0), pN = new T.Vector3(caja.min.x, caja.max.y + ejeL * 0.6, caja.min.z);
                 G.add(new T.ArrowHelper(dN, pN, ejeL, 0xf59e0b, ejeL * 0.3, ejeL * 0.15)); etq('N', [pN.x + dN.x * ejeL * 1.3, pN.y + dN.y * ejeL * 1.3, pN.z], 0.14 * ejeL, '#f59e0b'); }
@@ -10629,7 +10739,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.55';
+        const VERSION_WEB = '8.57';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -12267,6 +12377,7 @@
                     { icono: 'fa-file-image', texto: 'Imagen (*.png)', accion: () => guardarComoProyecto('png') },
                     { icono: 'fa-file-pdf', texto: 'PDF vectorial con capas (*.pdf)', accion: () => exportarPDFCapas() }
                 ]},
+                { icono: 'fa-envelope', texto: 'Enviar proyecto por email...', accion: () => enviarProyectoEmail() },
                 'sep',
                 { icono: 'fa-id-card', texto: 'Datos del proyecto...', accion: () => abrirDatosProyecto() },
                 { icono: 'fa-code-compare', texto: 'Registrar revisión...', accion: () => registrarRevision() },
@@ -12422,6 +12533,7 @@
                 { icono: 'fa-temperature-half', texto: 'Aplicar aislamiento mínimo RITE a las tuberías', accion: () => aplicarAislamientoRITE() },
                 { icono: 'fa-flask', texto: 'Volumen, vaso de expansión y glicol...', accion: () => abrirVolumenVaso() },
                 'sep',
+                { icono: 'fa-location-crosshairs', texto: 'Posición de la red (X, Y, Z del punto inicial)...', accion: () => abrirPosicionRed() },
                 { icono: 'fa-ring', texto: 'Juntas de las uniones bridadas...', accion: () => abrirJuntas() },
                 { icono: 'fa-link', texto: 'Corregir conexiones casi unidas', accion: () => corregirConexiones() },
                 { icono: 'fa-cube', texto: 'Isométrico de línea...', accion: () => isometricoLinea() },
