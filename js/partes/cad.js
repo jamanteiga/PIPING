@@ -444,6 +444,7 @@ async function escribirPDF(paginas, titulo) {
             return new Blob(partes, { type: 'application/pdf' });
         }
 async function exportarPDFCapas__p(indices, opc = {}) {
+            if (typeof isoEtqSel !== 'undefined' && isoEtqSel) { isoEtqSel = null; renderizarVectorial(); }   // v8.60 · sin resaltado al exportar
             cerrarMenus(); sincronizarHoja();
             indices = indices && indices.length ? indices : hojas.map((h, i) => i);
             indices = indices.slice().sort((a, b) => (parseInt(hojas[a].id, 10) || 0) - (parseInt(hojas[b].id, 10) || 0));   // de la 00 a la última

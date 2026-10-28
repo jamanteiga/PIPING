@@ -433,8 +433,24 @@
             const mx = vals.reduce((a, b) => b[1] > a[1] ? b : a, ['', 0]);
             return { K: mx[1], origen: `máx. (${t.n}, D ${d.toFixed(2)}"): ${vals.map(v => `${v[0]} ${v[1].toFixed(2)}`).join(' · ')} → ${mx[0]}` };
         }
+        // v8.64 · CURVAS DE TUBO: radio R = n·De (o fijo en mm), ángulo cualquiera y giro 3D alrededor del tubo de llegada
+        // K de Crane TP-410M (A-29) para curvas de 90° según r/d; otros ángulos: proporcional hasta 90° y, por encima,
+        // la fórmula de curvas múltiples K = (n−1)·(0,25·π·fT·r/d + 0,5·K90) + K90 con n = θ/90.
+        const CRANE_CURVA = [[1, 20], [1.5, 14], [2, 12], [3, 12], [4, 14], [6, 17], [8, 24], [10, 30], [12, 34], [14, 38], [16, 42], [20, 50]];
+        function deCurva(el) { const tv = typeof tuboVecino === 'function' ? tuboVecino(el) : null, d = tv ? datosTuberia(tv) : null; return (d && d.od) || odMm(el.dn || 'DN 50'); }
+        function radioCurvaMm(el) { return +el.radioCurvaMm > 0 ? +el.radioCurvaMm : (+el.radioCurvaD > 0 ? +el.radioCurvaD : 3) * deCurva(el); }
+        function tangenteCurva(el) { const th = Math.min(Math.abs(+el.anguloCurva || 0), 170); return radioCurvaMm(el) * Math.tan(th * Math.PI / 360); }
+        function kCurva(el, Dmm) {
+            const dn = dnNum(el.dn), D = Dmm || dintReferencia(el.dn), R = radioCurvaMm(el), rd = Math.max(1, R / D), th = Math.abs(+el.anguloCurva || 0), f = fT(dn, D);
+            const n90 = interpT(CRANE_CURVA, Math.min(rd, 20)) * (rd > 20 ? rd / 20 : 1), K90 = n90 * f;
+            if (th < 0.5) return { K: 0, origen: 'Curva de 0°: tramo recto' };
+            const K = th <= 90 ? K90 * th / 90 : (th / 90 - 1) * (0.25 * Math.PI * f * rd + 0.5 * K90) + K90;
+            return { K, origen: `Crane A-29: curva r/d ${rd.toFixed(1)} → ${n90.toFixed(1)}·fT (K90 ${K90.toFixed(3)}) · ${th.toFixed(0)}°` };
+        }
         function kElemento(el, Dmm) {
             const dn = dnNum(el.dn);
+            if (el.subtype === 'curva' && el.modoK !== 'manual') return kCurva(el, Dmm);   // v8.64
+            if (el.type === 'accesorio' && el.accModelo && el.modoK !== 'manual' && el.subtype !== 'reduccion') { const c = kCatalogoAcc(el); if (c && c.K != null) return { K: c.K, origen: `K del catálogo: ${c.nombre}${c.ref ? ' · ' + c.ref : ''}` }; }   // v8.63
             if (calcDe(el) === 'cero' && el.modoK !== 'manual') { const e = kEmpirico(el, Dmm); return e ? { K: e.K, origen: e.origen } : { K: 0, origen: 'Despreciable (K = 0)' }; }   // v8.54
             // v8.59 · en las válvulas el K se calcula siempre con fórmula (Crane TP-410 / la más desfavorable de las empíricas);
             // el Cv o K tecleado solo se compara (salvo doble clapeta, que no tiene fórmula, y válvulas de control con Kvs)
@@ -483,6 +499,7 @@
         function kTee(el) {
             const dn = dnNum(el.dn);
             if (el.modoK === 'manual') return { run: +el.kRun || 0, der: +el.kBranch || 0, origen: 'K del usuario' };
+            { const c = el.accModelo ? kCatalogoAcc(el) : null; if (c && (c.K != null || c.Kd != null)) return { run: c.K || 0, der: c.Kd != null ? c.Kd : 0, origen: `K del catálogo: ${c.nombre}${c.ref ? ' · ' + c.ref : ''}` }; }   // v8.63
             const f = fT(dn, dintReferencia(el.dn));
             if (el.subtype === 'injerto') return { run: 0, der: 60 * f, origen: 'Crane 60·fT derivación' };
             if (esRoscadoAcc(el)) { const D = dintReferencia(el.dn), r = kEmpirico(el, D, 'run', 20 * f), dr = kEmpirico(el, D, 'der', 60 * f); return { run: r.K, der: dr.K, origen: `paso directo ${r.origen} | derivación ${dr.origen}` }; }   // v8.54
@@ -631,6 +648,8 @@
         const PA = { x: 10, y: 25, id: 'a' }, PB = { x: 40, y: 25, id: 'b' };
         // brida simple: el puerto a (cara de la brida) queda un poco a la izquierda del centro de la brida
         const PBR = { x: 25.5, y: 25, id: 'a' };
+        // v8.64 · la curva es compacta en el esquema (bocas a 7 px del vértice) para poder curvar tramos cortos
+        function puertosCurva(ang) { const r = ang * Math.PI / 180; return [{ x: 18, y: 25, id: 'a' }, { x: +(25 + 7 * Math.cos(r)).toFixed(3), y: +(25 - 7 * Math.sin(r)).toFixed(3), id: 'b' }]; }
         function puertoAngulo(ang) { const r = ang * Math.PI / 180; return { x: +(25 + 15 * Math.cos(r)).toFixed(3), y: +(25 - 15 * Math.sin(r)).toFixed(3), id: 'b' }; }
         const P_INSTR = [{ x: 25, y: 45, id: 'a' }];
         const P_SEC_C = { x: 25, y: 5, id: 'c' }, P_SEC_D = { x: 25, y: 45, id: 'd' };
@@ -641,6 +660,7 @@
             codo90:        { type: 'accesorio', codigo: 'C90', nombre: 'Codo 90°', cat: 'accesorios', calc: 'crane', crane: 'codo', puertos: [{ x: 15, y: 35, id: 'a' }, { x: 35, y: 15, id: 'b' }] },
             codo45:        { type: 'accesorio', codigo: 'C45', nombre: 'Codo 45°', cat: 'accesorios', calc: 'crane', crane: 'codo45', puertos: [PA, puertoAngulo(45)] },
             codo60:        { type: 'accesorio', codigo: 'C60', nombre: 'Codo 60°', cat: 'accesorios', calc: 'crane', crane: 'codo60', puertos: [PA, puertoAngulo(60)] },
+            curva:         { type: 'accesorio', codigo: 'CU', nombre: 'Curva de tubo (curvado)', cat: 'accesorios', calc: 'crane', crane: 'codo', puertos: [PA, PB] },   // v8.64 · ángulo, radio y giro 3D propios
             tee:           { type: 'accesorio', codigo: 'TE', nombre: 'Te', cat: 'accesorios', calc: 'nodo', puertos: [PA, PB, { x: 25, y: 40, id: 'c' }] },
             cruce:         { type: 'accesorio', codigo: 'CR', nombre: 'Cruce', cat: 'accesorios', calc: 'nodo', puertos: [PA, PB, { x: 25, y: 40, id: 'c' }, { x: 25, y: 10, id: 'd' }] },
             injerto:       { type: 'accesorio', codigo: 'IN', nombre: 'Injerto', cat: 'accesorios', calc: 'nodo', puertos: [PA, PB, { x: 25, y: 10, id: 'c' }] },
@@ -817,7 +837,7 @@
         }
         const PN_LISTA = ['PN 2.5', 'PN 6', 'PN 10', 'PN 16', 'PN 25', 'PN 40', 'PN 63', 'PN 100', 'PN 160', 'PN 250', 'PN 320', 'PN 400', '75#', '150#', '300#', '400#', '600#', '900#', '1500#', '2500#', '2000#', '3000#', '6000#', '9000#'];
         // PN / Rating: lo tienen las bridas, las válvulas, los equipos y los componentes embridados. Tubos, codos, tes, cruces, reducciones y uniones roscadas no.
-        const SIN_RATING = new Set(['codo90', 'codo45', 'codo60', 'tee', 'cruce', 'reduccion', 'injerto', 'manguito', 'tuerca', 'machon', 'racor', 'espiga', 'tapon', 'transicion', 'continuacion']);
+        const SIN_RATING = new Set(['curva', 'codo90', 'codo45', 'codo60', 'tee', 'cruce', 'reduccion', 'injerto', 'manguito', 'tuerca', 'machon', 'racor', 'espiga', 'tapon', 'transicion', 'continuacion']);
         function tieneRating(el) {
             if (!el) return false;
             const m = el.accModelo ? modeloAcc(el) : null;
@@ -1584,7 +1604,7 @@
                 const con = el._conectadoEn, pr = el._propuestaDN, m = materialDe(el);
                 const tams = m.tamanos.filter(x => x.e[el.serie] != null);
                 h += `<p class="font-bold text-slate-600">Tubería</p>
-                    <label class="flex items-center justify-between gap-2">Tipo de tubería<select id="nd-material" class="border rounded p-1" style="max-width:250px" onchange="nuevoCambiarTubo('tuboTipo', this.value)">${opt(opcionesTipoTubo(), tipoTubo(el))}</select></label>
+                    <label class="flex items-center justify-between gap-2">Tipo de tubería<select id="nd-material" class="border rounded p-1" style="max-width:250px" onchange="nuevoCambiarTubo('tuboTipo', this.value)">${opt(opcionesTipoTubo(el), tipoTubo(el))}</select></label>
                     <label class="flex items-center justify-between gap-2">Serie / schedule<select id="nd-serie" class="border rounded p-1" onchange="nuevoCambiarTubo('serie', this.value)">${opt(m.series.filter(sr => m.tamanos.some(x => x.e[sr] != null)).map(sr => [sr, /^[0-9]+$/.test(sr) ? 'Sch ' + sr : sr]), el.serie)}</select></label>
                     <label class="flex items-center justify-between gap-2">Medida nominal<select id="nd-dn" data-campo="dn" class="border rounded p-1" style="max-width:250px" onchange="nuevoCambiarTubo('dn', this.value)">${tams.map(x => `<option value="${x.clave}" ${x.clave === el.dn ? 'selected' : ''}>${esc(tamanoTubo(el.material, x.clave))}${esAceroTubo(el.material) ? ' (' + x.clave + ')' : ''} · De ${x.od} × ${x.e[el.serie]} mm</option>`).join('')}</select></label>
                     ${pr ? `<p class="text-[10px] text-emerald-700">Propuesto ${esc(tamanoTubo(el.material, pr.dn))} para Q = ${fQ(pr.Q, 2)} ${lQ()} (${pr.origen}) → V ${pr.V.toFixed(2)} m/s ≤ ${pr.vl} m/s (${pr.lado === 'asp' ? 'aspiración' : 'impulsión'})</p>` : ''}
@@ -1762,6 +1782,7 @@
                 // Coinciden con el borde real del círculo dibujado (cx=25, cy=25, r=20)
                 return [{ x: 5, y: 25, id: 'succion' }, { x: 45, y: 25, id: 'descarga' }];
             }
+            if (el.subtype === 'curva') return puertosCurva(+el.anguloCurva || 0);   // v8.64
             const t = TIPOS[el.subtype];
             return t ? t.puertos : [PA, PB];
         }
@@ -1798,6 +1819,7 @@
 
         // Rellena valores por defecto que puedan faltar (elementos creados con versiones anteriores)
         function normalizarElemento(el) {
+            if (el.subtype === 'curva') { if (el.anguloCurva == null || isNaN(+el.anguloCurva)) el.anguloCurva = 0; if (!(+el.radioCurvaD > 0) && !(+el.radioCurvaMm > 0)) el.radioCurvaD = 3; }   // v8.64
             if (el.materialComp && typeof MATCOMP_ANTIGUOS === 'object') { const M = el.type === 'bomba' ? MATCOMP_BOMBA_ANTIGUOS : MATCOMP_ANTIGUOS; if (M[el.materialComp]) el.materialComp = M[el.materialComp]; }
             if (el.pn) el.pn = PN_NUEVO(el.pn);
             if (el.subtype === 'continuacion' && typeof prepararContinuacion === 'function') prepararContinuacion(el);
@@ -2015,6 +2037,11 @@
                 // --- accesorios ---
                 case 'codo90':
                     return `<path d="M 15 35 L 15 15 L 35 15" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+                case 'curva': {   // v8.64 · arco tangente a las dos bocas, con marcas de tangencia
+                    const ang = +el.anguloCurva || 0, pb = puertosCurva(ang)[1], r = ang * Math.PI / 180, tb = { x: 25 + 4 * Math.cos(r), y: 25 - 4 * Math.sin(r) };
+                    return `<path d="M 18 25 L 21 25 Q 25 25 ${tb.x.toFixed(2)} ${tb.y.toFixed(2)} L ${pb.x} ${pb.y}" fill="none" stroke="${c}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>` +
+                        `<circle cx="21" cy="25" r="1.1" fill="${c}"/><circle cx="${tb.x.toFixed(2)}" cy="${tb.y.toFixed(2)}" r="1.1" fill="${c}"/>`;
+                }
                 case 'codo45':
                 case 'codo60': {
                     const pb = TIPOS[el.subtype].puertos[1];
@@ -2631,6 +2658,7 @@
                     e.stopPropagation();
                     ocultarTooltip();
                     idMenuContextual = el.id;
+                    if (el.type === 'tuberia') { try { const q = puntoHoja(e); PUNTO_MENU = { id: el.id, x: q.x, y: q.y }; } catch (x) { PUNTO_MENU = null; } }   // v8.64
                     if (!(seleccion.size > 1 && seleccion.has(el.id))) { seleccion.clear(); seleccionarElemento(el.id); }
                     mostrarMenuContextual(e.clientX, e.clientY, itemsMenuElemento(el), planoCongelado ? null : marcasElemento(el));
                 };
@@ -2825,6 +2853,33 @@
         });
 
         const pasoRejillaPx = () => (+opciones.rejillaMayor > 0 ? +opciones.rejillaMayor : 10) * PX_MM / Math.max(1, Math.round(+opciones.rejillaMenores || 2));
+        // v8.61 · mover con las flechas del teclado lo seleccionado en el lienzo 2D (uno o varios): 1 mm de papel por pulsación
+        // (con la rejilla activa, el paso de la rejilla); Mayús = ×10. Un solo paso de Deshacer por cada serie.
+        let nudgeUlt = 0, nudgeCalc = null;
+        window.addEventListener('keydown', e => {
+            if (!/^Arrow(Left|Right|Up|Down)$/.test(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;   // Alt+flecha es «atrás» del navegador
+            const ae = document.activeElement; if (ae && (/INPUT|TEXTAREA|SELECT/.test(ae.tagName) || ae.isContentEditable)) return;
+            if (vista3d || vistaIso || isDraggingSymbol) return;
+            if (['modal-red', 'modal-dialogo', 'modal-proyecto'].some(id => { const m = document.getElementById(id); return m && m.style.display === 'flex'; })) return;
+            const paso = (opciones.rejilla ? pasoRejillaPx() : PX_MM) * (e.shiftKey ? 10 : 1);
+            const dx = e.key === 'ArrowLeft' ? -paso : e.key === 'ArrowRight' ? paso : 0, dyP = e.key === 'ArrowUp' ? -paso : e.key === 'ArrowDown' ? paso : 0;   // dyP: pantalla (abajo +)
+            // etiqueta del isométrico seleccionada
+            if (typeof isoEtqSel !== 'undefined' && isoEtqSel) { const m = isoMarca(isoEtqSel); if (!m) return; e.preventDefault(); if (Date.now() - nudgeUlt > 800) guardarEstado(); nudgeUlt = Date.now();
+                const z = elementosRed.find(x => x.id === isoEtqSel.id); m.dx = +((m.dx != null ? +m.dx : MM(4)) + dx).toFixed(2); m.dy = +((m.dy != null ? +m.dy : -MM(6)) + dyP).toFixed(2); marcarCambios(true); renderizarVectorial(); return; }
+            const ids = new Set(seleccion.size ? [...seleccion] : idSeleccionado ? [idSeleccionado] : []); if (!ids.size) return;
+            const els = elementosRed.filter(x => ids.has(x.id)); if (!els.length) return;
+            e.preventDefault(); if (Date.now() - nudgeUlt > 800) guardarEstado(); nudgeUlt = Date.now();
+            let red = false;
+            els.forEach(el => {
+                if (esTablaHoja(el)) { moverTablaHoja(el, dx, dyP); return; }
+                if (esAnotacion(el) && (el.ancla || el.sigueA)) { el.ox = (+el.ox || 0) + dx; el.oy = (+el.oy || 0) - dyP; return; }
+                el.x += dx; el.y -= dyP; if (!esAnotacion(el)) red = true;
+            });
+            if (els.length === 1 && !esTablaHoja(els[0])) limitarAMarco(els[0]);
+            if (red) invalidarResultados();
+            marcarCambios(true); renderizarVectorial();
+            if (red) { clearTimeout(nudgeCalc); nudgeCalc = setTimeout(() => { programarArbol(); programarCalculoAuto(); }, 700); }
+        });
         // Mantiene un elemento dentro del marco del formato (al soltarlo tras arrastrar o insertar)
         function limitarAMarco(el) {
             const g = svgCanvas.querySelector(`g[data-id="${el.id}"]`); if (!g) return false;
@@ -2903,7 +2958,8 @@
                     { icono: 'fa-note-sticky', texto: 'Nota de texto anclada al componente', accion: () => insertarNotaAnclada(el) }]),
                 { icono: 'fa-expand', texto: 'Escalar...', accion: () => { const v = prompt('Factor de escala:', el.scale || 1.0); if (v && +v > 0) { guardarEstado(); el.scale = +v; renderizarVectorial(); seleccionarElemento(el.id); } } },
                 { icono: 'fa-arrows-up-down-left-right', texto: 'Mover / Desconectar', accion: () => { el._suelto = true; aviso('Componente liberado del imantado: arrástralo a su nueva posición.'); } },
-                ...(el.type === 'tuberia' ? [{ icono: 'fa-scissors', texto: 'Partir tubería...', accion: () => partirTuberiaDialogo(el.id) }] : []),
+                ...(el.type === 'tuberia' ? [{ icono: 'fa-scissors', texto: 'Partir tubería...', accion: () => partirTuberiaDialogo(el.id) }, { icono: 'fa-bezier-curve', texto: 'Curvar el tubo aquí...', accion: () => curvarTuboAqui(el, PUNTO_MENU && PUNTO_MENU.id === el.id ? PUNTO_MENU : null) }] : []),
+                ...(el.subtype === 'curva' ? [{ icono: 'fa-bezier-curve', texto: 'Curvatura: ángulo, radio y rotación 3D...', accion: () => abrirPanelCurva(el.id) }] : []),
                 ...(el.type === 'bomba' ? [{ icono: 'fa-chart-line', texto: 'Curva Q-H del fabricante...', accion: () => abrirCurvaBomba(el.id) }] : []),
                 ...(el.subtype === 'retencion' || (['valvula', 'accesorio'].includes(el.type) && typeof componenteEnLinea === 'function' && componenteEnLinea(el)) ? [{ icono: 'fa-right-left', texto: 'Invertir sentido', accion: () => invertirComponente(el.id) }] : []),
                 itemCapa(el, enGrupo),
@@ -3108,6 +3164,7 @@
                 const Tsv = parseFloat(document.getElementById('temp-fluido').value) || 20, T = tempDiseno(Tsv), pm = pmaTuberia(obj, T);
                 if (S_ADM[obj.material]) h += ctrlNum(fn, 'sobreespesor', obj.sobreespesor != null ? obj.sobreespesor : S_ADM[obj.material].c, 'Sobreespesor de corrosión c (mm)', '0.1');
                 h += ctrlMag(fn, 'pmaManual', obj.pmaManual || '', 'PMA manual', '; vacío = automática');
+                if (familiaMetal(obj.material) === 'Plástico') { const on = obj.flex3D === '1' || (obj.flex3D !== '0' && /^PE/i.test(obj.material || '')); h += `<label class="flex items-center gap-1.5 text-[11px]"><input type="checkbox" ${on ? 'checked' : ''} onchange="${fn}('flex3D', this.checked ? '1' : '0')"> 3D: tubo flexible en rollo (curva spline)</label>`; }   // v8.62
                 h += ctrlNum(fn, 'aislamiento', obj.aislamiento || '', 'Aislamiento, espesor (mm; vacío = sin aislar)', '1') + ctrlNum(fn, 'lambdaAisl', obj.lambdaAisl || 0.040, 'λ del aislamiento (W/m·K)', '0.001');
                 { const eR = aislamientoRITE(dt.od, Tsv, !!proyecto.exterior); if (eR) h += info(`Mínimo RITE a ${Tsv} °C: ${Math.ceil(espesorPorLambda(dt.od, eR, +obj.lambdaAisl > 0 ? +obj.lambdaAisl : 0.04))} mm (λ ${obj.lambdaAisl || 0.040})`); }
                 h += info(`PMA a ${T} °C${T !== Tsv ? ' (TS de diseño)' : ''}: <b>${pm.pma != null ? fP(pm.pma, 1) + ' ' + lP() : '<span class="text-amber-600">sin dato</span>'}</b><br>${esc(pm.origen)}`);
@@ -3178,7 +3235,8 @@
                 const vol = esVolumetrica(obj), rhoB = fluidoActual().rho || 1000;
                 h += ctrlSelect(fn, 'bombaTipo', TIPOS_BOMBA, obj.bombaTipo || 'centrifuga', 'Tipo de bomba');
                 h += `<div>Fabricante: <input type="text" list="${datalistFabBombas()}" value="${esc(obj.fabricante || '')}" onchange="${fn}('fabricante', this.value)" class="${CLS_CTRL}"></div>` + ctrlTexto(fn, 'modelo', obj.modelo || '', 'Modelo');   // v8.52 · lista de fabricantes
-                if (!vol) h += ctrlSelect(fn, 'forma3D', FORMAS_BOMBA_3D, obj.forma3D || 'linea', 'Disposición en 3D') + (obj.forma3D === 'horizontal' ? ctrlTexto(fn, 'cotas3D', obj.cotas3D || '', 'Cotas 3D (mm): a, f, h1, h2, h3, n1, n2') : '');   // v8.51
+                if (!vol) h += ctrlSelect(fn, 'forma3D', FORMAS_BOMBA_3D, obj.forma3D || 'linea', 'Disposición en 3D') + (obj.forma3D === 'horizontal' ? ctrlTexto(fn, 'cotas3D', obj.cotas3D || '', 'Cotas 3D (mm): a, f, h1, h2, h3, n1, n2, m1, dm') : '');   // v8.51
+                if (!vol) h += `<button type="button" onclick="abrirModelo3DBomba('${esc(obj.id)}')" class="w-full mt-1 px-2 py-1 border border-blue-300 rounded text-blue-700 hover:bg-blue-50 text-[11px]"><i class="fa-solid fa-cube mr-1"></i>Modelo 3D desde el catálogo (tabla de medidas)…</button>`;   // v8.60
                 h += ctrlMag(fn, 'caudal', obj.caudal, 'Caudal de diseño');
                 h += ctrlMag(fn, 'presion', obj.presion, vol ? 'Presión de descarga de diseño' : 'Presión de diseño');
                 h += info(`Altura manométrica: ${fmt((+obj.presion || 0) * 1e5 / (rhoB * G), 2)} m c.l.`);
@@ -3237,6 +3295,8 @@
             if (campo === 'marco') { obj.marco = valor === 'true' ? true : valor === 'false' ? false : valor; return true; }
             if (campo === 'libItem') { aplicarItemLib(obj, valor ? itemPorId(valor) : null); return true; }
             if (campo === 'accModelo') { aplicarModeloAcc(obj, valor); return true; }
+            if (obj.subtype === 'curva' && ['anguloCurva', 'radioCurvaD', 'radioCurvaMm', 'giro3D'].includes(campo)) { aplicarCurva(obj, { [campo]: valor === '' ? (campo === 'radioCurvaMm' ? 0 : null) : +String(valor).replace(',', '.') }); return true; }   // v8.64
+            if (campo === 'flex3D') { obj.flex3D = valor === '1' ? '1' : '0'; if (vista3d && typeof construirEscena3D === 'function') construirEscena3D(); return true; }   // v8.62
             if (campo === 'accSch') { if (valor) obj.accSch = valor; else delete obj.accSch; return true; }
             if (['materialComp', 'url', 'gradoMaterial'].includes(campo) && String(valor).trim() === '') { delete obj[campo]; return true; }
             if (campo === 'ancla') { const a = valor && elementosRed.find(e => e.id === valor); if (a) { obj.ancla = a.id; obj.ox = obj.x - a.x; obj.oy = obj.y - a.y; } else { delete obj.ancla; delete obj.ox; delete obj.oy; } return true; }
@@ -3550,6 +3610,7 @@
         function nombreArchivoProyecto() { return [limpioNom(proyecto.numero) || 'PROYECTO', limpioNom(proyecto.instalacion), 'Rev' + (limpioNom(proyecto.revision) || '0')].filter(Boolean).join('_'); }
         function nombreArchivoPlano(iHoja) { const h = hojas[iHoja == null ? hojaActual : iHoja]; return [limpioNom(proyecto.numero) || 'PROYECTO', limpioNom(proyecto.planoNumero) || 'PL', 'H' + ((h && h.id) || '00')].join('-') + '_Rev' + (limpioNom(proyecto.revision) || '0'); }
         async function guardarComoProyecto(formato) {
+            if (typeof isoEtqSel !== 'undefined' && isoEtqSel) { isoEtqSel = null; renderizarVectorial(); }   // v8.60 · sin resaltado al exportar
             if ((formato === 'pid' || formato === 'json') && !(await comprobarSueltosAntesDeGuardar())) return;
             if (formato === 'dxf') await cargarParte('cad');
             const contenido = generarContenido(formato);
@@ -3955,9 +4016,10 @@
                 if (el.subtype === 'reduccion') {
                     const D1 = dintTuberiaEnNodo(a.nodoA, aristas) || dintRed(el, el.dn, aristas);
                     const D2 = dintTuberiaEnNodo(a.nodoB, aristas) || dintRed(el, el.dnMenor, aristas);
-                    const r = kReduccion(el, Math.max(D1, D2), Math.min(D1, D2));
+                    const r = kReduccion(el, Math.max(D1, D2), Math.min(D1, D2)), cR = el.accModelo && el.modoK !== 'manual' ? kCatalogoAcc(el) : null;
                     a.D = Math.min(D1, D2) / 1000; a.Kc = r.kc; a.Ke = r.ke; a.K = r.kc;
                     a.origenK = `Crane θ ${fmt(r.theta, 1)}° β ${fmt(r.beta, 2)}`;
+                    if (cR && cR.K != null) { a.Kc = cR.K; a.Ke = cR.Ki != null ? cR.Ki : r.ke; a.K = a.Kc; a.origenK = `K del catálogo: ${cR.nombre}${cR.ref ? ' · ' + cR.ref : ''}`; }   // v8.63
                 } else if (esNodo(el)) {
                     const Dmm = dintTuberiaEnNodo(a.nodoA, aristas, el.dn) || dintRed(el, el.dn, aristas);
                     const kt = kTee(el);
@@ -5017,6 +5079,7 @@
             comprobacionesMaterialFluido(resultado, fallo);
             comprobacionesValvulas(resultado, fallo);
             comprobacionesUniones(resultado, fallo);
+            try { comprobacionesCurvas(resultado, fallo); } catch (e) { console.warn('curvas', e); }   // v8.64
             // válvulas de control: cavitación (IEC 60534): Δp estrangulado = FL²·(p1 − FF·pv), FF = 0,96 − 0,28·√(pv/pc)
             aristas.filter(a => a.el.type === 'valvula' && a.el.modoK === 'kvs' && Math.abs(a.Qprev) > 1e-7).forEach(a => {
                 const el = a.el, r = ultimoResultado[el.id];
@@ -5513,7 +5576,7 @@
         const BRIDAS_PANEL = ['bridaunion', 'bridawn', 'bridaplana', 'bridaroscada', 'bridaloca', 'bridaplastica', 'bridaciega'];
         const FAMILIAS_PANEL = [
             { id: 'bridas', titulo: 'Bridas', subtipos: BRIDAS_PANEL },
-            { id: 'codos', titulo: 'Codos', subtipos: ['codo45', 'codo60', 'codo90'] },
+            { id: 'codos', titulo: 'Codos', subtipos: ['codo45', 'codo60', 'codo90', 'curva'] },
             { id: 'intercambiadores', titulo: 'Intercambiadores (buques)', cat: 'intercambiadores' },
             { id: 'machones', titulo: 'Machones', subtipos: ['machon'] },
             { id: 'manguitos', titulo: 'Manguitos de unión', subtipos: ['manguito'] },
@@ -5700,7 +5763,7 @@
         const SUBTIPOS_BRIDA = ['bridawn', 'bridaplana', 'bridaroscada', 'bridaloca', 'bridaciega', 'bridaunion', 'bridaplastica'];   // bridas de acero con modelo por norma (ASME B16.5 / B16.47, EN 1092-1)
         const esGrupoTablas = g => g === 'accesorios' || g === 'tubosAcero' || g === 'bridas';
         const GRUPOS_LIB = {
-            accesorios: { titulo: 'Accesorios de tubería', cat: 'accesorios', mat: 'accesorio', excluir: ['continuacion', 'junta', 'antivibratorio', 'filtro', 'strainer', 'injerto'], extra: ['manguito', 'machon', 'tuerca', 'espiga', 'tapon', 'transicion'] },
+            accesorios: { titulo: 'Accesorios de tubería', cat: 'accesorios', mat: 'accesorio', excluir: ['continuacion', 'junta', 'antivibratorio', 'filtro', 'strainer'], extra: ['manguito', 'machon', 'tuerca', 'racor', 'espiga', 'tapon', 'transicion'] },   // v8.63 · injerto y racor con modelos (collarines y enlaces de PE)
             compensadores: { titulo: 'Filtros, injertos, juntas de expansión y manguitos', subtipos: ['filtro', 'strainer', 'injerto', 'junta', 'antivibratorio'], mat: 'accesorio' },
             intercambiadores: { titulo: 'Intercambiadores (buques)', cat: 'intercambiadores', mat: 'equipo' },
             tanques: { titulo: 'Tanques y depósitos', cat: 'tanques', mat: 'tanque' },
@@ -5708,7 +5771,7 @@
             equipos: { titulo: 'Equipos', cat: 'equipos', mat: 'equipo' },
             instrumentos: { titulo: 'Instrumentos', cat: 'instrumentos', mat: 'instrumento' },
             bridas: { titulo: 'Bridas', subtipos: SUBTIPOS_BRIDA, mat: 'brida' },
-            uniones: { titulo: 'Uniones', cat: 'uniones', mat: 'brida', excluir: [...SUBTIPOS_BRIDA, 'manguito', 'machon', 'tuerca', 'espiga', 'tapon', 'transicion'] },
+            uniones: { titulo: 'Uniones', cat: 'uniones', mat: 'brida', excluir: [...SUBTIPOS_BRIDA, 'manguito', 'machon', 'tuerca', 'racor', 'espiga', 'tapon', 'transicion'] },
             valvulas: { titulo: 'Válvulas', cat: 'valvulas', mat: 'valvula' },
             tuberias: { titulo: 'Tuberías', subtipos: ['Acero al carbono', 'Acero inoxidable', 'PE100', 'PVC-U'], mat: 'tubo' },
             tubosAcero: { titulo: 'Tuberías de acero', subtipos: ['tuberia'], mat: 'tubo' }
@@ -5807,7 +5870,11 @@
             // reducción: solo los modelos de su variante (concéntrica o excéntrica)
             if (subtipo === 'reduccion' && el) { const exc = !!el.excentrica; l = l.filter(i => i.id === el.accModelo || !/c[eé]ntrica/i.test((i.props || {}).variante || '') || /^exc/i.test(i.props.variante) === exc); }
             // v8.50 · solo los modelos del material de la tubería a la que va (acero, inoxidable, cobre, cuproníquel, plástico)
-            if (el && !opciones.accTodosMateriales) { const fam = familiaTuboDe(el); if (fam) { const f = l.filter(i => i.id === el.accModelo || compatibleFamilia(i, fam)); if (f.length) l = f; } }
+            if (el && !mezclaPermitida()) { const fam = familiaTuboDe(el); if (fam) { const f = l.filter(i => i.id === el.accModelo || compatibleFamilia(i, fam)); if (f.length) l = f; }
+                // v8.62 · y de la misma norma que la tubería (ASME con ASME, EN con EN)
+                const nf = familiaRefDe(el); if (nf === 'ASME' || nf === 'EN') { const f = l.filter(i => i.id === el.accModelo || !(i.props || {}).sistema || i.props.sistema === nf); l = f; }
+                if (nf === 'PLASTICO') l = l.filter(i => i.id === el.accModelo || compatibleFamilia(i, 'Plástico'));   // v8.63
+                else if (nf) l = l.filter(i => i.id === el.accModelo || (i.props || {}).sistema !== 'PE'); }
             return l; }
         function familiaTuboDe(el) { const tv = el.type === 'tuberia' ? el : (typeof tuboVecino === 'function' ? tuboVecino(el) : null); return tv ? familiaMetal(tv.material) : null; }
         function compatibleFamilia(i, fam) { const p = i.props || {};
@@ -5828,12 +5895,20 @@
         const carasAcc = m => m && m.props.caras ? String(m.props.caras).split(',').map(x => x.trim()).filter(Boolean) : [];
         const NOMBRE_CARA = { RF: 'RF · resalte', FF: 'FF · plana', RTJ: 'RTJ · junta anular', A: 'A · plana', B1: 'B1 · resalte', B2: 'B2 · resalte (acabado fino)', C: 'C · macho (lengüeta)', D: 'D · hembra (ranura)', E: 'E · macho (espiga)', F: 'F · hembra (alojamiento)', G: 'G · alojamiento con junta tórica', H: 'H · ranura para junta tórica' };
         const sinEspesorAcc = m => !!m && m.props.espTabla === 'NO';
-        const dnEnRangoAcc = (m, dnClave) => { const d = dnNum(dnClave), a = +m.props.dnMin || 0, b = +m.props.dnMax || 1e9; return d >= a && d <= b; };
+        // v8.63 · modelos de polietileno (sistema PE): la medida es el diámetro exterior del tubo (d20, d63…); un DN se pasa a su d
+        const dnAccPE = (m, dnClave) => { let d = dnNum(dnClave); if (m && m.props && m.props.sistema === 'PE' && !/^d\d/i.test(String(dnClave || ''))) d = DN_A_PLASTICO[d] || d; return d; };
+        // K por medida guardados en las cotas del catálogo («K=…; Kd=…; Ki=…»)
+        function kCatalogoAcc(el) {
+            const m = el && el.accModelo ? modeloAcc(el) : null; if (!m) return null; const t = String(cotasAcc(el, m) || '').split(' | ')[0]; if (!/\bK=/.test(t)) return null;
+            const v = k => { const x = t.match(new RegExp('(?:^|;\\s*)' + k + '=([-\\d.]+)')); return x ? +x[1] : null; }, ref = (t.match(/Ref=([^;]+)/) || [])[1] || '';
+            return { K: v('K'), Kd: v('Kd'), Ki: v('Ki'), ref, nombre: m.nombre };
+        }
+        const dnEnRangoAcc = (m, dnClave) => { const d = dnAccPE(m, dnClave), a = +m.props.dnMin || 0, b = +m.props.dnMax || 1e9; return d >= a && d <= b; };
         function espesorAcc(el, m) { const x = schedulesAcc(el, m).find(s => s.schedule === el.accSch); return x ? x.espesor : null; }
         // ASME B16.11, tabla 6: socket weld clase 6000 hasta NPS 2 y clase 9000 de NPS 1/2 a 2
         const fueraClaseB1611 = (el, m) => /^B1611-/.test(m.id) && /SW$/.test(m.id) && ((el.pn === '6000#' && dnNum(el.dn) > 50) || (el.pn === '9000#' && (dnNum(el.dn) < 15 || dnNum(el.dn) > 50)));
         function medidaAcc(el, m) { if (!ACC_T || !m || !dnEnRangoAcc(m, el.dn) || fueraClaseB1611(el, m)) return null; return ACC_T.medidas.find(x => x.sistema === (m.props.sistema || 'ASME') && x.dn === dnNum(el.dn)) || null; }
-        function cotasAcc(el, m) { if (!ACC_T || !m) return ''; const dn = dnNum(el.dn), dn2 = el.subtype === 'reduccion' ? dnNum(el.dnMenor) : null; const c = ACC_T.cotas.filter(x => x.modelo === m.id && x.dn === dn && (dn2 == null || x.dn2 === dn2)); const r = c.find(x => x.rating && x.rating === el.pn) || c.find(x => !x.dn2 || dn2 != null) || c[0]; return r ? r.cotas : ''; }
+        function cotasAcc(el, m) { if (!ACC_T || !m) return ''; const dn = dnAccPE(m, el.dn), dn2 = el.subtype === 'reduccion' ? dnAccPE(m, el.dnMenor) : null; const c = ACC_T.cotas.filter(x => x.modelo === m.id && x.dn === dn && (dn2 == null || x.dn2 === dn2)); const r = c.find(x => x.rating && x.rating === el.pn) || c.find(x => !x.dn2 || dn2 != null) || c[0]; return r ? r.cotas : ''; }
         const schCortoAcc = (sch, e) => { const s = String(sch || ''); if (!s) return ''; if (/^Sch /.test(s)) return 'S' + s.slice(4).replace(/\s+/g, ''); if (/^Serie |mm$/.test(s)) return e != null ? 'E' + e : s.replace(/\s+/g, ''); return s.replace(/\s+/g, ''); };
         // partes del código de un accesorio: medida, schedule, material y rating (lo que el usuario haya definido)
         function partesCodigoAcc(el, m) {
@@ -5854,7 +5929,8 @@
             if (m.props.k !== '' && m.props.k != null && !isNaN(+m.props.k)) { el.modoK = 'manual'; el.k = +m.props.k; }
             if (el.subtype === 'reduccion' && /c[eé]ntrica/i.test(m.props.variante || '')) el.excentrica = /^exc/i.test(m.props.variante);
             const mats = materialesAcc(m), tv = tuboVecino(el);
-            if (!mats.some(x => x.designacion === el.materialComp)) { const fam = familiaAcc(Object.assign({}, el, { materialComp: '' }), m), d = mats.find(x => x.familia === fam) || mats[0]; if (d) el.materialComp = d.designacion; }
+            if (!mats.length && /PLASTICO/.test(m.props.matGrupo || '')) delete el.materialComp;   // v8.63 · plásticos: sin grado de acero
+            else if (!mats.some(x => x.designacion === el.materialComp)) { const fam = familiaAcc(Object.assign({}, el, { materialComp: '' }), m), d = mats.find(x => x.familia === fam) || mats[0]; if (d) el.materialComp = d.designacion; }
             ajustarScheduleAcc(el, tv);
             if (sinRatingAcc(m) || (el.pn && !ratingsAcc(m).includes(el.pn))) delete el.pn;
             const cs = carasAcc(m); if (!cs.length) delete el.cara; else if (!cs.includes(el.cara)) el.cara = cs.includes('RF') ? 'RF' : cs.includes('B1') ? 'B1' : cs[0];
@@ -5872,12 +5948,25 @@
         const MAT_CORTO_TUBO = { 'SA-53 Gr.B': 'SA53B', 'SA-106 Gr.B': 'SA106B', 'SA-333 Gr.6': 'SA333-6', 'SA-671': 'SA671', 'SA-672': 'SA672', 'SA-312 Gr.Tp304': 'TP304', 'SA-312 Gr.Tp304L': 'TP304L', 'SA-312 Gr.Tp316': 'TP316', 'SA-312 Gr.Tp316L': 'TP316L',
             'SA-312 Gr.Tp321': 'TP321', 'SA-312 Gr.Tp321H': 'TP321H', 'SA-312 Gr.Tp347': 'TP347', 'SA-312 Gr.Tp347H': 'TP347H', 'SA-358': 'SA358' };
         // tipo de tubería: TUB-ASME, TUB-EN o el nombre del material (plásticos y tuberías creadas por el usuario)
+        // v8.62 · norma o familia de una tubería: ASME, EN, PLASTICO u OTRO (cobre, fundición, hormigón…)
+        function normaFamTubo(t) { if (!t || t.type !== 'tuberia') return null; const k = tipoTubo(t); if (k === 'TUB-ASME') return 'ASME'; if (k === 'TUB-EN') return 'EN'; return familiaMetal(t.material) === 'Plástico' ? 'PLASTICO' : 'OTRO:' + k; }
+        function normaFamTipo(k) { if (k === 'TUB-ASME') return 'ASME'; if (k === 'TUB-EN') return 'EN'; return familiaMetal(k) === 'Plástico' ? 'PLASTICO' : 'OTRO:' + k; }
+        const NOMBRE_FAM = { ASME: 'ASME', EN: 'EN (norma europea)', PLASTICO: 'plásticos' };
+        const mezclaPermitida = () => !!(proyecto && proyecto.mezclaMateriales) || !!opciones.accTodosMateriales;
+        // familia de referencia para un elemento: la de las tuberías de su línea (la primera que no sea él) o, si no, la del tubo al que va unido
+        function familiaRefDe(el) {
+            if (!el) return null; const otros = elementosRed.filter(t => t.type === 'tuberia' && t !== el && t.id !== el.id);
+            const tv = (el.linea && otros.find(t => t.linea === el.linea)) || (el.type !== 'tuberia' && typeof tuboVecino === 'function' ? tuboVecino(el) : null) || (el.type === 'tuberia' ? (vecinosDe(el).map(v => v.otro).find(o => o && o.type === 'tuberia' && o !== el) || null) : null) || otros[0];   // si no, cualquier tubería de la red
+            return tv ? normaFamTubo(tv) : null;
+        }
         function tipoTubo(el) { const m = el.material; return m === TUBO_EN ? 'TUB-EN' : (m === 'Acero al carbono' || m === 'Acero inoxidable') ? 'TUB-ASME' : m; }
         const esTuboAceroNorma = el => el && el.type === 'tuberia' && /^TUB-/.test(tipoTubo(el));
-        function opcionesTipoTubo() {
+        function opcionesTipoTubo(el) {
             const mod = id => (ACC_POR_TIPO.tuberia || []).find(i => i.id === id);
             const et = (id, def) => { const m = mod(id); return m ? `${m.nombre} · ${m.norma}` : def; };
-            return [['TUB-ASME', et('TUB-ASME', 'Tubería de acero ASME · ASME B36.10M / B36.19M')], ['TUB-EN', et('TUB-EN', 'Tubería de acero EN · EN 10220')], ...Object.keys(CAT.materiales).filter(m => !['Acero al carbono', 'Acero inoxidable', TUBO_EN].includes(m)).map(m => [m, m])];
+            const fam = el && !mezclaPermitida() ? familiaRefDe(el) : null, actual = el ? tipoTubo(el) : null;
+            const filtra = l => !fam || /^OTRO/.test(fam) ? l : l.filter(([k]) => k === actual || normaFamTipo(k) === fam);
+            return filtra([['TUB-ASME', et('TUB-ASME', 'Tubería de acero ASME · ASME B36.10M / B36.19M')], ['TUB-EN', et('TUB-EN', 'Tubería de acero EN · EN 10220')], ...Object.keys(CAT.materiales).filter(m => !['Acero al carbono', 'Acero inoxidable', TUBO_EN].includes(m)).map(m => [m, m])]);
         }
         // grados de material de un tipo de tubería de acero: de la tabla de materiales o, si aún no se ha leído, de las listas del programa
         function gradosTubo(tipo) {
@@ -5932,7 +6021,7 @@
         // controles de tipo de tubería y material en el panel de propiedades
         function camposTubo(obj, fn) {
             const tipo = tipoTubo(obj), acero = /^TUB-/.test(tipo);
-            let h = ctrlSelect(fn, 'tuboTipo', opcionesTipoTubo(), tipo, 'Tipo de tubería');
+            let h = ctrlSelect(fn, 'tuboTipo', opcionesTipoTubo(obj), tipo, 'Tipo de tubería');
             if (!acero) return h + ctrlMaterial(fn, 'gradoMaterial', obj.gradoMaterial || (CAT.materiales[obj.material] || {}).grado || '', familiaMaterialTubo(obj.material), 'Material (grado)', obj);
             const gr = gradosTubo(tipo);
             h += `<div>Material: <select onchange="${fn}('gradoMaterial', this.value)" class="${CLS_CTRL}"><option value="">— sin indicar —</option>${FAMILIAS_ACC.map(f => { const g = gr.filter(x => x.familia === f); return g.length ? `<optgroup label="${f}">${g.map(x => `<option value="${esc(x.designacion)}" ${x.designacion === obj.gradoMaterial ? 'selected' : ''}>${esc(x.designacion)}</option>`).join('')}</optgroup>` : ''; }).join('')}${obj.gradoMaterial && !gr.some(x => x.designacion === obj.gradoMaterial) ? `<option selected>${esc(obj.gradoMaterial)}</option>` : ''}</select></div>`;
@@ -6119,7 +6208,7 @@
         let libVista = { grupo: null, subtipo: null, id: null, borrador: null };
         // familias de la librería de accesorios (Librerías > Accesorios > Codos, Tes, Reducciones...)
         const FAM_ACC = {
-            codos: { titulo: 'Codos', subs: ['codo45', 'codo60', 'codo90'] },
+            codos: { titulo: 'Codos', subs: ['codo45', 'codo60', 'codo90', 'curva'] },
             tes: { titulo: 'Tes', subs: ['tee'] },
             cruces: { titulo: 'Cruces', subs: ['cruce'] },
             manguitos: { titulo: 'Manguitos de unión', subs: ['manguito'] },
@@ -6467,7 +6556,7 @@
                 { icono: 'fa-circle-half-stroke', texto: 'Válvulas', sub: () => porGrupo('valvulas') },
                 'sep',
                 { icono: 'fa-shapes', texto: 'Mostrar accesorios en el panel', accion: () => mostrarLibreriaAccesorios() },
-                { icono: opciones.accTodosMateriales ? 'fa-check' : 'fa-square', texto: 'Modelos de accesorio de todos los materiales', accion: () => { opciones.accTodosMateriales = !opciones.accTodosMateriales; marcarCambios(true); aviso(opciones.accTodosMateriales ? 'Al elegir el modelo de un accesorio se ven todos los materiales.' : 'Al elegir el modelo de un accesorio solo se ven los del material de su tubería.', 'ok'); } },
+                { icono: mezclaPermitida() ? 'fa-check' : 'fa-square', texto: 'Permitir mezclar normas y materiales (casos especiales)', accion: () => { const v = !mezclaPermitida(); proyecto.mezclaMateriales = v; opciones.accTodosMateriales = false; marcarCambios(true); aviso(v ? 'Se ofrecen tubos y accesorios de cualquier norma y material.' : 'Solo se ofrecen tubos y accesorios de la norma o familia de cada línea (ASME, EN o plásticos).'); } },
                 { icono: 'fa-file-export', texto: 'Exportar librería (*.json)', accion: () => exportarLibreria() },
                 { icono: 'fa-file-import', texto: 'Importar librería (*.json)...', accion: () => importarLibreria() }
             ];
@@ -7020,6 +7109,7 @@
         }
         function tipoExtremo(el, pid) {
             if (!el || esAnotacion(el) || sinFlujo(el)) return null;
+            if (el.subtype === 'curva') { const t = typeof tuboVecino === 'function' ? tuboVecino(el) : null; return t ? tipoExtremo(t, 'a') : null; }   // v8.64 · la curva es el propio tubo
             if (el.type === 'tuberia') { const b = matBase(el.material) || '';
                 if (/Acero/.test(b)) return 'TUBO_AC'; if (/PVC/.test(b)) return 'TUBO_PLE'; if (/^(PE|PP|PVDF)/.test(b)) return 'TUBO_PLF'; if (/Cobre|Cupron/.test(b)) return 'TUBO_CU'; if (/Fundici/.test(b)) return 'TUBO_FD'; return null; }
             if (SUBTIPOS_BRIDA.includes(el.subtype)) {
@@ -7156,6 +7246,10 @@
             // v8.51 · centrífuga horizontal: la impulsión sale vertical; si la tubería que se le une es horizontal según sus cotas, falta el codo
             elementosRed.filter(esBombaHorizontal).forEach(b => vecinosDe(b).filter(v => v.puertoEl === 'descarga' && v.otro.type === 'tuberia').forEach(v => { const t = v.otro, L = +t.longitud || 0, dz = Math.abs((+t.cotaB || 0) - (+t.cotaA || 0)) * 1000;
                 if (L > 0 && dz < 0.98 * L) avisos.push(`${tagDe(b)}: centrífuga horizontal con la impulsión vertical; ${tagDe(t)} es horizontal según sus cotas: intercala un codo de 90° a la salida (o cambia la disposición a «En línea» en sus atributos).`); }));
+            // v8.62 · normas o familias mezcladas en una misma línea sin haberlo permitido (Archivo › Datos del proyecto)
+            if (!mezclaPermitida()) { const por = { red: {} }; elementosRed.filter(t => t.type === 'tuberia').forEach(t => { const f = normaFamTubo(t); por.red[f] = (por.red[f] || []).concat(tagDe(t)); });
+                Object.entries(por).forEach(([l, fs]) => { const ks = Object.keys(fs); if (ks.length > 1) avisos.push(`La red mezcla tuberías de distinta norma o familia (${ks.map(k => `${NOMBRE_FAM[k] || k.replace(/^OTRO:/, '')}: ${fs[k].slice(0, 3).join(', ')}${fs[k].length > 3 ? '…' : ''}`).join(' · ')}). Si es intencionado, marca «Permitir mezclar normas y materiales» en Archivo › Datos del proyecto.`); });
+                elementosRed.filter(e => e.type === 'accesorio' && e.accModelo).forEach(e => { const m = modeloAcc(e), nf = familiaRefDe(e), si = m && m.props && m.props.sistema; if ((nf === 'ASME' || nf === 'EN') && si && si !== nf) avisos.push(`${tagDe(e)}: accesorio ${si} en una línea de tubería ${nf}.`); }); }
             unionesHoja().forEach(u => { const m = `unión ${tagDe(u.ea)} – ${tagDe(u.eb)}: ${u.texto}`; if (u.nivel === 'error') { const el = u.ea.type === 'tuberia' ? u.eb : u.ea; fallo(el, m); } else avisos.push(m + '.'); });
         }
         // al insertar: aviso inmediato si la unión con lo que toca no es correcta
@@ -8098,6 +8192,88 @@
         // 17) CURVA DE LA BOMBA PEGADA DESDE EXCEL (Q-H): ajuste H = H0 − k·Q² por mínimos cuadrados
         // ==================================================================================
         let curvaVista = { id: null, texto: '', uQ: 'm3h', uH: 'm' };
+        // ==================================================================================
+        // v8.60 · MODELO 3D DE LA BOMBA DESDE EL CATÁLOGO: se pega la tabla de medidas de la ficha (cabecera con las letras y una
+        // fila por modelo), se asigna cada columna a la cota del modelo paramétrico y se genera la centrífuga horizontal en 3D.
+        // Vistas de referencia (alzado lateral y frontal) dibujadas a escala con las cotas; la imagen del catálogo, solo de consulta.
+        // ==================================================================================
+        const COTAS3D_DEF = [['a', 'Cara de aspiración – eje de la impulsión'], ['f', 'Longitud total'], ['h1', 'Altura del eje (desde el apoyo)'], ['h2', 'Altura de la cara de impulsión'], ['h3', 'Altura total'],
+            ['n1', 'Base: longitud'], ['n2', 'Base: anchura'], ['m1', 'Pies: separación a lo largo del eje (opcional)'], ['dm', 'Diámetro del motor (opcional)']];
+        let M3B = null;
+        function leerTablaCotas(txt) {
+            const num = t => { const v = parseFloat(String(t).replace(',', '.')); return /^[\d.,]+$/.test(String(t)) && isFinite(v) ? v : null; };
+            const trozos = l => { let r = l.split(/\t|;|\s{2,}/).map(x => x.trim()).filter(Boolean); if (r.length < 3) r = l.split(/\s+/).filter(Boolean); return r; };
+            const lin = String(txt || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(trozos);
+            const iCab = lin.findIndex(r => r.filter(t => /^[A-Za-z]{1,4}\d?$/.test(t)).length >= 3); if (iCab < 0) return { cols: [], filas: [] };
+            const cols = lin[iCab].slice(), filas = [];
+            lin.slice(iCab + 1).forEach(t => { if (!t.some(x => num(x) != null)) return; const n = cols.length;
+                if (t.length >= n) { const ex = t.length - n; filas.push({ nombre: t.slice(0, ex + 1).join(' '), vals: cols.map((c, i) => i === 0 ? num(t.slice(0, ex + 1).join('')) : num(t[ex + i])) }); }
+                else { const off = n - t.length, ix = t.findIndex(x => num(x) != null); filas.push({ nombre: ix > 0 ? t.slice(0, ix).join(' ') : 'fila ' + (filas.length + 1), vals: cols.map((c, i) => i - off >= 0 ? num(t[i - off]) : null) }); } });
+            return { cols, filas };
+        }
+        function abrirModelo3DBomba(id) {
+            const el = elementosRed.find(e => e.id === id); if (!el) return; cerrarMenus && cerrarMenus();
+            const k = cotasBomba(Object.assign({}, el, { forma3D: 'horizontal' })), vals = {}; COTAS3D_DEF.forEach(([c]) => { if (k[c] > 0) vals[c] = Math.round(k[c]); });
+            M3B = { id, vals, estimadas: !el.cotas3D, tabla: '', cols: [], filas: [], fila: -1, mapa: {}, img: M3B && M3B.id === id ? M3B.img : null };
+            pintarModelo3DBomba();
+            document.querySelector('#modal-red h3 span').innerHTML = `<i class="fa-solid fa-cube text-blue-600 mr-1.5"></i> Modelo 3D de ${esc(tagDe(el))} desde el catálogo`;
+            document.querySelector('#modal-red > div').style.width = 'min(1100px, 97vw)';
+            document.getElementById('modal-red').style.display = 'flex';
+        }
+        function m3bTabla(txt) {
+            const el = elementosRed.find(e => e.id === M3B.id); M3B.tabla = txt; const t = leerTablaCotas(txt); M3B.cols = t.cols; M3B.filas = t.filas; M3B.mapa = {};
+            COTAS3D_DEF.forEach(([c]) => { const i = t.cols.findIndex(x => x.toLowerCase().replace(/\s/g, '') === c); if (i >= 0) M3B.mapa[c] = i; });
+            const ref = String((el && (el.modelo || el.name)) || '').toLowerCase(), dig = (ref.match(/\d{2,}/) || [''])[0];
+            M3B.fila = t.filas.length === 1 ? 0 : t.filas.findIndex(f => { const n = f.nombre.toLowerCase(); return (ref && (n.includes(ref) || ref.includes(n))) || (dig && n.replace(/\s/g, '').includes(dig)); });
+            m3bAplicarFila(); pintarModelo3DBomba();
+        }
+        function m3bAplicarFila() { const f = M3B.filas[M3B.fila]; if (!f) return; Object.entries(M3B.mapa).forEach(([c, i]) => { if (i != null && i >= 0 && f.vals[i] > 0) M3B.vals[c] = f.vals[i]; }); M3B.estimadas = false; }
+        function m3bImagen(inp) { const f = inp.files && inp.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { M3B.img = r.result; pintarModelo3DBomba(); }; r.readAsDataURL(f); }
+        function vistasBomba3D(k) {
+            const W = 470, H = 270, pL = 56, pR = 78, pT = 26, pB = 36, pad = pL, sc = Math.min((W - pL - pR) / Math.max(k.f, 1), (H - pT - pB) / Math.max(k.h3, 1));
+            const X = x => pL + x * sc, Y = z => H - pB - z * sc, c = '#1e3a8a', g = '#64748b', Rv = (k.h2 - k.h1) * 0.78, Rm = k.dm > 0 ? k.dm / 2 : (k.h3 - k.h1) * 0.47, xM0 = k.a + Rv * 0.6, xb = k.f / 2;
+            const cota = (x1, y1, x2, y2, t, dx, dy) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#dc2626" stroke-width="0.8" marker-start="url(#m3f)" marker-end="url(#m3f)"/><text x="${(x1 + x2) / 2 + (dx || 0)}" y="${(y1 + y2) / 2 + (dy || 0)}" font-size="10" fill="#dc2626" text-anchor="middle">${t}</text>`;
+            let s = `<svg width="${W}" height="${H}" style="font-family:sans-serif;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px"><defs><marker id="m3f" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#dc2626"/></marker></defs>`;
+            s += `<line x1="${X(-10)}" y1="${Y(0)}" x2="${X(k.f + 10)}" y2="${Y(0)}" stroke="${g}" stroke-width="1"/>`;
+            s += `<rect x="${X(xb - k.n1 / 2)}" y="${Y(12)}" width="${k.n1 * sc}" height="${12 * sc}" fill="#cbd5e1" stroke="${g}"/>`;   // base
+            s += `<rect x="${X(xM0)}" y="${Y(k.h1 + Rm)}" width="${(k.f - xM0) * sc}" height="${2 * Rm * sc}" rx="3" fill="#bfdbfe" stroke="${c}"/>`;   // motor
+            s += `<circle cx="${X(k.a)}" cy="${Y(k.h1)}" r="${Rv * sc}" fill="#dbeafe" stroke="${c}" stroke-width="1.4"/>`;   // voluta
+            s += `<rect x="${X(0)}" y="${Y(k.h1 + Rv * 0.35)}" width="${(k.a - Rv * 0.6) * sc}" height="${Rv * 0.7 * sc}" fill="#dbeafe" stroke="${c}"/>`;   // tobera de aspiración
+            s += `<rect x="${X(k.a - Rv * 0.3)}" y="${Y(k.h2)}" width="${Rv * 0.6 * sc}" height="${(k.h2 - k.h1) * sc}" fill="#dbeafe" stroke="${c}"/>`;   // tobera de impulsión
+            s += `<line x1="${X(-6)}" y1="${Y(k.h1)}" x2="${X(k.f + 6)}" y2="${Y(k.h1)}" stroke="${c}" stroke-width="0.5" stroke-dasharray="8,3,2,3"/>`;
+            s += cota(X(0), Y(0) + 12, X(k.f), Y(0) + 12, 'f ' + k.f, 0, 11) + cota(X(0), Y(k.h2) - 8, X(k.a), Y(k.h2) - 8, 'a ' + k.a, 0, -3);
+            s += cota(X(k.f) + 10, Y(0), X(k.f) + 10, Y(k.h1), 'h1 ' + k.h1, 22, 0) + cota(X(k.a) - Rv * sc - 10, Y(0), X(k.a) - Rv * sc - 10, Y(k.h2), 'h2 ' + k.h2, -16, 0) + cota(X(k.f) + 40, Y(0), X(k.f) + 40, Y(k.h3), 'h3 ' + k.h3, 22, 0);
+            s += cota(X(xb - k.n1 / 2), Y(0) - 4 - 12 * sc, X(xb + k.n1 / 2), Y(0) - 4 - 12 * sc, 'n1 ' + k.n1, 0, -3);
+            s += `<text x="8" y="14" font-size="10" fill="${g}">Alzado lateral (aspiración a la izquierda) · n2 ${k.n2}${k.m1 ? ' · m1 ' + k.m1 : ''}${k.dm ? ' · dm ' + k.dm : ''} mm</text></svg>`;
+            return s;
+        }
+        function pintarModelo3DBomba() {
+            const el = elementosRed.find(e => e.id === M3B.id); if (!el) return; const v = M3B.vals;
+            const k = cotasBomba(Object.assign({}, el, { forma3D: 'horizontal', cotas3D: COTAS3D_DEF.filter(([c]) => v[c] > 0).map(([c]) => `${c}=${v[c]}`).join('; ') })); COTAS3D_DEF.forEach(([c]) => { if (k[c] > 0) k[c] = Math.round(k[c]); });
+            const optCol = c => `<select onchange="M3B.mapa['${c}'] = this.value === '' ? null : +this.value; m3bAplicarFila(); pintarModelo3DBomba()" class="border rounded p-0.5 text-[11px]"><option value="">—</option>${M3B.cols.map((x, i) => `<option value="${i}" ${M3B.mapa[c] === i ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+            document.getElementById('red-content').innerHTML = `<div class="grid gap-4 text-[11px]" style="grid-template-columns: 1fr 480px"><div>
+                <p class="text-slate-500 mb-1">1. Copia de la ficha del fabricante (PDF o web) la <b>tabla de medidas</b>: la fila de cabecera con las letras (a, f, h1…) y la fila del modelo. Se admiten tabuladores, «;» o espacios.</p>
+                <textarea rows="5" oninput="clearTimeout(window.__m3); const t = this.value; window.__m3 = setTimeout(() => m3bTabla(t), 350)" class="w-full border rounded p-1 font-mono text-[11px]" placeholder="Modelo  DNA  DNM  a  f  h  h1  h2  n  n1&#10;CP 158  1&quot;  1&quot;  42  286  240  92  148  190  160">${esc(M3B.tabla)}</textarea>
+                ${M3B.filas.length ? `<p class="mt-1">Modelo de la tabla: <select onchange="M3B.fila = +this.value; m3bAplicarFila(); pintarModelo3DBomba()" class="border rounded p-0.5">${M3B.filas.map((f, i) => `<option value="${i}" ${i === M3B.fila ? 'selected' : ''}>${esc(f.nombre)}</option>`).join('')}${M3B.fila < 0 ? '<option selected value="-1">— elige —</option>' : ''}</select> · ${M3B.cols.length} columnas leídas</p>` : M3B.tabla ? '<p class="mt-1 text-amber-700">No encuentro la cabecera: debe tener al menos 3 letras de cota (a, f, h1…).</p>' : ''}
+                <p class="text-slate-500 mt-2 mb-1">2. Cada cota del modelo 3D con su columna de la tabla (las letras cambian entre fabricantes; mira las vistas de la derecha) o escribe el valor:</p>
+                <table class="w-full"><thead><tr class="text-left text-slate-500"><th>Cota</th><th>Significado</th>${M3B.cols.length ? '<th>Columna</th>' : ''}<th class="text-right">mm</th></tr></thead><tbody>
+                ${COTAS3D_DEF.map(([c, t]) => `<tr class="border-t"><td class="font-bold">${c}</td><td class="text-slate-600">${t}</td>${M3B.cols.length ? `<td>${optCol(c)}</td>` : ''}<td class="text-right"><input type="number" value="${v[c] > 0 ? v[c] : ''}" onchange="M3B.vals['${c}'] = +this.value || null; if (!M3B.vals['${c}']) delete M3B.vals['${c}']; M3B.estimadas = false; pintarModelo3DBomba()" class="w-20 border rounded p-0.5 text-right"></td></tr>`).join('')}</tbody></table>
+                ${M3B.estimadas ? '<p class="mt-1 text-amber-700">Valores estimados por el DN de las bocas: sustitúyelos por los del catálogo.</p>' : ''}
+                <p class="text-[10px] text-slate-400 mt-2">Si tienes la ficha en PDF: Librerías › Bombas › Leer ficha con IA también rellena estas cotas.</p></div>
+                <div>${vistasBomba3D(k)}
+                <p class="text-slate-500 mt-2">Vista del catálogo (opcional, solo para consulta): <input type="file" accept="image/*" onchange="m3bImagen(this)" class="text-[10px]"></p>
+                ${M3B.img ? `<img src="${M3B.img}" style="max-width:470px;max-height:260px;border:1px solid #cbd5e1;border-radius:4px;margin-top:4px">` : ''}</div></div>`;
+            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><span class="flex-1"></span><button onclick="cerrarModalRed()" class="px-3 py-1.5 border rounded">Cancelar</button><button onclick="aplicarModelo3DBomba()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium"><i class="fa-solid fa-cube mr-1"></i>Generar el modelo 3D</button></div>`;
+        }
+        function aplicarModelo3DBomba() {
+            const el = elementosRed.find(e => e.id === M3B.id); if (!el) return; const v = M3B.vals, falta = ['a', 'f', 'h1', 'h2', 'h3'].filter(c => !(v[c] > 0));
+            if (falta.length) { aviso('Faltan cotas obligatorias: ' + falta.join(', ') + '.', 'error'); return; }
+            if (!(v.h2 > v.h1) || !(v.h3 > v.h1) || !(v.f > v.a)) { aviso('Cotas incoherentes: debe cumplirse h2 > h1, h3 > h1 y f > a.', 'error'); return; }
+            guardarEstado(); el.forma3D = 'horizontal'; el.cotas3D = COTAS3D_DEF.filter(([c]) => v[c] > 0).map(([c]) => `${c}=${+(+v[c]).toFixed(1)}`).join('; ');
+            marcarCambios(true); cerrarModalRed(); renderizarVectorial(); try { seleccionarElemento(el.id); } catch (e) { }
+            if (vista3d && typeof construirEscena3D === 'function') construirEscena3D();
+            aviso(`Modelo 3D de ${tagDe(el)} generado con las cotas del catálogo (${el.cotas3D}). Ábrelo en Vista › 3D.`, 'ok');
+        }
         function abrirCurvaBomba(id) {
             const el = elementosRed.find(e => e.id === id); if (!el) return;
             curvaVista = { id, texto: (el.curva || []).map(p => [p[0], +(p[1] * 1e5 / (fluidoActual().rho * G)).toFixed(2), p[2] == null ? (p[3] == null ? null : '-') : +(p[2] * 100).toFixed(1), p[3]].filter(x => x != null).join('\t')).join('\n'), uQ: 'm3h', uH: 'm', modo: el.curvaModo || (el.curva ? 'ajuste' : 'puntos') };
@@ -9178,7 +9354,7 @@
         // v8.44 · el árbol de la red también en el 3D (encima de la vista, con fondo claro), con las mismas operaciones que en el 2D
         function arbolEn3D(si) {
             const a = document.getElementById('arbol'); if (!a) return; if (!si) a.classList.remove('arbol-3d-oscuro');
-            if (si) { if (opciones.arbol === false) return; const b = document.getElementById('v3d-barra'); a.classList.add('arbol-3d'); a.style.zIndex = '30'; const sit = () => { const p = document.getElementById('v3d-ajustes'), hp = p && p.style.display !== 'none' ? p.offsetHeight : 0; a.style.top = ((b ? b.offsetHeight : 58) + hp + 8 + (proyecto.esBuque ? 0 : 88)) + 'px'; };   /* la brújula va arriba a la izquierda */ sit(); requestAnimationFrame(sit); setTimeout(sit, 300); a.style.bottom = '140px';   /* deja ver la triada de la esquina */ renderArbol(); }
+            if (si) { if (opciones.arbol === false) return; const b = document.getElementById('v3d-barra'); a.classList.add('arbol-3d'); a.style.zIndex = '30'; const sit = () => { const p = document.getElementById('v3d-ajustes'), hp = p && p.style.display !== 'none' ? p.offsetHeight : 0; a.style.top = ((b ? b.offsetHeight : 58) + hp + 8 + (proyecto.esBuque ? 0 : 88)) + 'px'; };   /* la brújula va arriba a la izquierda */ sit(); requestAnimationFrame(sit); setTimeout(sit, 300); if (b && !b._ro && window.ResizeObserver) { b._ro = new ResizeObserver(() => { if (vista3d && a.classList.contains('arbol-3d')) sit(); }); b._ro.observe(b); } a.style.bottom = '140px';   /* deja ver la triada de la esquina */ renderArbol(); }
             else { a.classList.remove('arbol-3d'); a.style.zIndex = ''; a.style.top = '6px'; a.style.bottom = '72px'; }
         }
         function cerrarVista3D() { arbolEn3D(false); const ov = document.getElementById('vista-3d'); if (ov) ov.style.display = 'none'; const bh = document.getElementById('barra-hojas'); if (bh) bh.style.display = ''; pistaDestino3D(null); }
@@ -9607,7 +9783,7 @@
         function cotasBomba(el) {
             const oA = odMm(el.dnAsp || el.dn || 'DN 50'), oI = odMm(el.dnImp || el.dnAsp || el.dn || 'DN 50'), rd = Math.max(40, 1.7 * oI), k = { a: Math.max(40, 1.3 * oA), h1: Math.max(80, rd * 1.6) };
             k.h2 = k.h1 + rd; k.h3 = k.h1 + Math.max(70, rd * 1.8); k.f = k.a + Math.max(200, 3.4 * (k.h3 - k.h1)); k.n1 = k.f * 0.62; k.n2 = (k.h3 - k.h1) * 1.15;
-            String(el.cotas3D || '').split(/[;,\s]+/).forEach(t => { const m = t.match(/^(a|f|h1|h2|h3|n1|n2)=([\d.]+)$/i); if (m && +m[2] > 0) k[m[1].toLowerCase()] = +m[2]; });
+            String(el.cotas3D || '').split(/[;,\s]+/).forEach(t => { const m = t.match(/^(a|f|h1|h2|h3|n1|n2|m1|dm)=([\d.]+)$/i); if (m && +m[2] > 0) k[m[1].toLowerCase()] = +m[2]; });
             if (!(k.h2 > k.h1)) k.h2 = k.h1 + rd; if (!(k.h3 > k.h1)) k.h3 = k.h2 + 20; if (!(k.f > k.a)) k.f = k.a + 200;
             k.estimadas = !el.cotas3D; return k;
         }
@@ -9615,6 +9791,7 @@
         function medidas3D(el) {
             const n = npsNum(el.dn || 'DN 50'), d = dnNum(el.dn || 'DN 50'), od = odMm(el.dn || 'DN 50'), st = el.subtype || '';
             if (el.type === 'valvula') { const L = +el.caraCaraMm > 0 ? +el.caraCaraMm : /^(mariposa|tajadera)$/.test(st) || /^Wafer|^Lug/.test(el.conexValv || '') ? interpT(T_EN558_20, d) : interpT(T_EN558_1, d); return { def: L / 2, L }; }
+            if (st === 'curva') { const R = radioCurvaMm(el), th = Math.min(Math.abs(+el.anguloCurva || 0), 170); return { def: Math.max(0.5, R * Math.tan(th * Math.PI / 360)), R }; }   // v8.64 · tangente T = R·tan(θ/2)
             if (/^codo/.test(st)) { const a = st === 'codo45' ? 0.625 : st === 'codo60' ? 0.866 : 1.5, sr = /SR|radio corto/i.test(el.craneTipo || ''); return { def: Math.max(16, (sr ? a / 1.5 : a) * n * 25.4) }; }
             if (st === 'tee' || st === 'cruce') return { def: interpT(T_TE, n) };
             if (st === 'injerto') return { def: 0, c: od * 0.6 + 20 };
@@ -9709,6 +9886,9 @@
         const pasoFino3D = () => proyecto.esBuque ? 50 : 25;   // v8.42 · mm
         function cfg3DLocal() { try { return Object.assign({}, CFG3D_DEF, JSON.parse(localStorage.getItem('piping-3d') || '{}')); } catch (e) { return Object.assign({}, CFG3D_DEF); } }
         function guardarCfg3DLocal(cambios) { const c = Object.assign(cfg3DLocal(), cambios); try { localStorage.setItem('piping-3d', JSON.stringify(c)); } catch (e) { } return c; }
+        // v8.62 · tubos plásticos flexibles (PE en rollo): por defecto los de polietileno; el resto, si se marca en sus atributos
+        const esPlasticoTubo = el => el && el.type === 'tuberia' && familiaMetal(el.material) === 'Plástico';
+        const tuboFlexible3D = el => esPlasticoTubo(el) && (el.flex3D === '1' || (el.flex3D !== '0' && /^PE/i.test(el.material || '')));
         function construirEscena3D() {
             if (!V3) return; const T = V3.T, P = paleta(), loc = cfg3DLocal(), buque = !!proyecto.esBuque;
             if (V3.grupo) { V3.scene.remove(V3.grupo); V3.grupo.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.material) { if (x.material.map) x.material.map.dispose(); x.material.dispose(); } }); }
@@ -9741,7 +9921,13 @@
                 const add = o => { if (o) grp.add(o); };
                 if (gg.tubo) {
                     const a = gg.ports.a.p, b = gg.ports.b.p, r = mm((datosTuberia(el).od || 60) / 2);
-                    add(cil(a, b, r, r, M)); reg(grp, el);
+                    if (tuboFlexible3D(el)) {   // v8.62 · tubo plástico en rollo (manguera): spline con algo de flecha y ondulación
+                        const ab = v3.sum(b, v3.mul(a, -1)), Lr = v3.len(ab), u = v3.norm(ab), zU = [0, 0, 1], lat0 = v3.cross(u, zU), lat = v3.len(lat0) > 1e-6 ? v3.norm(lat0) : [1, 0, 0];
+                        const w = Math.min(0.03 * Lr, 0.25), fl = Math.min(0.04 * Lr, 0.3) * (Math.abs(u[2]) > 0.9 ? 0 : 1), rec = Math.min(0.08 * Lr, 0.15);
+                        const P = [a, v3.sum(a, v3.mul(u, rec)), v3.sum(v3.sum(v3.sum(a, v3.mul(ab, 0.3)), v3.mul(lat, w)), [0, 0, -fl * 0.8]), v3.sum(v3.sum(a, v3.mul(ab, 0.5)), [0, 0, -fl]), v3.sum(v3.sum(v3.sum(a, v3.mul(ab, 0.7)), v3.mul(lat, -w)), [0, 0, -fl * 0.8]), v3.sum(b, v3.mul(u, -rec)), b];
+                        const cur = new T.CatmullRomCurve3(P.map(q => V(q)), false, 'centripetal'); add(new T.Mesh(new T.TubeGeometry(cur, Math.max(24, Math.round(Lr * 12)), r, 14, false), M));
+                    } else add(cil(a, b, r, r, M));
+                    reg(grp, el);
                     const L = v3.len(v3.sum(b, v3.mul(a, -1))); if (L > 0.5) etq(`${tagDe(el)} · ${el.longitud} mm`, v3.sum(v3.mul(v3.sum(a, b), 0.5), [0, 0, r * 1.3 + 0.012]), Math.max(0.06, Math.min(0.16, L * 0.05)), '#cbd5e1');
                     return;
                 }
@@ -9763,6 +9949,14 @@
                     } else { const s = new T.Mesh(new T.SphereGeometry(r * 1.5, 16, 12), M); s.position.copy(V(C)); add(s); }
                     reg(grp, el); etq(tagDe(el), v3.sum(C, v3.mul(arriba, r * 2.6 + 0.02)), 0.12, el.estado === 'fallo' ? '#fca5a5' : '#fde68a'); return;
                 }
+                if (st === 'curva' && pa && pb) {   // v8.64 · arco de circunferencia exacto entre los puntos de tangencia
+                    const dIn = v3.mul(pa.d, -1), dOut = pb.d, cth = Math.max(-1, Math.min(1, v3.dot(dIn, dOut))), th = Math.acos(cth);
+                    if (th < 0.01) add(cil(pa.p, pb.p, r, r, M));
+                    else { const Tm = v3.len(v3.sum(pa.p, v3.mul(C, -1))), Rm = Tm / Math.tan(th / 2), nIn = v3.norm(v3.sum(dOut, v3.mul(dIn, -cth))), O = v3.sum(pa.p, v3.mul(nIn, Rm)), pts = [];
+                        for (let i = 0; i <= 24; i++) { const f = th * i / 24; pts.push(V(v3.sum(O, v3.sum(v3.mul(nIn, -Rm * Math.cos(f)), v3.mul(dIn, Rm * Math.sin(f)))))); }
+                        add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 32, r, 16, false), M)); }
+                    reg(grp, el); etq(`${tagDe(el)} · ${fmt(Math.abs(+el.anguloCurva || 0), 0)}° R${Math.round(radioCurvaMm(el))}`, v3.sum(C, [0, 0, r * 1.5 + 0.012]), 0.09, el.estado === 'fallo' ? '#fca5a5' : '#fde68a'); return;
+                }
                 if (/^codo/.test(st) && pa && pb) { const curva = new T.QuadraticBezierCurve3(V(pa.p), V(C), V(pb.p)); add(new T.Mesh(new T.TubeGeometry(curva, 16, r, 16, false), M)); reg(grp, el); return; }
                 if ((st === 'tee' || st === 'cruce' || st === 'injerto') && pa) { Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); const s = new T.Mesh(new T.SphereGeometry(r * 1.02, 16, 12), M); s.position.copy(V(C)); add(s); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, r * 1.6 + 0.015]), 0.09, '#fde68a'); return; }
                 if (st === 'reduccion' && pa && pb) { add(cil(pa.p, pb.p, r, mm(odMm(el.dnMenor || el.dn)) / 2, M)); reg(grp, el); return; }
@@ -9783,7 +9977,7 @@
                 if (el.type === 'bomba' && gg.horizontal) {   // v8.51 · centrífuga horizontal paramétrica (cotas de catálogo)
                     const k = gg.m.k, q = x => x / 1000, sh = gg.eje, up = gg.up, asp = ports.succion, imp = ports.descarga, lado = v3.norm(v3.cross(sh, up));
                     const at = (ax, az, ay) => v3.sum(v3.sum(v3.sum(C, v3.mul(sh, q(ax))), v3.mul(up, q(az))), v3.mul(lado, q(ay || 0)));
-                    const Rv = (k.h2 - k.h1) * 0.78, eV = Math.max(q(k.a) * 0.9, q(Rv) * 0.7), Rm = (k.h3 - k.h1) * 0.47, oA = q(odMm(el.dnAsp || 'DN 50')) / 2, oI = q(odMm(el.dnImp || el.dnAsp || 'DN 50')) / 2;
+                    const Rv = (k.h2 - k.h1) * 0.78, eV = Math.max(q(k.a) * 0.9, q(Rv) * 0.7), Rm = k.dm > 0 ? k.dm / 2 : (k.h3 - k.h1) * 0.47, oA = q(odMm(el.dnAsp || 'DN 50')) / 2, oI = q(odMm(el.dnImp || el.dnAsp || 'DN 50')) / 2;
                     const gris2 = gris(el), azul = matDe(el, { color: new T.Color('#2563eb') });
                     add(disco(C, sh, q(Rv), eV, M));   // voluta
                     add(cil(asp.p, at(-eV * 500, 0), oA * 1.15, oA * 1.15, M, 20)); add(disco(asp.p, sh, oA * 1.6, q(6), gris2));   // tobera y boca de aspiración
@@ -9793,7 +9987,7 @@
                     add(cil(at(xM0, 0), at(xM1 - Rm * 0.25, 0), q(Rm), q(Rm), azul, 32)); add(cil(at(xM1 - Rm * 0.25, 0), at(xM1, 0), q(Rm) * 0.95, q(Rm) * 0.7, gris2, 32));   // motor y tapa del ventilador
                     const caja = new T.Mesh(new T.BoxGeometry(q(Rm) * 0.9, q(Rm) * 0.9, q(Rm) * 0.5), azul); caja.position.copy(V(at((xM0 + xM1) / 2, Rm + Rm * 0.2))); caja.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(V(sh), V(lado), V(up))); add(caja);   // caja de bornes
                     const xb = (k.f / 2 - k.a), base = new T.Mesh(new T.BoxGeometry(q(k.n1), q(k.n2), q(12)), gris2); base.position.copy(V(at(xb, -k.h1 + 6))); base.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(V(sh), V(lado), V(up))); add(base);   // base
-                    [k.n1 * 0.32, -k.n1 * 0.32].forEach(dx => add(cil(at(xb + dx, -k.h1 + 12), at(xb + dx, -Rm * 0.7), q(18), q(14), gris2, 12)));   // pies
+                    (k.m1 > 0 ? [k.m1 / 2, -k.m1 / 2] : [k.n1 * 0.32, -k.n1 * 0.32]).forEach(dx => add(cil(at(xb + dx, -k.h1 + 12), at(xb + dx, -Rm * 0.7), q(18), q(14), gris2, 12)));   // pies
                     reg(grp, el); etq(tagDe(el), at(k.f / 2 - k.a, k.h3 - k.h1 + 40), 0.14, el.estado === 'fallo' ? '#fca5a5' : '#fde68a'); return;
                 }
                 if (el.type === 'bomba') {
@@ -9964,6 +10158,7 @@
                 'sep',
                 { icono: 'fa-pen-ruler', texto: 'Volver al 2D', accion: () => ponerVista('normal') }]); return; }
             const el = r.el; asegurarHojaDe(el.id); if (!seleccion.has(el.id)) { seleccion.clear(); seleccionarElemento(el.id); construirEscena3D(); }
+            if (el.type === 'tuberia') { try { const gg = V3.geo[el.id], a = gg.ports.a.p, ab = v3.sum(gg.ports.b.p, v3.mul(a, -1)), f = Math.max(0.02, Math.min(0.98, v3.dot(v3.sum([r.h.point.x, r.h.point.y, r.h.point.z], v3.mul(a, -1)), ab) / (v3.dot(ab, ab) || 1))), pp = obtenerPuertosConexion(el), pa = pp.find(q => q.id === 'a'), pb = pp.find(q => q.id === 'b'); PUNTO_MENU = { id: el.id, x: pa.x + (pb.x - pa.x) * f, y: pa.y + (pb.y - pa.y) * f }; } catch (x) { PUNTO_MENU = null; } }   // v8.64
             const items = itemsMenuElemento(el).map(it => it && it.texto && /^Mover/.test(it.texto) ? Object.assign({}, it, { texto: it.texto + ' (en el 2D)', accion: () => { ponerVista('normal'); it.accion(); } }) : it);
             items.splice(1, 0, { icono: 'fa-crosshairs', texto: 'Centrar aquí el giro de la vista', accion: () => pivote3D(el.id) });
             const marcas = planoCongelado ? null : marcasElemento(el); if (marcas && marcas.E) { const m0 = marcas.E.accion; marcas.E = Object.assign({}, marcas.E, { texto: 'Mover (2D)', accion: () => { ponerVista('normal'); m0(); } }); }
@@ -10347,6 +10542,8 @@
                 if (el.type === 'valvula') sym = `<polygon points="${-r * 1.5},${-r} ${r * 1.5},${r} ${r * 1.5},${-r} ${-r * 1.5},${r}" fill="#fff" stroke="${c}" stroke-width="0.9"/>` + (st === 'retencion' ? '' : `<line x1="0" y1="0" x2="0" y2="${-r * 2.2}" stroke="${c}" stroke-width="0.8"/><line x1="${-r * 0.9}" y1="${-r * 2.2}" x2="${r * 0.9}" y2="${-r * 2.2}" stroke="${c}" stroke-width="0.8"/>`);
                 else if (el.type === 'bomba') sym = `<circle r="${r * 1.8}" fill="#fff" stroke="${c}" stroke-width="1"/><polygon points="${-r * 0.8},${-r * 1.1} ${r * 1.1},0 ${-r * 0.8},${r * 1.1}" fill="${c}"/>`;
                 else if (el.type === 'equipo' || el.type === 'terminal' || esDeposito(el)) sym = `<rect x="${-r * 1.6}" y="${-r * 1.6}" width="${r * 3.2}" height="${r * 3.2}" fill="#fff" stroke="${c}" stroke-width="1"/>`;
+                else if (st === 'curva' && pa && pb) { cuerpo = `<path d="M ${X(pa.p)} ${Y(pa.p)} Q ${x} ${y} ${X(pb.p)} ${Y(pb.p)}" fill="none" stroke="${c}" stroke-width="${sel ? 3 : 2}" stroke-linecap="round"/>`; sym = '';   // v8.64 · curva de tubo: arco entre tangentes
+                }
                 else if (SUBTIPOS_BRIDA.includes(st)) { const f = cm.ports.find(q => q.q === 'a') || cm.ports[0], fx = X(f.p), fy = Y(f.p); cuerpo += `<g transform="translate(${fx} ${fy}) rotate(${ang.toFixed(1)})"><line x1="0" y1="${-r * 1.4}" x2="0" y2="${r * 1.4}" stroke="${c}" stroke-width="1.2"/></g>`; sym = ''; }
                 else if (/^codo/.test(st)) sym = `<circle r="${r * 0.5}" fill="${c}"/>`;
                 else if (st === 'tee' || st === 'cruce' || st === 'injerto') sym = `<circle r="${r * 0.65}" fill="${c}"/>`;
@@ -10399,6 +10596,32 @@
                 h += sim + `<text x="${xT.toFixed(2)}" y="${(ym + fs * 0.36).toFixed(2)}" font-family="sans-serif" font-size="${fs.toFixed(2)}" fill="${c}">${esc(n)}</text>`; });
             return { svg: h, w: W, h: H };
         }
+        // v8.60 · etiquetas de los componentes del isométrico: arrastrar, girar y posición automática
+        let isoEtqSel = null, isoEtqArr = null;
+        window.addEventListener('beforeprint', () => { if (isoEtqSel) { isoEtqSel = null; renderizarVectorial(); } });
+        function isoMarca(k) { const el = k && elementosRed.find(e => e.id === k.id); return el && el.iso && el.iso.marcas ? el.iso.marcas[k.i] : null; }
+        function isoGirarEtq(k, d) { const m = isoMarca(k); if (!m) return; guardarEstado(); m.rot = ((((+m.rot || 0) + d) % 360) + 360) % 360; marcarCambios(true); renderizarVectorial(); }
+        function isoAutoEtq(k) { const m = isoMarca(k); if (!m) return; guardarEstado(); delete m.dx; delete m.dy; delete m.rot; delete m.oculta; marcarCambios(true); renderizarVectorial(); }
+        svgCanvas.addEventListener('mousedown', e => {
+            const g = e.target.closest && e.target.closest('g.iso-etq'); if (!g) { if (isoEtqSel) { isoEtqSel = null; renderizarVectorial(); } return; } if (e.button !== 0) return;
+            e.stopPropagation(); e.preventDefault(); const k = { id: g.getAttribute('data-el'), i: +g.getAttribute('data-i') }, m = isoMarca(k); if (!m) return;
+            isoEtqSel = k; guardarEstado(); const tr = (g.getAttribute('transform') || '').match(/translate\(([-\d.]+) ([-\d.]+)\)/);
+            isoEtqArr = { k, x: e.clientX, y: e.clientY, dx0: tr ? +tr[1] - m.x : MM(4), dy0: tr ? +tr[2] - m.y : -MM(6), mov: false }; renderizarVectorial();
+        }, true);
+        window.addEventListener('mousemove', e => { if (!isoEtqArr) return; const m = isoMarca(isoEtqArr.k); if (!m) return; const z = zoomScale || 1; m.dx = +(isoEtqArr.dx0 + (e.clientX - isoEtqArr.x) / z).toFixed(2); m.dy = +(isoEtqArr.dy0 + (e.clientY - isoEtqArr.y) / z).toFixed(2); isoEtqArr.mov = true; renderizarVectorial(); });
+        window.addEventListener('mouseup', () => { if (isoEtqArr) { if (isoEtqArr.mov) marcarCambios(true); isoEtqArr = null; } });
+        svgCanvas.addEventListener('contextmenu', e => {
+            const g = e.target.closest && e.target.closest('g.iso-etq'); if (!g) return; e.preventDefault(); e.stopPropagation(); const k = { id: g.getAttribute('data-el'), i: +g.getAttribute('data-i') }; isoEtqSel = k; renderizarVectorial();
+            mostrarMenuContextual(e.clientX, e.clientY, [
+                { icono: 'fa-rotate-right', texto: 'Girar 90° horario', atajo: 'R', accion: () => isoGirarEtq(k, 90) },
+                { icono: 'fa-rotate-left', texto: 'Girar 90° antihorario', atajo: 'Mayús+R', accion: () => isoGirarEtq(k, -90) },
+                { icono: 'fa-rotate-right', texto: 'Girar 15° horario', atajo: 'Ctrl+R', accion: () => isoGirarEtq(k, 15) },
+                { icono: 'fa-rotate-left', texto: 'Girar 15° antihorario', atajo: 'Ctrl+Mayús+R', accion: () => isoGirarEtq(k, -15) },
+                { icono: 'fa-ruler-combined', texto: 'Paralela a la tubería (30°)', accion: () => { const m = isoMarca(k); if (m) { guardarEstado(); m.rot = ((+m.rot || 0) === 30 ? -30 : 30); marcarCambios(true); renderizarVectorial(); } } },
+                { icono: 'fa-grip-lines', texto: 'Horizontal', accion: () => { const m = isoMarca(k); if (m) { guardarEstado(); m.rot = 0; marcarCambios(true); renderizarVectorial(); } } },
+                { icono: 'fa-wand-magic-sparkles', texto: 'Posición automática', accion: () => isoAutoEtq(k) }]);
+        }, true);
+        window.addEventListener('keydown', e => { if (!isoEtqSel || (e.key !== 'r' && e.key !== 'R') || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) return; e.preventDefault(); e.stopImmediatePropagation(); isoGirarEtq(isoEtqSel, (e.ctrlKey || e.metaKey ? 15 : 90) * (e.shiftKey ? -1 : 1)); }, true);
         function dibujoIsometrico(el, c, P) {
             const g = el.iso; if (!g) return '';
             const fs = MM(2.5), fsT = MM(4);
@@ -10416,7 +10639,7 @@
                 if (len > MM(30)) h += `<text transform="translate(${mx.toFixed(2)} ${my.toFixed(2)}) rotate(${a.toFixed(1)})" x="0" y="${MM(3.4)}" font-family="sans-serif" font-size="${MM(2)}" text-anchor="middle" fill="${c}">${esc(s.tag)}</text>`;
             });
             const usados = [];
-            g.marcas.forEach(m => {
+            g.marcas.forEach((m, iM) => {
                 const kk = usados.filter(u => Math.hypot(u.x - m.x, u.y - m.y) < MM(2)).length; usados.push(m); const dyL = kk * MM(3.2);
                 const s = g.segs.find(q => Math.hypot(q.x1 - m.x, q.y1 - m.y) < 0.5) || g.segs.find(q => Math.hypot(q.x2 - m.x, q.y2 - m.y) < 0.5);
                 const ang = s ? Math.atan2(s.y2 - s.y1, s.x2 - s.x1) * 180 / Math.PI : 0, r = MM(1.8);
@@ -10426,7 +10649,9 @@
                 else if (/^codo/.test(m.sub)) sym = '';
                 else sym = `<circle cx="0" cy="0" r="${r * 0.8}" fill="#fff" stroke="${c}" stroke-width="0.8"/>`;
                 h += `<g transform="translate(${m.x} ${m.y}) rotate(${ang.toFixed(1)})">${sym}</g>`;
-                if (!/^codo/.test(m.sub)) h += `<line x1="${m.x}" y1="${m.y}" x2="${m.x + MM(4)}" y2="${m.y - MM(6) - dyL}" stroke="${c}" stroke-width="0.4"/><text x="${m.x + MM(4.5)}" y="${m.y - MM(6.3) - dyL}" font-family="sans-serif" font-size="${MM(2.2)}" fill="${c}">${esc(m.tag)}${m.ramal ? ' ↳' : ''}</text>`;
+                // v8.60 · etiqueta del componente: se arrastra y se gira (botón derecho, R / Mayús+R); la línea de referencia se mantiene
+                if (!/^codo/.test(m.sub) && !m.oculta) { const lx = m.x + (m.dx != null ? +m.dx : MM(4)), ly = m.y + (m.dy != null ? +m.dy : -MM(6) - dyL), rot = +m.rot || 0, sel = isoEtqSel && isoEtqSel.id === el.id && isoEtqSel.i === iM;
+                    h += `<line x1="${m.x}" y1="${m.y}" x2="${lx.toFixed(2)}" y2="${ly.toFixed(2)}" stroke="${c}" stroke-width="0.4"/><g class="iso-etq" data-el="${esc(el.id)}" data-i="${iM}" style="cursor:move" transform="translate(${lx.toFixed(2)} ${ly.toFixed(2)}) rotate(${rot})">${sel ? `<rect x="-0.6" y="${-MM(2.6)}" width="${(anchoTexto(m.tag, MM(2.2)) + MM(2)).toFixed(2)}" height="${MM(3.4)}" fill="#fde68a" fill-opacity="0.6" stroke="#f59e0b" stroke-width="0.3"/>` : `<rect x="-0.6" y="${-MM(2.6)}" width="${(anchoTexto(m.tag, MM(2.2)) + MM(2)).toFixed(2)}" height="${MM(3.4)}" fill="transparent"/>`}<text x="${MM(0.5)}" y="${-MM(0.3)}" font-family="sans-serif" font-size="${MM(2.2)}" fill="${c}">${esc(m.tag)}${m.ramal ? ' ↳' : ''}</text></g>`; }
             });
             (g.cotas || []).forEach(q => { h += `<text x="${(q.x + MM(1.5)).toFixed(2)}" y="${(q.y + MM(4)).toFixed(2)}" font-family="sans-serif" font-size="${MM(2.2)}" font-style="italic" fill="${c}">${esc(q.t)}</text>`; });
             if (!opciones.ocultarLeyenda && el.isoLeyenda !== false) { const L = leyendaIso(g.marcas || [], c, P), dx = el.isoLeyendaDx != null ? +el.isoLeyendaDx : Math.max(g.w + MM(10), ANCHO_A3 - MM(20) - L.w - (+el.x || 0)), dy = el.isoLeyendaDy != null ? +el.isoLeyendaDy : 0; h += `<g class="iso-leyenda" transform="translate(${dx.toFixed(2)} ${dy.toFixed(2)})">${L.svg}</g>`; }   // v8.52 · leyenda
@@ -10821,7 +11046,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.59';
+        const VERSION_WEB = '8.64';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -11375,7 +11600,9 @@
                         ${[['x', 'X (mm, + a proa)'], ['y', 'Y (mm, + a babor)'], ['z', 'Z (mm)']].map(([k, t]) => `<div><label class="block text-slate-500 mb-0.5">${t}</label><input id="dp-o3-${k}" type="number" value="${esc(((p.origen3D || {})[k]) || 0)}" class="w-full border rounded p-1.5"></div>`).join('')}
                         <div><label class="block text-slate-500 mb-0.5">Separación de cuadernas (mm)</label><input id="dp-cuaderna" type="number" value="${esc(p.cuaderna || 750)}" class="w-full border rounded p-1.5"></div></div>
                     <div id="dp-ref-ind" class="grid grid-cols-2 gap-2" style="${p.esBuque ? 'display:none' : ''}"><div><label class="block text-slate-500 mb-0.5">Norte (° medidos desde +X en sentido antihorario; 90 = +Y)</label><input id="dp-norte" type="number" value="${esc(p.norte == null ? 90 : p.norte)}" class="w-full border rounded p-1.5"></div>
-                        <p class="text-[10px] text-slate-500 self-end">El primer elemento de la línea principal (si es una bomba, su conexión de impulsión) queda en el punto 0,0,0.</p></div></div>
+                        <p class="text-[10px] text-slate-500 self-end">Coordenadas del punto inicial del primer tramo de la línea principal P01 (si su primer elemento es una bomba, su conexión de impulsión). Vacío = 0,0,0.</p>
+                        <div class="col-span-2 grid grid-cols-3 gap-2">${[['x', 'X (mm)'], ['y', 'Y (mm)'], ['z', 'Z (mm, cota)']].map(([k, t]) => `<div><label class="block text-slate-500 mb-0.5">${t}</label><input id="dp-o3i-${k}" type="number" value="${esc(((p.origen3D || {})[k]) || 0)}" class="w-full border rounded p-1.5"></div>`).join('')}</div></div></div>
+                <label class="flex items-start gap-1.5 mb-3 border border-slate-200 rounded p-2"><input type="checkbox" id="dp-mezcla" class="mt-0.5" ${p.mezclaMateriales ? 'checked' : ''}><span><b class="text-slate-600">Permitir mezclar normas y materiales (casos especiales)</b><br><span class="text-[10px] text-slate-500">Sin marcar, al elegir tubos y accesorios solo se ofrecen los de la norma o familia de la línea: ASME con ASME, EN con EN y plásticos con plásticos. Márcalo solo cuando haga falta mezclarlos; las uniones entre materiales se siguen comprobando.</span></span></label>
                 <p class="font-bold text-slate-600 mb-1">Cajetín del plano <span class="font-normal text-slate-400">(vacío = se toma de los datos del proyecto)</span></p>
                 <div class="grid grid-cols-2 gap-2 mb-3">${CAMPOS_CAJETIN.map(([k, e, t]) => campoHTML(k, e, t, p[k], 'p')).join('')}</div>
                 ${modoProyecto.nuevo ? '' : `<p class="font-bold text-slate-600 mt-3 mb-1">Control de revisiones <span class="font-normal text-slate-400">(revisión en curso: ${esc(p.revision || '0')})</span></p>
@@ -11417,7 +11644,8 @@
             copia.esBuque = document.getElementById('dp-esBuque').checked;
             { const sp = document.getElementById('dp-soloPID'); if (sp) copia.soloPID = sp.checked; }   // v8.50
             CAMPOS_BUQUE.forEach(([k]) => { copia.buque[k] = (v('dp-b-' + k) || '').trim(); });
-            copia.origen3D = { x: +v('dp-o3-x') || 0, y: +v('dp-o3-y') || 0, z: +v('dp-o3-z') || 0 }; copia.cuaderna = +v('dp-cuaderna') > 0 ? +v('dp-cuaderna') : 750; copia.norte = v('dp-norte') === '' || v('dp-norte') == null ? 90 : +v('dp-norte');
+            { const pf = copia.esBuque ? 'dp-o3-' : 'dp-o3i-'; copia.origen3D = { x: +v(pf + 'x') || 0, y: +v(pf + 'y') || 0, z: +v(pf + 'z') || 0 }; }   // v8.62 · también fuera de buques
+            { const mz = document.getElementById('dp-mezcla'); if (mz) copia.mezclaMateriales = mz.checked; }   // v8.62 copia.cuaderna = +v('dp-cuaderna') > 0 ? +v('dp-cuaderna') : 750; copia.norte = v('dp-norte') === '' || v('dp-norte') == null ? 90 : +v('dp-norte');
             copia.tipoInstalacion = v('dp-tipoInstalacion');
             copia.fluido = v('dp-fluido');
             ['temperatura', 'caudalDiseno', 'presionDiseno', 'vAsp', 'vImp', 'tCierre', 'tsMax', 'tAmbiente', 'tMontaje', 'horasAnuales', 'precioEnergia', 'etaMotor'].forEach(k => { copia[k] = (v('dp-p-' + k) || '').trim(); });
@@ -12435,7 +12663,8 @@
                 if (!cat || !cat.version || !cat.materiales || !cat.fluidos) throw new Error('La vista v_catalogo no devuelve un catálogo completo (¿se han ejecutado 01, 02 y 03 en el SQL Editor?).');
                 const nuevo = !CAT || String(cat.version) !== String(CAT.version) || !/^Supabase/.test(window.CATALOGO_ORIGEN);
                 localStorage.setItem('piping-catalogo-supabase', JSON.stringify({ fecha: new Date().toISOString(), catalogo: cat }));
-                if (nuevo) { if (confirm(`Catálogo ${cat.version} descargado de Supabase (${Object.keys(cat.fluidos).length} fluidos, ${Object.keys(cat.materiales).length} materiales, ${cat.valvulas.length} válvulas).\n\nSe aplica al recargar la página. ¿Recargar ahora? (el proyecto se reabre solo)`)) { guardarUltimo(); location.reload(); } }
+                // v8.60 · sin pregunta al arrancar: el catálogo descargado se guarda y se aplica solo en la siguiente carga (solo se informa si se pide a mano)
+                if (nuevo && manual) aviso(`Catálogo ${cat.version} descargado de Supabase (${Object.keys(cat.fluidos).length} fluidos, ${Object.keys(cat.materiales).length} materiales, ${cat.valvulas.length} válvulas): se aplica la próxima vez que abras PIPING.`, 'ok');
                 else if (manual) aviso(`Catálogo al día: ${cat.version} (Supabase).`, 'ok');
             } catch (e) { if (manual) aviso('No se ha podido leer el catálogo de Supabase: ' + e.message, 'error'); else console.warn('Supabase:', e.message); }
         }
@@ -12606,6 +12835,7 @@
             ]},
             { titulo: 'Informe', items: [
                 { icono: 'fa-file-word', texto: 'Generar informe (*.docx)...', accion: () => generarInforme() },
+                { icono: 'fa-bezier-curve', texto: 'Hoja de curvado (YBC)...', accion: () => hojaCurvado() },
                 { icono: 'fa-file-excel', texto: 'Listados de líneas, válvulas y materiales (*.xlsx)...', accion: () => generarListados() }
             ]},
             { titulo: 'Herramientas', items: [
@@ -13049,6 +13279,155 @@
             const L1 = Math.round(+document.getElementById('pt-l1').value), L2 = Math.round(+document.getElementById('pt-l2').value), comp = document.getElementById('pt-comp').value;
             if (!(L1 >= 10) || !(L2 >= 10)) { aviso('Cada tramo tiene que medir al menos 10 mm.', 'error'); return; }
             partirTuberia(t, L1, L2, comp);
+        }
+
+        // ==================================================================================
+        // v8.64 · CURVAR EL TUBO en el punto que se quiera (2D y 3D). La curva parte la tubería en ese punto; el ángulo gira
+        // en el plano lo que cuelga de su extremo b (alrededor del vértice) y la rotación 3D (el.giro3D) orienta el plano
+        // de la curva alrededor del tubo de llegada. Los tramos rectos se acortan con la tangente T = R·tan(θ/2).
+        // ==================================================================================
+        let PUNTO_MENU = null;   // {id, x, y} punto (coordenadas del plano) donde se abrió el menú sobre una tubería
+        function rotarGrupo2D(grupo, C, deg) {   // giro rígido en pantalla, positivo = antihorario
+            const ph = -deg * Math.PI / 180, cs = Math.cos(ph), sn = Math.sin(ph);
+            grupo.forEach(e => { if (esAnotacion(e) && (e.ancla || e.sigueA)) return; const P0 = { x: e.x + 25, y: mundoAScreenY(e.y) + 25 }, dx = P0.x - C.x, dy = P0.y - C.y, N = { x: C.x + dx * cs - dy * sn, y: C.y + dx * sn + dy * cs };
+                e.x = N.x - 25; e.y = screenAMundoY(N.y - 25); e.rotation = ((((+e.rotation || 0) - deg) % 360) + 360) % 360; });
+        }
+        function vecinoEn(el, pid) { const v = vecinosDe(el).find(x => x.puertoEl === pid); return v ? v.otro : null; }
+        // aplica ángulo / radio / giro 3D a una curva y recoloca lo que cuelga
+        function aplicarCurva(el, c) {
+            const ang0 = +el.anguloCurva || 0, T0 = tangenteCurva(el);
+            if (c.anguloCurva != null) {
+                let a = Math.max(-170, Math.min(170, +c.anguloCurva || 0)); const d = a - ang0;
+                if (Math.abs(d) > 1e-9) { const vb = vecinoEn(el, 'b');
+                    if (vb) { const g = grupoDesde([vb], el), va = vecinoEn(el, 'a'); if (va && g.includes(va)) { aviso('No se puede cambiar el ángulo: la red está cerrada en malla por esa curva.', 'error'); return false; } rotarGrupo2D(g, centroElemento(el), d); }
+                    el.anguloCurva = +a.toFixed(2); }
+            }
+            if (c.radioCurvaD != null) { if (+c.radioCurvaD > 0) { el.radioCurvaD = +c.radioCurvaD; delete el.radioCurvaMm; } }
+            if (c.radioCurvaMm != null) { if (+c.radioCurvaMm > 0) el.radioCurvaMm = +c.radioCurvaMm; else delete el.radioCurvaMm; }
+            if (c.giro3D != null) el.giro3D = ((((+c.giro3D || 0) % 360) + 360) % 360);
+            const dT = tangenteCurva(el) - T0;
+            if (Math.abs(dT) >= 0.5) ['a', 'b'].forEach(pid => { const t = vecinoEn(el, pid); if (t && t.type === 'tuberia') { const L = Math.round((+t.longitud || 0) - dT); if (L >= 10) aplicarCambio(t, 'longitud', L); else aviso(`${tagDe(t)} se queda sin tramo recto: la curva no cabe con ese radio.`, 'error'); } });
+            invalidarResultados(); marcarCambios(true); renderizarVectorial(); if (vista3d && typeof construirEscena3D === 'function') construirEscena3D();
+            pintarPanelCurva(el.id); return true;
+        }
+        // menú «Curvar el tubo aquí…»: parte la tubería en el punto y mete una curva (90°, 3·De por defecto)
+        async function curvarTuboAqui(t, pto) {
+            if (typeof planoCongelado !== 'undefined' && planoCongelado) { aviso('El plano está congelado.', 'error'); return; }
+            const L = Math.round(+t.longitud || 0), pp = obtenerPuertosConexion(t), A = pp.find(q => q.id === 'a'), B = pp.find(q => q.id === 'b');
+            let f = 0.5; if (pto && A && B) { const ab = { x: B.x - A.x, y: B.y - A.y }, l2 = ab.x * ab.x + ab.y * ab.y || 1; f = Math.max(0.05, Math.min(0.95, ((pto.x - A.x) * ab.x + (pto.y - A.y) * ab.y) / l2)); }
+            const De = (datosTuberia(t) || {}).od || odMm(t.dn), d0 = Math.round(L * f);
+            const r = await dialogo(`<i class="fa-solid fa-bezier-curve text-blue-600 mr-1.5"></i>Curvar ${esc(tagDe(t))}`,
+                `<p class="mb-2">Longitud: <b>${L} mm</b> · De ${fmt(De, 1)} mm. La tubería se curva en el punto elegido (vértice de la curva).</p>
+                <div class="grid grid-cols-2 gap-2">
+                <label class="block">Vértice a (mm desde el extremo a)<input id="cv-d" type="number" step="1" value="${d0}" class="w-full border rounded p-1.5 mt-0.5"></label>
+                <label class="block">Ángulo (°) · + izquierda / − derecha<input id="cv-a" type="number" step="1" value="90" class="w-full border rounded p-1.5 mt-0.5"></label>
+                <label class="block">Radio (× De)<input id="cv-n" type="number" step="0.5" value="3" class="w-full border rounded p-1.5 mt-0.5"></label>
+                <label class="block">Rotación 3D (°) alrededor del tubo de llegada<input id="cv-g" type="number" step="5" value="0" class="w-full border rounded p-1.5 mt-0.5"></label></div>
+                <p class="text-[10px] text-slate-500 mt-2">Rotación 3D: 0° = en el plano del esquema; con 90° o 270° la curva sube o baja. Se ajusta después en el panel de la curva (también en el 3D, viéndolo).</p>`,
+                [{ texto: 'Curvar', valor: 'si', clase: 'bg-blue-600 hover:bg-blue-700 text-white' }, { texto: 'Cancelar', valor: null }]);
+            if (r !== 'si') return;
+            const dv = Math.round(+document.getElementById('cv-d').value), ang = +document.getElementById('cv-a').value || 90, n = +document.getElementById('cv-n').value || 3, g3 = +document.getElementById('cv-g').value || 0;
+            const Tg = n * De * Math.tan(Math.min(Math.abs(ang), 170) * Math.PI / 360);
+            if (!(dv - Tg >= 10) || !(L - dv - Tg >= 10)) { aviso(`La curva no cabe ahí: con R = ${fmt(n * De, 0)} mm y ${ang}° cada lado necesita ${Math.round(Tg + 10)} mm de tubo hasta el vértice.`, 'error'); return; }
+            // corte en el vértice (longitudes exactas, sin depender de lo largo que esté dibujado el tubo) y se mete la curva desplazando lo de aguas abajo
+            const antes = new Set(elementosRed.map(e => e.id));
+            partirTuberia(t, dv, L - dv);
+            const t2n = elementosRed.find(e => e.type === 'tuberia' && !antes.has(e.id)); if (!t2n) return;
+            const grupo = grupoDesde([t2n], t), J = obtenerPuertosConexion(t).find(q => q.id === 'b');
+            const cu = { id: 'sym_' + Date.now() + '_cu', type: 'accesorio', subtype: 'curva', name: TIPOS.curva.nombre, x: 0, y: 0, scale: 1, rotation: t.rotation || 0, linea: t.linea, modoK: 'crane' };
+            normalizarElemento(cu); elementosRed.splice(elementosRed.indexOf(t) + 1, 0, cu); colocarPorPuerto(cu, 'a', J); cu.cota = +t.cotaB || 0;
+            const Bc = obtenerPuertosConexion(cu).find(q => q.id === 'b'), dx = Bc.x - J.x, dy = Bc.y - J.y;
+            if (!grupo.includes(t)) grupo.forEach(e => { if (esAnotacion(e) && (e.ancla || e.sigueA)) return; e.x += dx; e.y -= dy; }); else { t2n.x += dx; t2n.y -= dy; }
+            asignarNumero(cu);
+            cu.dn = t.dn; cu.material = t.material; if (t.serie) cu.serie = t.serie; if (t.gradoMaterial) { cu.gradoMaterial = t.gradoMaterial; cu.materialComp = t.gradoMaterial; } cu.radioCurvaD = n; cu.anguloCurva = 0;
+            aplicarCurva(cu, { anguloCurva: ang, giro3D: g3 });
+            seleccionarElemento(cu.id); abrirPanelCurva(cu.id);
+            aviso(`${tagDe(cu)}: curva de ${ang}° con R = ${fmt(radioCurvaMm(cu), 0)} mm en ${tagDe(t)}.`, 'ok');
+        }
+        // panel flotante (no bloquea): ángulo, radio y rotación 3D con vista previa
+        function abrirPanelCurva(id) {
+            const el = elementosRed.find(e => e.id === id); if (!el) return; guardarEstado();
+            let d = document.getElementById('cv-panel'); if (!d) { d = document.createElement('div'); d.id = 'cv-panel'; d.style.cssText = 'position:fixed;right:24px;top:120px;z-index:2600;width:300px;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 10px 30px rgba(15,23,42,.25);font-size:11px'; document.body.appendChild(d); }
+            d.dataset.id = id; pintarPanelCurva(id);
+        }
+        function pintarPanelCurva(id) {
+            const d = document.getElementById('cv-panel'); if (!d || d.dataset.id !== id) return; const el = elementosRed.find(e => e.id === id); if (!el) { d.remove(); return; }
+            const De = deCurva(el), R = radioCurvaMm(el), ang = +el.anguloCurva || 0, Tg = tangenteCurva(el), arco = R * Math.abs(ang) * Math.PI / 180, tv = tuboVecino(el), Di = tv ? (datosTuberia(tv).di || dintReferencia(el.dn)) : dintReferencia(el.dn), k = kCurva(el, Di), fe = factorEspesorCurva(R / De);
+            const num = (campo, v, paso, txt) => `<label class="flex items-center justify-between gap-2 mt-1">${txt}<input type="number" step="${paso}" value="${v}" onchange="aplicarCurva(elementosRed.find(e => e.id === '${id}'), { ${campo}: +this.value })" class="w-20 border rounded p-0.5 text-right"></label>`;
+            d.innerHTML = `<div class="flex items-center justify-between px-3 py-2 border-b bg-slate-50 rounded-t-lg"><b class="text-slate-700"><i class="fa-solid fa-bezier-curve text-blue-600 mr-1.5"></i>Curva ${esc(tagDe(el))}</b><button onclick="document.getElementById('cv-panel').remove()" class="text-slate-500 hover:text-slate-800 px-1">✕</button></div>
+                <div class="px-3 py-2">${num('anguloCurva', ang, 1, 'Ángulo (°) · + izq. / − der.')}${num('radioCurvaD', +el.radioCurvaMm > 0 ? '' : (+el.radioCurvaD || 3), 0.5, 'Radio (× De)')}${num('radioCurvaMm', +el.radioCurvaMm > 0 ? el.radioCurvaMm : '', 1, 'o radio fijo (mm)')}
+                <label class="block mt-2">Rotación 3D alrededor del tubo de llegada: <b>${Math.round(+el.giro3D || 0)}°</b>
+                <input type="range" min="0" max="355" step="5" value="${Math.round(+el.giro3D || 0)}" oninput="aplicarCurva(elementosRed.find(e => e.id === '${id}'), { giro3D: +this.value })" class="w-full"></label>
+                <div class="flex gap-1 mt-1">${[-90, -15, 15, 90].map(v => `<button onclick="aplicarCurva(elementosRed.find(e => e.id === '${id}'), { giro3D: (+(elementosRed.find(e => e.id === '${id}').giro3D) || 0) + (${v}) })" class="flex-1 border rounded py-0.5 hover:bg-slate-50">${v > 0 ? '+' : ''}${v}°</button>`).join('')}</div>
+                <table class="w-full mt-2 text-[11px]"><tbody>
+                <tr><td class="text-slate-500">R</td><td class="text-right">${fmt(R, 0)} mm (${fmt(R / De, 2)}·De)</td></tr>
+                <tr><td class="text-slate-500">Tangente T</td><td class="text-right">${fmt(Tg, 0)} mm</td></tr>
+                <tr><td class="text-slate-500">Longitud del arco</td><td class="text-right">${fmt(arco, 0)} mm</td></tr>
+                <tr><td class="text-slate-500">K</td><td class="text-right">${fmt(k.K, 3)}</td></tr>
+                <tr><td class="text-slate-500">Espesor antes de curvar</td><td class="text-right">≥ ${fmt(fe, 2)} · t mín. (B31.1 102.4.5)</td></tr>
+                <tr><td class="text-slate-500">Giro B respecto a la curva anterior</td><td class="text-right">${(() => { try { for (const t of tramosCurvado()) { const i = t.filas.findIndex(f => f.tag === tagDe(el)); if (i > 0) return fmt(t.filas[i].B, 1) + '°'; if (i === 0) return '— (primera)'; } } catch (e) { } return '—'; })()}</td></tr></tbody></table>
+                ${R / De < 1.5 - 1e-6 ? '<p class="text-rose-700 mt-1">R &lt; 1,5·De: no se puede curvar (pon un codo).</p>' : R / De < 3 - 1e-6 ? '<p class="text-amber-700 mt-1">R &lt; 3·De: curvado con mandril.</p>' : ''}
+                <p class="text-[10px] text-slate-400 mt-1">El 3D se actualiza al momento (el panel sigue abierto al pasar a 3D). R / Mayús+R en el 3D también giran la curva.</p></div>`;
+        }
+        // ASME B31.1 tabla 102.4.5: espesor mínimo antes de curvar = factor × t mín. (6D 1,06 · 5D 1,08 · 4D 1,14 · 3D 1,25)
+        function factorEspesorCurva(rD) { if (rD >= 6) return 1 + 0.36 / rD; if (rD >= 3) return interpT([[3, 1.25], [4, 1.14], [5, 1.08], [6, 1.06]], rD); return 1.25 + 0.15 * (3 - rD); }
+        function comprobacionesCurvas(resultado, fallo) {
+            const avisos = resultado.avisosRed = resultado.avisosRed || [], T = tempDiseno((resultado.fluido || {}).T || 20), pDis = +proyecto.presionDiseno > 0 ? +proyecto.presionDiseno : 0;
+            const curvas = elementosRed.filter(e => e.subtype === 'curva'); if (!curvas.length) return;
+            const rMinD = +proyecto.rectoCurvaD > 0 ? +proyecto.rectoCurvaD : 2, vistosRecto = new Set();
+            curvas.forEach(el => {
+                const De = deCurva(el), R = radioCurvaMm(el), rD = R / De, tag = tagDe(el), r = ultimoResultado[el.id] || {}, tv = tuboVecino(el);
+                if (rD < 1.5 - 1e-6) fallo(el, `radio ${fmt(R, 0)} mm (${fmt(rD, 2)}·De) < 1,5·De: no se puede curvar; usa un codo`);
+                else if (rD < 3 - 1e-6) avisos.push(`${tag}: R = ${fmt(rD, 2)}·De < 3·De: curvado con mandril y control de ovalización.`);
+                if (tv) { const pm = pmaTuberia(tv, T), fe = factorEspesorCurva(rD), pmc = pm > 0 ? pm / fe : null, preq = Math.max(+r.pA || 0, +r.pB || 0, pDis);
+                    if (pmc != null && preq > 0 && pmc < preq) fallo(el, `PMA tras curvar ≈ ${fmt(pmc, 2)} bar < ${fmt(preq, 2)} bar: el tubo necesita ${fmt(fe, 2)}× el espesor mínimo antes de curvar (ASME B31.1 tabla 102.4.5); sube el schedule o el radio`); }
+                ['a', 'b'].forEach(pid => { const t = vecinoEn(el, pid); if (!t || t.type !== 'tuberia' || vistosRecto.has(t.id)) return; vistosRecto.add(t.id); const otro = vecinosDe(t).find(v => v.otro !== el); const L = +t.longitud || 0, Lmin = Math.max(50, rMinD * De);
+                    if (L < Lmin && (!otro || otro.otro.subtype === 'curva' || otro.otro.type !== 'tuberia')) avisos.push(`${tag}: el tramo recto ${tagDe(t)} mide ${Math.round(L)} mm < ${Math.round(Lmin)} mm (${rMinD}·De): no hay sitio para la mordaza de la curvadora.`); });
+            });
+            avisos.push(`Curvas de tubo: ${curvas.length}. Ovalización máxima admisible tras curvar: 8 % (ASME B31.3 §332.2.1) o la de la sociedad de clasificación. Hoja de curvado: Informe › Hoja de curvado (YBC).`);
+        }
+        // hoja de curvado: por tramo continuo (tubos + curvas) Y = recto, B = giro entre planos, C = ángulo (formato YBC / LRA)
+        function tramosCurvado() {
+            const geo = geometria3DReal().geo, esT = e => e && (e.type === 'tuberia' || e.subtype === 'curva'), vistos = new Set(), out = [];
+            elementosRed.filter(e => e.subtype === 'curva').forEach(c0 => {
+                if (vistos.has(c0.id)) return; const comp = [], cola = [c0]; vistos.add(c0.id);
+                while (cola.length) { const x = cola.shift(); comp.push(x); vecinosDe(x).forEach(v => { if (esT(v.otro) && !vistos.has(v.otro.id)) { vistos.add(v.otro.id); cola.push(v.otro); } }); }
+                const grado = e => vecinosDe(e).filter(v => comp.includes(v.otro)).length; let ini = comp.find(e => e.type === 'tuberia' && grado(e) <= 1) || comp.find(e => grado(e) <= 1) || comp[0];
+                const orden = []; let prev = null, cur = ini; const usados = new Set();
+                while (cur && !usados.has(cur.id)) { usados.add(cur.id); const entrada = prev ? (vecinosDe(cur).find(v => v.otro === prev) || {}).puertoEl : null; orden.push({ el: cur, pe: entrada }); const sig = vecinosDe(cur).find(v => comp.includes(v.otro) && !usados.has(v.otro.id)); prev = cur; cur = sig ? sig.otro : null; }
+                const filas = []; let Y = 0, nPrev = null, desarrollo = 0;
+                orden.forEach(({ el, pe }) => {
+                    if (el.type === 'tuberia') { Y += +el.longitud || 0; desarrollo += +el.longitud || 0; return; }
+                    const g = geo[el.id], pin = pe || 'a', pout = pin === 'a' ? 'b' : 'a', R = radioCurvaMm(el), th = Math.abs(+el.anguloCurva || 0);
+                    let B = 0; if (g && g.ports[pin] && g.ports[pout]) { const dIn = v3.mul(g.ports[pin].d, -1), dOut = g.ports[pout].d, n = v3.norm(v3.cross(dIn, dOut));
+                        if (nPrev && v3.len(n) > 0.5) B = Math.atan2(v3.dot(v3.cross(nPrev, n), dIn), v3.dot(nPrev, n)) * 180 / Math.PI; if (v3.len(n) > 0.5) nPrev = n; }
+                    const arco = R * th * Math.PI / 180; desarrollo += arco;
+                    filas.push({ tag: tagDe(el), Y, B: filas.length ? ((B % 360) + 360) % 360 : 0, C: th, R, arco }); Y = 0;
+                });
+                out.push({ nombre: [...new Set(comp.map(e => e.linea).filter(Boolean))].join(', '), De: deCurva(c0), filas, Yfin: Y, desarrollo, elementos: orden.map(o => tagDe(o.el)) });
+            });
+            return out;
+        }
+        function hojaCurvado() {
+            cerrarMenus && cerrarMenus(); const T = tramosCurvado();
+            if (!T.length) { aviso('No hay curvas de tubo en la hoja: menú de una tubería › «Curvar el tubo aquí…».', 'error'); return; }
+            const f0 = v => fmt(v, 0);
+            document.getElementById('red-content').innerHTML = T.map((t, i) => `<div class="mb-4 text-[11px]"><p class="font-bold text-slate-700">Tramo ${i + 1} · línea ${esc(t.nombre || '—')} · De ${fmt(t.De, 1)} mm</p><p class="text-slate-500 mb-1">${esc(t.elementos.join(' → '))}</p>
+                <table class="w-full border"><thead><tr class="bg-slate-100 text-left"><th class="px-1">Curva</th><th class="px-1 text-right">Y · recto antes (mm)</th><th class="px-1 text-right">B · giro (°)</th><th class="px-1 text-right">C · ángulo (°)</th><th class="px-1 text-right">R (mm)</th><th class="px-1 text-right">Arco (mm)</th></tr></thead><tbody>
+                ${t.filas.map(r => `<tr class="border-t"><td class="px-1">${esc(r.tag)}</td><td class="px-1 text-right">${f0(r.Y)}</td><td class="px-1 text-right">${fmt(r.B, 1)}</td><td class="px-1 text-right">${fmt(r.C, 1)}</td><td class="px-1 text-right">${f0(r.R)}</td><td class="px-1 text-right">${f0(r.arco)}</td></tr>`).join('')}
+                <tr class="border-t"><td class="px-1">Recto final</td><td class="px-1 text-right">${f0(t.Yfin)}</td><td colspan="4"></td></tr></tbody></table>
+                <p class="mt-1">Longitud de desarrollo (corte, sin sobrelongitud de amarre): <b>${f0(t.desarrollo)} mm</b></p></div>`).join('') +
+                '<p class="text-[10px] text-slate-400">Y: tramo recto entre tangentes · B: giro del plano de la curva respecto al de la anterior, alrededor del eje del tubo · C: ángulo de curvado. Sin corrección de recuperación elástica (springback) de la máquina.</p>';
+            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><span class="flex-1"></span><button onclick="exportarHojaCurvado()" class="px-3 py-1.5 border rounded"><i class="fa-solid fa-file-excel mr-1 text-emerald-600"></i>Exportar a Excel</button><button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 text-white rounded">Cerrar</button></div>`;
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-bezier-curve text-blue-600 mr-1.5"></i> Hoja de curvado (YBC)';
+            document.querySelector('#modal-red > div').style.width = 'min(900px, 96vw)'; document.getElementById('modal-red').style.display = 'flex';
+        }
+        async function exportarHojaCurvado() {
+            let X; try { X = await cargarXLSX(); } catch (e) { aviso(e.message, 'error'); return; }
+            const T = tramosCurvado(), aoa = [['Hoja de curvado (YBC)', proyecto.numero || '', proyecto.instalacion || ''], []];
+            T.forEach((t, i) => { aoa.push([`Tramo ${i + 1}`, `Línea ${t.nombre || ''}`, `De ${t.De} mm`], ['Curva', 'Y recto (mm)', 'B giro (°)', 'C ángulo (°)', 'R (mm)', 'Arco (mm)']);
+                t.filas.forEach(r => aoa.push([r.tag, Math.round(r.Y), +r.B.toFixed(1), +r.C.toFixed(1), Math.round(r.R), Math.round(r.arco)])); aoa.push(['Recto final', Math.round(t.Yfin)], ['Desarrollo (mm)', Math.round(t.desarrollo)], []); });
+            const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(aoa), 'Curvado'); X.writeFile(wb, `${proyecto.numero || 'PIPING'}_HOJA_CURVADO.xlsx`);
         }
         function partirTuberia(t, L1, L2, comp) {
             guardarEstado(); invalidarResultados();
