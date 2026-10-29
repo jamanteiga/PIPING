@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PIPING - Diseño P&ID Vectorial Avanzado (mm)</title>
+    <link rel="stylesheet" href="css/piping.css?v=8.59">
+    <link rel="stylesheet" href="fa/css/fa.min.css?v=6.4.0">
+    <!-- Datos de ingeniería (fluidos, tuberías, Crane, B16.9, válvulas). Debe estar junto a index.html -->
+    <script src="catalogo.js?v=8.59"></script>
+    <script>
+        // diccionario del idioma de la interfaz antes de arrancar (i18n/<idioma>.js)
+        (function () { try { var l = localStorage.getItem('piping-idioma'); if (l === 'en' || l === 'pt' || l === 'ko') document.write('<script src="i18n/' + l + '.js?v=8.59"><\/script>'); } catch (e) { } })();
+    </script>
+    <script>
+        // Catálogo descargado de Supabase (copia en el navegador): sustituye a catalogo.js si es igual o más
+        // reciente y tiene todos los grupos. Si falla cualquier comprobación se usa catalogo.js.
+        (function () {
+            try {
+                const c = JSON.parse(localStorage.getItem('piping-catalogo-supabase') || 'null'), k = c && c.catalogo;
+                const completo = k && k.version && k.fluidos && k.materiales && k.materiales['Acero al carbono'] && k.crane && Array.isArray(k.ft) && Array.isArray(k.valvulas) && k.reducciones && k.vmin && k.inchDN;
+                if (completo && (!window.CATALOGO || String(k.version) >= String(window.CATALOGO.version))) {
+                    window.CATALOGO_LOCAL = window.CATALOGO; window.CATALOGO = k; window.CATALOGO_ORIGEN = 'Supabase (descargado ' + new Date(c.fecha).toLocaleString('es-ES') + ')';
+                }
+            } catch (e) { }
+            if (!window.CATALOGO_ORIGEN) window.CATALOGO_ORIGEN = 'catalogo.js (local)';
+        })();
+    </script>
+    
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col overflow-hidden font-sans select-none" onclick="cerrarMenuContextual(event)">
+
+    <!-- MENÚ CONTEXTUAL DINÁMICO -->
+    <div id="context-menu"></div>
+
+    <!-- VENTANA FLOTANTE DEL ELEMENTO (doble clic): no bloquea el lienzo, se arrastra por la cabecera -->
+    <div id="modal-edicion" class="bg-white rounded-lg shadow-2xl border border-slate-300 text-xs" style="display:none; position:fixed; z-index:1900; width:380px;">
+        <div id="ventana-cabecera" class="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-slate-50 rounded-t-lg cursor-move select-none">
+            <span id="ventana-titulo" class="font-bold text-slate-700 truncate"></span>
+            <button onclick="cerrarModal()" class="text-slate-400 hover:text-slate-600 ml-2"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="modal-content-body" class="p-3 space-y-2 overflow-y-auto" style="max-height:72vh"></div>
+    </div>
+
+    <!-- LIBRERÍA DE COMPONENTES (Librerías > ...) -->
+    <div id="modal-libreria" style="display:none;" class="fixed inset-0 bg-black/40 z-[2150] justify-center items-center">
+        <div id="lib-caja" class="bg-white rounded-lg shadow-xl max-h-[94vh] overflow-y-auto p-5 border border-slate-200 text-xs" style="width:min(1150px,96vw)">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between"><span id="lib-titulo"></span><button onclick="cerrarLibreria()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button></h3>
+            <div id="lib-cuerpo"></div>
+            <div class="mt-3 flex justify-end"><button onclick="cerrarLibreria()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cerrar</button></div>
+        </div>
+    </div>
+    <!-- BOTÓN DE PROPIEDADES AL PASAR EL RATÓN POR UNA TABLA -->
+    <button id="btn-tabla" onmouseleave="ocultarBotonTabla()" style="display:none; position:fixed; z-index:1950;" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] px-2 py-1 rounded shadow"><i class="fa-solid fa-table mr-1"></i>Propiedades de la tabla</button>
+
+    <!-- AVISOS BREVES (sustituyen a los mensajes emergentes informativos) -->
+    <div id="avisos" style="position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:4000; display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none;"></div>
+
+    <!-- DIÁLOGO GENÉRICO CON BOTONES -->
+    <div id="modal-dialogo" style="display:none;" class="fixed inset-0 bg-black/40 z-[3200] justify-center items-center">
+        <div class="bg-white rounded-lg shadow-xl w-[480px] p-5 border border-slate-200 text-xs">
+            <h3 id="dialogo-titulo" class="text-sm font-bold text-slate-700 border-b pb-2 mb-3"></h3>
+            <div id="dialogo-cuerpo" class="text-slate-600 space-y-1"></div>
+            <div id="dialogo-botones" class="mt-4 flex justify-end space-x-2"></div>
+        </div>
+    </div>
+
+    <!-- VENTANA MODAL: DATOS DEL PROYECTO / INSTALACIÓN / BUQUE -->
+    <div id="modal-proyecto" style="display:none;" class="fixed inset-0 bg-black/40 z-[2200] justify-center items-center">
+        <div class="bg-white rounded-lg shadow-xl w-[760px] max-h-[90vh] overflow-y-auto p-5 border border-slate-200 text-xs">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between">
+                <span><i class="fa-solid fa-folder-open text-blue-600 mr-1.5"></i> Datos del proyecto</span>
+                <button onclick="cerrarDatosProyecto()" class="btn-cancelar-proyecto text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </h3>
+            <div id="modal-proyecto-body"></div>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button onclick="cerrarDatosProyecto()" class="btn-cancelar-proyecto px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cancelar</button>
+                <button onclick="guardarDatosProyecto()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Guardar datos</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PALETA DE COMANDOS (Ctrl+K) -->
+    <div id="paleta" style="display:none;" onmousedown="if (event.target === this) cerrarPaleta()" class="fixed inset-0 bg-black/30 z-[2600] justify-center items-start pt-24">
+        <div class="bg-white rounded-lg shadow-2xl w-[600px] max-w-[92vw] overflow-hidden text-xs">
+            <div class="flex items-center gap-2 px-3 py-2 border-b"><i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+                <input id="paleta-texto" oninput="filtrarPaleta()" onkeydown="tecladoPaleta(event)" autocomplete="off" placeholder="Escribe un comando, un componente para insertar, una línea o una etiqueta…" class="flex-1 outline-none text-sm py-1">
+                <span class="text-[10px] text-slate-400">↑↓ Intro · Esc</span></div>
+            <div id="paleta-lista" class="max-h-[55vh] overflow-y-auto py-1"></div>
+        </div>
+    </div>
+
+    <!-- TABLA DE PROPIEDADES (Edición > Tabla de propiedades) -->
+    <div id="modal-masivo" style="display:none;" class="fixed inset-0 bg-black/40 z-[2050] justify-center items-center">
+        <div class="bg-white rounded-lg shadow-2xl w-[1200px] max-w-[96vw] max-h-[92vh] flex flex-col text-xs">
+            <div class="flex items-center gap-2 px-4 py-2 border-b"><i class="fa-solid fa-table-cells-large text-blue-600"></i><h3 class="font-bold text-sm flex-1">Tabla de propiedades</h3>
+                <span class="text-[10px] text-slate-400">Los cambios se aplican al momento (Ctrl+Z deshace)</span>
+                <button onclick="cerrarTablaPropiedades()" class="text-slate-500 hover:text-slate-800 px-1" title="Cerrar"><i class="fa-solid fa-xmark"></i></button></div>
+            <div id="masivo-cuerpo" class="p-3 overflow-auto"></div>
+        </div>
+    </div>
+
+    <!-- VENTANA MODAL AL INSERTAR UN COMPONENTE (línea a la que pertenece y K/Cv si hace falta) -->
+    <div id="modal-nuevo" style="display:none;" class="fixed inset-0 bg-black/40 z-[2100] justify-center items-center">
+        <div class="bg-white rounded-lg shadow-xl w-[460px] p-5 border border-slate-200 text-xs">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3"><i class="fa-solid fa-circle-plus text-blue-600 mr-1.5"></i> Nuevo componente</h3>
+            <div id="modal-nuevo-body"></div>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button onclick="cancelarModalNuevo()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium">Cancelar inserción</button>
+                <button onclick="confirmarModalNuevo()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VENTANA MODAL DE CÁLCULO DE RED (CONTORNO Y RESULTADOS) -->
+    <div id="modal-red" style="display:none;" class="fixed inset-0 bg-black/40 z-[2000] justify-center items-center">
+        <div class="bg-white rounded-lg shadow-xl w-[760px] max-h-[85vh] overflow-y-auto p-5 border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between">
+                <span><i class="fa-solid fa-diagram-project text-blue-600 mr-1.5"></i> Cálculo Hidráulico de la Red</span>
+                <button onclick="cerrarModalRed()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </h3>
+            <div id="red-content"></div>
+            <div class="mt-5 flex justify-end space-x-2" id="red-footer"></div>
+        </div>
+    </div>
+
+    <!-- PANEL FLOTANTE BÚSQUEDA / REEMPLAZO (Edición > Búsqueda/Reemplazo, Ctrl+R) -->
+    <div id="panel-buscar" style="display:none; position:fixed; top:96px; right:240px; z-index:1800; width:370px;" class="bg-white rounded-lg shadow-xl border border-slate-200 p-3 text-xs">
+        <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-2 flex items-center justify-between">
+            <span><i class="fa-solid fa-magnifying-glass text-blue-600 mr-1.5"></i> Búsqueda / Reemplazo</span>
+            <button onclick="cerrarBuscarReemplazar()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+        </h3>
+        <label class="block text-slate-500 mb-0.5">Buscar (nombre del elemento)</label>
+        <input type="text" id="buscar-texto" class="w-full border border-slate-300 rounded p-1.5 mb-2">
+        <label class="block text-slate-500 mb-0.5">Reemplazar por</label>
+        <input type="text" id="reemplazar-texto" class="w-full border border-slate-300 rounded p-1.5 mb-2">
+        <label class="flex items-center text-slate-600 mb-2"><input type="checkbox" id="buscar-mayus" class="mr-1.5"> Coincidir mayúsculas/minúsculas</label>
+        <div class="flex justify-end space-x-1.5">
+            <button onclick="buscarSiguiente()" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Buscar siguiente</button>
+            <button onclick="reemplazarActual()" class="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded font-medium">Reemplazar</button>
+            <button onclick="reemplazarTodo()" class="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded font-medium">Reemplazar todo</button>
+        </div>
+        <div id="buscar-estado" class="text-[11px] text-slate-500 mt-2 min-h-[14px]"></div>
+    </div>
+
+    <!-- VENTANA DE CRÉDITOS (Ayuda > Créditos) -->
+    <div id="modal-creditos" onclick="if(event.target===this) cerrarCreditos()" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.4); z-index:2000; justify-content:center; align-items:center;">
+        <div class="bg-white rounded-lg shadow-xl w-96 p-5 border border-slate-200 text-xs text-slate-600">
+            <h3 class="text-sm font-bold text-slate-700 border-b pb-2 mb-3 flex items-center justify-between">
+                <span><i class="fa-solid fa-circle-info text-blue-600 mr-1.5"></i> Créditos</span>
+                <button onclick="cerrarCreditos()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </h3>
+            <p class="font-bold text-slate-700 text-sm flex items-center"><i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&amp;ID</p>
+            <p class="mt-1">Diseño de esquemas P&amp;ID y cálculo hidráulico de redes de tuberías.</p>
+            <p class="mt-3"><span class="text-slate-400">Desarrollo:</span> José Antonio Manteiga Presedo</p>
+            <p class="mt-1"><span class="text-slate-400">Versión:</span> 8.59-valvulas-formula</p>
+            <p class="mt-1"><span class="text-slate-400">Catálogo de datos:</span> <span id="version-catalogo"></span></p>
+            <p class="mt-1"><span class="text-slate-400">Librerías:</span> Tailwind CSS · Font Awesome 6.4</p>
+            <p class="mt-3 text-slate-400">© 2026</p>
+            <div class="mt-4 flex justify-end"><button onclick="cerrarCreditos()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">Cerrar</button></div>
+        </div>
+    </div>
+
+    <!-- BARRA SUPERIOR -->
+    <header class="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shadow-sm z-30">
+        <div class="flex items-center space-x-3">
+            <h1 class="text-sm font-bold tracking-wider text-slate-700 uppercase flex items-center">
+                <i class="fa-solid fa-network-wired mr-2 text-blue-600"></i>PIPING P&ID
+            </h1>
+        </div>
+        <div class="flex items-center space-x-2 text-xs">
+            <span class="text-slate-400 mr-2 text-[11px]"><kbd class="bg-slate-100 px-1 border rounded">F</kbd> Ajustar | <kbd class="bg-slate-100 px-1 border rounded">T</kbd> Zoom todo | <kbd class="bg-slate-100 px-1 border rounded">L</kbd> Trazar tubería | <kbd class="bg-slate-100 px-1 border rounded">W</kbd> Zoom ventana</span>
+        </div>
+    </header>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div class="flex flex-1 overflow-hidden relative" id="main-container">
+
+        <!-- PANEL IZQUIERDO -->
+        <aside id="panel-izq" class="bg-white border-r border-slate-200 p-2.5 flex flex-col space-y-3 overflow-y-auto z-10" style="width: 220px; min-width: 160px; max-width: 400px;">
+            <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1.5 flex items-center">
+                <i class="fa-solid fa-gears mr-1 text-blue-600"></i> Atributos (mm)
+            </h2>
+            <div class="space-y-2 text-xs">
+                <div>
+                    <label class="block text-slate-500 font-medium mb-1">Fluido del proyecto</label>
+                    <select id="selector-fluido" disabled title="Se cambia en Archivo > Datos del proyecto" class="w-full bg-slate-100 border border-slate-200 rounded p-1 text-slate-600 cursor-not-allowed"></select>
+                </div>
+                <div>
+                    <label class="block text-slate-500 font-medium mb-1">Temperatura de servicio (°C)</label>
+                    <input type="number" id="temp-fluido" value="20" step="1" disabled title="Se cambia en Archivo > Datos del proyecto" class="w-full bg-slate-100 border border-slate-200 rounded p-1 text-slate-600 cursor-not-allowed">
+                    <div id="info-fluido" class="text-[10px] text-slate-500 mt-1 leading-tight"></div>
+                </div>
+                <div id="panel-diseno" class="text-[10px] leading-snug bg-slate-50 border border-slate-200 rounded p-1.5 space-y-0.5"></div>
+                <button onclick="abrirDatosProyecto()" class="w-full text-[10px] text-blue-700 hover:bg-blue-50 border border-blue-200 rounded py-1"><i class="fa-solid fa-lock mr-1"></i>Modificar: Archivo &gt; Datos del proyecto</button>
+            </div>
+
+            <div class="border-t border-slate-100 pt-2 flex-1 flex flex-col">
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+                    <span>Selección Activa</span>
+                    <span id="lbl-tipo-activo" class="text-blue-600 font-normal">Ninguno</span>
+                </h3>
+                <div id="panel-propiedades" class="text-[11px] text-slate-600 mt-1 bg-slate-50 p-2 rounded border border-slate-200 flex-1 overflow-y-auto space-y-1.5">
+                    <p class="text-slate-400 italic text-[10px]">Selecciona un elemento.</p>
+                </div>
+            </div>
+        </aside>
+
+        <div class="resizer" id="resizer-1" style="left: 220px;"></div>
+
+        <!-- ZONA GRÁFICA -->
+        <main class="bg-slate-100 flex-1 flex flex-col overflow-hidden relative">
+            <!-- BARRA DE MENÚS (estilo Paint). Se construye desde la tabla MENUS del script -->
+            <nav id="barra-menus"></nav>
+            <div class="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-between z-10 text-xs shadow-xs">
+                <div class="flex items-center space-x-1.5">
+                    <button id="btn-deshacer" onclick="deshacer()" title="Deshacer (Ctrl+Z)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-left mr-1 text-blue-600"></i> Deshacer</button>
+                    <button id="btn-rehacer" onclick="rehacer()" title="Rehacer (Ctrl+Y)" disabled class="bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 px-2.5 py-1 rounded font-medium border border-slate-300 transition flex items-center"><i class="fa-solid fa-rotate-right mr-1 text-blue-600"></i> Rehacer</button>
+                    <span class="w-px h-5 bg-slate-300 mx-1"></span>
+                    <!-- v8.25 · vista del lienzo sin crear hoja: Normal (P&ID) / Isométrico (consulta), y cálculo -->
+                    <button id="btn-vista-normal" onclick="ponerVista('normal')" title="Vista normal del esquema P&ID (Vista > Vista normal)" class="bg-blue-600 text-white border-blue-600 px-2.5 py-1 rounded-l font-medium border transition flex items-center"><i class="fa-solid fa-diagram-project mr-1"></i>Normal</button>
+                    <button id="btn-vista-iso" onclick="ponerVista('iso')" title="Vista isométrica de la red de esta hoja a partir de longitudes y cotas, sin crear hoja (Vista > Vista isométrica)" class="bg-white text-slate-700 border-slate-300 hover:bg-slate-50 px-2.5 py-1 font-medium border transition flex items-center" style="margin-left:-1px"><i class="fa-solid fa-cube mr-1"></i>Isométrico</button>
+                    <button id="btn-vista-3d" onclick="ponerVista('3d')" title="Vista 3D de la red con ejes navales: origen en el eje del timón, +X proa, +Y babor, +Z arriba (Vista > Vista 3D)" class="bg-white text-slate-700 border-slate-300 hover:bg-slate-50 px-2.5 py-1 rounded-r font-medium border transition flex items-center" style="margin-left:-1px"><i class="fa-solid fa-cubes mr-1"></i>3D</button>
+                    <label id="chk-etq-completa" title="Mostrar en los textos de los componentes el schedule y el material (p. ej. C90LR02-R01-2&quot;-STD-WPB). Vista &gt; Textos de los componentes con schedule y material" class="flex items-center gap-1 px-1.5 py-1 text-[11px] text-slate-600 border border-slate-300 rounded bg-white cursor-pointer select-none"><input type="checkbox" onchange="opciones.etqCompleta = this.checked; marcarCambios(true); renderizarVectorial()">Sch/material</label>
+                    <button id="btn-calcular" onclick="calcularRed()" title="Calcular la red (Cálculo > Calcular red)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded shadow-sm flex items-center" style="margin-left:8px"><i class="fa-solid fa-calculator mr-1"></i>Calcular</button>
+                </div>
+            </div>
+
+            <div class="flex-1 relative overflow-hidden">
+            <div id="canvas-container" class="absolute inset-0">
+                <div id="zoom-window-box"></div>
+                <div id="sel-box"></div>
+                <div id="lienzo-espaciador"></div>
+                <div id="marco-a3" class="bg-white">
+                    <svg id="svg-canvas" ondragover="allowDrop(event)" ondrop="dropElemento(event)">
+                        <g id="empty-state" transform="translate(793, 561)">
+                            <text x="0" y="0" font-family="sans-serif" font-size="14" fill="#94a3b8" text-anchor="middle">Arrastra aquí los componentes desde la librería (derecha)</text>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- ÁRBOL DE ESPECIFICACIÓN (estilo CATIA): insertado en la franja izquierda del lienzo, sin caja,
+                 con líneas de conexión; solo sus filas capturan el ratón, el resto del lienzo sigue operativo -->
+            <div id="arbol" class="absolute z-20 text-[11px]" style="top:6px; left:6px; bottom:72px; width:270px; display:flex; flex-direction:column; pointer-events:none;">
+                <div id="arbol-cuerpo" class="arbol-catia overflow-auto" style="pointer-events:none; flex:1; padding-right:6px"></div>
+                <div id="arbol-asa" title="Arrastra para cambiar el ancho del árbol" style="position:absolute; top:0; right:-3px; width:6px; height:100%; cursor:ew-resize; pointer-events:auto;"></div>
+            </div>
+            </div>
+            <!-- HOJAS DEL PROYECTO -->
+            <div id="barra-hojas" class="h-7 shrink-0 bg-slate-200 border-t border-slate-300 flex items-end gap-0.5 px-2 z-20"></div>
+            <!-- TOOLTIP DE COMPONENTE -->
+            <div id="tooltip-comp" style="display:none; position:fixed; z-index:3000; pointer-events:none; max-width:320px;" class="bg-slate-800 text-slate-100 text-[11px] rounded shadow-lg px-2.5 py-1.5 leading-snug"></div>
+            <!-- ICONO DE ORIENTACIÓN DE EJES (fijo a la esquina de la ventana, no representa el origen real) -->
+            <!-- ESTADO DEL CÁLCULO AUTOMÁTICO (clic: ver resultados) -->
+            <div id="estado-calculo" onclick="alternarPanelAvisos()" title="Cálculo automático · clic para ver el panel de avisos (fallos, correcciones con un clic)" class="absolute bottom-9 right-3 z-20 text-[11px] bg-white/90 border border-slate-300 rounded px-2 py-0.5 shadow-sm cursor-pointer" style="display:none"></div>
+            <!-- PANEL DE AVISOS DEL CÁLCULO (clic en el estado del cálculo o Vista > Panel de avisos) -->
+            <div id="panel-avisos" style="display:none; max-height:45%;" class="absolute bottom-16 right-3 z-30 w-[380px] flex-col bg-white border border-slate-300 rounded shadow-lg text-[11px]">
+                <div class="flex items-center gap-2 px-2 py-1.5 bg-slate-100 border-b border-slate-200 rounded-t"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i><span id="panel-avisos-titulo" class="flex-1 font-bold text-slate-700">Avisos del cálculo</span>
+                    <a href="#" onclick="event.preventDefault(); verResultadosAuto()" class="text-blue-700 hover:underline text-[10px]">Ver resultados completos</a>
+                    <button onclick="alternarPanelAvisos(false)" class="text-slate-500 hover:text-slate-800 px-1" title="Cerrar"><i class="fa-solid fa-xmark"></i></button></div>
+                <div id="panel-avisos-cuerpo" class="overflow-y-auto flex-1"></div>
+            </div>
+            <svg id="axis-gizmo" class="absolute bottom-10 left-3 z-20" width="56" height="56" viewBox="0 0 56 56">
+                <line x1="8" y1="48" x2="42" y2="48" stroke="#dc2626" stroke-width="2.5"/>
+                <polygon points="44,48 37,44.5 37,51.5" fill="#dc2626"/>
+                <text x="46" y="51" font-family="sans-serif" font-size="10" font-weight="bold" fill="#dc2626">X</text>
+                <line x1="8" y1="48" x2="8" y2="14" stroke="#16a34a" stroke-width="2.5"/>
+                <polygon points="8,12 4.5,19 11.5,19" fill="#16a34a"/>
+                <text x="3" y="10" font-family="sans-serif" font-size="10" font-weight="bold" fill="#16a34a">Y</text>
+            </svg>
+        </main>
+
+        <div class="resizer" id="resizer-2" style="right: 220px;"></div>
+
+        <!-- PANEL DERECHO: LIBRERÍA -->
+        <aside id="panel-der" class="bg-white border-l border-slate-200 p-2.5 flex flex-col space-y-3 overflow-y-auto z-10" style="width: 220px; min-width: 160px; max-width: 400px;">
+            <div class="border-b border-slate-100 pb-1.5 flex items-center gap-2">
+                <h2 class="text-[10px] font-bold uppercase tracking-wide text-slate-500 flex items-center whitespace-nowrap"><i class="fa-solid fa-shapes mr-1 text-blue-600"></i>Símbolos P&ID</h2>
+            </div>
+
+            <!-- La librería se genera desde TIPOS (ver construirLibreria) -->
+            <div id="libreria" class="space-y-3"></div>
+        </aside>
+
+    </div>
+
+    <script src="js/piping.js?v=8.59"></script>
+    <script>
+        // aviso si index.html y js/piping.js no son de la misma versión (subida incompleta o caché del navegador)
+        (function () { var esperada = '8.59', v = null; try { v = VERSION_WEB; } catch (e) { }
+            if (v === esperada) return;
+            var d = document.createElement('div'); d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;font:bold 13px sans-serif;padding:10px 14px;text-align:center';
+            d.textContent = 'Versiones mezcladas: index.html es ' + esperada + ' y js/piping.js es ' + (v || 'anterior a la 8.4') + '. Sube también la carpeta js completa (js/piping.js y js/partes) y recarga con Ctrl+F5.';
+            document.body.appendChild(d); })();
+    </script>
+</body>
+</html>
