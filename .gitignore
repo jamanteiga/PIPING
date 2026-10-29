@@ -1,0 +1,12 @@
+# --- no se publica (repositorio publico) ---
+copias/
+PROYECTOS/
+DOCUMENTACION/
+IMAGES/
+*.pid
+*.txt
+~$*
+Thumbs.db
+desktop.ini
+# el propio .bat
+SUBIR*.bat

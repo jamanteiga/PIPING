@@ -1,5 +1,5 @@
 -- =====================================================================================
--- PIPING v8.18 · Base de datos de bombas
+-- PIPING v8.18 · Base de datos de bombas (v8.19.1: potencia en la curva · v8.20: ecuaciones de las curvas · v8.23: caudal mínimo y presión del cuerpo)
 --   piping_pumps                   datos generales, punto de diseño (duty point), motor y conexiones
 --   piping_pump_curves             curva característica por puntos (solo centrífugas): Q-H, Q-η, Q-NPSHr
 --   piping_volumetric_pump_specs   bombas volumétricas (pistón, peristáltica, dosificadora...): desplazamiento y presión máxima
@@ -51,6 +51,15 @@ create table if not exists public.piping_pump_curves (
     npshr_m         decimal(6, 2)                       -- NPSHr en ese punto
 );
 create index if not exists piping_pump_curves_pump on public.piping_pump_curves (pump_id, flow_m3h);
+-- v8.19.1: potencia absorbida en el eje (P2) en cada punto de la curva
+-- v8.20: ecuaciones de las curvas (polinomios Q-H, Q-NPSHr, Q-P, Q-η; Q en m3/h), validadas al elegir la bomba
+alter table public.piping_pumps add column if not exists curve_equations jsonb;
+-- v8.23: caudal mínimo continuo y presión máxima del cuerpo
+alter table public.piping_pumps add column if not exists min_flow_m3h decimal(10, 4);
+alter table public.piping_pumps add column if not exists casing_max_pressure_bar decimal(8, 2);
+alter table public.piping_pump_curves add column if not exists power_kw decimal(10, 4);
+-- v8.25: conexiones de aspiración e impulsión {asp:{tipo, norma, rating}, imp:{...}} (tipo: Bridada, Roscada...; norma: de brida o de rosca)
+alter table public.piping_pumps add column if not exists connections jsonb;
 create table if not exists public.piping_volumetric_pump_specs (
     pump_id                      varchar(50) primary key references public.piping_pumps(pump_id) on delete cascade,
     displacement_per_stroke_cm3  decimal(10, 4),        -- volumen por revolución / embolada
@@ -69,7 +78,7 @@ create or replace function public.piping_pumps_listar() returns json
 language sql stable security definer set search_path = public as $$
     select coalesce(json_agg(x order by x->>'manufacturer', x->>'model', x->>'pump_id'), '[]'::json) from (
         select (to_jsonb(p) || jsonb_build_object(
-            'curves', coalesce((select jsonb_agg(jsonb_build_object('flow_m3h', c.flow_m3h, 'head_m', c.head_m, 'efficiency_pct', c.efficiency_pct, 'npshr_m', c.npshr_m) order by c.flow_m3h) from public.piping_pump_curves c where c.pump_id = p.pump_id), '[]'::jsonb),
+            'curves', coalesce((select jsonb_agg(jsonb_build_object('flow_m3h', c.flow_m3h, 'head_m', c.head_m, 'efficiency_pct', c.efficiency_pct, 'npshr_m', c.npshr_m, 'power_kw', c.power_kw) order by c.flow_m3h) from public.piping_pump_curves c where c.pump_id = p.pump_id), '[]'::jsonb),
             'volumetric', (select to_jsonb(v) - 'pump_id' from public.piping_volumetric_pump_specs v where v.pump_id = p.pump_id)))::json as x
         from public.piping_pumps p) t $$;
 
@@ -87,24 +96,27 @@ begin
     end if;
     v_nuevo := not exists (select 1 from public.piping_pumps where pump_id = v_id);
     insert into public.piping_pumps (pump_id, tag_name, pump_type, manufacturer, model, design_fluid, design_flow_m3h, design_head_m, shutoff_head_m, npshr_m, operational_rpm, motor_power_kw, efficiency_pct, voltage, frequency_hz, ip_rating,
-            impeller_mm, impeller_max_mm, suction_size, discharge_size, flange_standard, pressure_rating, api_plan, url, notes, modificado, modificado_por)
+            impeller_mm, impeller_max_mm, suction_size, discharge_size, flange_standard, pressure_rating, api_plan, url, notes, curve_equations, min_flow_m3h, casing_max_pressure_bar, connections, modificado, modificado_por)
     values (v_id, coalesce(p_item->>'tag_name', ''), coalesce(nullif(p_item->>'pump_type', ''), 'Centrifugal'), coalesce(p_item->>'manufacturer', ''), coalesce(p_item->>'model', ''), coalesce(p_item->>'design_fluid', ''),
             (p_item->>'design_flow_m3h')::numeric, (p_item->>'design_head_m')::numeric, nullif(p_item->>'shutoff_head_m', '')::numeric, nullif(p_item->>'npshr_m', '')::numeric, nullif(p_item->>'operational_rpm', '')::numeric,
             nullif(p_item->>'motor_power_kw', '')::numeric, nullif(p_item->>'efficiency_pct', '')::numeric, coalesce(p_item->>'voltage', ''), coalesce(p_item->>'frequency_hz', ''), coalesce(p_item->>'ip_rating', ''),
             nullif(p_item->>'impeller_mm', '')::numeric, nullif(p_item->>'impeller_max_mm', '')::numeric, coalesce(p_item->>'suction_size', ''), coalesce(p_item->>'discharge_size', ''), coalesce(p_item->>'flange_standard', ''),
-            coalesce(p_item->>'pressure_rating', ''), coalesce(p_item->>'api_plan', ''), coalesce(p_item->>'url', ''), coalesce(p_item->>'notes', ''), now(), u.usuario)
+            coalesce(p_item->>'pressure_rating', ''), coalesce(p_item->>'api_plan', ''), coalesce(p_item->>'url', ''), coalesce(p_item->>'notes', ''),
+            case when json_typeof(p_item->'curve_equations') = 'object' then (p_item->'curve_equations')::jsonb end,
+            nullif(p_item->>'min_flow_m3h', '')::numeric, nullif(p_item->>'casing_max_pressure_bar', '')::numeric,
+            case when json_typeof(p_item->'connections') = 'object' then (p_item->'connections')::jsonb end, now(), u.usuario)
     on conflict (pump_id) do update set tag_name = excluded.tag_name, pump_type = excluded.pump_type, manufacturer = excluded.manufacturer, model = excluded.model, design_fluid = excluded.design_fluid,
             design_flow_m3h = excluded.design_flow_m3h, design_head_m = excluded.design_head_m, shutoff_head_m = excluded.shutoff_head_m, npshr_m = excluded.npshr_m, operational_rpm = excluded.operational_rpm,
             motor_power_kw = excluded.motor_power_kw, efficiency_pct = excluded.efficiency_pct, voltage = excluded.voltage, frequency_hz = excluded.frequency_hz, ip_rating = excluded.ip_rating,
             impeller_mm = excluded.impeller_mm, impeller_max_mm = excluded.impeller_max_mm, suction_size = excluded.suction_size, discharge_size = excluded.discharge_size, flange_standard = excluded.flange_standard,
-            pressure_rating = excluded.pressure_rating, api_plan = excluded.api_plan, url = excluded.url, notes = excluded.notes, modificado = now(), modificado_por = u.usuario
+            pressure_rating = excluded.pressure_rating, api_plan = excluded.api_plan, url = excluded.url, notes = excluded.notes, curve_equations = excluded.curve_equations, min_flow_m3h = excluded.min_flow_m3h, casing_max_pressure_bar = excluded.casing_max_pressure_bar, connections = excluded.connections, modificado = now(), modificado_por = u.usuario
     returning * into r;
     -- la curva y los datos volumétricos se sustituyen enteros
     delete from public.piping_pump_curves where pump_id = v_id;
     if json_typeof(p_item->'curves') = 'array' then
         for c in select * from json_array_elements(p_item->'curves') loop
-            insert into public.piping_pump_curves (pump_id, flow_m3h, head_m, efficiency_pct, npshr_m)
-            values (v_id, (c->>'flow_m3h')::numeric, (c->>'head_m')::numeric, nullif(c->>'efficiency_pct', '')::numeric, nullif(c->>'npshr_m', '')::numeric);
+            insert into public.piping_pump_curves (pump_id, flow_m3h, head_m, efficiency_pct, npshr_m, power_kw)
+            values (v_id, (c->>'flow_m3h')::numeric, (c->>'head_m')::numeric, nullif(c->>'efficiency_pct', '')::numeric, nullif(c->>'npshr_m', '')::numeric, nullif(c->>'power_kw', '')::numeric);
         end loop;
     end if;
     delete from public.piping_volumetric_pump_specs where pump_id = v_id;
