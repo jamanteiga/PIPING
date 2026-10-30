@@ -11046,7 +11046,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.64';
+        const VERSION_WEB = '8.65';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -13036,7 +13036,7 @@
             { icono: s.rol === 'admin' ? 'fa-user-shield' : 'fa-user-check', texto: `Sesión: ${nombreSesion(s)} · ${trad(ROLES[s.rol])}`, accion: () => {} },
             { icono: 'fa-id-badge', texto: 'Mi perfil...', accion: () => abrirPerfil() },
             { icono: 'fa-key', texto: 'Cambiar mi contraseña...', accion: () => cambiarClaveAdmin() },
-            ...(s.rol === 'admin' ? ['sep', { icono: 'fa-users', texto: 'Usuarios...', accion: () => abrirUsuarios() }, { icono: 'fa-clipboard-list', texto: 'Registro de actividad...', accion: () => abrirRegistro() }] : []),
+            ...(s.rol === 'admin' ? ['sep', { icono: 'fa-users', texto: 'Usuarios...', accion: () => abrirUsuarios() }, { icono: 'fa-clipboard-list', texto: 'Registro de actividad...', accion: () => abrirRegistro() }, { icono: 'fa-globe', texto: 'Registro de accesos (IP, lugar, navegador)...', accion: () => abrirAccesos() }] : []),
             'sep', { icono: 'fa-right-from-bracket', texto: 'Cerrar sesión', accion: () => cerrarSesionAdmin() }
         ] : [{ icono: 'fa-right-to-bracket', texto: 'Iniciar sesión...', accion: () => iniciarSesionAdmin() }, { icono: 'fa-circle-info', texto: 'Modo invitado: se puede ver y probar todo, pero no guardar ni exportar', accion: () => {} }]; }
         { const archivo = MENUS.find(m => m.titulo === 'Archivo'), k = archivo.items.findIndex(x => x && x.texto === 'Nube (equipo)'); archivo.items.splice(k + 1, 0, { icono: 'fa-user-shield', texto: 'Administración', sub: () => submenuAdministracion() }); }
@@ -13045,13 +13045,56 @@
             const r = await dialogo('<i class="fa-solid fa-user-lock text-amber-600 mr-1.5"></i>Acceso a PIPING',
                 `<div class="border-2 border-amber-400 bg-amber-50 rounded-lg p-3 text-center"><p class="text-base font-bold text-amber-700"><i class="fa-solid fa-user mr-1.5"></i>Vas a entrar en MODO INVITADO</p>
                 <p class="mt-1 text-amber-800">Puedes ver y probar toda la aplicación, pero <b>no se guarda ni se exporta nada</b> (proyectos, DXF, PDF, informes, listados, impresión, nube).</p></div>
-                <p class="mt-2 text-slate-500 text-[11px]">Para trabajar con guardado: Archivo > Administración > Iniciar sesión.</p>`,
+                <p class="mt-2 text-slate-500 text-[11px]">Como invitado se abre directamente un proyecto de ejemplo, sin pedir datos. Para trabajar con guardado: Archivo > Administración > Iniciar sesión.</p>
+                <p class="mt-2 text-slate-400 text-[10px] leading-snug"><i class="fa-solid fa-shield-halved mr-1"></i>Por seguridad y estadística se registra cada acceso: dirección IP, ubicación aproximada (país y ciudad según la IP), sistema operativo, navegador, idioma y pantalla. No se registra lo que dibujas.</p>`,
                 [{ texto: 'Entrar como invitado', valor: 'invitado', clase: 'bg-amber-500 hover:bg-amber-600 text-white' }, { texto: 'Iniciar sesión...', valor: 'admin', clase: 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' }]);
             if (r === 'admin') await iniciarSesionAdmin();
             pintarInsignia();
-            if (!sesionActual()) aviso('Modo invitado: solo consulta. Archivo > Administración > Iniciar sesión para guardar.');
+            const s = sesionActual(); registrarAcceso('entrada', s ? 'sesión' : 'invitado');
+            if (!s) { aviso('Modo invitado: proyecto de ejemplo abierto. Puedes dibujar y calcular; no se guarda. Archivo > Administración > Iniciar sesión para guardar.'); return 'invitado'; }
+            return 'sesion';
         }
-        { const _pi = pantallaInicio; let primera = true; pantallaInicio = async function () { if (primera) { primera = false; if (!sesionActual()) await pantallaAcceso(); } return _pi.apply(this, arguments); }; }
+        // v8.65 · invitado: entra directamente con un proyecto de ejemplo (datos/ejemplo.js), sin pantalla de inicio ni datos del proyecto
+        async function abrirEjemploInvitado() {
+            try {
+                if (!window.PIPING_EJEMPLO) await new Promise((ok, mal) => { const sc = document.createElement('script'); sc.src = 'datos/ejemplo.js?v=' + VERSION_WEB; sc.onload = ok; sc.onerror = mal; document.head.appendChild(sc); });
+                const _av = aviso; aviso = (m, t) => { if (!/librer/.test(String(m))) _av(m, t); }; try { cargarProyectoDesdeTexto(JSON.stringify(window.PIPING_EJEMPLO)); } finally { aviso = _av; } marcarCambios(false); historialUndo.length = 0;
+                setTimeout(() => { try { zoomTodo(); } catch (e) { } }, 300); return true;
+            } catch (e) { console.warn('ejemplo', e); return false; }
+        }
+        { const _pi = pantallaInicio; let primera = true; pantallaInicio = async function () {
+            if (primera) { primera = false; if (!sesionActual()) { const m = await pantallaAcceso(); if (m === 'invitado' && await abrirEjemploInvitado()) return; } else registrarAcceso('entrada', 'sesión recordada'); }
+            return _pi.apply(this, arguments); }; }
+        // ==================================================================================
+        // v8.65 · REGISTRO DE ACCESOS: cada entrada (invitado o con sesión), los inicios de sesión y la salida con su duración.
+        // Se envía a la Edge Function «piping-acceso» (sin clave en el navegador): ella toma la IP de la petición, la
+        // geolocaliza y lo guarda en piping_accesos (supabase/14_accesos.sql). Lo lee el administrador: Archivo › Administración › Registro de accesos.
+        // ==================================================================================
+        const URL_ACCESO = `${SUPABASE_URL}/functions/v1/piping-acceso`;
+        const idTab = (() => { try { return crypto.randomUUID(); } catch (e) { return String(Date.now()) + Math.random().toString(16).slice(2); } })();
+        function idVisitante() { try { let v = localStorage.getItem('piping-visitante'); if (!v) { v = idTab; localStorage.setItem('piping-visitante', v); } return v; } catch (e) { return null; } }
+        let datosClienteCache = null, inicioVisita = Date.now(), accesoEnviado = false;
+        async function datosCliente() {
+            if (datosClienteCache) return datosClienteCache;
+            const n = navigator, d = { ua: n.userAgent, plataforma: n.platform || '', idioma: n.language || '', idiomas: (n.languages || []).join(','), zona: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return ''; } })(),
+                pantalla: `${screen.width}×${screen.height} @${(window.devicePixelRatio || 1).toFixed(2)}`, ventana: `${innerWidth}×${innerHeight}`, tactil: (n.maxTouchPoints || 0) > 0, nucleos: n.hardwareConcurrency || null, memoria: n.deviceMemory || null,
+                referer: document.referrer || '', url: location.href.split('#')[0], version: VERSION_WEB };
+            try { if (n.userAgentData && n.userAgentData.getHighEntropyValues) { const h = await n.userAgentData.getHighEntropyValues(['platform', 'platformVersion', 'model', 'fullVersionList', 'architecture', 'bitness']); d.uach = { platform: h.platform, platformVersion: h.platformVersion, model: h.model, arch: h.architecture, bits: h.bitness, marcas: (h.fullVersionList || []).map(b => b.brand + ' ' + b.version).join('; '), movil: n.userAgentData.mobile }; } } catch (e) { }
+            return datosClienteCache = d;
+        }
+        async function registrarAcceso(evento, modo, detalle) {
+            try {
+                if (location.protocol === 'file:' && !/[?&]log=1/.test(location.search)) return;   // pruebas locales (doble clic) no cuentan
+                const s = sesionActual(), c = await datosCliente();
+                const cuerpo = JSON.stringify(Object.assign({ evento, modo: modo || (s ? 'sesión' : 'invitado'), usuario: s ? s.usuario : null, rol: s ? s.rol : null, visitante: idVisitante(), sesion: idTab, detalle: detalle || null, segundos: Math.round((Date.now() - inicioVisita) / 1000) }, c));
+                if (evento === 'salida' && navigator.sendBeacon) { navigator.sendBeacon(URL_ACCESO, new Blob([cuerpo], { type: 'text/plain' })); return; }
+                fetch(URL_ACCESO, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: cuerpo, keepalive: true }).catch(() => { });
+                if (evento === 'entrada') accesoEnviado = true;
+            } catch (e) { }
+        }
+        window.addEventListener('pagehide', () => { if (accesoEnviado) registrarAcceso('salida'); });
+        { const _isa = iniciarSesionAdmin; iniciarSesionAdmin = async function () { const antes = sesionActual(), r = await _isa.apply(this, arguments); const s = sesionActual(); if (s && (!antes || antes.usuario !== s.usuario) && accesoEnviado) registrarAcceso('inicio de sesión', 'sesión'); return r; }; }
+        function abrirAccesos(...a) { return PARTES_OK.admin ? abrirAccesos__p.apply(this, a) : cargarParte('admin').then(() => abrirAccesos__p.apply(this, a)); }
         setTimeout(pintarInsignia, 0);
         // ==================================================================================
         // v8.7 · Sesión que se renueva sola, «Mi perfil», indicador de guardado, registro de actividad

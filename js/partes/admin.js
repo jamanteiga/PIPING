@@ -176,4 +176,36 @@ async function exportarRegistro() {
             X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Fecha', 'Usuario', 'Nombre', 'Rol', 'Acción', 'Proyecto', 'Detalle'], ...registroFiltrado().map(x => [fechaHora(x.fecha), x.usuario, x.nombre, ROLES[x.rol] || x.rol, x.accion, x.proyecto, x.detalle])]), 'Registro');
             X.writeFile(wb, 'registro_actividad_PIPING.xlsx');
         }
+// v8.65 · registro de accesos (supabase/14_accesos.sql + Edge Function piping-acceso)
+let accesosDatos = [];
+async function abrirAccesos__p() {
+            cerrarMenus(); const s = sesionActual();
+            if (!tienePermiso('usuarios')) { aviso('Solo un administrador puede ver el registro de accesos.', 'error'); return; }
+            if (s.origen !== 'supabase') { if (await conectarUsuariosSupabase()) abrirAccesos(); return; }
+            try { accesosDatos = await rpcUsuarios('piping_accesos_listar', { p_token: s.token, p_limite: 3000 }) || []; }
+            catch (e) { aviso(e.sinFuncion ? 'Falta ejecutar supabase/14_accesos.sql.' : 'Accesos: ' + e.message, 'error'); return; }
+            const hoy = new Date().toISOString().slice(0, 10), vis = new Set(accesosDatos.filter(x => x.evento === 'entrada').map(x => x.visitante)), ips = new Set(accesosDatos.map(x => x.ip));
+            document.getElementById('red-content').innerHTML = `<p class="text-[11px] text-slate-500 mb-2">${accesosDatos.filter(x => x.evento === 'entrada').length} entradas · ${vis.size} visitantes distintos · ${ips.size} IP · hoy ${accesosDatos.filter(x => x.evento === 'entrada' && String(x.fecha).slice(0, 10) === hoy).length}</p>
+                <div class="flex gap-2 mb-2 text-xs"><input id="ac-q" placeholder="Filtrar: IP, país, ciudad, sistema, navegador, usuario…" class="border rounded p-1.5 flex-1" oninput="pintarAccesos()">
+                <select id="ac-e" class="border rounded p-1.5" onchange="pintarAccesos()"><option value="entrada">Solo entradas</option><option value="">Todos los eventos</option></select></div><div id="ac-lista" class="max-h-[62vh] overflow-auto"></div>`;
+            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><button onclick="exportarAccesos()" class="px-3 py-1.5 border rounded"><i class="fa-solid fa-file-excel mr-1"></i>Excel</button><span class="text-slate-400 self-center flex-1">Se conservan 12 meses (supabase/14_accesos.sql).</span><button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 text-white rounded">Cerrar</button></div>`;
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-globe text-blue-600 mr-1.5"></i> Registro de accesos';
+            document.querySelector('#modal-red > div').style.width = 'min(1300px, 98vw)';
+            document.getElementById('modal-red').style.display = 'flex';
+            pintarAccesos();
+        }
+function accesosFiltrados() { const q = valorCampo('ac-q').toLowerCase(), ev = valorCampo('ac-e'); return accesosDatos.filter(x => (!ev || x.evento === ev) && (!q || [x.ip, x.pais, x.region, x.ciudad, x.isp, x.so, x.navegador, x.dispositivo, x.usuario, x.modo, x.idioma, x.referer].join(' ').toLowerCase().includes(q))); }
+const durTxt = sg => sg == null ? '' : sg < 60 ? sg + ' s' : sg < 3600 ? Math.round(sg / 60) + ' min' : (sg / 3600).toFixed(1) + ' h';
+function pintarAccesos() {
+            const c = document.getElementById('ac-lista'); if (!c) return; const f = accesosFiltrados();
+            const salida = {}; accesosDatos.filter(x => x.evento === 'salida').forEach(x => { salida[x.sesion] = Math.max(salida[x.sesion] || 0, x.segundos || 0); });
+            c.innerHTML = f.length ? `<table class="w-full text-[11px]"><thead class="sticky top-0 bg-white"><tr class="text-left text-slate-500"><th class="py-1">Fecha</th><th>Evento</th><th>Modo / usuario</th><th>IP</th><th>Lugar</th><th>Proveedor</th><th>Sistema</th><th>Navegador</th><th>Disp.</th><th>Idioma · zona</th><th>Pantalla</th><th>Duración</th><th>Procedencia</th></tr></thead><tbody>
+                ${f.map(x => `<tr class="border-t align-top"><td class="py-0.5 whitespace-nowrap">${esc(fechaHora(x.fecha))}</td><td>${esc(x.evento)}</td><td>${esc(x.modo || '')}${x.usuario ? ' · <b>' + esc(x.usuario) + '</b>' : ''}</td><td class="font-mono">${esc(x.ip || '')}</td><td>${esc([x.ciudad, x.region, x.pais].filter(Boolean).join(', '))}</td><td>${esc(x.isp || '')}</td><td>${esc(x.so || '')}</td><td>${esc(x.navegador || '')}</td><td>${esc(x.dispositivo || '')}</td><td>${esc([x.idioma, x.zona].filter(Boolean).join(' · '))}</td><td>${esc(x.pantalla || '')}</td><td>${esc(durTxt(x.evento === 'entrada' ? salida[x.sesion] : x.segundos))}</td><td class="max-w-[160px] truncate" title="${esc(x.referer || '')}">${esc((x.referer || '').replace(/^https?:\/\//, ''))}</td></tr>`).join('')}</tbody></table>` : '<p class="text-slate-400 text-xs">Sin accesos registrados.</p>';
+        }
+async function exportarAccesos() {
+            let X; try { X = await cargarXLSX(); } catch (e) { aviso(e.message, 'error'); return; }
+            const wb = X.utils.book_new(), cab = ['Fecha', 'Evento', 'Modo', 'Usuario', 'Rol', 'IP', 'País', 'Región', 'Ciudad', 'Proveedor', 'Sistema', 'Navegador', 'Dispositivo', 'Idioma', 'Zona horaria', 'Pantalla', 'Segundos', 'Procedencia', 'URL', 'Versión', 'Visitante', 'Sesión', 'User-Agent'];
+            X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([cab, ...accesosFiltrados().map(x => [fechaHora(x.fecha), x.evento, x.modo, x.usuario, x.rol, x.ip, x.pais, x.region, x.ciudad, x.isp, x.so, x.navegador, x.dispositivo, x.idioma, x.zona, x.pantalla, x.segundos, x.referer, x.url, x.version, x.visitante, x.sesion, x.ua])]), 'Accesos');
+            X.writeFile(wb, 'accesos_PIPING.xlsx');
+        }
 PARTES_OK.admin = true;
