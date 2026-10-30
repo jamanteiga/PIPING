@@ -9772,6 +9772,45 @@
         const odMm = dn => { const t = ACERO_TAM.find(x => x.clave === dn); if (t) return t.od; if (/^d\d/.test(dn || '') && CAT) { for (const m of Object.values(CAT.materiales)) { const u = (m.tamanos || []).find(x => x.clave === dn); if (u) return u.od; } return dnNum(dn); } return Math.max(10, dnNum(dn) * 1.15); };
         const T_TE = [[.5, 25], [.75, 29], [1, 38], [1.25, 48], [1.5, 57], [2, 64], [2.5, 76], [3, 86], [3.5, 95], [4, 105], [5, 124], [6, 143], [8, 178], [10, 216], [12, 254], [14, 279], [16, 305], [20, 381], [24, 432]];
         const T_RED = [[.75, 38], [1, 51], [1.5, 64], [2, 76], [2.5, 89], [3, 89], [4, 102], [5, 127], [6, 140], [8, 152], [10, 178], [12, 203], [14, 330], [16, 356], [20, 508], [24, 508]];
+
+        // v8.66 · BRIDAS REALES. ASME B16.5 (mm): [NPS, O, tf, R (cara RF), X (cubo), Y cuello WN, Y SO/TH, W (círculo pernos), nº pernos, Ø taladro]
+        const BR_ASME = {
+            150: [[.5, 90, 9.6, 34.9, 30.2, 46, 14, 60.3, 4, 15.7], [.75, 100, 11.2, 42.9, 38.1, 51, 14, 69.8, 4, 15.7], [1, 110, 12.7, 50.8, 49.2, 54, 16, 79.4, 4, 15.7], [1.25, 115, 14.3, 63.5, 58.7, 56, 19, 88.9, 4, 15.7], [1.5, 125, 15.9, 73.0, 65.1, 60, 21, 98.4, 4, 15.7],
+                [2, 150, 17.5, 92.1, 77.8, 62, 24, 120.7, 4, 19.1], [2.5, 180, 20.7, 104.8, 90.5, 68, 27, 139.7, 4, 19.1], [3, 190, 22.3, 127.0, 108.0, 68, 29, 152.4, 4, 19.1], [3.5, 215, 22.3, 139.7, 122.2, 70, 30, 177.8, 8, 19.1], [4, 230, 22.3, 157.2, 134.9, 75, 32, 190.5, 8, 19.1],
+                [5, 255, 22.3, 185.7, 163.5, 87, 35, 215.9, 8, 22.4], [6, 280, 23.9, 215.9, 192.1, 87, 38, 241.3, 8, 22.4], [8, 345, 27.0, 269.9, 246.1, 100, 43, 298.5, 8, 22.4], [10, 405, 28.6, 323.8, 304.8, 100, 48, 362.0, 12, 25.4], [12, 485, 30.2, 381.0, 365.1, 113, 54, 431.8, 12, 25.4],
+                [14, 535, 33.4, 412.8, 400.0, 125, 56, 476.3, 12, 28.4], [16, 595, 35.0, 469.9, 457.2, 125, 62, 539.8, 16, 28.4], [18, 635, 38.1, 533.4, 505.0, 138, 67, 577.9, 16, 31.8], [20, 700, 41.3, 584.2, 558.8, 143, 71, 635.0, 20, 31.8], [24, 815, 46.1, 692.2, 663.4, 151, 81, 749.3, 20, 35.1]],
+            300: [[.5, 95, 12.7, 34.9, 38.1, 51, 21, 66.7, 4, 15.7], [.75, 115, 14.3, 42.9, 47.6, 56, 24, 82.6, 4, 19.1], [1, 125, 15.9, 50.8, 54.0, 60, 25, 88.9, 4, 19.1], [1.25, 135, 17.5, 63.5, 63.5, 64, 25, 98.4, 4, 19.1], [1.5, 155, 19.1, 73.0, 69.8, 67, 29, 114.3, 4, 22.4],
+                [2, 165, 20.7, 92.1, 84.1, 68, 32, 127.0, 8, 19.1], [2.5, 190, 23.9, 104.8, 100.0, 75, 37, 149.2, 8, 22.4], [3, 210, 27.0, 127.0, 117.5, 78, 41, 168.3, 8, 22.4], [3.5, 230, 28.6, 139.7, 133.4, 79, 43, 184.2, 8, 22.4], [4, 255, 30.2, 157.2, 146.0, 84, 46, 200.0, 8, 22.4],
+                [5, 280, 33.4, 185.7, 177.8, 97, 49, 235.0, 8, 22.4], [6, 320, 35.0, 215.9, 206.4, 97, 51, 269.9, 12, 22.4], [8, 380, 39.7, 269.9, 260.4, 110, 60, 330.2, 12, 25.4], [10, 445, 46.1, 323.8, 320.7, 116, 65, 387.4, 16, 28.4], [12, 520, 49.3, 381.0, 374.7, 129, 71, 450.8, 16, 31.8],
+                [14, 585, 52.4, 412.8, 425.5, 141, 75, 514.4, 20, 31.8], [16, 650, 55.6, 469.9, 482.6, 144, 81, 571.5, 20, 35.1], [18, 710, 58.8, 533.4, 533.4, 157, 87, 628.6, 24, 35.1], [20, 775, 62.0, 584.2, 587.2, 160, 94, 685.8, 24, 35.1], [24, 915, 68.3, 692.2, 701.5, 167, 105, 812.8, 24, 41.1]],
+            600: [[.5, 95, 14.3, 34.9, 38.1, 52, 22, 66.7, 4, 15.7], [.75, 115, 15.9, 42.9, 47.6, 57, 25, 82.6, 4, 19.1], [1, 125, 17.5, 50.8, 54.0, 62, 27, 88.9, 4, 19.1], [1.25, 135, 20.7, 63.5, 63.5, 67, 29, 98.4, 4, 19.1], [1.5, 155, 22.3, 73.0, 69.8, 70, 32, 114.3, 4, 22.4],
+                [2, 165, 25.4, 92.1, 84.1, 73, 37, 127.0, 8, 19.1], [2.5, 190, 28.6, 104.8, 100.0, 79, 41, 149.2, 8, 22.4], [3, 210, 31.8, 127.0, 117.5, 83, 46, 168.3, 8, 22.4], [4, 275, 38.1, 157.2, 152.4, 102, 54, 215.9, 8, 25.4], [5, 330, 44.5, 185.7, 188.9, 114, 60, 266.7, 8, 28.4],
+                [6, 355, 47.7, 215.9, 222.3, 117, 67, 292.1, 12, 28.4], [8, 420, 55.6, 269.9, 273.1, 133, 76, 349.2, 12, 31.8], [10, 510, 63.5, 323.8, 342.9, 152, 86, 431.8, 16, 35.1], [12, 560, 66.7, 381.0, 400.0, 156, 92, 489.0, 20, 35.1],
+                [14, 605, 69.9, 412.8, 431.8, 165, 94, 527.0, 20, 38.1], [16, 685, 76.2, 469.9, 495.3, 178, 106, 603.2, 20, 41.1], [18, 745, 82.6, 533.4, 546.1, 184, 117, 654.0, 20, 44.5], [20, 815, 88.9, 584.2, 609.6, 190, 127, 723.9, 24, 44.5], [24, 940, 101.6, 692.2, 717.6, 203, 140, 838.2, 24, 50.8]]
+        };
+        // EN 1092-1 (mm): [DN, D, K (círculo pernos), nº pernos, Ø taladro, C (espesor), d1 (cara B1), H2 (cuello tipo 11), N1 (cubo)]
+        const BR_EN16 = [[15, 95, 65, 4, 14, 16, 45, 35, 32], [20, 105, 75, 4, 14, 18, 58, 38, 40], [25, 115, 85, 4, 14, 18, 68, 38, 46], [32, 140, 100, 4, 18, 18, 78, 40, 56], [40, 150, 110, 4, 18, 18, 88, 42, 64], [50, 165, 125, 4, 18, 18, 102, 45, 74],
+            [65, 185, 145, 8, 18, 18, 122, 45, 92], [80, 200, 160, 8, 18, 20, 138, 50, 105], [100, 220, 180, 8, 18, 20, 158, 52, 131], [125, 250, 210, 8, 18, 22, 188, 55, 156], [150, 285, 240, 8, 22, 22, 212, 55, 184], [200, 340, 295, 12, 22, 24, 268, 62, 235],
+            [250, 405, 355, 12, 26, 26, 320, 70, 292], [300, 460, 410, 12, 26, 28, 378, 78, 344], [350, 520, 470, 16, 26, 30, 438, 82, 390], [400, 580, 525, 16, 30, 32, 490, 85, 445], [500, 715, 650, 20, 33, 36, 610, 90, 548], [600, 840, 770, 20, 36, 40, 725, 95, 652]];
+        const BR_EN_DIF = {   // diferencias con PN 16: [DN, D, K, n, Ø taladro, C]
+            6: [[15, 80, 55, 4, 11, 12], [20, 90, 65, 4, 11, 14], [25, 100, 75, 4, 11, 14], [32, 120, 90, 4, 14, 14], [40, 130, 100, 4, 14, 14], [50, 140, 110, 4, 14, 14], [65, 160, 130, 4, 14, 14], [80, 190, 150, 4, 18, 16], [100, 210, 170, 4, 18, 16], [125, 240, 200, 8, 18, 18], [150, 265, 225, 8, 18, 18], [200, 320, 280, 8, 18, 20], [250, 375, 335, 12, 18, 22], [300, 440, 395, 12, 22, 22]],
+            10: [[200, 340, 295, 8, 22, 24], [250, 395, 350, 12, 22, 26], [300, 445, 400, 12, 22, 26], [350, 505, 460, 16, 22, 26], [400, 565, 515, 16, 26, 26], [500, 670, 620, 20, 26, 28], [600, 780, 725, 20, 30, 28]],
+            25: [[50, 165, 125, 4, 18, 20], [65, 185, 145, 8, 18, 22], [80, 200, 160, 8, 18, 24], [100, 235, 190, 8, 22, 24], [125, 270, 220, 8, 26, 26], [150, 300, 250, 8, 26, 28], [200, 360, 310, 12, 26, 30], [250, 425, 370, 12, 30, 32], [300, 485, 430, 16, 30, 34]],
+            40: [[50, 165, 125, 4, 18, 20], [65, 185, 145, 8, 18, 22], [80, 200, 160, 8, 18, 24], [100, 235, 190, 8, 22, 24], [125, 270, 220, 8, 26, 26], [150, 300, 250, 8, 26, 28], [200, 375, 320, 12, 30, 34], [250, 450, 385, 12, 33, 38], [300, 515, 450, 16, 33, 42]]
+        };
+        // medidas reales de la brida de un elemento (por su DN y su rating); aprox = escalada desde la clase/PN más próxima
+        function bridaReal(el) {
+            const pn = String(el.pn || ''), cerca = (tab, x) => tab.reduce((m, r) => Math.abs(r[0] - x) < Math.abs(m[0] - x) ? r : m, tab[0]);
+            const ff = el.cara === 'FF';
+            if (/#/.test(pn) || (!/PN/i.test(pn) && el.normaPN !== 'EN')) {
+                const cl = parseInt(pn) || 150, base = cl <= 150 ? 150 : cl <= 300 ? 300 : 600, k = cl > 600 ? Math.pow(cl / 600, 0.18) : 1, r = cerca(BR_ASME[base], npsNum(el.dn || 'DN 50'));
+                return { norma: `ASME B16.5 Cl.${cl}`, aprox: cl > 600 || ![150, 300, 600].includes(cl), O: r[1] * k, tf: r[2] * k, R: r[3], hRF: ff ? 0 : cl >= 600 ? 6.4 : 1.6, X: r[4] * k, Ywn: r[5] * k, Yso: r[6] * k, W: r[7] * k, n: r[8], d: r[9] };
+            }
+            const p = parseInt(pn.replace(/\D/g, '')) || 16, dn = dnNum(el.dn || 'DN 50'), b = cerca(BR_EN16, dn), pk = p <= 6 ? 6 : p <= 10 ? 10 : p <= 16 ? 16 : p <= 25 ? 25 : 40;
+            let D = b[1], K = b[2], n = b[3], d = b[4], C = b[5]; const dif = BR_EN_DIF[pk] && BR_EN_DIF[pk].find(r => r[0] === b[0]);
+            if (dif) [, D, K, n, d, C] = dif; else if (pk > 16 && b[0] > 300) { const k = Math.pow(pk / 16, 0.2); D *= k; K *= k; C *= k; }
+            return { norma: `EN 1092-1 PN ${p}`, aprox: pk !== p || (pk > 16 && !dif && b[0] > 15 && b[0] >= 50), O: D, tf: C, R: Math.min(b[6], K - d - 4), hRF: ff ? 0 : b[0] <= 250 ? 2 : 3, X: b[8] * (D / b[1]), Ywn: b[7] * (C / b[5]), Yso: Math.max(C + 6, b[7] * 0.55), W: K, n, d };
+        }
         const T_BRIDA_O = [[.5, 89], [.75, 98], [1, 108], [1.25, 117], [1.5, 127], [2, 152], [2.5, 178], [3, 190], [4, 229], [5, 254], [6, 279], [8, 343], [10, 406], [12, 483], [14, 533], [16, 597], [20, 699], [24, 813]];
         const T_BRIDA_E = [[.5, 11], [1, 14], [2, 19], [3, 24], [4, 24], [6, 25], [8, 29], [10, 30], [12, 32], [16, 37], [24, 46]];
         const T_WN = [[.5, 46], [1, 54], [2, 62], [3, 68], [4, 75], [6, 87], [8, 100], [10, 100], [12, 113], [16, 125], [24, 152]];
@@ -9796,6 +9835,7 @@
             if (st === 'tee' || st === 'cruce') return { def: interpT(T_TE, n) };
             if (st === 'injerto') return { def: 0, c: od * 0.6 + 20 };
             if (st === 'reduccion') { const H = interpT(T_RED, n); return { def: H / 2, L: H }; }
+            if (SUBTIPOS_BRIDA.includes(st) && st !== 'bridaplastica' && st !== 'bridaunion') { const B = bridaReal(el), L = st === 'bridawn' ? B.hRF + B.Ywn : st === 'bridaciega' || st === 'bridaloca' ? B.hRF + B.tf : B.hRF + B.Yso; return { a: 0, b: L, def: L, O: B.O, e: B.tf, B }; }   // v8.66 · medidas reales (B16.5 / EN 1092-1)
             if (SUBTIPOS_BRIDA.includes(st)) { const e = interpT(T_BRIDA_E, n), L = st === 'bridawn' ? interpT(T_WN, n) : st === 'bridaciega' ? e : e * 1.2; return { a: 0, b: L, def: L, O: interpT(T_BRIDA_O, n), e }; }
             if (['machon', 'manguito', 'tuerca', 'racor', 'espiga'].includes(st)) return { def: Math.max(20, od * 0.75) };
             if (st === 'transicion') return { def: Math.max(30, od * 1.1) };
@@ -9914,6 +9954,34 @@
             const reg = (obj, el) => { obj.traverse(x => { if (x.isMesh) { x.userData.id = el.id; V3.objetos.push(x); } }); G.add(obj); return obj; };
             const cil = (a, b, r1, r2, mat, seg = 20) => { const A = V(a), B = V(b), d = new T.Vector3().subVectors(B, A), L = d.length(); if (L < 1e-5) return null; const m = new T.Mesh(new T.CylinderGeometry(r2 == null ? r1 : r2, r1, L, seg), mat); m.position.copy(A).addScaledVector(d, 0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); return m; };
             const disco = (centro, eje, r, e, mat) => cil(v3.sum(centro, v3.mul(eje, -e / 2)), v3.sum(centro, v3.mul(eje, e / 2)), r, r, mat, 28);
+            // v8.66 · piezas «tal cual son»: tubo hueco (De y espesor reales), codos y curvas con su arco, bridas B16.5 / EN 1092-1 con cara, cubo y taladros
+            const ejeQ = d => new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), V(v3.norm(d)));
+            const dobleCara = mat => { const m2 = mat.clone(); m2.side = T.DoubleSide; return m2; };
+            const torno = (o, d, perfil, mat, seg = 40) => { const m = new T.Mesh(new T.LatheGeometry(perfil.map(([r, y]) => new T.Vector2(Math.max(r, 0), y)), seg), dobleCara(mat)); m.position.copy(V(o)); m.quaternion.copy(ejeQ(d)); return m; };
+            const tuboReal = (a, b, ro, ri, mat) => { const d = v3.sum(b, v3.mul(a, -1)), L = v3.len(d); if (L < 1e-6) return null; if (!(ri > 0 && ri < ro)) return cil(a, b, ro, ro, mat, 32); return torno(a, d, [[ri, 0], [ro, 0], [ro, L], [ri, L], [ri, 0]], mat, 32); };
+            const anillo = (p, d, ro, ri, mat) => { const m = new T.Mesh(new T.RingGeometry(ri, ro, 32), dobleCara(mat)); m.position.copy(V(p)); m.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), V(v3.norm(d))); return m; };
+            const tuboCurvo = (pts, ro, ri, mat) => { const g = new T.Group(), cur = new T.CatmullRomCurve3(pts.map(V)); g.add(new T.Mesh(new T.TubeGeometry(cur, Math.max(24, pts.length * 2), ro, 32, false), mat));
+                if (ri > 0 && ri < ro) { const mi = mat.clone(); mi.side = T.BackSide; g.add(new T.Mesh(new T.TubeGeometry(cur, Math.max(24, pts.length * 2), ri, 32, false), mi)); const n = pts.length; g.add(anillo(pts[0], v3.sum(pts[1], v3.mul(pts[0], -1)), ro, ri, mat)); g.add(anillo(pts[n - 1], v3.sum(pts[n - 1], v3.mul(pts[n - 2], -1)), ro, ri, mat)); }
+                return g; };
+            // arco de circunferencia tangente a las dos bocas (vértice C): codos y curvas de tubo
+            const arcoPts = (pa, pb, C, nSeg = 32) => { const dIn = v3.mul(pa.d, -1), dOut = pb.d, cth = Math.max(-1, Math.min(1, v3.dot(dIn, dOut))), th = Math.acos(cth); if (th < 0.01 || th > Math.PI - 0.01) return null;
+                const Tm = v3.len(v3.sum(pa.p, v3.mul(C, -1))), Rm = Tm / Math.tan(th / 2), nIn = v3.norm(v3.sum(dOut, v3.mul(dIn, -cth))), O = v3.sum(pa.p, v3.mul(nIn, Rm)), pts = [];
+                for (let i = 0; i <= nSeg; i++) { const f = th * i / nSeg; pts.push(v3.sum(O, v3.sum(v3.mul(nIn, -Rm * Math.cos(f)), v3.mul(dIn, Rm * Math.sin(f))))); } return pts; };
+            const interiorDe = (el, od) => { try { const tv = el.type === 'tuberia' ? el : tuboVecino(el), dt = tv ? datosTuberia(tv) : null; if (dt && dt.Dint > 0 && Math.abs(dt.od - od) < 0.5) return dt.Dint; } catch (e) { } return od * 0.88; };
+            // brida real: o = cara de la brida, d = hacia el tubo; tipo wn · so · ciega · loca · valvula
+            const bridaMalla = (o, d, B, tipo, odp, idp, mat) => {
+                const g = new T.Group(), q = x => x / 1000, hR = tipo === 'loca' ? 0 : q(B.hRF), tf = q(B.tf), rb = tipo === 'ciega' ? 0 : tipo === 'wn' || tipo === 'valvula' ? q(idp) / 2 : q(odp) / 2 + 0.0004;
+                if (hR > 0) g.add(torno(o, d, [[rb, 0], [q(B.R) / 2, 0], [q(B.R) / 2, hR], [rb, hR], [rb, 0]], mat));
+                const sh = new T.Shape(); sh.absarc(0, 0, q(B.O) / 2, 0, Math.PI * 2, false);
+                for (let i = 0; i < B.n; i++) { const a = (i + 0.5) * 2 * Math.PI / B.n, h = new T.Path(); h.absarc(q(B.W) / 2 * Math.cos(a), q(B.W) / 2 * Math.sin(a), q(B.d) / 2, 0, Math.PI * 2, true); sh.holes.push(h); }
+                if (rb > 0) { const h = new T.Path(); h.absarc(0, 0, rb, 0, Math.PI * 2, true); sh.holes.push(h); }
+                const eg = new T.ExtrudeGeometry(sh, { depth: tf, bevelEnabled: false, curveSegments: 48 }); eg.rotateX(-Math.PI / 2); eg.translate(0, hR, 0);
+                const disc = new T.Mesh(eg, dobleCara(mat)); disc.position.copy(V(o)); disc.quaternion.copy(ejeQ(d)); g.add(disc);
+                const y0 = hR + tf, ro = q(odp) / 2, ri = q(idp) / 2;
+                if (tipo === 'wn') { const y1 = hR + q(B.Ywn); if (y1 > y0 + 1e-4) g.add(torno(o, d, [[ri, y0], [q(B.X) / 2, y0], [ro, y1 - 0.2 * (y1 - y0)], [ro, y1], [ri, y1], [ri, y0]], mat)); }
+                else if (tipo === 'so') { const y1 = hR + q(B.Yso); if (y1 > y0 + 1e-4) g.add(torno(o, d, [[ro, y0], [q(B.X) / 2, y0], [q(B.X) / 2 * 0.96, y1], [ro, y1], [ro, y0]], mat)); }
+                else if (tipo === 'loca') { const lab = Math.max(q(4), (ro - ri) * 1.2); g.add(torno(v3.sum(o, v3.mul(d, -lab)), d, [[ri, 0], [q(B.R) / 2, 0], [q(B.R) / 2, lab], [ro, lab], [ro, lab + tf], [ri, lab + tf], [ri, 0]], mat)); }   // collarín (stub end) que asienta la brida loca
+                return g; };
             const perp = d => { const z = [0, 0, 1]; const p = Math.abs(v3.dot(d, z)) > 0.9 ? [0, 1, 0] : z; return v3.norm(v3.cross(v3.cross(d, p), d)); };
             const etq = (texto, pos, alto, col) => { if (!conEtq) return; const sp = etiqueta3D(texto, col); sp.material.sizeAttenuation = false; sp.material.opacity = 0.85; sp.material.transparent = true; const h = 0.0135;   /* v8.57 · todas del mismo tamaño (el de las mayores) */ sp.position.copy(V(pos)); sp.scale.set(h * sp.userData.w, h, 1); G.add(sp); };
             Object.values(geo).forEach(gg => {
@@ -9926,7 +9994,7 @@
                         const w = Math.min(0.03 * Lr, 0.25), fl = Math.min(0.04 * Lr, 0.3) * (Math.abs(u[2]) > 0.9 ? 0 : 1), rec = Math.min(0.08 * Lr, 0.15);
                         const P = [a, v3.sum(a, v3.mul(u, rec)), v3.sum(v3.sum(v3.sum(a, v3.mul(ab, 0.3)), v3.mul(lat, w)), [0, 0, -fl * 0.8]), v3.sum(v3.sum(a, v3.mul(ab, 0.5)), [0, 0, -fl]), v3.sum(v3.sum(v3.sum(a, v3.mul(ab, 0.7)), v3.mul(lat, -w)), [0, 0, -fl * 0.8]), v3.sum(b, v3.mul(u, -rec)), b];
                         const cur = new T.CatmullRomCurve3(P.map(q => V(q)), false, 'centripetal'); add(new T.Mesh(new T.TubeGeometry(cur, Math.max(24, Math.round(Lr * 12)), r, 14, false), M));
-                    } else add(cil(a, b, r, r, M));
+                    } else { const dt = datosTuberia(el); add(tuboReal(a, b, r, dt && dt.Dint > 0 && dt.Dint < dt.od ? mm(dt.Dint / 2) : 0, M)); }   // v8.66 · hueco, con el espesor real
                     reg(grp, el);
                     const L = v3.len(v3.sum(b, v3.mul(a, -1))); if (L > 0.5) etq(`${tagDe(el)} · ${el.longitud} mm`, v3.sum(v3.mul(v3.sum(a, b), 0.5), [0, 0, r * 1.3 + 0.012]), Math.max(0.06, Math.min(0.16, L * 0.05)), '#cbd5e1');
                     return;
@@ -9939,7 +10007,7 @@
                         if (mar) add(disco(C, eje, r * 1.9, Math.max(L, 0.03), M));
                         else if (bola) { add(cil(pa.p, pb.p, r * 1.05, r * 1.05, M)); const s = new T.Mesh(new T.SphereGeometry(r * 1.7, 24, 16), M); s.position.copy(V(C)); add(s); }
                         else { add(cil(pa.p, C, r * 1.0, b2, M)); add(cil(C, pb.p, b2, r * 1.0, M)); }   // cuerpo en «pajarita», como el símbolo del P&ID
-                        if (el.conexValv === 'Bridada' || !el.conexValv) { const O2 = mm(interpT(T_BRIDA_O, npsNum(el.dn))) / 2, e = mm(interpT(T_BRIDA_E, npsNum(el.dn))); [pa, pb].forEach(p => add(disco(v3.sum(p.p, v3.mul(p.d, -e / 2)), p.d, O2, e, M))); }
+                        if (el.conexValv === 'Bridada' || !el.conexValv) { const B = bridaReal(el), odv = odMm(el.dn || 'DN 50'); [pa, pb].forEach(p => add(bridaMalla(p.p, v3.mul(p.d, -1), B, 'valvula', odv, interiorDe(el, odv), M))); }   // v8.66 · bridas reales con taladros
                         if (st !== 'retencion') {
                             const hv = r * 4 + 0.08, top = v3.sum(C, v3.mul(arriba, hv)); add(cil(C, top, r * 0.18, r * 0.18, gris(el), 10));
                             if (st === 'control' || st === 'neumatica') { const s = new T.Mesh(new T.SphereGeometry(r * 2.2, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), matDe(el, { color: new T.Color('#2563eb') })); s.position.copy(V(top)); s.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), V(arriba)); add(s); }
@@ -9951,17 +10019,20 @@
                 }
                 if (st === 'curva' && pa && pb) {   // v8.64 · arco de circunferencia exacto entre los puntos de tangencia
                     const dIn = v3.mul(pa.d, -1), dOut = pb.d, cth = Math.max(-1, Math.min(1, v3.dot(dIn, dOut))), th = Math.acos(cth);
-                    if (th < 0.01) add(cil(pa.p, pb.p, r, r, M));
-                    else { const Tm = v3.len(v3.sum(pa.p, v3.mul(C, -1))), Rm = Tm / Math.tan(th / 2), nIn = v3.norm(v3.sum(dOut, v3.mul(dIn, -cth))), O = v3.sum(pa.p, v3.mul(nIn, Rm)), pts = [];
-                        for (let i = 0; i <= 24; i++) { const f = th * i / 24; pts.push(V(v3.sum(O, v3.sum(v3.mul(nIn, -Rm * Math.cos(f)), v3.mul(dIn, Rm * Math.sin(f)))))); }
-                        add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 32, r, 16, false), M)); }
+                    const ri = mm(interiorDe(el, od * 1000) / 2), pts = th < 0.01 ? null : arcoPts(pa, pb, C, 40);
+                    if (!pts) add(tuboReal(pa.p, pb.p, r, ri, M)); else add(tuboCurvo(pts, r, ri, M));
                     reg(grp, el); etq(`${tagDe(el)} · ${fmt(Math.abs(+el.anguloCurva || 0), 0)}° R${Math.round(radioCurvaMm(el))}`, v3.sum(C, [0, 0, r * 1.5 + 0.012]), 0.09, el.estado === 'fallo' ? '#fca5a5' : '#fde68a'); return;
                 }
-                if (/^codo/.test(st) && pa && pb) { const curva = new T.QuadraticBezierCurve3(V(pa.p), V(C), V(pb.p)); add(new T.Mesh(new T.TubeGeometry(curva, 16, r, 16, false), M)); reg(grp, el); return; }
-                if ((st === 'tee' || st === 'cruce' || st === 'injerto') && pa) { Object.values(ports).forEach(p => add(cil(C, p.p, r, r, M))); const s = new T.Mesh(new T.SphereGeometry(r * 1.02, 16, 12), M); s.position.copy(V(C)); add(s); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, r * 1.6 + 0.015]), 0.09, '#fde68a'); return; }
-                if (st === 'reduccion' && pa && pb) { add(cil(pa.p, pb.p, r, mm(odMm(el.dnMenor || el.dn)) / 2, M)); reg(grp, el); return; }
+                if (/^codo/.test(st) && pa && pb) { const ri = mm(interiorDe(el, od * 1000) / 2), pts = arcoPts(pa, pb, C, 24);   // v8.66 · arco real (radio largo 1,5·D, corto 1·D)
+                    if (pts) add(tuboCurvo(pts, r, ri, M)); else { const curva = new T.QuadraticBezierCurve3(V(pa.p), V(C), V(pb.p)); add(new T.Mesh(new T.TubeGeometry(curva, 16, r, 16, false), M)); } reg(grp, el); return; }
+                if ((st === 'tee' || st === 'cruce' || st === 'injerto') && pa) { const ri = mm(interiorDe(el, od * 1000) / 2); Object.entries(ports).forEach(([q, p]) => { const ob = q === 'c' || q === 'd' ? mm(odMm(el.dnMenor || el.dn || 'DN 50')) / 2 : r; add(tuboReal(C, p.p, ob, Math.min(ri * ob / r, ob * 0.95), M)); }); reg(grp, el); etq(tagDe(el), v3.sum(C, [0, 0, r * 1.6 + 0.015]), 0.09, '#fde68a'); return; }
+                if (st === 'reduccion' && pa && pb) { const r2 = mm(odMm(el.dnMenor || el.dn)) / 2, ri = mm(interiorDe(el, od * 1000) / 2), L = v3.len(v3.sum(pb.p, v3.mul(pa.p, -1))); add(L > 1e-6 ? torno(pa.p, v3.sum(pb.p, v3.mul(pa.p, -1)), [[ri, 0], [r, 0], [r, L * 0.15], [r2, L * 0.85], [r2, L], [ri * r2 / r, L], [ri * r2 / r, L * 0.85], [ri, L * 0.15], [ri, 0]], M, 32) : null); reg(grp, el); return; }
                 if (SUBTIPOS_BRIDA.includes(st)) {
                     const f = ports.a, b = ports.b, O2 = mm(gg.m.O) / 2, e = mm(gg.m.e), dd = b ? v3.norm(v3.sum(b.p, v3.mul(f.p, -1))) : v3.mul(f.d, -1);
+                    if (gg.m.B) { const B = gg.m.B, odp = odMm(el.dn || 'DN 50'), idp = interiorDe(el, odp), tipo = st === 'bridawn' ? 'wn' : st === 'bridaciega' ? 'ciega' : st === 'bridaloca' ? 'loca' : 'so';   // v8.66 · brida real
+                        add(bridaMalla(f.p, dd, B, tipo, odp, idp, M));
+                        if (conJunta.has(el.id)) add(torno(f.p, v3.mul(dd, -1), [[mm(idp) / 2, 0], [mm(B.R) / 2, 0], [mm(B.R) / 2, 0.0015], [mm(idp) / 2, 0.0015], [mm(idp) / 2, 0]], new T.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.9 })));   // junta
+                        reg(grp, el); etq(`${tagDe(el)}${B.aprox ? ' · medidas aprox.' : ''}`, v3.sum(f.p, [0, 0, O2 + 0.012]), 0.08, '#fde68a'); return; }
                     add(disco(v3.sum(f.p, v3.mul(dd, e / 2)), dd, O2, e, M));
                     if (conJunta.has(el.id)) add(disco(f.p, dd, Math.min(O2 * 0.72, r * 1.9), Math.max(0.0015, e * 0.12), new T.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.9 })));   // junta
                     if (b && st === 'bridawn') add(cil(v3.sum(f.p, v3.mul(dd, e)), b.p, r * 1.35, r, M));
@@ -11046,7 +11117,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.65';
+        const VERSION_WEB = '8.66';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
