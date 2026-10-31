@@ -3037,16 +3037,24 @@
         }
         // Filas del listado de componentes del plano: tuberías por material/serie/tamaño (m) y
         // componentes por tipo, tamaño y PN (ud)
+        // v8.67 · longitud desarrollada de una curva de tubo (mm) y tubo del que sale (para medir el tubo a comprar)
+        function arcoCurvaMm(cu) { return radioCurvaMm(cu) * Math.abs(+cu.anguloCurva || 0) * Math.PI / 180; }
+        function tuboDeCurva(cu) { const t = tuboVecino(cu); return t && t.type === 'tuberia' ? t : null; }
         function filasListadoPlano() {
-            const m = new Map();
-            elementosRed.filter(e => !esAnotacion(e)).forEach(e => {
-                let k, fila;
+            const m = new Map(), curvado = new Map();
+            elementosRed.filter(e => !esAnotacion(e)).forEach(e0 => {
+                let k, fila, e = e0;
+                if (e0.subtype === 'curva') {   // v8.67 · el arco se mide como tubo (mismo material, serie y tamaño que el tubo que se curva)
+                    const t = tuboDeCurva(e0); const kc = `${pulgadas(npsDeDN(e0.dn))}" · R ${Math.round(radioCurvaMm(e0))}`; curvado.set(kc, (curvado.get(kc) || []).concat(tagDe(e0)));
+                    if (!t) return; e = Object.assign({}, t, { longitud: arcoCurvaMm(e0), _tag: tagDe(e0) });
+                }
                 if (e.type === 'tuberia') { k = ['T', e.material, e.serie, e.dn, e.gradoMaterial || '', codigoTubo(e)].join('|'); fila = { desc: `${tradDoc('Tubería')} ${tradDoc(e.material)} ${/^[0-9]+S?$/.test(e.serie) ? 'Sch ' + e.serie : e.serie}${codigoTubo(e) ? ' · ' + codigoTubo(e) : ''}`, mat: e.gradoMaterial || trad(e.material) || '', tam: tamanoTubo(e.material, e.dn), pn: '', ud: 'm', n: 0 }; }
                 else if (e.type === 'bomba') { const pu = d => d && /^DN/.test(d) ? pulgadas(npsDeDN(d)) + '"' : '', tam = [pu(e.dnAsp), pu(e.dnImp)].filter(Boolean).join(' × '), pn = e.pnAsp && e.pnImp && e.pnAsp !== e.pnImp ? `${e.pnAsp} / ${e.pnImp}` : (e.pnAsp || e.pnImp || ''); k = ['B', tam, pn, e.materialComp || ''].join('|'); fila = { desc: tradDoc(nombreTipo(e)), mat: e.materialComp || '', tam, pn, ud: 'ud', n: 0 }; }
                 else { const tam = e.subtype === 'reduccion' ? `${pulgadas(npsDeDN(e.dn))}" × ${pulgadas(npsDeDN(e.dnMenor))}"` : (e.dn && /^DN/.test(e.dn) ? pulgadas(npsDeDN(e.dn)) + '"' : (e.dn && /^d\d/.test(e.dn) ? 'Ø' + odMm(e.dn) : '')); const ca = e.accModelo ? codigoAccesorio(e) : '', ma = ca ? modeloAcc(e) : null; k = [e.type, e.subtype, tam, e.pn || '', e.craneTipo || '', e.materialComp || '', ca].join('|'); fila = { desc: ma ? `${tradDoc(ma.nombre)}${e.accSch ? ' ' + e.accSch : ''} · ${ma.norma} · ${ca}` : tradDoc(nombreTipo(e)), mat: e.materialComp || '', tam, pn: !tieneRating(e) || (e.accModelo && sinRatingAcc(modeloAcc(e))) ? '' : (e.pn || ''), ud: 'ud', n: 0 }; }
                 if (!m.has(k)) m.set(k, Object.assign(fila, { tags: [] }));
-                const f = m.get(k); f.n += e.type === 'tuberia' ? e.longitud / 1000 : 1; f.tags.push(tagDe(e));
+                const f = m.get(k); f.n += e.type === 'tuberia' ? e.longitud / 1000 : 1; f.tags.push(e._tag || tagDe(e));
             });
+            curvado.forEach((tags, kc) => { const [tam, R] = kc.split(' · '); m.set('CU|' + kc, { desc: `${tradDoc('Curvado de tubo')} ${R} mm (${tradDoc('tubo incluido arriba')})`, mat: '—', tam, pn: '', ud: 'ud', n: tags.length, tags }); });
             if (proyecto.soloPID) [...m.keys()].forEach(k => { if (SUBTIPOS_BRIDA.some(b => k.startsWith('accesorio|' + b + '|'))) m.delete(k); });   // v8.50 · solo P&ID: sin bridas
             try { juntasHoja().forEach(j => { const d = juntaDe(j), tam = j.dn && /^DN/.test(j.dn) ? pulgadas(npsDeDN(j.dn)) + '"' : (j.dn || ''), k = ['J', d.tipo, d.material, tam, j.pn].join('|');   // v8.50 · juntas
                 if (!m.has(k)) m.set(k, { desc: `${tradDoc('Junta')} ${tradDoc(d.tipo)}`, mat: d.material, tam, pn: j.pn, ud: 'ud', n: 0, tags: [] }); const f = m.get(k); f.n += 1; f.tags.push(`${tagDe(j.ea)}/${tagDe(j.eb)}`); }); } catch (e) { console.warn(e); }
@@ -11117,7 +11125,7 @@
         // DICCIONARIOS BAJO DEMANDA (i18n/<idioma>.js): solo se descarga el idioma de la interfaz y,
         // si es otro, el del informe y el cajetín
         // ==================================================================================
-        const VERSION_WEB = '8.66';
+        const VERSION_WEB = '8.67';
         const IDIOMAS_CARGADOS = new Set(['es']), CARGAS_IDIOMA = {};
         function integrarIdioma(l) {
             const x = window.PIPING_I18N && window.PIPING_I18N[l]; if (!x || IDIOMAS_CARGADOS.has(l)) return !!x;
@@ -12757,7 +12765,10 @@
                     { icono: 'fa-file-code', texto: 'Datos XML (*.xml)', accion: () => guardarComoProyecto('xml') },
                     { icono: 'fa-bezier-curve', texto: 'Imagen vectorial (*.svg)', accion: () => guardarComoProyecto('svg') },
                     { icono: 'fa-file-image', texto: 'Imagen (*.png)', accion: () => guardarComoProyecto('png') },
-                    { icono: 'fa-file-pdf', texto: 'PDF vectorial con capas (*.pdf)', accion: () => exportarPDFCapas() }
+                    { icono: 'fa-file-pdf', texto: 'PDF vectorial con capas (*.pdf)', accion: () => exportarPDFCapas() }, 'sep',
+                    { icono: 'fa-building', texto: 'Modelo 3D BIM (*.ifc)', accion: () => exportarModelo3D('ifc') },
+                    { icono: 'fa-cube', texto: 'Modelo 3D CAD (*.stp, STEP AP214)', accion: () => exportarModelo3D('step') },
+                    { icono: 'fa-cubes', texto: 'Modelo 3D malla (*.stl)', accion: () => exportarModelo3D('stl') }
                 ]},
                 { icono: 'fa-envelope', texto: 'Enviar proyecto por email...', accion: () => enviarProyectoEmail() },
                 'sep',
@@ -12907,6 +12918,7 @@
             { titulo: 'Informe', items: [
                 { icono: 'fa-file-word', texto: 'Generar informe (*.docx)...', accion: () => generarInforme() },
                 { icono: 'fa-bezier-curve', texto: 'Hoja de curvado (YBC)...', accion: () => hojaCurvado() },
+                { icono: 'fa-cubes', texto: 'Isométricos de fabricación (spools)...', accion: () => abrirSpools() },
                 { icono: 'fa-file-excel', texto: 'Listados de líneas, válvulas y materiales (*.xlsx)...', accion: () => generarListados() }
             ]},
             { titulo: 'Herramientas', items: [
@@ -12950,7 +12962,8 @@
                 { icono: 'fa-person-chalkboard', texto: 'Tutorial guiado', accion: () => iniciarTutorial() },
                 { icono: 'fa-keyboard', texto: 'Atajos de teclado...', accion: () => abrirEditorAtajos() },
                 { icono: 'fa-right-left', texto: 'Equivalencia ASME / Norma europea...', accion: () => mostrarEquivalencias() },
-                { icono: 'fa-circle-info', texto: 'Créditos...', accion: () => mostrarCreditos() }
+                { icono: 'fa-circle-info', texto: 'Créditos...', accion: () => mostrarCreditos() },
+                { icono: 'fa-shield-halved', texto: 'Privacidad, cookies y aviso legal', accion: () => window.open('privacidad.html', '_blank', 'noopener') }
             ]}
         ];
 
@@ -13117,8 +13130,11 @@
                 `<div class="border-2 border-amber-400 bg-amber-50 rounded-lg p-3 text-center"><p class="text-base font-bold text-amber-700"><i class="fa-solid fa-user mr-1.5"></i>Vas a entrar en MODO INVITADO</p>
                 <p class="mt-1 text-amber-800">Puedes ver y probar toda la aplicación, pero <b>no se guarda ni se exporta nada</b> (proyectos, DXF, PDF, informes, listados, impresión, nube).</p></div>
                 <p class="mt-2 text-slate-500 text-[11px]">Como invitado se abre directamente un proyecto de ejemplo, sin pedir datos. Para trabajar con guardado: Archivo > Administración > Iniciar sesión.</p>
-                <p class="mt-2 text-slate-400 text-[10px] leading-snug"><i class="fa-solid fa-shield-halved mr-1"></i>Por seguridad y estadística se registra cada acceso: dirección IP, ubicación aproximada (país y ciudad según la IP), sistema operativo, navegador, idioma y pantalla. No se registra lo que dibujas.</p>`,
+                <p class="mt-2 text-slate-400 text-[10px] leading-snug"><i class="fa-solid fa-shield-halved mr-1"></i>Por seguridad y estadística se registra cada acceso: dirección IP, ubicación aproximada (país y ciudad según la IP), sistema operativo, navegador, idioma y pantalla. No se registra lo que dibujas.</p>
+                <label class="mt-1 flex items-start gap-1.5 text-slate-500 text-[10px] leading-snug"><input id="acc-est" type="checkbox" class="mt-0.5" ${consentEst() ? 'checked' : ''}>Acepto guardar en este navegador un identificador anónimo de visitante (solo para estadística).</label>
+                <p class="mt-1 text-[10px]"><a href="privacidad.html" target="_blank" rel="noopener" class="text-blue-600 underline">Política de privacidad, cookies y aviso legal</a></p>`,
                 [{ texto: 'Entrar como invitado', valor: 'invitado', clase: 'bg-amber-500 hover:bg-amber-600 text-white' }, { texto: 'Iniciar sesión...', valor: 'admin', clase: 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-700' }]);
+            try { const ck = document.getElementById('acc-est'); if (ck) { if (ck.checked) localStorage.setItem('piping-consent-est', '1'); else { localStorage.removeItem('piping-consent-est'); localStorage.removeItem('piping-visitante'); } } } catch (e) { }
             if (r === 'admin') await iniciarSesionAdmin();
             pintarInsignia();
             const s = sesionActual(); registrarAcceso('entrada', s ? 'sesión' : 'invitado');
@@ -13143,7 +13159,8 @@
         // ==================================================================================
         const URL_ACCESO = `${SUPABASE_URL}/functions/v1/piping-acceso`;
         const idTab = (() => { try { return crypto.randomUUID(); } catch (e) { return String(Date.now()) + Math.random().toString(16).slice(2); } })();
-        function idVisitante() { try { let v = localStorage.getItem('piping-visitante'); if (!v) { v = idTab; localStorage.setItem('piping-visitante', v); } return v; } catch (e) { return null; } }
+        function consentEst() { try { return localStorage.getItem('piping-consent-est') === '1'; } catch (e) { return false; } }
+        function idVisitante() { if (!consentEst()) return null; try { let v = localStorage.getItem('piping-visitante'); if (!v) { v = idTab; localStorage.setItem('piping-visitante', v); } return v; } catch (e) { return null; } }
         let datosClienteCache = null, inicioVisita = Date.now(), accesoEnviado = false;
         async function datosCliente() {
             if (datosClienteCache) return datosClienteCache;
@@ -13282,7 +13299,7 @@
 
         // ---------- 5) menús según el rol: lo que no se puede hacer sale en gris con candado ----------
         const PERMISOS_MENU = [
-            [/^(Guardar$|Guardar en la nube|Guardar selección como plantilla|Proyecto P&ID \(|Dibujo CAD \(|Datos JSON|Datos XML|Imagen vectorial|Imagen \(|PDF vectorial|Imprimir|Generar informe|Listados de líneas|Descargar plantilla)/, 'guardar'],
+            [/^(Guardar$|Guardar en la nube|Guardar selección como plantilla|Proyecto P&ID \(|Dibujo CAD \(|Datos JSON|Datos XML|Imagen vectorial|Imagen \(|PDF vectorial|Modelo 3D|Imprimir|Generar informe|Listados de líneas|Descargar plantilla)/, 'guardar'],
             [/^Registrar revisión/, 'revision'], [/^Compartir mi librería/, 'compartido'], [/^Congelar plano/, 'congelar'], [/^Descongelar plano/, 'descongelar'],
             [/^(Firmar como revisado|Quitar firma de revisado)/, 'firmarRevisado'], [/^(Firmar como aprobado|Quitar firma de aprobado)/, 'firmarAprobado']
         ];
@@ -13542,6 +13559,257 @@
             T.forEach((t, i) => { aoa.push([`Tramo ${i + 1}`, `Línea ${t.nombre || ''}`, `De ${t.De} mm`], ['Curva', 'Y recto (mm)', 'B giro (°)', 'C ángulo (°)', 'R (mm)', 'Arco (mm)']);
                 t.filas.forEach(r => aoa.push([r.tag, Math.round(r.Y), +r.B.toFixed(1), +r.C.toFixed(1), Math.round(r.R), Math.round(r.arco)])); aoa.push(['Recto final', Math.round(t.Yfin)], ['Desarrollo (mm)', Math.round(t.desarrollo)], []); });
             const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(aoa), 'Curvado'); X.writeFile(wb, `${proyecto.numero || 'PIPING'}_HOJA_CURVADO.xlsx`);
+        }
+        // ==================================================================================
+        // v8.67 · ISOMÉTRICOS DE FABRICACIÓN POR SPOOL. Un spool es lo que se suelda en taller: tubos, curvas, codos, tes,
+        // reducciones, tapones y bridas unidos por soldadura (o rosca). Se corta en las caras de las bridas (unión atornillada)
+        // y en todo lo que no es tubería (válvulas, bombas, equipos, juntas de expansión, filtros, transiciones).
+        // Cada spool: isométrico sin escala con las soldaduras numeradas, piezas de tubo con su longitud de corte (con el arco
+        // de las curvas), lista de materiales y lista de soldaduras. Informe › Isométricos de fabricación (spools)…
+        // ==================================================================================
+        const NO_SPOOL = /^(junta|antivibratorio|filtro|strainer|transicion|espiga|racor|tuerca|bridaplastica)$/;
+        const esPiezaSpool = e => !!e && !esAnotacion(e) && (e.type === 'tuberia' || (e.type === 'accesorio' && !NO_SPOOL.test(e.subtype || '')));
+        const esBridaEl = e => SUBTIPOS_BRIDA.includes((e && e.subtype) || '');
+        function tipoSoldadura(a, pa, b, pb) {
+            const ta = extremoInferido(a, tipoExtremo(a, pa), tipoExtremo(b, pb)), tb = extremoInferido(b, tipoExtremo(b, pb), tipoExtremo(a, pa)), u = x => ta === x || tb === x;
+            if (u('ROS')) return ['TH', 'Unión roscada'];
+            if (u('SW')) return ['SW', 'Socket weld (cordón en ángulo)'];
+            if (u('SO')) return ['SO', 'Brida slip-on (2 cordones en ángulo)'];
+            if (u('LOCA')) return ['BW', 'Collarín de brida loca a tope'];
+            if (ES_PLAST(ta) || ES_PLAST(tb)) return ['PL', 'Termofusión / encolado'];
+            if (u('TUBO_CU')) return ['BZ', 'Soldadura fuerte / capilar'];
+            return ['BW', 'Soldadura a tope'];
+        }
+        function spoolsRed() {
+            const els = elementosRed.filter(esPiezaSpool), por = new Map(els.map(e => [e.id, e])), padre = {}, raiz = x => padre[x] === x ? x : (padre[x] = raiz(padre[x]));
+            els.forEach(e => { padre[e.id] = e.id; });
+            const uniones = [], vistos = new Set(), bordes = [];
+            els.forEach(e => vecinosDe(e).forEach(v => {
+                const o = v.otro, k = [e.id + ':' + v.puertoEl, o.id + ':' + v.puertoOtro].sort().join('~'); if (vistos.has(k)) return; vistos.add(k);
+                const caraE = esBridaEl(e) && v.puertoEl === 'a', caraO = por.has(o.id) && esBridaEl(o) && v.puertoOtro === 'a';
+                if (!por.has(o.id) || caraE || caraO) { bordes.push({ el: e, pid: v.puertoEl, otro: o, atornillada: caraE || caraO || o.type === 'valvula' && /Brid|Wafer|Lug/i.test(o.conexValv || 'Bridada') }); if (por.has(o.id)) bordes.push({ el: o, pid: v.puertoOtro, otro: e, atornillada: true }); return; }
+                padre[raiz(e.id)] = raiz(o.id);
+                if (e.subtype !== 'curva' && o.subtype !== 'curva') uniones.push({ a: e, pa: v.puertoEl, b: o, pb: v.puertoOtro });
+            }));
+            const grupos = new Map(); els.forEach(e => { const r = raiz(e.id); grupos.set(r, (grupos.get(r) || []).concat(e)); });
+            const orden = new Map(elementosRed.map((e, i) => [e.id, i])), cuentaLin = {};
+            const lista = [...grupos.values()].filter(g => g.some(e => e.type === 'tuberia' || e.subtype === 'curva')).map(g => {
+                const ids = new Set(g.map(e => e.id)), lin = (() => { const c = {}; g.forEach(e => { if (e.linea) c[e.linea] = (c[e.linea] || 0) + 1; }); return Object.keys(c).sort((a, b) => c[b] - c[a])[0] || 'SL'; })();
+                const sold = uniones.filter(u => ids.has(u.a.id)).map(u => { const [cod, txt] = tipoSoldadura(u.a, u.pa, u.b, u.pb); return Object.assign({}, u, { cod, txt, dn: u.a.type === 'tuberia' ? u.a.dn : u.b.type === 'tuberia' ? u.b.dn : (u.a.dn || u.b.dn) }); });
+                // piezas de tubo: tubos unidos por curvas (se cortan de una barra y se curvan)
+                const tc = g.filter(e => e.type === 'tuberia' || e.subtype === 'curva'), pp = {}, rz = x => pp[x] === x ? x : (pp[x] = rz(pp[x])); tc.forEach(e => { pp[e.id] = e.id; });
+                tc.forEach(e => vecinosDe(e).forEach(v => { if (pp[v.otro.id] && (e.subtype === 'curva' || v.otro.subtype === 'curva')) pp[rz(e.id)] = rz(v.otro.id); }));
+                const pz = new Map(); tc.forEach(e => { const r = rz(e.id); pz.set(r, (pz.get(r) || []).concat(e)); });
+                const piezas = [...pz.values()].map(p => { const t = p.find(e => e.type === 'tuberia') || p[0], curvas = p.filter(e => e.subtype === 'curva');
+                    return { els: p, tubo: t, L: p.reduce((s, e) => s + (e.type === 'tuberia' ? +e.longitud || 0 : arcoCurvaMm(e)), 0), curvas: curvas.length, R: curvas.length ? Math.round(radioCurvaMm(curvas[0])) : null }; })
+                    .sort((a, b) => (orden.get(a.tubo.id) || 0) - (orden.get(b.tubo.id) || 0));
+                g.sort((a, b) => (orden.get(a.id) || 0) - (orden.get(b.id) || 0));
+                return { linea: lin, els: g, ids, sold, piezas, bordes: bordes.filter(b => ids.has(b.el.id)), primero: orden.get(g[0].id) || 0 };
+            }).sort((a, b) => String(a.linea).localeCompare(String(b.linea), 'es', { numeric: true }) || a.primero - b.primero);
+            lista.forEach(sp => { cuentaLin[sp.linea] = (cuentaLin[sp.linea] || 0) + 1; sp.nombre = `${sp.linea}-SP${String(cuentaLin[sp.linea]).padStart(2, '0')}`; sp.sold.forEach((w, i) => { w.n = 'W' + (i + 1); }); sp.piezas.forEach((p, i) => { p.n = 'P' + (i + 1); }); });
+            return lista;
+        }
+        // materiales del spool: tubo por material/serie/tamaño (m, con el arco de las curvas) y piezas por tipo
+        function materialesSpool(sp) {
+            const m = new Map(), tam = e => e.subtype === 'reduccion' ? `${pulgadas(npsDeDN(e.dn))}" × ${pulgadas(npsDeDN(e.dnMenor))}"` : (e.dn && /^DN/.test(e.dn) ? pulgadas(npsDeDN(e.dn)) + '"' : (e.dn || ''));
+            sp.piezas.forEach(p => { const t = p.tubo.type === 'tuberia' ? p.tubo : (tuboDeCurva(p.tubo) || p.tubo), k = ['T', t.material, t.serie, t.dn].join('|');
+                if (!m.has(k)) m.set(k, { desc: `Tubo ${t.material || ''} ${/^[0-9]+S?$/.test(t.serie || '') ? 'Sch ' + t.serie : (t.serie || '')}`.trim(), tam: tam(t), pn: '', mat: t.gradoMaterial || t.material || '', n: 0, ud: 'm' }); m.get(k).n += p.L / 1000; });
+            sp.els.filter(e => e.type !== 'tuberia' && e.subtype !== 'curva').forEach(e => { const k = ['A', nombreTipo(e), tam(e), e.pn || '', e.materialComp || ''].join('|');
+                if (!m.has(k)) m.set(k, { desc: nombreTipo(e), tam: tam(e), pn: e.pn || '', mat: e.materialComp || e.gradoMaterial || '', n: 0, ud: 'ud' }); m.get(k).n += 1; });
+            return [...m.values()].map((f, i) => Object.assign(f, { pos: i + 1 }));
+        }
+        // dibujo del isométrico de un spool (SVG A3 apaisado, mm)
+        function svgSpool(sp, nHoja, nTot) {
+            const geo = geometria3DReal().geo, P3 = a => ({ x: a[0], y: a[1], z: a[2] }), q = a => isoProy(P3(a)), segs = [], marcas = [], ptsAll = [];
+            const arco3 = (pa, pb, C, n = 16) => { const dIn = v3.mul(pa.d, -1), dOut = pb.d, c = Math.max(-1, Math.min(1, v3.dot(dIn, dOut))), th = Math.acos(c); if (th < 0.01 || th > Math.PI - 0.01) return [pa.p, pb.p];
+                const Tm = v3.len(v3.sum(pa.p, v3.mul(C, -1))), Rm = Tm / Math.tan(th / 2), nIn = v3.norm(v3.sum(dOut, v3.mul(dIn, -c))), O = v3.sum(pa.p, v3.mul(nIn, Rm)), r = [];
+                for (let i = 0; i <= n; i++) { const f = th * i / n; r.push(v3.sum(O, v3.sum(v3.mul(nIn, -Rm * Math.cos(f)), v3.mul(dIn, Rm * Math.sin(f))))); } return r; };
+            sp.els.forEach(e => { const g = geo[e.id]; if (!g) return; const pa = g.ports.a || Object.values(g.ports)[0], pb = g.ports.b;
+                if (e.type === 'tuberia') { segs.push({ e, pts: [pa.p, pb.p], tubo: true }); }
+                else if ((e.subtype === 'curva' || /^codo/.test(e.subtype)) && pa && pb) segs.push({ e, pts: arco3(pa, pb, g.C) });
+                else if (esBridaEl(e)) { segs.push({ e, pts: pb ? [pa.p, pb.p] : [pa.p, g.C] }); marcas.push({ tipo: 'brida', e, p: pa.p, d: pa.d }); }
+                else Object.values(g.ports).forEach(pt => segs.push({ e, pts: [g.C, pt.p] }));
+                Object.values(g.ports).forEach(pt => ptsAll.push(pt.p)); });
+            if (!segs.length) return null;
+            const uv = segs.flatMap(s => s.pts.map(q)).concat(ptsAll.map(q)), u0 = Math.min(...uv.map(p => p.u)), u1 = Math.max(...uv.map(p => p.u)), v0 = Math.min(...uv.map(p => p.v)), v1 = Math.max(...uv.map(p => p.v));
+            const AX = 15, AY = 22, AW = 245, AH = 230, k = Math.min((AW - 40) / Math.max(u1 - u0, 1e-6), (AH - 40) / Math.max(v1 - v0, 1e-6), 400);
+            const ox = AX + (AW - (u1 - u0) * k) / 2, oy = AY + (AH - (v1 - v0) * k) / 2, X = a => +(ox + (q(a).u - u0) * k).toFixed(2), Y = a => +(oy + (q(a).v - v0) * k).toFixed(2);
+            const T = (x, y, t, o = '') => `<text x="${(+x).toFixed(2)}" y="${(+y).toFixed(2)}" font-family="Arial, sans-serif" font-size="2.4" ${o}>${esc(t)}</text>`;
+            let h = `<rect x="5" y="5" width="410" height="287" fill="#fff" stroke="#000" stroke-width="0.5"/><rect x="${AX}" y="${AY}" width="${AW}" height="${AH}" fill="none" stroke="#999" stroke-width="0.2"/>`;
+            h += T(AX, 15, `ISOMÉTRICO DE FABRICACIÓN · SPOOL ${sp.nombre}`, 'font-size="4.5" font-weight="bold"') + T(AX + AW, 15, 'SIN ESCALA', 'font-size="2.6" text-anchor="end"');
+            // flecha de orientación (proa o norte)
+            { const o = [0, 0, 0], ex = [0.06, 0, 0]; const a = { u: 0, v: 0 }, b = isoProy(P3(ex)), L = Math.hypot(b.u, b.v) || 1, dx = b.u / L * 12, dy = b.v / L * 12, x0 = AX + 14, y0 = AY + AH - 14;
+                h += `<line x1="${x0}" y1="${y0}" x2="${x0 + dx}" y2="${y0 + dy}" stroke="#000" stroke-width="0.4" marker-end="url(#fl)"/>` + T(x0 + dx * 1.25, y0 + dy * 1.25 + 1, proyecto.esBuque ? '+X PROA' : '+X', 'font-size="2.2" text-anchor="middle"'); }
+            segs.forEach(s => { const d = s.pts.map((p, i) => `${i ? 'L' : 'M'} ${X(p)} ${Y(p)}`).join(' '); h += `<path d="${d}" fill="none" stroke="#000" stroke-width="${s.tubo || s.e.subtype === 'curva' ? 0.9 : 0.7}" stroke-linecap="round"/>`; });
+            // bridas: dos trazos perpendiculares en la cara; lo que se une al otro lado
+            marcas.forEach(m => { const x = X(m.p), y = Y(m.p), b = { u: q(v3.sum(m.p, v3.mul(m.d, 0.05))).u - q(m.p).u, v: q(v3.sum(m.p, v3.mul(m.d, 0.05))).v - q(m.p).v }, L = Math.hypot(b.u, b.v) || 1, nx = -b.v / L, ny = b.u / L, tx = b.u / L, ty = b.v / L;
+                [0, -1.2].forEach(o => h += `<line x1="${(x + tx * o + nx * 3.2).toFixed(2)}" y1="${(y + ty * o + ny * 3.2).toFixed(2)}" x2="${(x + tx * o - nx * 3.2).toFixed(2)}" y2="${(y + ty * o - ny * 3.2).toFixed(2)}" stroke="#000" stroke-width="0.6"/>`);
+                const bo = sp.bordes.find(z => z.el.id === m.e.id && z.pid === 'a'); h += T(x + tx * 6, y + ty * 6 + 0.8, `${tagPlano(m.e)}${bo ? ' → ' + tagPlano(bo.otro) : ' (extremo libre)'}`, `font-size="2.1" ${tx < -0.2 ? 'text-anchor="end"' : ''}`); });
+            // extremos sin brida (unión a válvula roscada, equipo… o extremo libre)
+            sp.bordes.filter(b => !esBridaEl(b.el) || b.pid !== 'a').forEach(b => { const g = geo[b.el.id]; if (!g || !g.ports[b.pid]) return; const p = g.ports[b.pid].p; h += `<circle cx="${X(p)}" cy="${Y(p)}" r="0.9" fill="#fff" stroke="#000" stroke-width="0.4"/>` + T(X(p) + 2, Y(p) - 1.5, '→ ' + tagPlano(b.otro), 'font-size="2.1"'); });
+            // longitudes de corte de los tubos rectos
+            segs.filter(s => s.tubo).forEach(s => { const a = s.pts[0], b = s.pts[1], mx = (X(a) + X(b)) / 2, my = (Y(a) + Y(b)) / 2; let ang = Math.atan2(Y(b) - Y(a), X(b) - X(a)) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
+                h += `<text transform="translate(${mx.toFixed(2)} ${my.toFixed(2)}) rotate(${ang.toFixed(1)})" y="-1.2" font-family="Arial, sans-serif" font-size="2.4" text-anchor="middle">${Math.round(+s.e.longitud || 0)}</text>`; });
+            // curvas: ángulo y radio
+            segs.filter(s => s.e.subtype === 'curva').forEach(s => { const p = s.pts[Math.floor(s.pts.length / 2)]; h += T(X(p) + 1.5, Y(p) + 3, `${Math.abs(+s.e.anguloCurva || 0)}° R${Math.round(radioCurvaMm(s.e))}`, 'font-size="2.1" font-style="italic"'); });
+            // soldaduras numeradas
+            sp.sold.forEach(w => { const g = geo[w.a.id]; if (!g || !g.ports[w.pa]) return; const p = g.ports[w.pa].p, x = X(p), y = Y(p);
+                h += `<circle cx="${x}" cy="${y}" r="0.8" fill="#000"/><line x1="${x}" y1="${y}" x2="${x + 4}" y2="${y - 4}" stroke="#000" stroke-width="0.25"/><ellipse cx="${x + 6.6}" cy="${y - 5}" rx="2.8" ry="1.9" fill="#fff" stroke="#000" stroke-width="0.3"/>` + T(x + 6.6, y - 4.2, w.n, 'font-size="2.1" text-anchor="middle"'); });
+            // tablas a la derecha
+            const TX = 270, row = (y, cols, neg) => cols.map(([x, t, al]) => T(x, y, t, `${neg ? 'font-weight="bold"' : ''} ${al ? 'text-anchor="end"' : ''}`)).join('');
+            let y = 22; const mats = materialesSpool(sp);
+            h += T(TX, y, 'LISTA DE MATERIALES', 'font-size="3" font-weight="bold"'); y += 5;
+            h += row(y, [[TX, 'POS'], [TX + 9, 'DESCRIPCIÓN'], [TX + 78, 'TAM.'], [TX + 92, 'RATING'], [TX + 140, 'CANT.', 1]], 1); y += 0.8; h += `<line x1="${TX}" y1="${y}" x2="410" y2="${y}" stroke="#000" stroke-width="0.25"/>`; y += 3.6;
+            mats.forEach(f => { h += row(y, [[TX, f.pos], [TX + 9, (f.desc + (f.mat ? ' · ' + f.mat : '')).slice(0, 44)], [TX + 78, f.tam], [TX + 92, f.pn], [TX + 140, f.ud === 'm' ? fmt(f.n, 2) + ' m' : f.n, 1]]); y += 3.6; });
+            y += 4; h += T(TX, y, 'CORTE DE TUBO (longitud desarrollada)', 'font-size="3" font-weight="bold"'); y += 5;
+            h += row(y, [[TX, 'PIEZA'], [TX + 14, 'TAMAÑO'], [TX + 34, 'CURVAS'], [TX + 140, 'L CORTE (mm)', 1]], 1); y += 0.8; h += `<line x1="${TX}" y1="${y}" x2="410" y2="${y}" stroke="#000" stroke-width="0.25"/>`; y += 3.6;
+            sp.piezas.forEach(p => { h += row(y, [[TX, p.n], [TX + 14, p.tubo.dn && /^DN/.test(p.tubo.dn) ? pulgadas(npsDeDN(p.tubo.dn)) + '"' : (p.tubo.dn || '')], [TX + 34, p.curvas ? `${p.curvas} × R${p.R}` : '—'], [TX + 140, Math.round(p.L), 1]]); y += 3.6; });
+            y += 4; h += T(TX, y, 'SOLDADURAS', 'font-size="3" font-weight="bold"'); y += 5;
+            h += row(y, [[TX, 'Nº'], [TX + 10, 'TIPO'], [TX + 22, 'TAM.'], [TX + 36, 'ENTRE']], 1); y += 0.8; h += `<line x1="${TX}" y1="${y}" x2="410" y2="${y}" stroke="#000" stroke-width="0.25"/>`; y += 3.6;
+            sp.sold.forEach(w => { if (y > 238) return; h += row(y, [[TX, w.n], [TX + 10, w.cod], [TX + 22, w.dn && /^DN/.test(w.dn) ? pulgadas(npsDeDN(w.dn)) + '"' : (w.dn || '')], [TX + 36, `${tagPlano(w.a)} / ${tagPlano(w.b)}`.slice(0, 48)]]); y += 3.6; });
+            if (!sp.sold.length) { h += T(TX, y, 'Sin soldaduras de taller'); y += 3.6; }
+            // cajetín
+            const cj = [['PROYECTO', proyecto.numero || ''], ['INSTALACIÓN', proyecto.instalacion || ''], ['LÍNEA', sp.linea], ['SPOOL', sp.nombre], ['REV.', proyecto.letraRevision || proyecto.revision || '0'], ['FECHA', new Date().toLocaleDateString('es-ES')], ['DIBUJADO', proyecto.autor || ''], ['HOJA', `${nHoja} / ${nTot}`]];
+            h += `<rect x="270" y="252" width="140" height="35" fill="none" stroke="#000" stroke-width="0.4"/>`;
+            cj.forEach(([a, b], i) => { const cx = 272 + (i % 2) * 70, cy = 258 + Math.floor(i / 2) * 8; h += T(cx, cy - 2.6, a, 'font-size="1.8" fill="#555"') + T(cx, cy + 1.2, b, 'font-size="2.8" font-weight="bold"'); });
+            h += T(AX, AY + AH + 7, 'Cotas en mm: longitud de corte de cada tramo recto. Curvas: ángulo y radio al eje. ● Wn: soldadura de taller. ○ extremo del spool. Doble trazo: cara de brida.', 'font-size="2"');
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297"><defs><marker id="fl" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#000"/></marker></defs>${h}</svg>`;
+        }
+        let SPOOLS = [], spoolVisto = 0;
+        function abrirSpools() {
+            cerrarMenus && cerrarMenus(); SPOOLS = spoolsRed();
+            if (!SPOOLS.length) { aviso('No hay tuberías en la hoja para formar spools.', 'error'); return; }
+            spoolVisto = Math.min(spoolVisto, SPOOLS.length - 1);
+            document.querySelector('#modal-red h3 span').innerHTML = '<i class="fa-solid fa-cubes text-blue-600 mr-1.5"></i> Isométricos de fabricación (spools)';
+            document.querySelector('#modal-red > div').style.width = 'min(1250px, 98vw)'; document.getElementById('modal-red').style.display = 'flex'; pintarSpool();
+        }
+        function pintarSpool() {
+            const sp = SPOOLS[spoolVisto], svg = svgSpool(sp, spoolVisto + 1, SPOOLS.length) || '<p>Sin geometría.</p>', Lt = sp.piezas.reduce((s, p) => s + p.L, 0);
+            document.getElementById('red-content').innerHTML = `<div class="flex gap-2 items-center mb-2 text-xs"><button onclick="spoolVisto=Math.max(0,spoolVisto-1);pintarSpool()" class="px-2 py-1 border rounded">◀</button>
+                <select onchange="spoolVisto=+this.value;pintarSpool()" class="border rounded p-1">${SPOOLS.map((s, i) => `<option value="${i}" ${i === spoolVisto ? 'selected' : ''}>${esc(s.nombre)} · ${s.els.length} piezas · ${s.sold.length} sold.</option>`).join('')}</select>
+                <button onclick="spoolVisto=Math.min(SPOOLS.length-1,spoolVisto+1);pintarSpool()" class="px-2 py-1 border rounded">▶</button>
+                <span class="text-slate-500">${SPOOLS.length} spools · ${SPOOLS.reduce((s, x) => s + x.sold.length, 0)} soldaduras · este: tubo ${fmt(Lt / 1000, 2)} m</span></div>
+                <div class="border bg-white" style="aspect-ratio:420/297;max-height:66vh">${svg.replace('width="420mm" height="297mm"', 'width="100%" height="100%"')}</div>`;
+            document.getElementById('red-footer').innerHTML = `<div class="flex gap-2 w-full text-xs"><span class="text-slate-400 self-center flex-1">Spools separados en las caras de brida y en válvulas, equipos y juntas. Las soldaduras de campo se marcan a mano.</span>
+                <button onclick="exportarSpoolsExcel()" class="px-3 py-1.5 border rounded"><i class="fa-solid fa-file-excel mr-1 text-emerald-600"></i>Excel</button>
+                <button onclick="imprimirSpools()" class="px-3 py-1.5 border rounded"><i class="fa-solid fa-print mr-1"></i>Imprimir / PDF (todos)</button>
+                <button onclick="cerrarModalRed()" class="px-3 py-1.5 bg-blue-600 text-white rounded">Cerrar</button></div>`;
+        }
+        function imprimirSpools() {
+            if (!puedeGuardar('imprimir los isométricos')) return;
+            const w = window.open('', '_blank'); if (!w) { aviso('El navegador ha bloqueado la ventana: permite las ventanas emergentes.', 'error'); return; }
+            w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc((proyecto.numero || 'PIPING') + ' · spools')}</title><style>@page{size:A3 landscape;margin:0}body{margin:0}svg{display:block;page-break-after:always}</style></head><body>${SPOOLS.map((s, i) => svgSpool(s, i + 1, SPOOLS.length)).filter(Boolean).join('')}</body></html>`);
+            w.document.close(); setTimeout(() => w.print(), 400);
+        }
+        async function exportarSpoolsExcel() {
+            if (!puedeGuardar('exportar los spools')) return;
+            let X; try { X = await cargarXLSX(); } catch (e) { aviso(e.message, 'error'); return; }
+            const S = [['Spool', 'Línea', 'Piezas', 'Soldaduras', 'Tubo (m)', 'Elementos']], C = [['Spool', 'Pieza', 'Tubo', 'Material', 'Serie', 'Tamaño', 'Curvas', 'R (mm)', 'L corte (mm)', 'Elementos']], W = [['Spool', 'Soldadura', 'Tipo', 'Descripción', 'Tamaño', 'Elemento A', 'Elemento B']], M = [['Spool', 'Pos', 'Descripción', 'Tamaño', 'Rating', 'Material', 'Cantidad', 'Ud']];
+            SPOOLS.forEach(sp => { S.push([sp.nombre, sp.linea, sp.els.length, sp.sold.length, +(sp.piezas.reduce((s, p) => s + p.L, 0) / 1000).toFixed(3), sp.els.map(tagDe).join(', ')]);
+                sp.piezas.forEach(p => { const t = p.tubo.type === 'tuberia' ? p.tubo : (tuboDeCurva(p.tubo) || p.tubo); C.push([sp.nombre, p.n, tagDe(t), t.material || '', t.serie || '', t.dn || '', p.curvas, p.R || '', Math.round(p.L), p.els.map(tagDe).join(' + ')]); });
+                sp.sold.forEach(w => W.push([sp.nombre, w.n, w.cod, w.txt, w.dn || '', tagDe(w.a), tagDe(w.b)]));
+                materialesSpool(sp).forEach(f => M.push([sp.nombre, f.pos, f.desc, f.tam, f.pn, f.mat, f.ud === 'm' ? +f.n.toFixed(3) : f.n, f.ud])); });
+            const wb = X.utils.book_new(); [['Spools', S], ['Corte de tubo', C], ['Soldaduras', W], ['Materiales', M]].forEach(([n, a]) => X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(a), n));
+            X.writeFile(wb, `${proyecto.numero || 'PIPING'}_SPOOLS.xlsx`);
+        }
+        // ==================================================================================
+        // v8.67 · EXPORTAR EL MODELO 3D: IFC4 (BIM: Navisworks, Revit, Solibri, BIMcollab…, con clase IFC y propiedades por pieza),
+        // STEP AP214 (CAD: SolidWorks, Inventor, Rhino, FreeCAD; sólidos facetados, no paramétricos) y STL (malla).
+        // Sale exactamente lo que se ve en la vista 3D (tubos huecos, bridas reales, curvas), en mm y en los ejes del 3D.
+        // ==================================================================================
+        async function asegurarEscena3D() {
+            if (V3 && V3.grupo && vista3d) return true;
+            ponerVista('3d'); for (let i = 0; i < 150; i++) { await new Promise(r => setTimeout(r, 100)); if (V3 && V3.grupo && V3.objetos && V3.objetos.length) return true; }
+            aviso('No se ha podido abrir la vista 3D.', 'error'); return false;
+        }
+        // triángulos por elemento, en mm (coordenadas del mundo 3D)
+        function mallas3DPorElemento() {
+            const T = V3.T, por = new Map(), sel = new Set([idSeleccionado, ...seleccion]);
+            V3.grupo.updateMatrixWorld(true);
+            V3.grupo.traverse(m => { if (!m.isMesh || !m.userData || !m.userData.id || !m.geometry || !m.geometry.attributes.position) return;
+                const g = m.geometry, pos = g.attributes.position, idx = g.index, mw = m.matrixWorld, v = new T.Vector3(), id = m.userData.id;
+                const e = por.get(id) || { id, pts: [], tri: [], mapa: new Map(), color: null }; por.set(id, e);
+                if (!e.color && m.material && m.material.color && !sel.has(id)) e.color = m.material.color.toArray();
+                const base = []; for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(mw); const p = [+(v.x * 1000).toFixed(3), +(v.y * 1000).toFixed(3), +(v.z * 1000).toFixed(3)], k = p.join(',');
+                    let j = e.mapa.get(k); if (j == null) { j = e.pts.length; e.pts.push(p); e.mapa.set(k, j); } base.push(j); }
+                const n = idx ? idx.count : pos.count; for (let i = 0; i + 2 < n; i += 3) { const a = base[idx ? idx.getX(i) : i], b = base[idx ? idx.getX(i + 1) : i + 1], c = base[idx ? idx.getX(i + 2) : i + 2]; if (a !== b && b !== c && a !== c) e.tri.push([a, b, c]); } });
+            return [...por.values()].filter(e => e.tri.length).map(e => Object.assign(e, { el: elementosRed.find(x => x.id === e.id) || buscarEnHojas(e.id) }));
+        }
+        function buscarEnHojas(id) { try { for (const h of hojas) { const x = (h.e || []).find(e => e.id === id); if (x) return x; } } catch (e) { } return null; }
+        // texto STEP/IFC: comillas dobladas y no ASCII como \X2\hhhh\X0\
+        const txtP21 = s => "'" + String(s == null ? '' : s).replace(/'/g, "''").replace(/\\/g, '\\\\').replace(/[^\x20-\x7e]+/g, m => '\\X2\\' + [...m].map(c => c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')).join('') + '\\X0\\') + "'";
+        const numP21 = x => { const s = (Math.abs(x) < 1e-9 ? 0 : x).toFixed(3).replace(/0+$/, ''); return s.endsWith('.') ? s : s; };
+        function guidIFC() { const c = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$', b = crypto.getRandomValues(new Uint8Array(16)); let n = 0n; b.forEach(x => { n = (n << 8n) | BigInt(x); });
+            let s = ''; for (let i = 0; i < 22; i++) { s = c[Number(n % 64n)] + s; n /= 64n; } return s; }   // 128 bits → 22 caracteres (el primero lleva 2 bits)
+        function claseIFC(el) {
+            if (!el) return ['IFCBUILDINGELEMENTPROXY', '.NOTDEFINED.'];
+            const st = el.subtype || '';
+            if (el.type === 'tuberia') return ['IFCPIPESEGMENT', tuboFlexible3D(el) ? '.FLEXIBLESEGMENT.' : '.RIGIDSEGMENT.'];
+            if (el.type === 'valvula') return ['IFCVALVE', st === 'retencion' ? '.CHECK.' : /control|neumatica|reguladora/.test(st) ? '.REGULATING.' : /seguridad|alivio/.test(st) ? '.PRESSURERELIEF.' : '.ISOLATING.'];
+            if (el.type === 'bomba') return ['IFCPUMP', '.NOTDEFINED.'];
+            if (esDeposito(el)) return ['IFCTANK', '.NOTDEFINED.'];
+            if (el.type === 'accesorio') return ['IFCPIPEFITTING', /^codo|curva/.test(st) ? '.BEND.' : /tee|cruce|injerto/.test(st) ? '.JUNCTION.' : st === 'reduccion' ? '.TRANSITION.' : SUBTIPOS_BRIDA.includes(st) || /manguito|machon|tuerca|racor/.test(st) ? '.CONNECTOR.' : st === 'tapon' ? '.EXIT.' : '.NOTDEFINED.'];
+            return ['IFCBUILDINGELEMENTPROXY', '.NOTDEFINED.'];
+        }
+        function propsPieza(el) { if (!el) return []; const dt = el.type === 'tuberia' ? datosTuberia(el) : null;
+            return [['Tag', tagDe(el)], ['Tipo', nombreTipo(el)], ['Linea', el.linea || ''], ['DN', el.dn || ''], ['Rating', el.pn || ''], ['Material', el.gradoMaterial || el.materialComp || el.material || ''],
+                ...(dt ? [['Serie', el.serie || ''], ['De_mm', String(dt.od)], ['Espesor_mm', String(dt.e)], ['Longitud_mm', String(el.longitud)]] : []), ...(el.subtype === 'curva' ? [['Angulo', String(el.anguloCurva)], ['Radio_mm', String(Math.round(radioCurvaMm(el)))]] : [])].filter(p => p[1] !== ''); }
+        function textoIFC(piezas) {
+            const L = []; let n = 0; const E = s => { L.push(`#${++n}=${s};`); return '#' + n; }, nom = proyecto.numero || 'PIPING';
+            const org = E('IFCCARTESIANPOINT((0.,0.,0.))'), wcs = E(`IFCAXIS2PLACEMENT3D(${org},$,$)`), ctx = E(`IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-05,${wcs},$)`);
+            const un = E('IFCSIUNIT(*,.LENGTHUNIT.,.MILLI.,.METRE.)'), ua = E(`IFCUNITASSIGNMENT((${un}))`);
+            const pj = E(`IFCPROJECT(${txtP21(guidIFC())},$,${txtP21(nom)},${txtP21(proyecto.descripcion || '')},$,$,$,(${ctx}),${ua})`), lp = E(`IFCLOCALPLACEMENT($,${wcs})`);
+            const si = E(`IFCSITE(${txtP21(guidIFC())},$,${txtP21(proyecto.esBuque ? ((proyecto.buque || {}).nombre || 'Buque') : (proyecto.ciudad || 'Emplazamiento'))},$,$,${lp},$,$,.ELEMENT.,$,$,$,$,$)`);
+            const bu = E(`IFCBUILDING(${txtP21(guidIFC())},$,${txtP21(proyecto.instalacion || nom)},$,$,${lp},$,$,.ELEMENT.,$,$,$)`), sto = E(`IFCBUILDINGSTOREY(${txtP21(guidIFC())},$,'Tuberías',$,$,${lp},$,$,.ELEMENT.,0.)`);
+            E(`IFCRELAGGREGATES(${txtP21(guidIFC())},$,$,$,${pj},(${si}))`); E(`IFCRELAGGREGATES(${txtP21(guidIFC())},$,$,$,${si},(${bu}))`); E(`IFCRELAGGREGATES(${txtP21(guidIFC())},$,$,$,${bu},(${sto}))`);
+            const prods = [];
+            piezas.forEach(pz => { const el = pz.el, [cl, pt] = claseIFC(el);
+                const pl = E(`IFCCARTESIANPOINTLIST3D((${pz.pts.map(p => `(${p.map(numP21).join(',')})`).join(',')}))`), fs = E(`IFCTRIANGULATEDFACESET(${pl},$,$,(${pz.tri.map(t => `(${t[0] + 1},${t[1] + 1},${t[2] + 1})`).join(',')}),$)`);
+                if (pz.color) { const c = E(`IFCCOLOURRGB($,${pz.color.map(x => numP21(Math.max(0, Math.min(1, x)))).join(',')})`), sh = E(`IFCSURFACESTYLESHADING(${c},0.)`), ss = E(`IFCSURFACESTYLE($,.BOTH.,(${sh}))`); E(`IFCSTYLEDITEM(${fs},(${ss}),$)`); }
+                const sr = E(`IFCSHAPEREPRESENTATION(${ctx},'Body','Tessellation',(${fs}))`), pds = E(`IFCPRODUCTDEFINITIONSHAPE($,$,(${sr}))`);
+                const tg = el ? tagDe(el) : pz.id, p = E(`${cl}(${txtP21(guidIFC())},$,${txtP21(tg)},${txtP21(el ? nombreTipo(el) : '')},$,${lp},${pds},${txtP21(tg)},${pt})`); prods.push(p);
+                const pr = propsPieza(el).map(([k, v]) => E(`IFCPROPERTYSINGLEVALUE(${txtP21(k)},$,IFCLABEL(${txtP21(v)}),$)`));
+                if (pr.length) { const ps = E(`IFCPROPERTYSET(${txtP21(guidIFC())},$,'PIPING',$,(${pr.join(',')}))`); E(`IFCRELDEFINESBYPROPERTIES(${txtP21(guidIFC())},$,$,$,(${p}),${ps})`); } });
+            E(`IFCRELCONTAINEDINSPATIALSTRUCTURE(${txtP21(guidIFC())},$,$,$,(${prods.join(',')}),${sto})`);
+            const fecha = new Date().toISOString().slice(0, 19);
+            return `ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');\nFILE_NAME(${txtP21(nom + '.ifc')},'${fecha}',(${txtP21(proyecto.autor || '')}),(''),'PIPING ${VERSION_WEB}','PIPING','');\nFILE_SCHEMA(('IFC4'));\nENDSEC;\nDATA;\n${L.join('\n')}\nENDSEC;\nEND-ISO-10303-21;\n`;
+        }
+        function textoSTEP(piezas) {
+            const L = []; let n = 0; const E = s => { L.push(`#${++n}=${s};`); return '#' + n; }, nom = proyecto.numero || 'PIPING';
+            const ac = E("APPLICATION_CONTEXT('automotive design')"); E(`APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,${ac})`);
+            const pc = E(`PRODUCT_CONTEXT('',${ac},'mechanical')`), pdc = E(`PRODUCT_DEFINITION_CONTEXT('part definition',${ac},'design')`);
+            const u1 = E('(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))'), u2 = E('(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))'), u3 = E('(NAMED_UNIT(*)SI_UNIT($,.STERADIAN.)SOLID_ANGLE_UNIT())');
+            const unc = E(`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-03),${u1},'distance_accuracy_value','')`);
+            const ctx = E(`(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((${unc}))GLOBAL_UNIT_ASSIGNED_CONTEXT((${u1},${u2},${u3}))REPRESENTATION_CONTEXT('',''))`);
+            const o = E("CARTESIAN_POINT('',(0.,0.,0.))"), dz = E("DIRECTION('',(0.,0.,1.))"), dx = E("DIRECTION('',(1.,0.,0.))"), ax = E(`AXIS2_PLACEMENT_3D('',${o},${dz},${dx})`);
+            const pr = E(`PRODUCT(${txtP21(nom)},${txtP21(nom)},'',(${pc}))`), pdf = E(`PRODUCT_DEFINITION_FORMATION('','',${pr})`), pd = E(`PRODUCT_DEFINITION('design','',${pdf},${pdc})`), pds = E(`PRODUCT_DEFINITION_SHAPE('','',${pd})`);
+            const sol = [], dirs = new Map(), dirDe = v => { const k = v.map(x => x.toFixed(4)).join(','); if (!dirs.has(k)) dirs.set(k, E(`DIRECTION('',(${v.map(x => x.toFixed(6)).join(',')}))`)); return dirs.get(k); };
+            piezas.forEach(pz => { const P = pz.pts.map(p => E(`CARTESIAN_POINT('',(${p.map(numP21).join(',')}))`)), caras = [];
+                pz.tri.forEach(t => { const [a, b, c] = t.map(i => pz.pts[i]), u = v3.sum(b, v3.mul(a, -1)), w = v3.sum(c, v3.mul(a, -1)), nn = v3.cross(u, w), ln = v3.len(nn); if (ln < 1e-9) return;
+                    const nz = v3.mul(nn, 1 / ln), pl = E(`PLANE('',${E(`AXIS2_PLACEMENT_3D('',${P[t[0]]},${dirDe(nz)},$)`)})`), lp = E(`POLY_LOOP('',(${P[t[0]]},${P[t[1]]},${P[t[2]]}))`);
+                    caras.push(E(`FACE_SURFACE('',(${E(`FACE_OUTER_BOUND('',${lp},.T.)`)}),${pl},.T.)`)); });
+                if (caras.length) sol.push(E(`FACETED_BREP(${txtP21(pz.el ? tagDe(pz.el) : pz.id)},${E(`CLOSED_SHELL('',(${caras.join(',')}))`)})`)); });
+            const rep = E(`FACETED_BREP_SHAPE_REPRESENTATION(${txtP21(nom)},(${ax},${sol.join(',')}),${ctx})`); E(`SHAPE_DEFINITION_REPRESENTATION(${pds},${rep})`);
+            const fecha = new Date().toISOString().slice(0, 19);
+            return `ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('PIPING 3D model'),'2;1');\nFILE_NAME(${txtP21(nom + '.stp')},'${fecha}',(${txtP21(proyecto.autor || '')}),(''),'PIPING ${VERSION_WEB}','PIPING','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n${L.join('\n')}\nENDSEC;\nEND-ISO-10303-21;\n`;
+        }
+        function binarioSTL(piezas) {
+            const nt = piezas.reduce((s, p) => s + p.tri.length, 0), buf = new ArrayBuffer(84 + nt * 50), dv = new DataView(buf); let o = 84;
+            const cab = `PIPING ${VERSION_WEB} ${proyecto.numero || ''} mm`.slice(0, 80); for (let i = 0; i < cab.length; i++) dv.setUint8(i, cab.charCodeAt(i) & 127); dv.setUint32(80, nt, true);
+            piezas.forEach(pz => pz.tri.forEach(t => { const [a, b, c] = t.map(i => pz.pts[i]), nn = v3.cross(v3.sum(b, v3.mul(a, -1)), v3.sum(c, v3.mul(a, -1))), l = v3.len(nn) || 1;
+                [nn[0] / l, nn[1] / l, nn[2] / l, ...a, ...b, ...c].forEach(x => { dv.setFloat32(o, x, true); o += 4; }); dv.setUint16(o, 0, true); o += 2; }));
+            return buf;
+        }
+        async function exportarModelo3D(fmt) {
+            if (!puedeGuardar('exportar el modelo 3D')) return;
+            if (!await asegurarEscena3D()) return;
+            const piezas = mallas3DPorElemento(); if (!piezas.length) { aviso('El 3D no tiene piezas que exportar.', 'error'); return; }
+            const nom = (typeof nombreArchivoBase === 'function' ? nombreArchivoBase() : (proyecto.numero || 'PIPING')) + '_3D', nt = piezas.reduce((s, p) => s + p.tri.length, 0);
+            aviso(`Exportando ${piezas.length} piezas (${nt.toLocaleString('es-ES')} triángulos)…`);
+            await new Promise(r => setTimeout(r, 30));
+            if (fmt === 'ifc') descargarArchivo(textoIFC(piezas), nom + '.ifc', 'application/x-step');
+            else if (fmt === 'step') descargarArchivo(textoSTEP(piezas), nom + '.stp', 'application/step');
+            else descargarArchivo(binarioSTL(piezas), nom + '.stl', 'model/stl');
         }
         function partirTuberia(t, L1, L2, comp) {
             guardarEstado(); invalidarResultados();

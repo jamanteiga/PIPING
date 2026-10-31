@@ -1006,7 +1006,8 @@ function datosListados(filtroLin) {
             const M = [['Grupo', 'Descripción', 'Norma / serie', 'Tamaño', 'Cantidad', 'Unidad', `Precio unitario (${monedaProy()})`, `Importe (${monedaProy()})`]];
             const pr = v => { const x = v.find(e => e.precio != null && !isNaN(+e.precio)); return x ? +x.precio : ''; }, imp = (q, p) => p === '' ? '' : +(q * p).toFixed(2);
             const agrupar = (lista, clave) => { const m = new Map(); lista.forEach(x => { const k = clave(x); m.set(k, (m.get(k) || []).concat([x])); }); return m; };
-            agrupar(ELS.filter(e => e.type === 'tuberia'), e => [e.material, e.serie, e.dn, e.precio == null ? '' : e.precio].join('|')).forEach((v, k) => {
+            const tubosMed = ELS.filter(e => e.type === 'tuberia').concat(ELS.filter(e => e.subtype === 'curva').map(cu => { const t = tuboDeCurva(cu); return t ? Object.assign({}, t, { longitud: arcoCurvaMm(cu) }) : null; }).filter(Boolean));   // v8.67 · con el arco de las curvas
+            agrupar(tubosMed, e => [e.material, e.serie, e.dn, e.precio == null ? '' : e.precio].join('|')).forEach((v, k) => {
                 const [mat, ser, dn] = k.split('|'), dt = datosTuberia(v[0]), q = r2(v.reduce((s, e) => s + e.longitud / 1000, 0)), p = pr(v);
                 M.push(['Tubería', `${mat} · De ${dt.od} × e ${dt.e} mm`, `${dt.norma} · ${/^[0-9]+S?$/.test(ser) ? 'Sch ' + ser : ser}`, tamanoTubo(mat, dn), q, 'm', p, imp(q, p)]);
             });
